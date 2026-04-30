@@ -102,7 +102,7 @@ onMounted(load)
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="username" label="用户名" width="160" />
       <el-table-column prop="nickname" label="昵称" width="160" />
-      <el-table-column prop="status" label="状态" width="100" />
+      <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag v-if="row.status === 'enabled'" type="success">启用</el-tag><el-tag v-else type="info">禁用</el-tag></template></el-table-column>
       <el-table-column label="操作" width="140">
         <template #default="{ row }"><el-button size="small" @click="openUserRoleDialog(row)">角色分配</el-button></template>
       </el-table-column>

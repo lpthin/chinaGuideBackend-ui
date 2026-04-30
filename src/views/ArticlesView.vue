@@ -131,9 +131,9 @@ watchEffect(() => { if (currentSiteId.value) load() })
     <el-table v-loading="loading" :data="articles" border>
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="slug" label="Slug" />
-      <el-table-column prop="articleType" label="类型" width="120" />
+      <el-table-column label="类型" width="120"><template #default="{ row }">{{ row.articleType === 'guide' ? '指南' : row.articleType }}</template></el-table-column>
       <el-table-column prop="sourceLocale" label="源语言" width="110" />
-      <el-table-column prop="status" label="状态" width="160" />
+      <el-table-column label="状态" width="170"><template #default="{ row }"><el-tag v-if="row.status === 'pending_human_review'" type="warning">待审核</el-tag><el-tag v-else-if="row.status === 'approved'" type="success">已通过</el-tag><el-tag v-else-if="row.status === 'published'" type="primary">已发布</el-tag><el-tag v-else-if="row.status === 'draft'" type="info">草稿</el-tag><el-tag v-else>{{ row.status }}</el-tag></template></el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180" />
       <el-table-column label="操作" width="160"><template #default="{ row }"><el-button size="small" @click="openVersions(row)">查看版本</el-button></template></el-table-column>
     </el-table>

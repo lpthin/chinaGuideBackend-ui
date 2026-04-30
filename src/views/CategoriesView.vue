@@ -48,7 +48,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
       <el-table-column prop="name" label="名称" />
       <el-table-column prop="moduleCode" label="模块" />
       <el-table-column prop="sortOrder" label="排序" width="90" />
-      <el-table-column prop="status" label="状态" width="100" />
+      <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag v-if="row.status === 'enabled'" type="success">启用</el-tag><el-tag v-else-if="row.status === 'active'" type="success">启用</el-tag><el-tag v-else type="info">{{ row.status === 'disabled' ? '禁用' : row.status }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="160"><template #default="{ row }"><el-button size="small" @click="resetForm(row); dialogVisible = true">编辑</el-button></template></el-table-column>
     </el-table>
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑栏目' : '新建栏目'" width="680px">
@@ -60,7 +60,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
         <el-form-item label="模块"><el-input v-model="form.moduleCode" /></el-form-item>
         <el-form-item label="排序"><el-input-number v-model="form.sortOrder" :min="0" /></el-form-item>
         <el-form-item label="描述"><el-input v-model="form.description" type="textarea" /></el-form-item>
-        <el-form-item label="状态"><el-input v-model="form.status" /></el-form-item>
+        <el-form-item label="状态"><el-select v-model="form.status" style="width:100%"><el-option label="启用" value="enabled" /><el-option label="禁用" value="disabled" /></el-select></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
     </el-dialog>

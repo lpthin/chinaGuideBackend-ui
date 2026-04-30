@@ -80,7 +80,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
             <el-table-column prop="rawKeyword" label="原始关键词" />
             <el-table-column prop="normalizedKeyword" label="归一化" />
             <el-table-column prop="priority" label="优先级" width="90" />
-            <el-table-column prop="status" label="状态" width="110" />
+            <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag v-if="row.status === 'pending'" type="warning">待处理</el-tag><el-tag v-else-if="row.status === 'distilled'" type="success">已蒸馏</el-tag><el-tag v-else-if="row.status === 'completed'" type="success">已完成</el-tag><el-tag v-else type="info">{{ row.status }}</el-tag></template></el-table-column>
           </el-table>
         </el-card>
       </el-col>
