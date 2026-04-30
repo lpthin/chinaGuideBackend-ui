@@ -71,8 +71,12 @@ onMounted(load)
         <el-form-item label="启用语言">
           <el-select v-model="form.enabledLocalesList" multiple style="width:100%"><el-option v-for="loc in localeOptions" :key="loc.value" :label="loc.label" :value="loc.value" /></el-select>
         </el-form-item>
-        <el-form-item label="发布模式"><el-input v-model="form.publishMode" /></el-form-item>
-        <el-form-item label="状态"><el-input v-model="form.status" /></el-form-item>
+        <el-form-item label="发布模式">
+          <el-select v-model="form.publishMode" style="width:100%"><el-option label="静态 HTML" value="static_html" /><el-option label="动态" value="dynamic" /></el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="form.status" style="width:100%"><el-option label="启用" value="active" /><el-option label="禁用" value="disabled" /></el-select>
+        </el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
     </el-dialog>
