@@ -26,7 +26,7 @@ const form = reactive<{ code: string; name: string; domain: string; siteType: st
 
 function resetForm(site?: Site) {
   editingId.value = site?.id || null
-  if (site) { Object.assign(form, site); form.enabledLocalesList = (site.enabledLocales || 'zh-CN').split(',').map((l: string) => l.trim()); } else { resetForm(); }
+  if (site) { Object.assign(form, site); form.enabledLocalesList = (site.enabledLocales || 'zh-CN').split(',').map((l) => l.trim()); } else { Object.assign(form, { code: '', name: '', domain: '', siteType: 'content', defaultLocale: 'zh-CN', enabledLocalesList: ['zh-CN'], frontendProjectPath: '', publishMode: 'static', themeCode: 'default', status: 'active' }) }
 }
 
 async function load() {
