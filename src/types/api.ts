@@ -95,6 +95,7 @@ export interface ArticleVersion {
   schemaJson?: string
   llmsSummary?: string
   geoCitationSummary?: string
+  featuredMediaId?: number
   translationStatus?: string
   aiModel?: string
   aiPromptVersion?: string

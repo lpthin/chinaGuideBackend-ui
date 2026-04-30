@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watchEffect } from 'vue'
 import { ElMessage } from 'element-plus'
 import { generateArticleApi, generateDailyArticlesApi, listArticlesApi, listArticleVersionsApi, updateArticleVersionApi, rollbackArticleVersionApi } from '@/api/articles'
+import { listMediaApi } from '@/api/media'
 import { listKeywordClustersApi } from '@/api/keywords'
 import { useSiteStore } from '@/stores/site'
 import type { Article, ArticleVersion, KeywordCluster } from '@/types/api'
@@ -18,7 +19,9 @@ const drawerVisible = ref(false)
 const editDialogVisible = ref(false)
 const saving = ref(false)
 const rollingBack = ref(false)
-const editForm = reactive<ArticleVersion>({ title: '', summary: '', contentMd: '', seoTitle: '', seoDescription: '', keywords: '', faqJson: '', schemaJson: '', llmsSummary: '', geoCitationSummary: '' })
+const editForm = reactive<ArticleVersion>({ title: '', summary: '', contentMd: '', seoTitle: '', seoDescription: '', keywords: '', faqJson: '', schemaJson: '', llmsSummary: '', geoCitationSummary: '', featuredMediaId: undefined })
+const mediaList = ref<any[]>([])
+const mediaDialogVisible = ref(false)
 const generateDialogVisible = ref(false)
 const keywordClusterId = ref<number>()
 
@@ -93,6 +96,22 @@ function previewVersion(version: ArticleVersion) {
   window.open(URL.createObjectURL(blob), '_blank')
 }
 
+
+async function openMediaPicker() {
+  if (!currentSiteId.value) return
+  mediaList.value = await listMediaApi(currentSiteId.value)
+  mediaDialogVisible.value = true
+}
+
+function selectMedia(media: any) {
+  editForm.featuredMediaId = media.id
+  mediaDialogVisible.value = false
+}
+
+function clearFeaturedMedia() {
+  editForm.featuredMediaId = undefined
+}
+
 async function openVersions(article: Article) {
   if (!article.id) return
   versions.value = await listArticleVersionsApi(article.id)
@@ -153,10 +172,27 @@ watchEffect(() => { if (currentSiteId.value) load() })
         <el-form-item label="关键词"><el-input v-model="editForm.keywords" /></el-form-item>
         <el-form-item label="LLMS摘要"><el-input v-model="editForm.llmsSummary" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="GEO引用"><el-input v-model="editForm.geoCitationSummary" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="特色图片">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span v-if="editForm.featuredMediaId">已选媒体 ID: {{ editForm.featuredMediaId }}</span>
+            <el-button size="small" @click="openMediaPicker">选择图片</el-button>
+            <el-button v-if="editForm.featuredMediaId" size="small" type="danger" @click="clearFeaturedMedia">清除</el-button>
+          </div>
+        </el-form-item>
         <el-form-item label="FAQ JSON"><el-input v-model="editForm.faqJson" type="textarea" :rows="4" /></el-form-item>
         <el-form-item label="Schema JSON"><el-input v-model="editForm.schemaJson" type="textarea" :rows="4" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="editDialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="saveVersion">保存</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="mediaDialogVisible" title="选择媒体文件" width="720px">
+      <el-table :data="mediaList" border @row-click="selectMedia" style="cursor:pointer">
+        <el-table-column label="预览" width="80"><template #default="{ row }">
+          <el-image v-if="row.mimeType?.startsWith('image/')" :src="`/uploads/${currentSiteId}/${row.fileName}`" fit="cover" style="width:40px;height:40px;border-radius:4px" />
+        </template></el-table-column>
+        <el-table-column prop="originalName" label="文件名" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="mimeType" label="类型" width="120" />
+      </el-table>
     </el-dialog>
   </div>
 </template>
