@@ -29,7 +29,7 @@ npm run dev
 默认 Vite 地址：
 
 ```text
-http://localhost:5173
+http://localhost:5175
 ```
 
 ## 后端地址
@@ -78,7 +78,7 @@ npm run dev
 3. 打开：
 
 ```text
-http://localhost:5173
+http://localhost:5175
 ```
 
 4. 登录后台。
