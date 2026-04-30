@@ -134,6 +134,8 @@ export interface DashboardStats {
   articles: number
   pendingReviews: number
   approvedArticles: number
+  pageViews: number
+  todayPageViews: number
 }
 
 export interface PublishJob {

@@ -8,7 +8,7 @@ import type { DashboardStats } from '@/types/api'
 const siteStore = useSiteStore()
 const currentSiteId = computed(() => siteStore.currentSite?.id)
 const loading = ref(false)
-const stats = ref<DashboardStats>({ keywords: 0, clusters: 0, articles: 0, pendingReviews: 0, approvedArticles: 0 })
+const stats = ref<DashboardStats>({ keywords: 0, clusters: 0, articles: 0, pendingReviews: 0, approvedArticles: 0, pageViews: 0, todayPageViews: 0 })
 
 async function loadStats() {
   if (!currentSiteId.value) return
@@ -35,11 +35,12 @@ watchEffect(() => { if (currentSiteId.value) loadStats() })
       <el-button :loading="loading" @click="loadStats">刷新</el-button>
     </div>
     <el-row :gutter="16" class="metrics">
-      <el-col :span="5"><el-card><div class="metric"><span>关键词</span><b>{{ stats.keywords }}</b></div></el-card></el-col>
-      <el-col :span="5"><el-card><div class="metric"><span>聚类</span><b>{{ stats.clusters }}</b></div></el-card></el-col>
-      <el-col :span="5"><el-card><div class="metric"><span>文章</span><b>{{ stats.articles }}</b></div></el-card></el-col>
-      <el-col :span="5"><el-card><div class="metric"><span>待审核</span><b>{{ stats.pendingReviews }}</b></div></el-card></el-col>
+      <el-col :span="4"><el-card><div class="metric"><span>关键词</span><b>{{ stats.keywords }}</b></div></el-card></el-col>
+      <el-col :span="4"><el-card><div class="metric"><span>聚类</span><b>{{ stats.clusters }}</b></div></el-card></el-col>
+      <el-col :span="4"><el-card><div class="metric"><span>文章</span><b>{{ stats.articles }}</b></div></el-card></el-col>
+      <el-col :span="4"><el-card><div class="metric"><span>待审核</span><b>{{ stats.pendingReviews }}</b></div></el-card></el-col>
       <el-col :span="4"><el-card><div class="metric"><span>可发布</span><b>{{ stats.approvedArticles }}</b></div></el-card></el-col>
+      <el-col :span="4"><el-card><div class="metric"><span>今日浏览</span><b>{{ stats.todayPageViews }}</b></div></el-card></el-col>
     </el-row>
     <el-card class="flow-card">
       <template #header>Phase 1 内容流程</template>
