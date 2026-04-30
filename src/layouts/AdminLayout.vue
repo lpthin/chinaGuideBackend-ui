@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, UserFilled } from '@element-plus/icons-vue'
+import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSiteStore } from '@/stores/site'
 
@@ -22,6 +22,7 @@ const menuItems = [
   { path: '/publishing', label: '发布任务', icon: Upload },
   { path: '/prompt-templates', label: 'Prompt模板', icon: MagicStick },
   { path: '/media', label: '媒体库', icon: Picture },
+  { path: '/comments', label: '评论管理', icon: ChatDotSquare },
   { path: '/roles', label: '权限管理', icon: UserFilled }
 ]
 

@@ -223,3 +223,18 @@ export interface Media {
   height?: number
   createdAt?: string
 }
+
+
+export interface ArticleComment {
+  id?: number
+  siteId: number
+  articleId: number
+  parentId?: number
+  authorName?: string
+  authorEmail?: string
+  content: string
+  status?: string
+  reviewedBy?: number
+  reviewedAt?: string
+  createdAt?: string
+}
