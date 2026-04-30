@@ -69,7 +69,7 @@ onMounted(load)
           <el-select v-model="form.defaultLocale" style="width:100%"><el-option v-for="loc in localeOptions" :key="loc.value" :label="loc.label" :value="loc.value" /></el-select>
         </el-form-item>
         <el-form-item label="启用语言">
-          <el-select v-model="form.enabledLocalesList" multiple collapse-tags collapse-tags-tooltip style="width:100%"><el-option v-for="loc in localeOptions" :key="loc.value" :label="loc.label" :value="loc.value" /></el-select>
+          <el-select v-model="form.enabledLocalesList" multiple style="width:100%"><el-option v-for="loc in localeOptions" :key="loc.value" :label="loc.label" :value="loc.value" /></el-select>
         </el-form-item>
         <el-form-item label="发布模式"><el-input v-model="form.publishMode" /></el-form-item>
         <el-form-item label="状态"><el-input v-model="form.status" /></el-form-item>
