@@ -20,7 +20,8 @@ const routes = [
       { path: 'keywords', name: 'keywords', component: () => import('@/views/KeywordsView.vue') },
       { path: 'articles', name: 'articles', component: () => import('@/views/ArticlesView.vue') },
       { path: 'reviews', name: 'reviews', component: () => import('@/views/ReviewsView.vue') },
-      { path: 'publishing', name: 'publishing', component: () => import('@/views/PublishingView.vue') }
+      { path: 'publishing', name: 'publishing', component: () => import('@/views/PublishingView.vue') },
+      { path: 'prompt-templates', name: 'prompt-templates', component: () => import('@/views/PromptTemplatesView.vue') }
     ]
   }
 ]

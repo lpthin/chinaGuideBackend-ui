@@ -132,3 +132,16 @@ export interface PublishJob {
   createdAt?: string
   finishedAt?: string
 }
+
+
+export interface PromptTemplate {
+  id?: number
+  siteId?: number | null
+  purpose: string
+  version?: string
+  name: string
+  templateText: string
+  enabled?: boolean
+  createdAt?: string
+  updatedAt?: string
+}
