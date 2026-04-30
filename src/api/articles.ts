@@ -16,3 +16,8 @@ export function listArticlesApi(siteId: number) {
 export function listArticleVersionsApi(articleId: number) {
   return http.get<unknown, ArticleVersion[]>(`/admin/articles/${articleId}/versions`)
 }
+
+
+export function updateArticleVersionApi(versionId: number, payload: ArticleVersion) {
+  return http.put<unknown, ArticleVersion>(`/admin/article-versions/${versionId}`, payload)
+}
