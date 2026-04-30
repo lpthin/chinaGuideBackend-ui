@@ -80,6 +80,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
         <el-table-column label="类型" width="90"><template #default="{ row }">{{ row.dryRun ? 'Dry-run' : '发布' }}</template></el-table-column>
         <el-table-column prop="status" label="状态" width="110" />
         <el-table-column prop="outputPath" label="输出路径" min-width="260" show-overflow-tooltip />
+        <el-table-column prop="gitHeadAfter" label="提交后HEAD" min-width="150" show-overflow-tooltip />
         <el-table-column prop="errorMessage" label="错误" min-width="160" show-overflow-tooltip />
         <el-table-column prop="finishedAt" label="完成时间" width="180" />
       </el-table>

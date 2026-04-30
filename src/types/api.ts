@@ -137,6 +137,7 @@ export interface PublishJob {
   outputPath?: string
   affectedFiles?: string
   gitHeadBefore?: string
+  gitHeadAfter?: string
   errorMessage?: string
   createdAt?: string
   finishedAt?: string
