@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { useSiteStore } from '@/stores/site'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const siteStore = useSiteStore()
 
 const activeMenu = computed(() => route.path)
 
@@ -19,6 +21,14 @@ const menuItems = [
   { path: '/reviews', label: '审核中心', icon: Checked },
   { path: '/publishing', label: '发布任务', icon: Upload }
 ]
+
+onMounted(() => {
+  siteStore.loadSites().catch(() => undefined)
+})
+
+function handleSiteChange(value: number | string) {
+  siteStore.setCurrentSite(Number(value))
+}
 
 function logout() {
   auth.logout()
@@ -39,7 +49,14 @@ function logout() {
     </el-aside>
     <el-container>
       <el-header class="admin-header">
-        <div class="site-chip">当前站点：China Guide</div>
+        <el-select
+          :model-value="siteStore.currentSiteId"
+          placeholder="选择站点"
+          style="width: 240px"
+          @update:model-value="handleSiteChange"
+        >
+          <el-option v-for="site in siteStore.sites" :key="site.id" :label="site.name" :value="site.id" />
+        </el-select>
         <div class="user-actions">
           <span>{{ auth.user?.username || '管理员' }}</span>
           <el-button size="small" @click="logout">退出</el-button>
@@ -53,45 +70,11 @@ function logout() {
 </template>
 
 <style scoped>
-.admin-shell {
-  min-height: 100vh;
-  background: #f8fafc;
-}
-.admin-sidebar {
-  background: #111827;
-  color: #fff;
-}
-.brand {
-  height: 60px;
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: .5px;
-}
-.admin-header {
-  height: 60px;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.site-chip {
-  color: #334155;
-  font-weight: 600;
-}
-.user-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #475569;
-}
-.admin-main {
-  padding: 20px;
-}
-:deep(.el-menu) {
-  border-right: none;
-}
+.admin-shell { min-height: 100vh; background: #f8fafc; }
+.admin-sidebar { background: #111827; color: #fff; }
+.brand { height: 60px; display: flex; align-items: center; padding: 0 20px; font-size: 20px; font-weight: 800; letter-spacing: .5px; }
+.admin-header { height: 60px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; }
+.user-actions { display: flex; align-items: center; gap: 12px; color: #475569; }
+.admin-main { padding: 20px; }
+:deep(.el-menu) { border-right: none; }
 </style>

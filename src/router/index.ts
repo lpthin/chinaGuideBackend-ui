@@ -14,7 +14,9 @@ const routes = [
     component: AdminLayout,
     redirect: '/dashboard',
     children: [
-      { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') }
+      { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
+      { path: 'sites', name: 'sites', component: () => import('@/views/SitesView.vue') },
+      { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue') }
     ]
   }
 ]
