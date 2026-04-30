@@ -66,3 +66,40 @@ export interface KeywordCluster {
   sourceKeywordIds?: string
   createdAt?: string
 }
+
+export interface Article {
+  id?: number
+  siteId?: number
+  categoryId?: number
+  slug: string
+  articleType?: string
+  status?: string
+  sourceLocale?: string
+  publishedAt?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface ArticleVersion {
+  id?: number
+  articleId?: number
+  locale?: string
+  title: string
+  summary?: string
+  contentMd?: string
+  contentHtml?: string
+  seoTitle?: string
+  seoDescription?: string
+  keywords?: string
+  faqJson?: string
+  schemaJson?: string
+  llmsSummary?: string
+  geoCitationSummary?: string
+  translationStatus?: string
+  aiModel?: string
+  aiPromptVersion?: string
+  reviewedBy?: number
+  reviewedAt?: string
+  createdAt?: string
+  updatedAt?: string
+}
