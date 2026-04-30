@@ -37,13 +37,13 @@ http://localhost:5175
 开发环境默认通过 Vite proxy 转发：
 
 ```text
-/api -> http://localhost:18080
+/api -> http://localhost:18087
 ```
 
 如果需要指定后端地址，可设置：
 
 ```bash
-VITE_API_BASE_URL=http://localhost:18080/api npm run dev
+VITE_API_BASE_URL=http://localhost:18087/api npm run dev
 ```
 
 ## 构建
@@ -65,7 +65,7 @@ npm run build
 
 ```bash
 cd /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend
-SERVER_PORT=18080 /Users/lpthin/java/maven/apache-maven-3.8.4/bin/mvn spring-boot:run
+SERVER_PORT=18087 /Users/lpthin/java/maven/apache-maven-3.8.4/bin/mvn spring-boot:run
 ```
 
 2. 启动前端：
