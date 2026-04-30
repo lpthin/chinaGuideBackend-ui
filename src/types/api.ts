@@ -110,3 +110,11 @@ export interface PublishResult {
   outputPath: string
   affectedFiles: string[]
 }
+
+export interface DashboardStats {
+  keywords: number
+  clusters: number
+  articles: number
+  pendingReviews: number
+  approvedArticles: number
+}
