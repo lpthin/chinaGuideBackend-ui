@@ -18,7 +18,9 @@ const routes = [
       { path: 'sites', name: 'sites', component: () => import('@/views/SitesView.vue') },
       { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue') },
       { path: 'keywords', name: 'keywords', component: () => import('@/views/KeywordsView.vue') },
-      { path: 'articles', name: 'articles', component: () => import('@/views/ArticlesView.vue') }
+      { path: 'articles', name: 'articles', component: () => import('@/views/ArticlesView.vue') },
+      { path: 'reviews', name: 'reviews', component: () => import('@/views/ReviewsView.vue') },
+      { path: 'publishing', name: 'publishing', component: () => import('@/views/PublishingView.vue') }
     ]
   }
 ]

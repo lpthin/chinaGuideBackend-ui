@@ -103,3 +103,10 @@ export interface ArticleVersion {
   createdAt?: string
   updatedAt?: string
 }
+
+export interface PublishResult {
+  publishJobId: number
+  dryRun: boolean
+  outputPath: string
+  affectedFiles: string[]
+}
