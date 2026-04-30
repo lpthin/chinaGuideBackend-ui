@@ -17,3 +17,8 @@ export function listPublishJobsApi(siteId: number) {
 export function rollbackPublishJobApi(publishJobId: number) {
   return http.post<unknown, PublishRollbackResult>(`/admin/publish-jobs/${publishJobId}/rollback`)
 }
+
+
+export function getPublishJobApi(publishJobId: number) {
+  return http.get<unknown, PublishJob>(`/admin/sites/0/publish-jobs/${publishJobId}`)
+}

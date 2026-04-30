@@ -92,10 +92,10 @@ watchEffect(() => { if (currentSiteId.value) load() })
         <el-table-column prop="id" label="任务ID" width="90" />
         <el-table-column prop="articleId" label="文章ID" width="90" />
         <el-table-column label="类型" width="90"><template #default="{ row }">{{ row.dryRun ? 'Dry-run' : '发布' }}</template></el-table-column>
-        <el-table-column prop="status" label="状态" width="110" />
+        <el-table-column label="状态" width="130"><template #default="{ row }"><el-tag v-if="row.status === 'running'" type="warning" effect="dark">进行中</el-tag><el-tag v-else-if="row.status === 'failed'" type="danger">失败</el-tag><el-tag v-else-if="row.status === 'rollback_success'" type="info">已回滚</el-tag><el-tag v-else type="success">{{ row.status }}</el-tag></template></el-table-column>
         <el-table-column prop="outputPath" label="输出路径" min-width="260" show-overflow-tooltip />
         <el-table-column prop="gitHeadAfter" label="提交后HEAD" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="errorMessage" label="错误" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="errorMessage" label="错误" min-width="200" show-overflow-tooltip><template #default="{ row }"><span v-if="row.errorMessage" style="color:#e74c3c">{{ row.errorMessage }}</span></template></el-table-column>
         <el-table-column prop="finishedAt" label="完成时间" width="180" />
         <el-table-column label="操作" width="110"><template #default="{ row }"><el-button size="small" type="warning" :disabled="row.dryRun || row.status === 'rollback_success' || !row.gitHeadBefore" :loading="rollingBackJobId === row.id" @click="rollbackJob(row)">回滚</el-button></template></el-table-column>
       </el-table>
