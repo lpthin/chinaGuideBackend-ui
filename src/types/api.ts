@@ -204,3 +204,19 @@ export interface Permission {
   action: string
   createdAt?: string
 }
+
+
+export interface Media {
+  id?: number
+  siteId: number
+  fileName: string
+  originalName: string
+  mimeType: string
+  fileSize: number
+  storagePath: string
+  altText?: string
+  caption?: string
+  width?: number
+  height?: number
+  createdAt?: string
+}
