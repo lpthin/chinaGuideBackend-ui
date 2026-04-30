@@ -9,11 +9,24 @@ const siteStore = useSiteStore()
 const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
-const form = reactive<Site>({ code: '', name: '', domain: '', siteType: 'content', defaultLocale: 'zh-CN', enabledLocales: 'zh-CN', frontendProjectPath: '', publishMode: 'static', themeCode: 'default', status: 'active' })
+const localeOptions = [
+  { value: 'zh-CN', label: '中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' },
+  { value: 'es', label: 'Español' },
+  { value: 'fr', label: 'Français' },
+  { value: 'de', label: 'Deutsch' },
+  { value: 'ru', label: 'Русский' },
+  { value: 'th', label: 'ไทย' },
+  { value: 'vi', label: 'Tiếng Việt' }
+]
+
+const form = reactive<{ code: string; name: string; domain: string; siteType: string; defaultLocale: string; enabledLocalesList: string[]; frontendProjectPath: string; publishMode: string; themeCode: string; status: string }>({ code: '', name: '', domain: '', siteType: 'content', defaultLocale: 'zh-CN', enabledLocalesList: ['zh-CN'], frontendProjectPath: '', publishMode: 'static', themeCode: 'default', status: 'active' })
 
 function resetForm(site?: Site) {
   editingId.value = site?.id || null
-  Object.assign(form, site || { code: '', name: '', domain: '', siteType: 'content', defaultLocale: 'zh-CN', enabledLocales: 'zh-CN', frontendProjectPath: '', publishMode: 'static', themeCode: 'default', status: 'active' })
+  if (site) { Object.assign(form, site); form.enabledLocalesList = (site.enabledLocales || 'zh-CN').split(',').map((l: string) => l.trim()); } else { resetForm(); }
 }
 
 async function load() {
@@ -23,8 +36,9 @@ async function load() {
 
 async function save() {
   try {
-    if (editingId.value) await updateSiteApi(editingId.value, form)
-    else await createSiteApi(form)
+    const payload = { ...form, enabledLocales: form.enabledLocalesList.join(',') }
+    if (editingId.value) await updateSiteApi(editingId.value, payload)
+    else await createSiteApi(payload)
     ElMessage.success('保存成功')
     dialogVisible.value = false
     await load()
@@ -51,8 +65,12 @@ onMounted(load)
         <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="域名"><el-input v-model="form.domain" /></el-form-item>
         <el-form-item label="前端项目路径"><el-input v-model="form.frontendProjectPath" /></el-form-item>
-        <el-form-item label="默认语言"><el-input v-model="form.defaultLocale" /></el-form-item>
-        <el-form-item label="启用语言"><el-input v-model="form.enabledLocales" /></el-form-item>
+        <el-form-item label="默认语言">
+          <el-select v-model="form.defaultLocale" style="width:100%"><el-option v-for="loc in localeOptions" :key="loc.value" :label="loc.label" :value="loc.value" /></el-select>
+        </el-form-item>
+        <el-form-item label="启用语言">
+          <el-select v-model="form.enabledLocalesList" multiple collapse-tags collapse-tags-tooltip style="width:100%"><el-option v-for="loc in localeOptions" :key="loc.value" :label="loc.label" :value="loc.value" /></el-select>
+        </el-form-item>
         <el-form-item label="发布模式"><el-input v-model="form.publishMode" /></el-form-item>
         <el-form-item label="状态"><el-input v-model="form.status" /></el-form-item>
       </el-form>

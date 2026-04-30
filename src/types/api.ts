@@ -24,6 +24,7 @@ export interface Site {
   siteType?: string
   defaultLocale?: string
   enabledLocales?: string
+  enabledLocalesList?: string[]
   frontendProjectPath?: string
   publishMode?: string
   themeCode?: string
