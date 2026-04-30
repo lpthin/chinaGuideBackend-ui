@@ -64,6 +64,13 @@ watchEffect(() => { if (currentSiteId.value) load() })
         <el-descriptions-item label="输出路径">{{ result.outputPath }}</el-descriptions-item>
         <el-descriptions-item label="影响文件">{{ result.affectedFiles.join('\n') }}</el-descriptions-item>
       </el-descriptions>
+      <el-table v-if="result.diffs?.length" :data="result.diffs" border class="diff-table">
+        <el-table-column prop="path" label="文件" min-width="260" show-overflow-tooltip />
+        <el-table-column prop="changeType" label="变更" width="100" />
+        <el-table-column prop="oldSize" label="原大小" width="100" />
+        <el-table-column prop="newSize" label="新大小" width="100" />
+        <el-table-column label="内容预览" min-width="360"><template #default="{ row }"><pre class="diff-box">{{ row.preview }}</pre></template></el-table-column>
+      </el-table>
     </el-card>
     <el-card class="result-card">
       <template #header>发布任务历史</template>
@@ -80,4 +87,4 @@ watchEffect(() => { if (currentSiteId.value) load() })
   </div>
 </template>
 
-<style scoped>.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.page-header h2{margin:0 0 6px}.page-header p{margin:0;color:#64748b}.result-card{margin-top:16px}</style>
+<style scoped>.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.page-header h2{margin:0 0 6px}.page-header p{margin:0;color:#64748b}.result-card{margin-top:16px}.diff-table{margin-top:16px}.diff-box{white-space:pre-wrap;max-height:240px;overflow:auto;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:6px;font-size:12px;line-height:1.5}</style>

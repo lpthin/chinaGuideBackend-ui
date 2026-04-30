@@ -104,11 +104,20 @@ export interface ArticleVersion {
   updatedAt?: string
 }
 
+export interface PublishDiff {
+  path: string
+  changeType: string
+  oldSize: number
+  newSize: number
+  preview: string
+}
+
 export interface PublishResult {
   publishJobId: number
   dryRun: boolean
   outputPath: string
   affectedFiles: string[]
+  diffs?: PublishDiff[]
 }
 
 export interface DashboardStats {
