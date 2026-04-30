@@ -118,3 +118,17 @@ export interface DashboardStats {
   pendingReviews: number
   approvedArticles: number
 }
+
+export interface PublishJob {
+  id?: number
+  siteId?: number
+  articleId?: number
+  dryRun?: boolean
+  status?: string
+  outputPath?: string
+  affectedFiles?: string
+  gitHeadBefore?: string
+  errorMessage?: string
+  createdAt?: string
+  finishedAt?: string
+}
