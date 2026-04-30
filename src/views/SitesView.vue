@@ -55,8 +55,9 @@ onMounted(load)
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="code" label="编码" />
       <el-table-column prop="name" label="名称" />
-      <el-table-column prop="domain" label="域名" />
-      <el-table-column prop="status" label="状态" width="100" />
+      <el-table-column prop="domain" label="域名" min-width="200" show-overflow-tooltip />
+      <el-table-column label="发布模式" width="120"><template #default="{ row }">{{ row.publishMode === 'static_html' ? '静态 HTML' : row.publishMode }}</template></el-table-column>
+      <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag v-if="row.status === 'active'" type="success">启用</el-tag><el-tag v-else-if="row.status === 'disabled'" type="info">禁用</el-tag><el-tag v-else>{{ row.status }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="160"><template #default="{ row }"><el-button size="small" @click="resetForm(row); dialogVisible = true">编辑</el-button></template></el-table-column>
     </el-table>
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑站点' : '新建站点'" width="720px">
