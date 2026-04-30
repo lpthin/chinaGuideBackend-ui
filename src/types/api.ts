@@ -185,3 +185,22 @@ export interface AiCallStats {
   totalTokens: number
   costEstimate: number
 }
+
+
+export interface Role {
+  id?: number
+  code: string
+  name: string
+  description?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface Permission {
+  id?: number
+  code: string
+  name: string
+  module: string
+  action: string
+  createdAt?: string
+}
