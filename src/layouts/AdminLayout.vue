@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled } from '@element-plus/icons-vue'
+import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled, Avatar, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSiteStore } from '@/stores/site'
 
@@ -12,7 +12,7 @@ const siteStore = useSiteStore()
 
 const activeMenu = computed(() => route.path)
 
-const menuItems = [
+const menuItems: Array<{ path?: string; label: string; icon: any; children?: Array<{ path: string; label: string; icon: any }> }> = [
   { path: '/dashboard', label: '仪表盘', icon: House },
   { path: '/sites', label: '站点管理', icon: OfficeBuilding },
   { path: '/categories', label: '栏目管理', icon: Collection },
@@ -23,7 +23,12 @@ const menuItems = [
   { path: '/prompt-templates', label: 'Prompt模板', icon: MagicStick },
   { path: '/media', label: '媒体库', icon: Picture },
   { path: '/comments', label: '评论管理', icon: ChatDotSquare },
-  { path: '/roles', label: '权限管理', icon: UserFilled }
+  {
+    label: '系统管理', icon: UserFilled, children: [
+      { path: '/users', label: '用户管理', icon: Avatar },
+      { path: '/roles', label: '角色管理', icon: User }
+    ]
+  }
 ]
 
 onMounted(() => {
@@ -45,10 +50,18 @@ function logout() {
     <el-aside width="220px" class="admin-sidebar">
       <div class="brand">GeoCMS</div>
       <el-menu :default-active="activeMenu" router background-color="#111827" text-color="#d1d5db" active-text-color="#ffffff">
-        <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">
-          <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ item.label }}</span>
-        </el-menu-item>
+        <template v-for="item in menuItems" :key="item.label">
+          <el-sub-menu v-if="item.children" :index="item.label">
+            <template #title><el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}</span></template>
+            <el-menu-item v-for="child in item.children" :key="child.path" :index="child.path">
+              <el-icon><component :is="child.icon" /></el-icon><span>{{ child.label }}</span>
+            </el-menu-item>
+          </el-sub-menu>
+          <el-menu-item v-else :index="item.path">
+            <el-icon><component :is="item.icon" /></el-icon>
+            <span>{{ item.label }}</span>
+          </el-menu-item>
+        </template>
       </el-menu>
     </el-aside>
     <el-container>

@@ -1,27 +1,23 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listRolesApi, createRoleApi, updateRoleApi, deleteRoleApi, assignRolePermissionsApi, getRolePermissionsApi, listPermissionsApi, createPermissionApi, listUsersApi, assignUserRolesApi, getUserRolesApi } from '@/api/roles'
+import { listRolesApi, createRoleApi, updateRoleApi, deleteRoleApi, assignRolePermissionsApi, getRolePermissionsApi, listPermissionsApi, createPermissionApi } from '@/api/roles'
 import type { Role, Permission } from '@/types/api'
 
 const roles = ref<Role[]>([])
 const permissions = ref<Permission[]>([])
-const users = ref<Array<{ id: number; username: string; nickname: string; status: string }>>([])
 const loading = ref(false)
 const roleDialogVisible = ref(false)
 const permDialogVisible = ref(false)
-const userRoleDialogVisible = ref(false)
 const editingRole = ref<Role>({ code: '', name: '' })
 const editingPerm = ref<{ code: string; name: string; module: string; action: string }>({ code: '', name: '', module: '', action: '' })
-const selectedUser = ref<number>()
-const selectedUserRoles = ref<number[]>([])
 const rolePermIds = ref<number[]>([])
 
 async function load() {
   loading.value = true
   try {
-    const [r, p, u] = await Promise.all([listRolesApi(), listPermissionsApi(), listUsersApi()])
-    roles.value = r; permissions.value = p; users.value = u
+    const [r, p] = await Promise.all([listRolesApi(), listPermissionsApi()])
+    roles.value = r; permissions.value = p
   } finally { loading.value = false }
 }
 
@@ -64,19 +60,6 @@ async function saveRolePermissions() {
   roleDialogVisible.value = false
 }
 
-async function openUserRoleDialog(user: any) {
-  selectedUser.value = user.id
-  selectedUserRoles.value = await getUserRolesApi(user.id)
-  userRoleDialogVisible.value = true
-}
-
-async function saveUserRoles() {
-  if (!selectedUser.value) return
-  await assignUserRolesApi(selectedUser.value, selectedUserRoles.value)
-  ElMessage.success('用户角色已更新')
-  userRoleDialogVisible.value = false
-}
-
 async function savePermission() {
   await createPermissionApi(editingPerm.value)
   ElMessage.success('权限已创建')
@@ -91,22 +74,12 @@ onMounted(load)
 <template>
   <div>
     <div class="page-header">
-      <div><h2>权限管理</h2><p>管理角色、权限和用户角色分配。</p></div>
+      <div><h2>角色管理</h2><p>管理角色和权限分配。</p></div>
       <div class="actions">
         <el-button @click="permDialogVisible = true">新增权限</el-button>
         <el-button type="primary" @click="openRoleDialog()">新增角色</el-button>
       </div>
     </div>
-
-    <el-table v-loading="loading" :data="users" border style="margin-bottom:20px">
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="username" label="用户名" width="160" />
-      <el-table-column prop="nickname" label="昵称" width="160" />
-      <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag v-if="row.status === 'enabled'" type="success">启用</el-tag><el-tag v-else type="info">禁用</el-tag></template></el-table-column>
-      <el-table-column label="操作" width="140">
-        <template #default="{ row }"><el-button size="small" @click="openUserRoleDialog(row)">角色分配</el-button></template>
-      </el-table-column>
-    </el-table>
 
     <el-table v-loading="loading" :data="roles" border>
       <el-table-column prop="id" label="ID" width="80" />
@@ -158,12 +131,6 @@ onMounted(load)
       <template #footer><el-button @click="permDialogVisible = false">取消</el-button><el-button type="primary" @click="savePermission">保存</el-button></template>
     </el-dialog>
 
-    <el-dialog v-model="userRoleDialogVisible" title="用户角色分配" width="520px">
-      <el-checkbox-group v-model="selectedUserRoles">
-        <el-checkbox v-for="role in roles" :key="role.id" :label="role.id" :value="role.id">{{ role.name }}</el-checkbox>
-      </el-checkbox-group>
-      <template #footer><el-button @click="userRoleDialogVisible = false">取消</el-button><el-button type="primary" @click="saveUserRoles">保存</el-button></template>
-    </el-dialog>
   </div>
 </template>
 
