@@ -112,6 +112,13 @@ export interface PublishDiff {
   preview: string
 }
 
+export interface PublishRollbackResult {
+  sourcePublishJobId: number
+  gitHeadBefore: string
+  gitHeadAfter: string
+  restoredFiles: string[]
+}
+
 export interface PublishResult {
   publishJobId: number
   dryRun: boolean

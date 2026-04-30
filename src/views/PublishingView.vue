@@ -2,7 +2,7 @@
 import { computed, ref, watchEffect } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listArticlesApi } from '@/api/articles'
-import { dryRunPublishApi, listPublishJobsApi, publishArticleApi } from '@/api/publishing'
+import { dryRunPublishApi, listPublishJobsApi, publishArticleApi, rollbackPublishJobApi } from '@/api/publishing'
 import { useSiteStore } from '@/stores/site'
 import type { Article, PublishJob, PublishResult } from '@/types/api'
 
@@ -12,6 +12,7 @@ const loading = ref(false)
 const articles = ref<Article[]>([])
 const result = ref<PublishResult | null>(null)
 const jobs = ref<PublishJob[]>([])
+const rollingBackJobId = ref<number>()
 const rows = computed(() => articles.value.filter((item) => ['approved', 'published'].includes(item.status || '')))
 
 async function load() {
@@ -31,6 +32,19 @@ async function dryRun(article: Article) {
     ElMessage.success('Dry-run 成功')
     await load()
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : 'Dry-run 失败') }
+}
+
+
+async function rollbackJob(job: PublishJob) {
+  if (!job.id) return
+  await ElMessageBox.confirm(`确认回滚发布任务 ${job.id}？该操作会恢复受影响文件并生成回滚 commit。`, '回滚确认', { type: 'warning' })
+  rollingBackJobId.value = job.id
+  try {
+    await rollbackPublishJobApi(job.id)
+    ElMessage.success('发布任务已回滚')
+    await load()
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '回滚失败') }
+  finally { rollingBackJobId.value = undefined }
 }
 
 async function publish(article: Article) {
@@ -83,6 +97,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
         <el-table-column prop="gitHeadAfter" label="提交后HEAD" min-width="150" show-overflow-tooltip />
         <el-table-column prop="errorMessage" label="错误" min-width="160" show-overflow-tooltip />
         <el-table-column prop="finishedAt" label="完成时间" width="180" />
+        <el-table-column label="操作" width="110"><template #default="{ row }"><el-button size="small" type="warning" :disabled="row.dryRun || row.status === 'rollback_success' || !row.gitHeadBefore" :loading="rollingBackJobId === row.id" @click="rollbackJob(row)">回滚</el-button></template></el-table-column>
       </el-table>
     </el-card>
   </div>
