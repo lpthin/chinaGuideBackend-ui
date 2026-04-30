@@ -2,14 +2,17 @@
 import { computed, reactive, ref, watchEffect } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createPromptTemplateApi, listPromptTemplatesApi, updatePromptTemplateApi } from '@/api/prompts'
+import { getAiCallStatsApi, listAiCallLogsApi } from '@/api/aiLogs'
 import { useSiteStore } from '@/stores/site'
-import type { PromptTemplate } from '@/types/api'
+import type { AiCallLog, AiCallStats, PromptTemplate } from '@/types/api'
 
 const siteStore = useSiteStore()
 const currentSiteId = computed(() => siteStore.currentSite?.id)
 const loading = ref(false)
 const saving = ref(false)
 const templates = ref<PromptTemplate[]>([])
+const logs = ref<AiCallLog[]>([])
+const stats = ref<AiCallStats | null>(null)
 const selectedId = ref<number | 'new' | null>(null)
 const form = reactive<PromptTemplate>({ purpose: 'article_draft', version: 'v1', name: '', templateText: '', enabled: true })
 const selectedTemplate = computed(() => templates.value.find((item) => item.id === selectedId.value))
@@ -19,7 +22,14 @@ async function load() {
   if (!currentSiteId.value) return
   loading.value = true
   try {
-    templates.value = await listPromptTemplatesApi(currentSiteId.value)
+    const [templateRows, logRows, statRows] = await Promise.all([
+      listPromptTemplatesApi(currentSiteId.value),
+      listAiCallLogsApi(currentSiteId.value),
+      getAiCallStatsApi(currentSiteId.value)
+    ])
+    templates.value = templateRows
+    logs.value = logRows
+    stats.value = statRows
     if (!selectedId.value && templates.value[0]?.id) selectTemplate(templates.value[0])
   } finally { loading.value = false }
 }
@@ -108,9 +118,29 @@ watchEffect(() => { if (currentSiteId.value) load() })
         </el-card>
       </el-col>
     </el-row>
+    <el-card class="log-card">
+      <template #header>AI 调用统计</template>
+      <el-row :gutter="12" class="stat-row">
+        <el-col :span="6"><el-statistic title="总调用" :value="stats?.totalCalls || 0" /></el-col>
+        <el-col :span="6"><el-statistic title="成功" :value="stats?.successCalls || 0" /></el-col>
+        <el-col :span="6"><el-statistic title="失败" :value="stats?.failedCalls || 0" /></el-col>
+        <el-col :span="6"><el-statistic title="估算 Token" :value="stats?.totalTokens || 0" /></el-col>
+      </el-row>
+      <el-table :data="logs" border>
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="purpose" label="Purpose" width="150" />
+        <el-table-column prop="provider" label="Provider" width="110" />
+        <el-table-column prop="model" label="模型" width="130" />
+        <el-table-column label="结果" width="90"><template #default="{ row }"><el-tag :type="row.success ? 'success' : 'danger'">{{ row.success ? '成功' : '失败' }}</el-tag></template></el-table-column>
+        <el-table-column prop="tokenEstimate" label="Token" width="100" />
+        <el-table-column prop="outputSummary" label="输出摘要" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="errorMessage" label="错误" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="createdAt" label="时间" width="180" />
+      </el-table>
+    </el-card>
   </div>
 </template>
 
 <style scoped>
-.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.page-header h2{margin:0 0 6px}.page-header p{margin:0;color:#64748b}.mb{margin-bottom:16px}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.page-header h2{margin:0 0 6px}.page-header p{margin:0;color:#64748b}.mb{margin-bottom:16px}.log-card{margin-top:16px}.stat-row{margin-bottom:16px}
 </style>

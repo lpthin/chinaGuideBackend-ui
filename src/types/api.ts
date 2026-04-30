@@ -145,3 +145,26 @@ export interface PromptTemplate {
   createdAt?: string
   updatedAt?: string
 }
+
+export interface AiCallLog {
+  id?: number
+  siteId?: number
+  provider?: string
+  model?: string
+  purpose?: string
+  inputHash?: string
+  outputSummary?: string
+  success?: boolean
+  errorMessage?: string
+  tokenEstimate?: number
+  costEstimate?: number
+  createdAt?: string
+}
+
+export interface AiCallStats {
+  totalCalls: number
+  successCalls: number
+  failedCalls: number
+  totalTokens: number
+  costEstimate: number
+}
