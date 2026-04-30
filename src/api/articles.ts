@@ -21,3 +21,7 @@ export function listArticleVersionsApi(articleId: number) {
 export function updateArticleVersionApi(versionId: number, payload: ArticleVersion) {
   return http.put<unknown, ArticleVersion>(`/admin/article-versions/${versionId}`, payload)
 }
+
+export function rollbackArticleVersionApi(versionId: number) {
+  return http.post<unknown, ArticleVersion>(`/admin/article-versions/${versionId}/rollback`)
+}

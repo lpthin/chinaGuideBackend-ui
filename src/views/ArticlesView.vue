@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watchEffect } from 'vue'
 import { ElMessage } from 'element-plus'
-import { generateArticleApi, generateDailyArticlesApi, listArticlesApi, listArticleVersionsApi, updateArticleVersionApi } from '@/api/articles'
+import { generateArticleApi, generateDailyArticlesApi, listArticlesApi, listArticleVersionsApi, updateArticleVersionApi, rollbackArticleVersionApi } from '@/api/articles'
 import { listKeywordClustersApi } from '@/api/keywords'
 import { useSiteStore } from '@/stores/site'
 import type { Article, ArticleVersion, KeywordCluster } from '@/types/api'
@@ -17,6 +17,7 @@ const selectedVersion = ref<ArticleVersion | null>(null)
 const drawerVisible = ref(false)
 const editDialogVisible = ref(false)
 const saving = ref(false)
+const rollingBack = ref(false)
 const editForm = reactive<ArticleVersion>({ title: '', summary: '', contentMd: '', seoTitle: '', seoDescription: '', keywords: '', faqJson: '', schemaJson: '', llmsSummary: '', geoCitationSummary: '' })
 const generateDialogVisible = ref(false)
 const keywordClusterId = ref<number>()
@@ -73,6 +74,19 @@ async function saveVersion() {
   finally { saving.value = false }
 }
 
+
+async function rollbackVersion(version: ArticleVersion) {
+  if (!version.id) return
+  rollingBack.value = true
+  try {
+    const saved = await rollbackArticleVersionApi(version.id)
+    ElMessage.success('已回滚为新版本')
+    versions.value = [saved, ...versions.value]
+    selectedVersion.value = saved
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '回滚失败') }
+  finally { rollingBack.value = false }
+}
+
 function previewVersion(version: ArticleVersion) {
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${version.seoTitle || version.title}</title><meta name="description" content="${version.seoDescription || ''}"><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:860px;margin:40px auto;line-height:1.8;color:#0f172a;padding:0 20px}pre{white-space:pre-wrap;background:#f8fafc;padding:16px;border-radius:8px}h1{line-height:1.3}</style></head><body><h1>${version.title}</h1><p>${version.summary || ''}</p><pre>${version.contentMd || ''}</pre></body></html>`
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
@@ -113,7 +127,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
     <el-drawer v-model="drawerVisible" title="文章版本详情" size="60%">
       <el-select v-model="selectedVersion" value-key="id" placeholder="选择版本" class="version-select"><el-option v-for="version in versions" :key="version.id" :label="`${version.locale || 'zh-CN'} - ${version.title}`" :value="version" /></el-select>
       <template v-if="selectedVersion">
-        <div class="version-actions"><el-button type="primary" @click="openEdit(selectedVersion)">编辑版本</el-button><el-button @click="previewVersion(selectedVersion)">预览</el-button></div>
+        <div class="version-actions"><el-button type="primary" @click="openEdit(selectedVersion)">编辑版本</el-button><el-button @click="previewVersion(selectedVersion)">预览</el-button><el-button type="warning" :loading="rollingBack" @click="rollbackVersion(selectedVersion)">回滚为新版本</el-button></div>
         <el-descriptions :column="1" border>
           <el-descriptions-item label="标题">{{ selectedVersion.title }}</el-descriptions-item>
           <el-descriptions-item label="摘要">{{ selectedVersion.summary }}</el-descriptions-item>
