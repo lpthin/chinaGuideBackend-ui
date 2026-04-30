@@ -16,7 +16,8 @@ const routes = [
     children: [
       { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
       { path: 'sites', name: 'sites', component: () => import('@/views/SitesView.vue') },
-      { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue') }
+      { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue') },
+      { path: 'keywords', name: 'keywords', component: () => import('@/views/KeywordsView.vue') }
     ]
   }
 ]

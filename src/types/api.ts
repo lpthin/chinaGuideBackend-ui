@@ -42,3 +42,27 @@ export interface Category {
   sortOrder?: number
   status?: string
 }
+
+export interface Keyword {
+  id?: number
+  siteId?: number
+  rawKeyword: string
+  normalizedKeyword?: string
+  keywordType?: string
+  priority?: number
+  status?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface KeywordCluster {
+  id?: number
+  siteId?: number
+  name: string
+  searchIntent?: string
+  suggestedCategory?: string
+  articleDirection?: string
+  priority?: number
+  sourceKeywordIds?: string
+  createdAt?: string
+}
