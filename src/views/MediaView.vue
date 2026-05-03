@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listMediaApi, uploadMediaBatchApi } from '@/api/media'
+import { deleteMediaBatchApi, listMediaApi, uploadMediaBatchApi } from '@/api/media'
 import { useSiteStore } from '@/stores/site'
 import type { Media } from '@/types/api'
 
@@ -13,6 +13,7 @@ const mediaList = ref<Media[]>([])
 const uploadUrl = ref('')
 const previewUrl = ref('')
 const previewVisible = ref(false)
+const selectedRows = ref<Media[]>([])
 const fileInputRef = ref<HTMLInputElement>()
 
 async function load() {
@@ -40,6 +41,21 @@ async function handleUpload(event: Event) {
   finally { uploading.value = false; input.value = '' }
 }
 
+function handleSelectionChange(rows: Media[]) {
+  selectedRows.value = rows
+}
+
+async function deleteSelected() {
+  if (!currentSiteId.value) { ElMessage.warning('请先选择站点'); return }
+  const ids = selectedRows.value.map((item) => item.id).filter((id): id is number => Boolean(id))
+  if (!ids.length) { ElMessage.warning('请选择要删除的图片'); return }
+  await ElMessageBox.confirm(`确认删除选中的 ${ids.length} 张图片？`, '批量删除确认', { type: 'warning' })
+  const result = await deleteMediaBatchApi(currentSiteId.value, ids)
+  ElMessage.success(`已删除 ${result.deleted} 张图片`)
+  selectedRows.value = []
+  await load()
+}
+
 function preview(media: Media) {
   previewUrl.value = `/uploads/${currentSiteId.value}/${media.fileName}`
   previewVisible.value = true
@@ -54,11 +70,13 @@ watchEffect(() => { if (currentSiteId.value) load() })
       <div><h2>媒体库</h2><p>上传和管理图片、文件资源。</p></div>
       <div class="actions">
         <input ref="fileInputRef" class="hidden-file-input" type="file" accept="image/*" multiple @change="handleUpload" />
+        <el-button type="danger" plain :disabled="!selectedRows.length" @click="deleteSelected">批量删除</el-button>
         <el-button type="primary" :loading="uploading" @click="openFilePicker">上传图片</el-button>
       </div>
     </div>
 
-    <el-table v-loading="loading" :data="mediaList" border>
+    <el-table v-loading="loading" :data="mediaList" border @selection-change="handleSelectionChange">
+      <el-table-column type="selection" width="50" />
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column label="预览" width="100"><template #default="{ row }">
         <el-image v-if="row.mimeType?.startsWith('image/')" :src="`/uploads/${currentSiteId}/${row.fileName}`" fit="cover" style="width:60px;height:40px;border-radius:4px;cursor:pointer" @click="preview(row)" />

@@ -16,3 +16,7 @@ export function uploadMediaBatchApi(siteId: number, files: File[]) {
   files.forEach((file) => formData.append('files', file))
   return http.post<unknown, Media[]>(`/admin/sites/${siteId}/media/upload-batch`, formData)
 }
+
+export function deleteMediaBatchApi(siteId: number, ids: number[]) {
+  return http.delete<unknown, { deleted: number }>(`/admin/sites/${siteId}/media/batch`, { data: ids })
+}
