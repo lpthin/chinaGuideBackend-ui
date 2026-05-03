@@ -8,7 +8,11 @@ export function listMediaApi(siteId: number) {
 export function uploadMediaApi(siteId: number, file: File) {
   const formData = new FormData()
   formData.append('file', file)
-  return http.post<unknown, Media>(`/admin/sites/${siteId}/media/upload`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  })
+  return http.post<unknown, Media>(`/admin/sites/${siteId}/media/upload`, formData)
+}
+
+export function uploadMediaBatchApi(siteId: number, files: File[]) {
+  const formData = new FormData()
+  files.forEach((file) => formData.append('files', file))
+  return http.post<unknown, Media[]>(`/admin/sites/${siteId}/media/upload-batch`, formData)
 }

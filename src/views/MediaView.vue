@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listMediaApi, uploadMediaApi } from '@/api/media'
+import { listMediaApi, uploadMediaBatchApi } from '@/api/media'
 import { useSiteStore } from '@/stores/site'
 import type { Media } from '@/types/api'
 
@@ -13,6 +13,7 @@ const mediaList = ref<Media[]>([])
 const uploadUrl = ref('')
 const previewUrl = ref('')
 const previewVisible = ref(false)
+const fileInputRef = ref<HTMLInputElement>()
 
 async function load() {
   if (!currentSiteId.value) return
@@ -21,14 +22,20 @@ async function load() {
   finally { loading.value = false }
 }
 
+function openFilePicker() {
+  fileInputRef.value?.click()
+}
+
 async function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement
-  if (!input.files?.length || !currentSiteId.value) return
+  const files = Array.from(input.files || [])
+  if (!files.length) return
+  if (!currentSiteId.value) { ElMessage.warning('请先选择站点'); return }
   uploading.value = true
   try {
-    const result = await uploadMediaApi(currentSiteId.value, input.files[0])
-    mediaList.value.unshift(result)
-    ElMessage.success('上传成功')
+    const results = await uploadMediaBatchApi(currentSiteId.value, files)
+    mediaList.value.unshift(...results)
+    ElMessage.success(`已上传 ${results.length} 张图片`)
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '上传失败') }
   finally { uploading.value = false; input.value = '' }
 }
@@ -46,9 +53,8 @@ watchEffect(() => { if (currentSiteId.value) load() })
     <div class="page-header">
       <div><h2>媒体库</h2><p>上传和管理图片、文件资源。</p></div>
       <div class="actions">
-        <el-upload :show-file-list="false" :http-request="handleUpload" :disabled="uploading">
-          <el-button type="primary" :loading="uploading">上传文件</el-button>
-        </el-upload>
+        <input ref="fileInputRef" class="hidden-file-input" type="file" accept="image/*" multiple @change="handleUpload" />
+        <el-button type="primary" :loading="uploading" @click="openFilePicker">上传图片</el-button>
       </div>
     </div>
 
@@ -74,5 +80,5 @@ watchEffect(() => { if (currentSiteId.value) load() })
 </template>
 
 <style scoped>
-.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.page-header h2{margin:0 0 6px}.page-header p{margin:0;color:#64748b}.actions{display:flex;gap:8px}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.page-header h2{margin:0 0 6px}.page-header p{margin:0;color:#64748b}.actions{display:flex;gap:8px}.hidden-file-input{display:none}
 </style>
