@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -8,7 +8,13 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
-const form = reactive({ username: 'admin', password: 'admin123456' })
+const form = reactive({ username: 'admin', password: 'admin123' })
+
+onMounted(() => {
+  if (route.query.expired === '1') {
+    ElMessage.warning('登录已过期，请重新登录')
+  }
+})
 
 async function submit() {
   if (!form.username || !form.password) {
@@ -40,7 +46,7 @@ async function submit() {
           <el-input v-model="form.username" placeholder="admin" size="large" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="form.password" placeholder="admin123456" size="large" show-password @keyup.enter="submit" />
+          <el-input v-model="form.password" placeholder="admin123" size="large" show-password @keyup.enter="submit" />
         </el-form-item>
         <el-button type="primary" size="large" :loading="loading" class="login-button" @click="submit">登录</el-button>
       </el-form>

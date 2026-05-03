@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios'
 import type { ApiResponse } from '@/types/api'
+import { ElMessage } from 'element-plus'
 
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -30,7 +31,9 @@ http.interceptors.response.use(
       localStorage.removeItem('geocms_token')
       localStorage.removeItem('geocms_user')
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+        ElMessage.warning('登录已过期，请重新登录')
+        const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+        window.location.href = `/login?expired=1&redirect=${redirect}`
       }
     }
     return Promise.reject(new Error(error.response?.data?.message || error.message || '网络请求失败'))
