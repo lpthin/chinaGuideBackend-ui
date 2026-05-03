@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteKeywordApi, deleteKeywordClusterApi, distillKeywordsApi, importKeywordsApi, listKeywordClustersApi, listKeywordsApi } from '@/api/keywords'
+import { deleteKeywordApi, deleteKeywordClusterApi, deleteKeywordsBatchApi, deleteKeywordClustersBatchApi, distillKeywordsApi, importKeywordsApi, listKeywordClustersApi, listKeywordsApi } from '@/api/keywords'
 import { useSiteStore } from '@/stores/site'
 import type { Keyword, KeywordCluster } from '@/types/api'
 
 const siteStore = useSiteStore()
 const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const loading = ref(false)
+const kwSelection = ref<Keyword[]>([])
+const clusterSelection = ref<KeywordCluster[]>([])
 const distilling = ref(false)
 const importDialogVisible = ref(false)
 const importText = ref('')
@@ -59,6 +61,28 @@ async function distill() {
 }
 
 
+async function deleteKeywordsBatch() {
+  if (!currentSiteId.value) { ElMessage.warning('请先选择站点'); return }
+  const ids = kwSelection.value.map((item) => item.id).filter((id): id is number => Boolean(id))
+  if (!ids.length) { ElMessage.warning('请选择要删除的关键词'); return }
+  await ElMessageBox.confirm(`确认删除选中的 ${ids.length} 个关键词？`, '批量删除确认', { type: 'warning' })
+  const result = await deleteKeywordsBatchApi(currentSiteId.value, ids)
+  ElMessage.success(`已删除 ${result.deleted} 个关键词`)
+  kwSelection.value = []
+  await load()
+}
+
+async function deleteClustersBatch() {
+  if (!currentSiteId.value) { ElMessage.warning('请先选择站点'); return }
+  const ids = clusterSelection.value.map((item) => item.id).filter((id): id is number => Boolean(id))
+  if (!ids.length) { ElMessage.warning('请选择要删除的聚类'); return }
+  await ElMessageBox.confirm(`确认删除选中的 ${ids.length} 个聚类？`, '批量删除确认', { type: 'warning' })
+  const result = await deleteKeywordClustersBatchApi(currentSiteId.value, ids)
+  ElMessage.success(`已删除 ${result.deleted} 个聚类`)
+  clusterSelection.value = []
+  await load()
+}
+
 async function deleteKeyword(row: Keyword) {
   if (!currentSiteId.value || !row.id) return
   await ElMessageBox.confirm(`确认删除关键词「${row.rawKeyword}」？`, '删除确认', { type: 'warning' })
@@ -91,8 +115,9 @@ watchEffect(() => { if (currentSiteId.value) load() })
     <el-row :gutter="16">
       <el-col :span="14">
         <el-card>
-          <template #header>关键词</template>
-          <el-table v-loading="loading" :data="keywords" border height="560">
+          <template #header>关键词 <el-button size="small" type="danger" plain :disabled="!kwSelection.length" @click="deleteKeywordsBatch">批量删除</el-button></template>
+          <el-table v-loading="loading" :data="keywords" border height="560" @selection-change="kwSelection = $event">
+            <el-table-column type="selection" width="40" />
             <el-table-column prop="id" label="ID" width="80" />
             <el-table-column prop="rawKeyword" label="原始关键词" />
             <el-table-column prop="normalizedKeyword" label="归一化" />
@@ -104,8 +129,9 @@ watchEffect(() => { if (currentSiteId.value) load() })
       </el-col>
       <el-col :span="10">
         <el-card>
-          <template #header>关键词聚类</template>
-          <el-table v-loading="loading" :data="clusters" border height="560">
+          <template #header>关键词聚类 <el-button size="small" type="danger" plain :disabled="!clusterSelection.length" @click="deleteClustersBatch">批量删除</el-button></template>
+          <el-table v-loading="loading" :data="clusters" border height="560" @selection-change="clusterSelection = $event">
+            <el-table-column type="selection" width="40" />
             <el-table-column prop="id" label="ID" width="70" />
             <el-table-column prop="name" label="名称" />
             <el-table-column prop="searchIntent" label="意图" />

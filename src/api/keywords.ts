@@ -24,3 +24,11 @@ export function deleteKeywordApi(siteId: number, id: number) {
 export function deleteKeywordClusterApi(siteId: number, id: number) {
   return http.delete<unknown, void>(`/admin/sites/${siteId}/keywords/clusters/${id}`)
 }
+
+export function deleteKeywordsBatchApi(siteId: number, ids: number[]) {
+  return http.post<unknown, { deleted: number }>(`/admin/sites/${siteId}/keywords/batch-delete`, { ids })
+}
+
+export function deleteKeywordClustersBatchApi(siteId: number, ids: number[]) {
+  return http.post<unknown, { deleted: number }>(`/admin/sites/${siteId}/keywords/clusters/batch-delete`, { ids })
+}
