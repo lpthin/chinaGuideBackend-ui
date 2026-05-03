@@ -270,3 +270,16 @@ export interface LeadSubmission {
   createdAt?: string
   updatedAt?: string
 }
+
+export interface Notification {
+  id?: number
+  siteId?: number
+  type?: string
+  title: string
+  content?: string
+  targetType?: string
+  targetId?: number
+  status?: string
+  readAt?: string
+  createdAt?: string
+}
