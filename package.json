@@ -13,6 +13,7 @@
     "axios": "latest",
     "element-plus": "latest",
     "pinia": "latest",
+    "vform3-builds": "^3.0.10",
     "vue": "latest",
     "vue-router": "latest"
   },
