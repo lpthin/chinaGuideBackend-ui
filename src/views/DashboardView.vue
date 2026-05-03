@@ -6,7 +6,7 @@ import { useSiteStore } from '@/stores/site'
 import type { DashboardStats } from '@/types/api'
 
 const siteStore = useSiteStore()
-const currentSiteId = computed(() => siteStore.currentSite?.id)
+const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const loading = ref(false)
 const stats = ref<DashboardStats>({ keywords: 0, clusters: 0, articles: 0, pendingReviews: 0, approvedArticles: 0, pageViews: 0, todayPageViews: 0 })
 

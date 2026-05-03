@@ -7,7 +7,7 @@ import { useSiteStore } from '@/stores/site'
 import type { AiCallLog, AiCallStats, PromptTemplate } from '@/types/api'
 
 const siteStore = useSiteStore()
-const currentSiteId = computed(() => siteStore.currentSite?.id)
+const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const loading = ref(false)
 const saving = ref(false)
 const templates = ref<PromptTemplate[]>([])

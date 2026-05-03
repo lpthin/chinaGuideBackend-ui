@@ -8,7 +8,7 @@ import { useSiteStore } from '@/stores/site'
 import type { Article, ArticleVersion, KeywordCluster } from '@/types/api'
 
 const siteStore = useSiteStore()
-const currentSiteId = computed(() => siteStore.currentSite?.id)
+const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const loading = ref(false)
 const generating = ref(false)
 const articles = ref<Article[]>([])

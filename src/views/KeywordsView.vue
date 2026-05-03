@@ -6,7 +6,7 @@ import { useSiteStore } from '@/stores/site'
 import type { Keyword, KeywordCluster } from '@/types/api'
 
 const siteStore = useSiteStore()
-const currentSiteId = computed(() => siteStore.currentSite?.id)
+const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const loading = ref(false)
 const distilling = ref(false)
 const importDialogVisible = ref(false)

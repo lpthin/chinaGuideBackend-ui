@@ -10,7 +10,7 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const categories = ref<Category[]>([])
-const currentSiteId = computed(() => siteStore.currentSite?.id)
+const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const form = reactive<Category>({ code: '', slug: '', name: '', parentId: null, description: '', moduleCode: 'guide', sortOrder: 0, status: 'active' })
 
 function resetForm(category?: Category) {

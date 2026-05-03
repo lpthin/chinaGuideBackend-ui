@@ -7,7 +7,7 @@ import { useSiteStore } from '@/stores/site'
 import type { Article, PublishJob, PublishResult } from '@/types/api'
 
 const siteStore = useSiteStore()
-const currentSiteId = computed(() => siteStore.currentSite?.id)
+const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const loading = ref(false)
 const articles = ref<Article[]>([])
 const result = ref<PublishResult | null>(null)

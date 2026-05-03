@@ -6,7 +6,7 @@ import { useSiteStore } from '@/stores/site'
 import type { FormDefinition } from '@/types/api'
 
 const siteStore = useSiteStore()
-const currentSiteId = computed(() => siteStore.currentSite?.id)
+const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
@@ -100,7 +100,7 @@ function applyDesignerJson() {
 }
 
 async function save() {
-  if (!currentSiteId.value) return
+  if (!currentSiteId.value) { ElMessage.warning('请先选择站点'); return }
   try { JSON.parse(form.fieldsJson) } catch { ElMessage.warning('表单配置必须是合法 JSON'); return }
   saving.value = true
   try {
@@ -114,7 +114,7 @@ async function save() {
 }
 
 async function remove(row: FormDefinition) {
-  if (!currentSiteId.value || !row.id) return
+  if (!currentSiteId.value || !row.id) { ElMessage.warning('请先选择站点'); return }
   await ElMessageBox.confirm(`确认删除表单「${row.name}」？`, '删除确认', { type: 'warning' })
   await deleteFormApi(currentSiteId.value, row.id)
   ElMessage.success('已删除')
