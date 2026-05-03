@@ -22,7 +22,9 @@ const routes = [
       { path: 'reviews', name: 'reviews', component: () => import('@/views/ReviewsView.vue') },
       { path: 'publishing', name: 'publishing', component: () => import('@/views/PublishingView.vue') },
       { path: 'prompt-templates', name: 'prompt-templates', component: () => import('@/views/PromptTemplatesView.vue') },
-      { path: 'roles', name: 'roles', component: () => import('@/views/RolesView.vue') }
+      { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue') },
+      { path: 'roles', name: 'roles', component: () => import('@/views/RolesView.vue') },
+      { path: 'permissions', name: 'permissions', component: () => import('@/views/PermissionsView.vue') }
     ]
   }
 ]

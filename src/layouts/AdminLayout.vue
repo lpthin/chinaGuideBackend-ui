@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled, Avatar, User } from '@element-plus/icons-vue'
+import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled, Avatar, User, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSiteStore } from '@/stores/site'
 
@@ -26,7 +26,8 @@ const menuItems: Array<{ path?: string; label: string; icon: any; children?: Arr
   {
     label: '系统管理', icon: UserFilled, children: [
       { path: '/users', label: '用户管理', icon: Avatar },
-      { path: '/roles', label: '角色管理', icon: User }
+      { path: '/roles', label: '角色管理', icon: User },
+      { path: '/permissions', label: '权限管理', icon: Lock }
     ]
   }
 ]

@@ -33,6 +33,14 @@ export function createPermissionApi(perm: { code: string; name: string; module: 
   return http.post<unknown, Permission>('/admin/permissions', perm)
 }
 
+export function updatePermissionApi(id: number, perm: { name?: string; module?: string; action?: string }) {
+  return http.put<unknown, Permission>(`/admin/permissions/${id}`, perm)
+}
+
+export function deletePermissionApi(id: number) {
+  return http.delete<unknown, void>(`/admin/permissions/${id}`)
+}
+
 export function listUsersApi() {
   return http.get<unknown, Array<{ id: number; username: string; nickname: string; status: string }>>('/admin/users')
 }
