@@ -45,6 +45,14 @@ function handleSelectionChange(rows: Media[]) {
   selectedRows.value = rows
 }
 
+async function deleteOne(media: Media) {
+  if (!currentSiteId.value || !media.id) return
+  await ElMessageBox.confirm(`确认删除图片「${media.originalName}」？`, '删除确认', { type: 'warning' })
+  const result = await deleteMediaBatchApi(currentSiteId.value, [media.id])
+  ElMessage.success(`已删除 ${result.deleted} 张图片`)
+  await load()
+}
+
 async function deleteSelected() {
   if (!currentSiteId.value) { ElMessage.warning('请先选择站点'); return }
   const ids = selectedRows.value.map((item) => item.id).filter((id): id is number => Boolean(id))
@@ -87,7 +95,10 @@ watchEffect(() => { if (currentSiteId.value) load() })
       <el-table-column prop="mimeType" label="类型" width="140" />
       <el-table-column label="尺寸" width="120"><template #default="{ row }">{{ row.width && row.height ? `${row.width}×${row.height}` : '-' }}</template></el-table-column>
       <el-table-column prop="createdAt" label="上传时间" width="180" />
-      <el-table-column label="操作" width="100"><template #default="{ row }"><el-button size="small" @click="preview(row)">查看</el-button></template></el-table-column>
+      <el-table-column label="操作" width="160"><template #default="{ row }">
+        <el-button size="small" @click="preview(row)">查看</el-button>
+        <el-button size="small" type="danger" @click="deleteOne(row)">删除</el-button>
+      </template></el-table-column>
     </el-table>
 
     <el-dialog v-model="previewVisible" title="文件预览" width="800px">
