@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue'
+
+import { formatTime } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteMediaBatchApi, listMediaApi, uploadMediaBatchApi } from '@/api/media'
 import { useSiteStore } from '@/stores/site'
@@ -94,7 +96,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
       <el-table-column label="大小" width="120"><template #default="{ row }">{{ (row.fileSize / 1024).toFixed(1) }} KB</template></el-table-column>
       <el-table-column prop="mimeType" label="类型" width="140" />
       <el-table-column label="尺寸" width="120"><template #default="{ row }">{{ row.width && row.height ? `${row.width}×${row.height}` : '-' }}</template></el-table-column>
-      <el-table-column prop="createdAt" label="上传时间" width="180" />
+      <el-table-column label="上传时间" width="180"><template #default="{ row }">{{ formatTime(row.createdAt) }}</template></el-table-column>
       <el-table-column label="操作" width="160"><template #default="{ row }">
         <el-button size="small" @click="preview(row)">查看</el-button>
         <el-button size="small" type="danger" @click="deleteOne(row)">删除</el-button>

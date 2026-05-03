@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue'
+
+import { formatTime } from '@/utils/format'
 import { ElMessage } from 'element-plus'
 import { listLeadsApi, updateLeadStatusApi } from '@/api/forms'
 import { useSiteStore } from '@/stores/site'
@@ -41,7 +43,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
       <el-table-column prop="sourcePage" label="来源页" width="200" show-overflow-tooltip />
       <el-table-column prop="payloadJson" label="提交内容" min-width="260" show-overflow-tooltip />
       <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="row.status === 'done' ? 'success' : row.status === 'invalid' ? 'danger' : 'warning'">{{ row.status || 'new' }}</el-tag></template></el-table-column>
-      <el-table-column prop="createdAt" label="提交时间" width="180" />
+      <el-table-column label="提交时间" width="180"><template #default="{ row }">{{ formatTime(row.createdAt) }}</template></el-table-column>
       <el-table-column label="操作" width="220"><template #default="{ row }"><el-button size="small" @click="updateStatus(row, 'processing')">跟进中</el-button><el-button size="small" type="success" @click="updateStatus(row, 'done')">完成</el-button><el-button size="small" type="danger" @click="updateStatus(row, 'invalid')">无效</el-button></template></el-table-column>
     </el-table>
   </div>

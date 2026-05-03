@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watchEffect } from 'vue'
+
+import { formatTime } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createFormApi, deleteFormApi, listFormsApi, updateFormApi } from '@/api/forms'
 import { useSiteStore } from '@/stores/site'
@@ -136,7 +138,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
       <el-table-column prop="code" label="代码" width="180" />
       <el-table-column prop="description" label="说明" min-width="220" show-overflow-tooltip />
       <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.status === 'enabled' ? 'success' : 'info'">{{ row.status === 'enabled' ? '启用' : '停用' }}</el-tag></template></el-table-column>
-      <el-table-column prop="createdAt" label="创建时间" width="180" />
+      <el-table-column label="创建时间" width="180"><template #default="{ row }">{{ formatTime(row.createdAt) }}</template></el-table-column>
       <el-table-column label="操作" width="230"><template #default="{ row }"><el-button size="small" type="primary" @click="openDesigner(row)">设计</el-button><el-button size="small" @click="openEdit(row)">编辑</el-button><el-button size="small" type="danger" @click="remove(row)">删除</el-button></template></el-table-column>
     </el-table>
 

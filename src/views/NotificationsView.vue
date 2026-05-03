@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue'
+
+import { formatTime } from '@/utils/format'
 import { ElMessage } from 'element-plus'
 import { listNotificationsApi, markNotificationReadApi } from '@/api/notifications'
 import { useSiteStore } from '@/stores/site'

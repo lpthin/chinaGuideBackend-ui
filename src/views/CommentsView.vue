@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watchEffect } from 'vue'
+
+import { formatTime } from '@/utils/format'
 import { ElMessage } from 'element-plus'
 import { generateVirtualInteractionsApi, listCommentsApi, reviewCommentApi } from '@/api/comments'
 import { listCategoriesApi } from '@/api/categories'

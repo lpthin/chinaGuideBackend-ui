@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watchEffect } from 'vue'
+
+import { formatTime } from '@/utils/format'
 import { ElMessage } from 'element-plus'
 import { createPromptTemplateApi, listPromptTemplatesApi, updatePromptTemplateApi } from '@/api/prompts'
 import { getAiCallStatsApi, listAiCallLogsApi } from '@/api/aiLogs'
@@ -135,7 +137,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
         <el-table-column prop="tokenEstimate" label="Token" width="100" />
         <el-table-column prop="outputSummary" label="输出摘要" min-width="220" show-overflow-tooltip />
         <el-table-column prop="errorMessage" label="错误" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="createdAt" label="时间" width="180" />
+        <el-table-column label="时间" width="180"><template #default="{ row }">{{ formatTime(row.createdAt) }}</template></el-table-column>
       </el-table>
     </el-card>
   </div>
