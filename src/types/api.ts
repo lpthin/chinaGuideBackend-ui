@@ -239,3 +239,34 @@ export interface ArticleComment {
   reviewedAt?: string
   createdAt?: string
 }
+
+export interface FormDefinition {
+  id?: number
+  siteId?: number
+  name: string
+  code: string
+  description?: string
+  status?: string
+  fieldsJson: string
+  submitButtonText?: string
+  successMessage?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface LeadSubmission {
+  id?: number
+  siteId?: number
+  formId?: number
+  status?: string
+  contactName?: string
+  contactEmail?: string
+  contactPhone?: string
+  payloadJson?: string
+  sourcePage?: string
+  ipAddress?: string
+  userAgent?: string
+  remark?: string
+  createdAt?: string
+  updatedAt?: string
+}
