@@ -16,3 +16,11 @@ export function distillKeywordsApi(siteId: number) {
 export function listKeywordClustersApi(siteId: number) {
   return http.get<unknown, KeywordCluster[]>(`/admin/sites/${siteId}/keywords/clusters`)
 }
+
+export function deleteKeywordApi(siteId: number, id: number) {
+  return http.delete<unknown, void>(`/admin/sites/${siteId}/keywords/${id}`)
+}
+
+export function deleteKeywordClusterApi(siteId: number, id: number) {
+  return http.delete<unknown, void>(`/admin/sites/${siteId}/keywords/clusters/${id}`)
+}

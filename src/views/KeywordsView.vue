@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue'
-import { ElMessage } from 'element-plus'
-import { distillKeywordsApi, importKeywordsApi, listKeywordClustersApi, listKeywordsApi } from '@/api/keywords'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { deleteKeywordApi, deleteKeywordClusterApi, distillKeywordsApi, importKeywordsApi, listKeywordClustersApi, listKeywordsApi } from '@/api/keywords'
 import { useSiteStore } from '@/stores/site'
 import type { Keyword, KeywordCluster } from '@/types/api'
 
@@ -58,6 +58,23 @@ async function distill() {
   }
 }
 
+
+async function deleteKeyword(row: Keyword) {
+  if (!currentSiteId.value || !row.id) return
+  await ElMessageBox.confirm(`确认删除关键词「${row.rawKeyword}」？`, '删除确认', { type: 'warning' })
+  await deleteKeywordApi(currentSiteId.value, row.id)
+  ElMessage.success('已删除')
+  await load()
+}
+
+async function deleteCluster(row: KeywordCluster) {
+  if (!currentSiteId.value || !row.id) return
+  await ElMessageBox.confirm(`确认删除聚类「${row.name}」？`, '删除确认', { type: 'warning' })
+  await deleteKeywordClusterApi(currentSiteId.value, row.id)
+  ElMessage.success('已删除')
+  await load()
+}
+
 watchEffect(() => { if (currentSiteId.value) load() })
 </script>
 
@@ -81,6 +98,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
             <el-table-column prop="normalizedKeyword" label="归一化" />
             <el-table-column prop="priority" label="优先级" width="90" />
             <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag v-if="row.status === 'pending'" type="warning">待处理</el-tag><el-tag v-else-if="row.status === 'distilled'" type="success">已蒸馏</el-tag><el-tag v-else-if="row.status === 'completed'" type="success">已完成</el-tag><el-tag v-else type="info">{{ row.status }}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="80"><template #default="{ row }"><el-button size="small" type="danger" @click="deleteKeyword(row)">删除</el-button></template></el-table-column>
           </el-table>
         </el-card>
       </el-col>
@@ -92,6 +110,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
             <el-table-column prop="name" label="名称" />
             <el-table-column prop="searchIntent" label="意图" />
             <el-table-column prop="priority" label="优先级" width="90" />
+            <el-table-column label="操作" width="80"><template #default="{ row }"><el-button size="small" type="danger" @click="deleteCluster(row)">删除</el-button></template></el-table-column>
           </el-table>
         </el-card>
       </el-col>
