@@ -79,6 +79,7 @@ export interface Article {
   publishedAt?: string
   createdAt?: string
   updatedAt?: string
+  title?: string
 }
 
 export interface ArticleVersion {
@@ -230,6 +231,7 @@ export interface ArticleComment {
   id?: number
   siteId: number
   articleId: number
+  articleTitle?: string
   parentId?: number
   authorName?: string
   authorEmail?: string
@@ -282,4 +284,16 @@ export interface Notification {
   status?: string
   readAt?: string
   createdAt?: string
+}
+
+export interface VirtualInteractionRequest {
+  articleId: number
+  commentCount: number
+  likeCount: number
+  status?: string
+}
+
+export interface VirtualInteractionResult {
+  comments: ArticleComment[]
+  likesCreated: number
 }
