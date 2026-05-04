@@ -15,7 +15,7 @@ const activeMenu = computed(() => route.path)
 const menuItems: Array<{ path?: string; label: string; icon: any; children?: Array<{ path: string; label: string; icon: any }> }> = [
   { path: '/dashboard', label: '仪表盘', icon: House },
   { path: '/categories', label: '栏目管理', icon: Collection },
-  { path: '/keywords', label: '关键词库', icon: Key },
+  { path: '/keywords', label: 'AI蒸馏', icon: Key },
   { path: '/articles', label: '内容草稿', icon: Document },
   { path: '/reviews', label: '审核中心', icon: Checked },
   { path: '/publishing', label: '发布任务', icon: Upload },

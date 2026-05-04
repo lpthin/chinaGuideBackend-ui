@@ -132,61 +132,73 @@ watchEffect(() => { if (currentSiteId.value) load() })
 <template>
   <div>
     <div class="page-header">
-      <div><h2>关键词库</h2><p>从站点画像采集行业热词，导入关键词，触发 AI 蒸馏并查看聚类。</p></div>
-      <div class="actions">
-        <el-select v-model="selectedSources" multiple collapse-tags collapse-tags-tooltip style="width: 280px" placeholder="选择信源">
-          <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
-        <el-button :loading="collecting" @click="collectHotwords">采集行业热词</el-button>
-        <el-button @click="importDialogVisible = true">导入关键词</el-button>
-        <el-button type="primary" :loading="distilling" @click="distill">AI 蒸馏</el-button>
-      </div>
+      <div><h2>AI蒸馏</h2><p>按 GEO 内容生产链路拆分：热词采集 → 关键词池 → 意图聚类 → 内容 Prompt。</p></div>
     </div>
 
-    <el-row :gutter="16">
-      <el-col :span="14">
-        <el-card>
-          <template #header>关键词 <el-button size="small" type="danger" plain :disabled="!kwSelection.length" @click="deleteKeywordsBatch">批量删除</el-button></template>
-          <el-table v-loading="loading" :data="keywords" border height="560" @selection-change="kwSelection = $event">
-            <el-table-column type="selection" width="40" />
-            <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="rawKeyword" label="原始关键词" />
-            <el-table-column prop="normalizedKeyword" label="归一化" />
-            <el-table-column prop="sourceCodes" label="信源" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="sourceScore" label="来源评分" width="100" />
-            <el-table-column prop="collectionBatchNo" label="批次" min-width="145" show-overflow-tooltip />
-            <el-table-column prop="priority" label="优先级" width="90" />
-            <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag v-if="row.status === 'pending'" type="warning">待处理</el-tag><el-tag v-else-if="row.status === 'distilled'" type="success">已蒸馏</el-tag><el-tag v-else-if="row.status === 'completed'" type="success">已完成</el-tag><el-tag v-else type="info">{{ row.status }}</el-tag></template></el-table-column>
-            <el-table-column label="操作" width="80"><template #default="{ row }"><el-button size="small" type="danger" @click="deleteKeyword(row)">删除</el-button></template></el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-      <el-col :span="10">
-        <el-card>
-          <template #header>关键词聚类 <el-button size="small" type="danger" plain :disabled="!clusterSelection.length" @click="deleteClustersBatch">批量删除</el-button></template>
-          <el-table v-loading="loading" :data="clusters" border height="560" @selection-change="clusterSelection = $event">
-            <el-table-column type="selection" width="40" />
-            <el-table-column prop="id" label="ID" width="70" />
-            <el-table-column prop="name" label="名称" />
-            <el-table-column prop="searchIntent" label="意图" />
-            <el-table-column prop="priority" label="优先级" width="90" />
-            <el-table-column label="操作" width="80"><template #default="{ row }"><el-button size="small" type="danger" @click="deleteCluster(row)">删除</el-button></template></el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-    </el-row>
+    <el-tabs type="border-card">
+      <el-tab-pane label="热词采集">
+        <div class="toolbar">
+          <el-select v-model="selectedSources" multiple collapse-tags collapse-tags-tooltip style="width: 360px" placeholder="选择信源">
+            <el-option v-for="item in sourceOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+          <el-button type="primary" :loading="collecting" @click="collectHotwords">采集行业热词</el-button>
+        </div>
+        <el-table :data="collectionJobs" border>
+          <el-table-column prop="batchNo" label="批次" min-width="160" />
+          <el-table-column prop="sourceCodes" label="信源" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="candidateCount" label="候选数" width="90" />
+          <el-table-column prop="savedCount" label="入库/更新" width="100" />
+          <el-table-column prop="status" label="状态" width="90" />
+          <el-table-column prop="createdAt" label="时间" min-width="160" />
+        </el-table>
+      </el-tab-pane>
 
-    <el-card class="jobs-card">
-      <template #header>热词采集记录</template>
-      <el-table :data="collectionJobs" border>
-        <el-table-column prop="batchNo" label="批次" min-width="160" />
-        <el-table-column prop="sourceCodes" label="信源" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="candidateCount" label="候选数" width="90" />
-        <el-table-column prop="savedCount" label="入库/更新" width="100" />
-        <el-table-column prop="status" label="状态" width="90" />
-        <el-table-column prop="createdAt" label="时间" min-width="160" />
-      </el-table>
-    </el-card>
+      <el-tab-pane label="关键词池">
+        <div class="toolbar">
+          <el-button @click="importDialogVisible = true">导入关键词</el-button>
+          <el-button type="danger" plain :disabled="!kwSelection.length" @click="deleteKeywordsBatch">批量删除</el-button>
+        </div>
+        <el-table v-loading="loading" :data="keywords" border height="560" @selection-change="kwSelection = $event">
+          <el-table-column type="selection" width="40" />
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="rawKeyword" label="原始关键词" min-width="180" />
+          <el-table-column prop="normalizedKeyword" label="归一化" min-width="160" />
+          <el-table-column prop="sourceCodes" label="信源" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="sourceScore" label="来源评分" width="100" />
+          <el-table-column prop="collectionBatchNo" label="批次" min-width="145" show-overflow-tooltip />
+          <el-table-column prop="priority" label="优先级" width="90" />
+          <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag v-if="row.status === 'pending'" type="warning">待处理</el-tag><el-tag v-else-if="row.status === 'distilled'" type="success">已蒸馏</el-tag><el-tag v-else type="info">{{ row.status }}</el-tag></template></el-table-column>
+          <el-table-column label="操作" width="80"><template #default="{ row }"><el-button size="small" type="danger" @click="deleteKeyword(row)">删除</el-button></template></el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="意图聚类">
+        <div class="toolbar">
+          <el-button type="primary" :loading="distilling" @click="distill">AI 蒸馏</el-button>
+          <el-button type="danger" plain :disabled="!clusterSelection.length" @click="deleteClustersBatch">批量删除</el-button>
+        </div>
+        <el-table v-loading="loading" :data="clusters" border height="560" @selection-change="clusterSelection = $event">
+          <el-table-column type="selection" width="40" />
+          <el-table-column prop="id" label="ID" width="70" />
+          <el-table-column prop="name" label="聚类" min-width="140" />
+          <el-table-column prop="searchIntent" label="搜索意图" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="suggestedCategory" label="建议栏目" min-width="130" />
+          <el-table-column prop="articleDirection" label="文章方向" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="priority" label="优先级" width="90" />
+          <el-table-column label="操作" width="80"><template #default="{ row }"><el-button size="small" type="danger" @click="deleteCluster(row)">删除</el-button></template></el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="内容Prompt">
+        <el-table v-loading="loading" :data="clusters" border height="620">
+          <el-table-column prop="name" label="意图聚类" width="150" />
+          <el-table-column prop="articleTitle" label="文章标题" min-width="260" show-overflow-tooltip />
+          <el-table-column prop="contentPrompt" label="文章内容 Prompt" min-width="520">
+            <template #default="{ row }"><div class="prompt-cell">{{ row.contentPrompt || '待蒸馏生成' }}</div></template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+    </el-tabs>
 
     <el-dialog v-model="importDialogVisible" title="批量导入关键词" width="680px">
       <el-input v-model="importText" type="textarea" :rows="12" placeholder="每行一个关键词，也支持英文逗号分隔" />
@@ -196,5 +208,5 @@ watchEffect(() => { if (currentSiteId.value) load() })
 </template>
 
 <style scoped>
-.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.page-header h2{margin:0 0 6px}.page-header p{margin:0;color:#64748b}.actions{display:flex;gap:8px}.jobs-card{margin-top:16px}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.page-header h2{margin:0 0 6px}.page-header p{margin:0;color:#64748b}.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px}.prompt-cell{white-space:pre-wrap;line-height:1.6;color:#334155}
 </style>
