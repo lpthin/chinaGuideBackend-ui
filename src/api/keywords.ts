@@ -1,5 +1,5 @@
 import { http } from './http'
-import type { Keyword, KeywordCluster } from '@/types/api'
+import type { HotwordCollectionResult, Keyword, KeywordCluster, KeywordCollectionJob } from '@/types/api'
 
 export function listKeywordsApi(siteId: number) {
   return http.get<unknown, Keyword[]>(`/admin/sites/${siteId}/keywords`)
@@ -7,6 +7,14 @@ export function listKeywordsApi(siteId: number) {
 
 export function importKeywordsApi(siteId: number, keywords: string[]) {
   return http.post<unknown, Keyword[]>(`/admin/sites/${siteId}/keywords/import`, { keywords })
+}
+
+export function collectHotwordsApi(siteId: number, sourceCodes: string[]) {
+  return http.post<unknown, HotwordCollectionResult>(`/admin/sites/${siteId}/keywords/collect-hotwords`, { sourceCodes })
+}
+
+export function listKeywordCollectionJobsApi(siteId: number) {
+  return http.get<unknown, KeywordCollectionJob[]>(`/admin/sites/${siteId}/keywords/collection-jobs`)
 }
 
 export function distillKeywordsApi(siteId: number) {

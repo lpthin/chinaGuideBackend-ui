@@ -14,7 +14,6 @@ const activeMenu = computed(() => route.path)
 
 const menuItems: Array<{ path?: string; label: string; icon: any; children?: Array<{ path: string; label: string; icon: any }> }> = [
   { path: '/dashboard', label: '仪表盘', icon: House },
-  { path: '/sites', label: '站点管理', icon: OfficeBuilding },
   { path: '/categories', label: '栏目管理', icon: Collection },
   { path: '/keywords', label: '关键词库', icon: Key },
   { path: '/articles', label: '内容草稿', icon: Document },
@@ -28,6 +27,7 @@ const menuItems: Array<{ path?: string; label: string; icon: any; children?: Arr
   { path: '/notifications', label: '站内提醒', icon: Bell },
   {
     label: '系统管理', icon: UserFilled, children: [
+      { path: '/sites', label: '站点管理', icon: OfficeBuilding },
       { path: '/users', label: '用户管理', icon: Avatar },
       { path: '/roles', label: '角色管理', icon: User },
       { path: '/permissions', label: '权限管理', icon: Lock }

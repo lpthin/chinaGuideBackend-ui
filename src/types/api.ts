@@ -21,6 +21,18 @@ export interface Site {
   code: string
   name: string
   domain?: string
+  description?: string
+  brandName?: string
+  industry?: string
+  subIndustry?: string
+  targetRegions?: string
+  targetAudience?: string
+  businessModel?: string
+  coreProducts?: string
+  competitorDomains?: string
+  seedKeywords?: string
+  excludedKeywords?: string
+  searchLocales?: string
   siteType?: string
   defaultLocale?: string
   enabledLocales?: string
@@ -50,10 +62,35 @@ export interface Keyword {
   rawKeyword: string
   normalizedKeyword?: string
   keywordType?: string
+  sourceCodes?: string
+  sourceScore?: number
+  collectionBatchNo?: string
   priority?: number
   status?: string
   createdAt?: string
   updatedAt?: string
+}
+
+
+export interface KeywordCollectionJob {
+  id?: number
+  siteId?: number
+  batchNo: string
+  sourceCodes: string
+  candidateCount: number
+  savedCount: number
+  status: string
+  message?: string
+  createdAt?: string
+}
+
+export interface HotwordCollectionResult {
+  batchNo: string
+  candidateCount: number
+  savedCount: number
+  sources: string[]
+  sourceStats: Record<string, number>
+  samples: string[]
 }
 
 export interface KeywordCluster {
