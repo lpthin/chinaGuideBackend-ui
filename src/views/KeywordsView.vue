@@ -477,7 +477,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
         <el-form-item label="标题"><el-input v-model="suggestionForm.title" /></el-form-item>
         <el-form-item label="评分"><el-input-number v-model="suggestionForm.score" :min="1" :max="100" /></el-form-item>
         <el-form-item label="状态"><el-select v-model="suggestionForm.status"><el-option label="候选" value="candidate" /><el-option label="采用" value="selected" /><el-option label="搁置" value="archived" /></el-select></el-form-item>
-        <el-form-item label="推荐原因"><el-input v-model="suggestionForm.reason" type="textarea" :rows="3" /></el-item>
+        <el-form-item label="推荐原因"><el-input v-model="suggestionForm.reason" type="textarea" :rows="3" /></el-form-item>
         <el-form-item label="Prompt"><el-input v-model="suggestionForm.contentPrompt" type="textarea" :rows="12" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="suggestionDialogVisible = false">取消</el-button><el-button type="primary" @click="saveSuggestion">保存</el-button></template>
