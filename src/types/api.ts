@@ -93,6 +93,19 @@ export interface HotwordCollectionResult {
   samples: string[]
 }
 
+export interface KeywordContentSuggestion {
+  id?: number
+  siteId?: number
+  clusterId?: number
+  title: string
+  contentPrompt: string
+  score?: number
+  reason?: string
+  status?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface KeywordCluster {
   id?: number
   siteId?: number
@@ -100,9 +113,12 @@ export interface KeywordCluster {
   searchIntent?: string
   suggestedCategory?: string
   articleDirection?: string
+  articleTitle?: string
+  contentPrompt?: string
   priority?: number
   sourceKeywordIds?: string
   createdAt?: string
+  contentSuggestions?: KeywordContentSuggestion[]
 }
 
 export interface Article {

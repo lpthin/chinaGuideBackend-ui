@@ -1,5 +1,5 @@
 import { http } from './http'
-import type { HotwordCollectionResult, Keyword, KeywordCluster, KeywordCollectionJob } from '@/types/api'
+import type { HotwordCollectionResult, Keyword, KeywordCluster, KeywordCollectionJob, KeywordContentSuggestion } from '@/types/api'
 
 export function listKeywordsApi(siteId: number) {
   return http.get<unknown, Keyword[]>(`/admin/sites/${siteId}/keywords`)
@@ -39,4 +39,8 @@ export function deleteKeywordsBatchApi(siteId: number, ids: number[]) {
 
 export function deleteKeywordClustersBatchApi(siteId: number, ids: number[]) {
   return http.post<unknown, { deleted: number }>(`/admin/sites/${siteId}/keywords/clusters/batch-delete`, { ids })
+}
+
+export function updateKeywordContentSuggestionApi(siteId: number, id: number, data: Partial<KeywordContentSuggestion>) {
+  return http.put<unknown, KeywordContentSuggestion>(`/admin/sites/${siteId}/keywords/content-suggestions/${id}`, data)
 }
