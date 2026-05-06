@@ -21,6 +21,8 @@ const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.curr
 const activeTab = ref('collect')
 const loading = ref(false)
 const generatingClusterId = ref<number | null>(null)
+const clusterDetailVisible = ref(false)
+const clusterDetailRow = ref<DistillCluster | null>(null)
 const poolPage = ref(1)
 const poolPageSize = ref(20)
 const kwSelection = ref<Keyword[]>([])
@@ -289,6 +291,11 @@ async function deleteKeyword(row: Keyword) {
 }
 
 
+function openClusterDetail(row: DistillCluster) {
+  clusterDetailRow.value = row
+  clusterDetailVisible.value = true
+}
+
 async function generateClusterSuggestions(clusterId: number) {
   if (!currentSiteId.value) return
   generatingClusterId.value = clusterId
@@ -296,6 +303,12 @@ async function generateClusterSuggestions(clusterId: number) {
     const suggestions = await generateClusterSuggestionsApi(currentSiteId.value, clusterId)
     ElMessage.success(`已生成 ${suggestions.length} 条内容建议`)
     await load()
+    // Also refresh the detail row data
+    if (clusterDetailRow.value) {
+      const clusters = await listKeywordClustersApi(currentSiteId.value)
+      const updated = clusters.find((c: DistillCluster) => c.id === clusterId)
+      if (updated) clusterDetailRow.value = updated
+    }
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '生成失败')
   } finally {
@@ -388,8 +401,8 @@ watchEffect(() => { if (currentSiteId.value) load() })
           <el-table-column prop="articleDirection" label="文章方向" min-width="260" show-overflow-tooltip />
           <el-table-column label="内容建议" width="100"><template #default="{ row }"><el-tag type="primary">{{ row.contentSuggestions?.length || (row.contentPrompt ? 1 : 0) }}/5</el-tag></template></el-table-column>
           <el-table-column label="优先级" width="100"><template #default="{ row }"><el-tag :type="priorityType(row.priority)" effect="light">{{ row.priority || 0 }}</el-tag></template></el-table-column>
-          <el-table-column label="操作" width="180"><template #default="{ row }">
-            <el-button size="small" type="primary" plain :loading="generatingClusterId === row.id" @click="generateClusterSuggestions(row.id!)">生成Prompt</el-button>
+          <el-table-column label="操作" width="140"><template #default="{ row }">
+            <el-button size="small" type="primary" plain @click="openClusterDetail(row)">详情</el-button>
             <el-button size="small" type="danger" plain @click="deleteCluster(row)">删除</el-button>
           </template></el-table-column>
         </el-table>
@@ -425,12 +438,46 @@ watchEffect(() => { if (currentSiteId.value) load() })
       <template #footer><el-button @click="importDialogVisible = false">取消</el-button><el-button type="primary" @click="importKeywords">导入</el-button></template>
     </el-dialog>
 
+    <el-dialog v-model="clusterDetailVisible" title="聚类详情" width="800px" class="cluster-detail-dialog">
+      <template v-if="clusterDetailRow">
+        <el-descriptions :column="2" border class="cluster-detail-header">
+          <el-descriptions-item label="聚类名称" span="2"><strong>{{ clusterDetailRow.name }}</strong></el-descriptions-item>
+          <el-descriptions-item label="搜索意图" span="2">{{ clusterDetailRow.searchIntent }}</el-descriptions-item>
+          <el-descriptions-item label="建议栏目">{{ clusterDetailRow.suggestedCategory || '未分配' }}</el-descriptions-item>
+          <el-descriptions-item label="优先级"><el-tag :type="priorityType(clusterDetailRow.priority)" effect="light">{{ clusterDetailRow.priority || 0 }}</el-tag></el-descriptions-item>
+          <el-descriptions-item label="文章方向" span="2">{{ clusterDetailRow.articleDirection }}</el-descriptions-item>
+        </el-descriptions>
+        <div class="detail-actions">
+          <el-button type="primary" :loading="generatingClusterId === clusterDetailRow.id" @click="generateClusterSuggestions(clusterDetailRow.id!)"><el-icon><Connection /></el-icon>生成内容 Prompt</el-button>
+        </div>
+        <h4 style="margin:18px 0 12px;font-size:16px">内容建议（可多篇文章）</h4>
+        <div v-if="clusterDetailRow.contentSuggestions?.length" class="suggestion-cards">
+          <div v-for="s in clusterDetailRow.contentSuggestions" :key="s.id || s.title" class="suggestion-item">
+            <div class="suggestion-head">
+              <strong>{{ s.title }}</strong>
+              <el-tag :type="scoreType(s.score)" round size="small">{{ s.score }}</el-tag>
+            </div>
+            <p class="suggestion-prompt">{{ s.contentPrompt }}</p>
+            <p v-if="s.reason" class="suggestion-reason">推荐原因：{{ s.reason }}</p>
+            <el-button size="small" @click="openSuggestionDetail({
+              ...s, clusterName: clusterDetailRow.name,
+              searchIntent: clusterDetailRow.searchIntent,
+              suggestedCategory: clusterDetailRow.suggestedCategory,
+              articleDirection: clusterDetailRow.articleDirection,
+              clusterPriority: clusterDetailRow.priority
+            })">编辑</el-button>
+          </div>
+        </div>
+        <el-empty v-else description="暂无内容建议，点击上方按钮生成" :image-size="80" />
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="suggestionDialogVisible" title="内容建议详情" width="860px" class="suggestion-dialog">
       <el-form label-width="90px">
         <el-form-item label="标题"><el-input v-model="suggestionForm.title" /></el-form-item>
         <el-form-item label="评分"><el-input-number v-model="suggestionForm.score" :min="1" :max="100" /></el-form-item>
         <el-form-item label="状态"><el-select v-model="suggestionForm.status"><el-option label="候选" value="candidate" /><el-option label="采用" value="selected" /><el-option label="搁置" value="archived" /></el-select></el-form-item>
-        <el-form-item label="推荐原因"><el-input v-model="suggestionForm.reason" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="推荐原因"><el-input v-model="suggestionForm.reason" type="textarea" :rows="3" /></el-item>
         <el-form-item label="Prompt"><el-input v-model="suggestionForm.contentPrompt" type="textarea" :rows="12" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="suggestionDialogVisible = false">取消</el-button><el-button type="primary" @click="saveSuggestion">保存</el-button></template>
@@ -442,4 +489,12 @@ watchEffect(() => { if (currentSiteId.value) load() })
 .distill-page{display:flex;flex-direction:column;gap:18px;color:#0f172a}.hero-card{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;padding:28px;border-radius:24px;background:radial-gradient(circle at 12% 18%,rgba(96,165,250,.34),transparent 28%),linear-gradient(135deg,#0f172a 0%,#1e3a8a 48%,#5b21b6 100%);box-shadow:0 24px 60px rgba(15,23,42,.18);color:#fff}.hero-card:after{content:"";position:absolute;right:-90px;top:-90px;width:260px;height:260px;border-radius:999px;background:rgba(255,255,255,.12)}.hero-copy,.hero-panel{position:relative;z-index:1}.hero-kicker{display:inline-flex;gap:6px;align-items:center;margin-bottom:14px;border:0;background:rgba(255,255,255,.18);backdrop-filter:blur(14px)}.hero-copy h2{margin:0 0 10px;font-size:34px;line-height:1.15;letter-spacing:.02em}.hero-copy p{max-width:720px;margin:0;color:#dbeafe;font-size:15px;line-height:1.8}.hero-actions{display:flex;gap:12px;margin-top:22px}.hero-panel{padding:18px;border:1px solid rgba(255,255,255,.2);border-radius:20px;background:rgba(15,23,42,.24);backdrop-filter:blur(18px)}.hero-panel-title{display:flex;gap:8px;align-items:center;margin-bottom:12px;color:#bfdbfe;font-weight:700}.funnel-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.12);color:#e2e8f0}.funnel-row strong{font-size:24px;color:#fff}.funnel-row.highlight strong{color:#86efac}.latest-job{margin:14px 0 0;color:#c4b5fd;font-size:13px}.workflow-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.workflow-card{position:relative;overflow:hidden;display:grid;grid-template-columns:48px 1fr;gap:12px;padding:18px;border:1px solid #e2e8f0;border-radius:18px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 14px 35px rgba(15,23,42,.06)}.workflow-index{position:absolute;right:14px;top:10px;color:#e2e8f0;font-weight:900;font-size:26px}.workflow-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:14px;background:#eff6ff;color:#2563eb;font-size:22px}.workflow-content h3{margin:0 0 6px;font-size:16px}.workflow-content p{margin:0;color:#64748b;font-size:13px;line-height:1.6}.workflow-metric{grid-column:1 / -1;display:flex;align-items:baseline;gap:6px;margin-top:4px}.workflow-metric strong{font-size:28px}.workflow-metric span{color:#64748b}.distill-tabs{border:0;border-radius:22px;overflow:hidden;box-shadow:0 18px 45px rgba(15,23,42,.08)}:deep(.distill-tabs > .el-tabs__header){background:#f8fafc;border:0;padding:12px 12px 0}:deep(.distill-tabs .el-tabs__item){height:42px;border-radius:14px 14px 0 0;font-weight:700}:deep(.distill-tabs > .el-tabs__content){padding:18px;background:#fff}.tab-label{display:inline-flex;align-items:center;gap:6px}.panel-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px;padding:16px;border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc}.panel-toolbar.elevated{background:linear-gradient(135deg,#f8fafc,#eef2ff)}.panel-toolbar h3{margin:0 0 4px;font-size:16px}.panel-toolbar p{margin:0;color:#64748b;font-size:13px}.toolbar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.keyword-filters{max-width:900px}.source-select{width:360px}.small-select{width:150px}.soft-table{border-radius:16px;overflow:hidden}:deep(.soft-table th.el-table__cell){background:#f8fafc;color:#334155;font-weight:800}:deep(.soft-table .el-table__row:hover > td.el-table__cell){background:#f8fbff}.tag-list{display:flex;flex-wrap:wrap;gap:6px}.keyword-name{color:#0f172a}.muted{color:#94a3b8}.prompt-list{display:flex;flex-direction:column;gap:14px;min-height:220px}.prompt-card{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:16px;padding:18px;border:1px solid #e2e8f0;border-radius:20px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 14px 35px rgba(15,23,42,.06)}.prompt-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.prompt-card h3{margin:10px 0 0;font-size:18px;line-height:1.45}.prompt-intent{margin:12px 0;color:#475569;line-height:1.7}.direction-box{padding:12px 14px;border-radius:14px;background:#eef2ff;color:#1e293b;line-height:1.7}.direction-box span{display:block;margin-bottom:4px;color:#4f46e5;font-size:12px;font-weight:800}.prompt-reason{margin:10px 0 0;color:#64748b}.prompt-card-action{display:flex;align-items:center;justify-content:flex-end}.import-dialog :deep(.el-textarea__inner),.suggestion-dialog :deep(.el-textarea__inner),.suggestion-dialog :deep(.el-input__wrapper){border-radius:14px}
 @media (max-width: 1280px){.workflow-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-card{grid-template-columns:1fr}.prompt-card{grid-template-columns:1fr}.prompt-card-action{justify-content:flex-start}}@media (max-width: 760px){.hero-card{padding:22px}.hero-copy h2{font-size:28px}.hero-actions,.panel-toolbar,.toolbar-actions{align-items:stretch;flex-direction:column}.source-select,.small-select{width:100%}.workflow-grid{grid-template-columns:1fr}}
 .pool-pagination { margin-top: 12px; justify-content: center; }
+.cluster-detail-dialog :deep(.el-descriptions__body) { border-radius: 14px; overflow: hidden; }
+.cluster-detail-dialog :deep(.el-descriptions__title) { font-weight: 700; }
+.detail-actions { margin: 16px 0; display: flex; gap: 10px; }
+.suggestion-cards { display: flex; flex-direction: column; gap: 12px; }
+.suggestion-item { padding: 16px; border: 1px solid #e2e8f0; border-radius: 14px; background: linear-gradient(180deg, #fff, #f8fafc); }
+.suggestion-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.suggestion-prompt { margin: 0 0 6px; color: #475569; line-height: 1.7; font-size: 14px; }
+.suggestion-reason { margin: 0 0 8px; color: #64748b; font-size: 13px; }
 </style>
