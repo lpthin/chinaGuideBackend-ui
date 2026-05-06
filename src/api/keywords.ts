@@ -44,3 +44,6 @@ export function deleteKeywordClustersBatchApi(siteId: number, ids: number[]) {
 export function updateKeywordContentSuggestionApi(siteId: number, id: number, data: Partial<KeywordContentSuggestion>) {
   return http.put<unknown, KeywordContentSuggestion>(`/admin/sites/${siteId}/keywords/content-suggestions/${id}`, data)
 }
+export function generateClusterSuggestionsApi(siteId: number, clusterId: number) {
+  return http.post<unknown, KeywordContentSuggestion[]>(`/admin/sites/${siteId}/keywords/clusters/${clusterId}/generate-suggestions`)
+}

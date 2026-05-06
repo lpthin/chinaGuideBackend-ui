@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watchEffect } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Aim, CollectionTag, Connection, Cpu, DataAnalysis, Document, MagicStick, Search, TrendCharts, Upload } from '@element-plus/icons-vue'
-import { collectHotwordsApi, deleteKeywordApi, deleteKeywordClusterApi, deleteKeywordsBatchApi, deleteKeywordClustersBatchApi, distillKeywordsApi, importKeywordsApi, listKeywordClustersApi, listKeywordCollectionJobsApi, listKeywordsApi, updateKeywordContentSuggestionApi } from '@/api/keywords'
+import { collectHotwordsApi, deleteKeywordApi, deleteKeywordClusterApi, deleteKeywordsBatchApi, deleteKeywordClustersBatchApi, distillKeywordsApi, generateClusterSuggestionsApi, importKeywordsApi, listKeywordClustersApi, listKeywordCollectionJobsApi, listKeywordsApi, updateKeywordContentSuggestionApi } from '@/api/keywords'
 import { useSiteStore } from '@/stores/site'
 import type { Keyword, KeywordCluster, KeywordCollectionJob, KeywordContentSuggestion } from '@/types/api'
 
@@ -20,6 +20,7 @@ const siteStore = useSiteStore()
 const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const activeTab = ref('collect')
 const loading = ref(false)
+const generatingClusterId = ref<number | null>(null)
 const kwSelection = ref<Keyword[]>([])
 const clusterSelection = ref<DistillCluster[]>([])
 const distilling = ref(false)
@@ -280,6 +281,21 @@ async function deleteKeyword(row: Keyword) {
   await load()
 }
 
+
+async function generateClusterSuggestions(clusterId: number) {
+  if (!currentSiteId.value) return
+  generatingClusterId.value = clusterId
+  try {
+    const suggestions = await generateClusterSuggestionsApi(currentSiteId.value, clusterId)
+    ElMessage.success(`已生成 ${suggestions.length} 条内容建议`)
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '生成失败')
+  } finally {
+    generatingClusterId.value = null
+  }
+}
+
 async function deleteCluster(row: DistillCluster) {
   if (!currentSiteId.value || !row.id) return
   await ElMessageBox.confirm(`确认删除聚类「${row.name}」？`, '删除确认', { type: 'warning' })
@@ -364,7 +380,10 @@ watchEffect(() => { if (currentSiteId.value) load() })
           <el-table-column prop="articleDirection" label="文章方向" min-width="260" show-overflow-tooltip />
           <el-table-column label="内容建议" width="100"><template #default="{ row }"><el-tag type="primary">{{ row.contentSuggestions?.length || (row.contentPrompt ? 1 : 0) }}/5</el-tag></template></el-table-column>
           <el-table-column label="优先级" width="100"><template #default="{ row }"><el-tag :type="priorityType(row.priority)" effect="light">{{ row.priority || 0 }}</el-tag></template></el-table-column>
-          <el-table-column label="操作" width="86"><template #default="{ row }"><el-button size="small" type="danger" plain @click="deleteCluster(row)">删除</el-button></template></el-table-column>
+          <el-table-column label="操作" width="180"><template #default="{ row }">
+            <el-button size="small" type="primary" plain :loading="generatingClusterId === row.id" @click="generateClusterSuggestions(row.id!)">生成Prompt</el-button>
+            <el-button size="small" type="danger" plain @click="deleteCluster(row)">删除</el-button>
+          </template></el-table-column>
         </el-table>
       </el-tab-pane>
 
