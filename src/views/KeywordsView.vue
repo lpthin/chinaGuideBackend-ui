@@ -21,6 +21,8 @@ const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.curr
 const activeTab = ref('collect')
 const loading = ref(false)
 const generatingClusterId = ref<number | null>(null)
+const poolPage = ref(1)
+const poolPageSize = ref(20)
 const kwSelection = ref<Keyword[]>([])
 const clusterSelection = ref<DistillCluster[]>([])
 const distilling = ref(false)
@@ -76,7 +78,7 @@ const latestJob = computed(() => collectionJobs.value[0])
 
 const workflowCards = computed(() => [
   { key: 'collect', title: '热词采集', desc: '从站点画像与外部信源补充候选词', metric: collectionJobs.value.length, unit: '批次', icon: Search },
-  { key: 'pool', title: '关键词池', desc: '默认看未蒸馏词，可按状态/信源/批次过滤', metric: filteredKeywords.value.length, unit: '个', icon: CollectionTag },
+  { key: 'pool', title: '关键词池', desc: '默认看未蒸馏词，可按状态/信源/批次过滤', metric: poolTotal.value, unit: '个', icon: CollectionTag },
   { key: 'cluster', title: '意图聚类', desc: '一个聚类可沉淀最多 5 条内容建议', metric: clusters.value.length, unit: '组', icon: DataAnalysis },
   { key: 'prompt', title: '内容 Prompt', desc: '多建议列表、评分和详情编辑', metric: promptReadyCount.value, unit: '条', icon: Document }
 ])
@@ -100,13 +102,18 @@ const batchDisplayMap = computed(() => {
   return result
 })
 
-const filteredKeywords = computed(() => keywords.value.filter((item) => {
+const poolTotal = computed(() => filteredKeywordsFull.value.length)
+const filteredKeywordsFull = computed(() => keywords.value.filter((item) => {
   const statusMatch = keywordStatusFilter.value === 'all'
     || (keywordStatusFilter.value === 'pending' ? item.status !== 'distilled' : item.status === keywordStatusFilter.value)
   const sourceMatch = keywordSourceFilter.value === 'all' || formatSources(item.sourceCodes).includes(keywordSourceFilter.value)
   const batchMatch = !keywordBatchFilter.value || item.collectionBatchNo === keywordBatchFilter.value
   return statusMatch && sourceMatch && batchMatch
 }))
+const filteredKeywords = computed(() => {
+  const start = (poolPage.value - 1) * poolPageSize.value
+  return filteredKeywordsFull.value.slice(start, start + poolPageSize.value)
+})
 
 function formatSources(value?: string | string[]) {
   const rows = Array.isArray(value) ? value : String(value || '').split(',')
@@ -351,16 +358,17 @@ watchEffect(() => { if (currentSiteId.value) load() })
         </div>
         <el-table v-loading="loading" :data="filteredKeywords" border height="560" class="soft-table" @selection-change="kwSelection = $event">
           <el-table-column type="selection" width="46" />
+          <el-table-column label="批次" min-width="155"><template #default="{ row }"><strong>{{ formatBatchNo(row.collectionBatchNo) }}</strong></template></el-table-column>
           <el-table-column prop="rawKeyword" label="原始关键词" min-width="200"><template #default="{ row }"><strong class="keyword-name">{{ row.rawKeyword }}</strong></template></el-table-column>
           <el-table-column prop="normalizedKeyword" label="归一化" min-width="160" />
           <el-table-column label="信源" min-width="190"><template #default="{ row }"><div class="tag-list"><el-tag v-for="source in formatSources(row.sourceCodes)" :key="source" type="info" round>{{ source }}</el-tag></div></template></el-table-column>
           <el-table-column prop="sourceScore" label="来源评分" width="100" />
-          <el-table-column label="批次" min-width="155"><template #default="{ row }">{{ formatBatchNo(row.collectionBatchNo) }}</template></el-table-column>
           <el-table-column label="优先级" width="100"><template #default="{ row }"><el-tag :type="priorityType(row.priority)" effect="light">{{ row.priority || 0 }}</el-tag></template></el-table-column>
           <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="keywordStatusType(row.status)">{{ keywordStatusText(row.status) }}</el-tag></template></el-table-column>
           <el-table-column label="时间" min-width="180"><template #default="{ row }">{{ formatChineseTime(row.createdAt) }}</template></el-table-column>
           <el-table-column label="操作" width="86"><template #default="{ row }"><el-button size="small" type="danger" plain @click="deleteKeyword(row)">删除</el-button></template></el-table-column>
         </el-table>
+        <el-pagination v-if="poolTotal > poolPageSize" small background layout="total, prev, pager, next" :total="poolTotal" :page-size="poolPageSize" v-model:current-page="poolPage" class="pool-pagination" />
       </el-tab-pane>
 
       <el-tab-pane name="cluster">
@@ -433,4 +441,5 @@ watchEffect(() => { if (currentSiteId.value) load() })
 <style scoped>
 .distill-page{display:flex;flex-direction:column;gap:18px;color:#0f172a}.hero-card{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;padding:28px;border-radius:24px;background:radial-gradient(circle at 12% 18%,rgba(96,165,250,.34),transparent 28%),linear-gradient(135deg,#0f172a 0%,#1e3a8a 48%,#5b21b6 100%);box-shadow:0 24px 60px rgba(15,23,42,.18);color:#fff}.hero-card:after{content:"";position:absolute;right:-90px;top:-90px;width:260px;height:260px;border-radius:999px;background:rgba(255,255,255,.12)}.hero-copy,.hero-panel{position:relative;z-index:1}.hero-kicker{display:inline-flex;gap:6px;align-items:center;margin-bottom:14px;border:0;background:rgba(255,255,255,.18);backdrop-filter:blur(14px)}.hero-copy h2{margin:0 0 10px;font-size:34px;line-height:1.15;letter-spacing:.02em}.hero-copy p{max-width:720px;margin:0;color:#dbeafe;font-size:15px;line-height:1.8}.hero-actions{display:flex;gap:12px;margin-top:22px}.hero-panel{padding:18px;border:1px solid rgba(255,255,255,.2);border-radius:20px;background:rgba(15,23,42,.24);backdrop-filter:blur(18px)}.hero-panel-title{display:flex;gap:8px;align-items:center;margin-bottom:12px;color:#bfdbfe;font-weight:700}.funnel-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.12);color:#e2e8f0}.funnel-row strong{font-size:24px;color:#fff}.funnel-row.highlight strong{color:#86efac}.latest-job{margin:14px 0 0;color:#c4b5fd;font-size:13px}.workflow-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.workflow-card{position:relative;overflow:hidden;display:grid;grid-template-columns:48px 1fr;gap:12px;padding:18px;border:1px solid #e2e8f0;border-radius:18px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 14px 35px rgba(15,23,42,.06)}.workflow-index{position:absolute;right:14px;top:10px;color:#e2e8f0;font-weight:900;font-size:26px}.workflow-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:14px;background:#eff6ff;color:#2563eb;font-size:22px}.workflow-content h3{margin:0 0 6px;font-size:16px}.workflow-content p{margin:0;color:#64748b;font-size:13px;line-height:1.6}.workflow-metric{grid-column:1 / -1;display:flex;align-items:baseline;gap:6px;margin-top:4px}.workflow-metric strong{font-size:28px}.workflow-metric span{color:#64748b}.distill-tabs{border:0;border-radius:22px;overflow:hidden;box-shadow:0 18px 45px rgba(15,23,42,.08)}:deep(.distill-tabs > .el-tabs__header){background:#f8fafc;border:0;padding:12px 12px 0}:deep(.distill-tabs .el-tabs__item){height:42px;border-radius:14px 14px 0 0;font-weight:700}:deep(.distill-tabs > .el-tabs__content){padding:18px;background:#fff}.tab-label{display:inline-flex;align-items:center;gap:6px}.panel-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px;padding:16px;border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc}.panel-toolbar.elevated{background:linear-gradient(135deg,#f8fafc,#eef2ff)}.panel-toolbar h3{margin:0 0 4px;font-size:16px}.panel-toolbar p{margin:0;color:#64748b;font-size:13px}.toolbar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.keyword-filters{max-width:900px}.source-select{width:360px}.small-select{width:150px}.soft-table{border-radius:16px;overflow:hidden}:deep(.soft-table th.el-table__cell){background:#f8fafc;color:#334155;font-weight:800}:deep(.soft-table .el-table__row:hover > td.el-table__cell){background:#f8fbff}.tag-list{display:flex;flex-wrap:wrap;gap:6px}.keyword-name{color:#0f172a}.muted{color:#94a3b8}.prompt-list{display:flex;flex-direction:column;gap:14px;min-height:220px}.prompt-card{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:16px;padding:18px;border:1px solid #e2e8f0;border-radius:20px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 14px 35px rgba(15,23,42,.06)}.prompt-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.prompt-card h3{margin:10px 0 0;font-size:18px;line-height:1.45}.prompt-intent{margin:12px 0;color:#475569;line-height:1.7}.direction-box{padding:12px 14px;border-radius:14px;background:#eef2ff;color:#1e293b;line-height:1.7}.direction-box span{display:block;margin-bottom:4px;color:#4f46e5;font-size:12px;font-weight:800}.prompt-reason{margin:10px 0 0;color:#64748b}.prompt-card-action{display:flex;align-items:center;justify-content:flex-end}.import-dialog :deep(.el-textarea__inner),.suggestion-dialog :deep(.el-textarea__inner),.suggestion-dialog :deep(.el-input__wrapper){border-radius:14px}
 @media (max-width: 1280px){.workflow-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-card{grid-template-columns:1fr}.prompt-card{grid-template-columns:1fr}.prompt-card-action{justify-content:flex-start}}@media (max-width: 760px){.hero-card{padding:22px}.hero-copy h2{font-size:28px}.hero-actions,.panel-toolbar,.toolbar-actions{align-items:stretch;flex-direction:column}.source-select,.small-select{width:100%}.workflow-grid{grid-template-columns:1fr}}
+.pool-pagination { margin-top: 12px; justify-content: center; }
 </style>
