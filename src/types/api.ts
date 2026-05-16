@@ -102,6 +102,7 @@ export interface KeywordContentSuggestion {
   score?: number
   reason?: string
   status?: string
+  articleId?: number
   createdAt?: string
   updatedAt?: string
 }
@@ -349,4 +350,59 @@ export interface VirtualInteractionRequest {
 export interface VirtualInteractionResult {
   comments: ArticleComment[]
   likesCreated: number
+}
+
+export interface Plan {
+  id?: number
+  code: string
+  name: string
+  description?: string
+  articleLimit?: number
+  keywordLimit?: number
+  mediaLimit?: number
+  apiCallLimit?: number
+  price?: number
+  billingCycle?: string
+  enabled?: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface Tenant {
+  id?: number
+  code: string
+  name: string
+  email?: string
+  phone?: string
+  status?: string
+  planId?: number
+  plan?: Plan
+  subscriptionStart?: string
+  subscriptionEnd?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface TenantUsage {
+  id?: number
+  tenantId?: number
+  usageType: string
+  usedCount: number
+  date?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface TenantLoginRequest {
+  code: string
+  email?: string
+  password: string
+}
+
+export interface TenantLoginResult {
+  token: string
+  username?: string
+  userId?: number
+  tenantId?: number
+  tenantCode?: string
 }

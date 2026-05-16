@@ -12,6 +12,16 @@ http.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  
+  const tenantId = localStorage.getItem('geocms_tenant_id')
+  const tenantCode = localStorage.getItem('geocms_tenant_code')
+  if (tenantId) {
+    config.headers['X-Tenant-Id'] = tenantId
+  }
+  if (tenantCode) {
+    config.headers['X-Tenant-Code'] = tenantCode
+  }
+  
   return config
 })
 
