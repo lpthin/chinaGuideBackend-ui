@@ -144,9 +144,24 @@ function goToPlans() {
   router.push('/plans')
 }
 
+function goToInvoices() {
+  router.push('/invoices')
+}
+
 onMounted(() => {
   loadTenantInfo()
 })
+
+function getUsagePercentage(used?: number, limit?: number): number {
+  if (!used || !limit || limit <= 0) return 0
+  return Math.min(100, Math.round((used / limit) * 100))
+}
+
+function getUsageStatus(percentage: number): string {
+  if (percentage >= 100) return 'exception'
+  if (percentage >= 90) return 'warning'
+  return 'success'
+}
 </script>
 
 <template>
@@ -171,6 +186,38 @@ onMounted(() => {
           <el-button type="primary" size="small" @click="goToPlans">
             <el-icon><Wallet /></el-icon>套餐管理
           </el-button>
+          <el-button size="small" @click="goToInvoices">
+            <el-icon><Document /></el-icon>发票管理
+          </el-button>
+        </div>
+      </div>
+      <div v-if="currentTenant?.plan" class="usage-chart-section">
+        <div class="usage-item">
+          <span class="usage-label">文章</span>
+          <el-progress
+            :percentage="getUsagePercentage(tenantUsage['article']?.usedCount, currentTenant.plan.articleLimit)"
+            :status="getUsageStatus(getUsagePercentage(tenantUsage['article']?.usedCount, currentTenant.plan.articleLimit))"
+            :stroke-width="8"
+          />
+          <span class="usage-text">{{ tenantUsage['article']?.usedCount || 0 }} / {{ currentTenant.plan.articleLimit || '无限制' }}</span>
+        </div>
+        <div class="usage-item">
+          <span class="usage-label">关键词</span>
+          <el-progress
+            :percentage="getUsagePercentage(tenantUsage['keyword']?.usedCount, currentTenant.plan.keywordLimit)"
+            :status="getUsageStatus(getUsagePercentage(tenantUsage['keyword']?.usedCount, currentTenant.plan.keywordLimit))"
+            :stroke-width="8"
+          />
+          <span class="usage-text">{{ tenantUsage['keyword']?.usedCount || 0 }} / {{ currentTenant.plan.keywordLimit || '无限制' }}</span>
+        </div>
+        <div class="usage-item">
+          <span class="usage-label">媒体</span>
+          <el-progress
+            :percentage="getUsagePercentage(tenantUsage['media']?.usedCount, currentTenant.plan.mediaLimit)"
+            :status="getUsageStatus(getUsagePercentage(tenantUsage['media']?.usedCount, currentTenant.plan.mediaLimit))"
+            :stroke-width="8"
+          />
+          <span class="usage-text">{{ tenantUsage['media']?.usedCount || 0 }} / {{ currentTenant.plan.mediaLimit || '无限制' }}</span>
         </div>
       </div>
     </section>
@@ -333,6 +380,32 @@ onMounted(() => {
 .tenant-actions {
   display: flex;
   gap: 10px;
+}
+
+.usage-chart-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 280px;
+  padding-left: 24px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.usage-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.usage-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.usage-text {
+  font-size: 12px;
+  color: #94a3b8;
 }
 
 /* ── Hero ── */

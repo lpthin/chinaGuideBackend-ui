@@ -51,6 +51,7 @@ const routes = [
       { path: 'plans/compare', name: 'plans-compare', component: () => import('@/views/PlanComparisonView.vue') },
       { path: 'payment-config', name: 'payment-config', component: () => import('@/views/PaymentConfigView.vue') },
       { path: 'billing', name: 'billing', component: () => import('@/views/BillingView.vue') },
+      { path: 'invoices', name: 'invoices', component: () => import('@/views/InvoiceView.vue') },
       { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue') },
       { path: 'roles', name: 'roles', component: () => import('@/views/RolesView.vue') },
       { path: 'permissions', name: 'permissions', component: () => import('@/views/PermissionsView.vue') }

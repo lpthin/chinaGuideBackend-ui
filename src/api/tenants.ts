@@ -89,3 +89,67 @@ export const togglePaymentApi = (provider: string, enabled: boolean): Promise<bo
 export const initPaymentConfigsApi = (): Promise<void> => {
   return http.post('/api/payment/config/init')
 }
+
+export interface Invoice {
+  id?: number
+  invoiceNumber?: string
+  title?: string
+  taxNumber?: string
+  bankName?: string
+  bankAccount?: string
+  address?: string
+  phone?: string
+  email?: string
+  amount?: number
+  status?: string
+  type?: string
+  content?: string
+  pdfPath?: string
+  createdAt?: string
+}
+
+export interface InvoiceRequest {
+  title: string
+  taxNumber?: string
+  bankName?: string
+  bankAccount?: string
+  address?: string
+  phone?: string
+  email?: string
+  amount: number
+  type: string
+  content: string
+}
+
+export const getInvoicesApi = (): Promise<Invoice[]> => {
+  return http.get('/api/invoices')
+}
+
+export const getInvoiceApi = (id: number): Promise<Invoice> => {
+  return http.get(`/api/invoices/${id}`)
+}
+
+export const createInvoiceApi = (data: InvoiceRequest): Promise<Invoice> => {
+  return http.post('/api/invoices', data)
+}
+
+export const downloadInvoiceApi = (id: number): Promise<string> => {
+  return http.get(`/api/invoices/${id}/download`)
+}
+
+export const deleteInvoiceApi = (id: number): Promise<boolean> => {
+  return http.delete(`/api/invoices/${id}`)
+}
+
+export interface AuditLog {
+  id?: number
+  action?: string
+  resource?: string
+  method?: string
+  ipAddress?: string
+  createdAt?: string
+}
+
+export const getAuditLogsApi = (params?: { page?: number; size?: number }): Promise<any> => {
+  return http.get('/api/audit/logs', { params })
+}
