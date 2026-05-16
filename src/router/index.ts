@@ -33,6 +33,7 @@ const routes = [
     redirect: '/dashboard',
     children: [
       { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
+      { path: 'admin-dashboard', name: 'admin-dashboard', component: () => import('@/views/AdminDashboardView.vue') },
       { path: 'sites', name: 'sites', component: () => import('@/views/SitesView.vue') },
       { path: 'categories', name: 'categories', component: () => import('@/views/CategoriesView.vue') },
       { path: 'keywords', name: 'keywords', component: () => import('@/views/KeywordsView.vue') },
@@ -49,9 +50,11 @@ const routes = [
       { path: 'usage', name: 'usage', component: () => import('@/views/UsageView.vue') },
       { path: 'plans', name: 'plans', component: () => import('@/views/PlansView.vue') },
       { path: 'plans/compare', name: 'plans-compare', component: () => import('@/views/PlanComparisonView.vue') },
+      { path: 'plans/upgrade', name: 'plans-upgrade', component: () => import('@/views/PlanUpgradeView.vue') },
       { path: 'payment-config', name: 'payment-config', component: () => import('@/views/PaymentConfigView.vue') },
       { path: 'billing', name: 'billing', component: () => import('@/views/BillingView.vue') },
       { path: 'invoices', name: 'invoices', component: () => import('@/views/InvoiceView.vue') },
+      { path: 'audit-logs', name: 'audit-logs', component: () => import('@/views/AuditLogsView.vue') },
       { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue') },
       { path: 'roles', name: 'roles', component: () => import('@/views/RolesView.vue') },
       { path: 'permissions', name: 'permissions', component: () => import('@/views/PermissionsView.vue') }
