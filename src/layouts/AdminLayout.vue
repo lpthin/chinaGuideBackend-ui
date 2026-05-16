@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled, Avatar, User, Lock, Tickets, MessageBox, Bell } from '@element-plus/icons-vue'
+import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled, Avatar, User, Lock, Tickets, MessageBox, Bell, CreditCard, DataLine } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSiteStore } from '@/stores/site'
 
@@ -25,6 +25,13 @@ const menuItems: Array<{ path?: string; label: string; icon: any; children?: Arr
   { path: '/forms', label: '表单设计器', icon: Tickets },
   { path: '/leads', label: '线索管理', icon: MessageBox },
   { path: '/notifications', label: '站内提醒', icon: Bell },
+  {
+    label: '多租户管理', icon: OfficeBuilding, children: [
+      { path: '/tenant', label: '租户信息', icon: OfficeBuilding },
+      { path: '/usage', label: '使用量统计', icon: DataLine },
+      { path: '/plans', label: '套餐管理', icon: CreditCard }
+    ]
+  },
   {
     label: '系统管理', icon: UserFilled, children: [
       { path: '/sites', label: '站点管理', icon: OfficeBuilding },
@@ -78,8 +85,11 @@ function logout() {
         >
           <el-option v-for="site in siteStore.sites" :key="site.id" :label="site.name" :value="site.id" />
         </el-select>
-        <div class="user-actions">
-          <span>{{ auth.user?.username || '管理员' }}</span>
+        <div class="header-right">
+          <el-tag v-if="auth.tenantCode" type="success" size="small" class="tenant-tag">
+            {{ auth.tenantCode }}
+          </el-tag>
+          <span class="username">{{ auth.user?.username || '管理员' }}</span>
           <el-button size="small" @click="logout">退出</el-button>
         </div>
       </el-header>
@@ -95,7 +105,18 @@ function logout() {
 .admin-sidebar { background: #111827; color: #fff; }
 .brand { height: 60px; display: flex; align-items: center; padding: 0 20px; font-size: 20px; font-weight: 800; letter-spacing: .5px; }
 .admin-header { height: 60px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; }
-.user-actions { display: flex; align-items: center; gap: 12px; color: #475569; }
+.header-right { display: flex; align-items: center; gap: 12px; color: #475569; }
+.tenant-tag { margin-right: 8px; }
+.username { font-weight: 500; }
 .admin-main { padding: 20px; }
 :deep(.el-menu) { border-right: none; }
+</style>
+
+<style>
+.el-overlay {
+  z-index: 2010 !important;
+}
+.el-dialog {
+  z-index: 2020 !important;
+}
 </style>

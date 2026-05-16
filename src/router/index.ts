@@ -10,6 +10,12 @@ const routes = [
     meta: { public: true }
   },
   {
+    path: '/tenant-login',
+    name: 'tenant-login',
+    component: () => import('@/views/TenantLoginView.vue'),
+    meta: { public: true }
+  },
+  {
     path: '/',
     component: AdminLayout,
     redirect: '/dashboard',
@@ -27,6 +33,9 @@ const routes = [
       { path: 'forms', name: 'forms', component: () => import('@/views/FormsView.vue') },
       { path: 'leads', name: 'leads', component: () => import('@/views/LeadsView.vue') },
       { path: 'notifications', name: 'notifications', component: () => import('@/views/NotificationsView.vue') },
+      { path: 'tenant', name: 'tenant', component: () => import('@/views/TenantView.vue') },
+      { path: 'usage', name: 'usage', component: () => import('@/views/UsageView.vue') },
+      { path: 'plans', name: 'plans', component: () => import('@/views/PlansView.vue') },
       { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue') },
       { path: 'roles', name: 'roles', component: () => import('@/views/RolesView.vue') },
       { path: 'permissions', name: 'permissions', component: () => import('@/views/PermissionsView.vue') }
