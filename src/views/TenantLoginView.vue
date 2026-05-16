@@ -54,6 +54,10 @@ async function submit() {
 function goToAdminLogin() {
   router.push('/login')
 }
+
+function goToRegister() {
+  router.push({ name: 'tenant-register' })
+}
 </script>
 
 <template>
@@ -106,6 +110,9 @@ function goToAdminLogin() {
       </el-tabs>
       
       <div class="login-footer">
+        <el-button text @click="goToRegister">
+          还没有账户？立即注册
+        </el-button>
         <el-divider>或</el-divider>
         <el-button text @click="goToAdminLogin">
           平台管理员登录

@@ -16,6 +16,12 @@ const routes = [
     meta: { public: true }
   },
   {
+    path: '/tenant-register',
+    name: 'tenant-register',
+    component: () => import('@/views/TenantRegisterView.vue'),
+    meta: { public: true }
+  },
+  {
     path: '/',
     component: AdminLayout,
     redirect: '/dashboard',
