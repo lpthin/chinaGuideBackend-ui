@@ -47,3 +47,7 @@ export function updateKeywordContentSuggestionApi(siteId: number, id: number, da
 export function generateClusterSuggestionsApi(siteId: number, clusterId: number) {
   return http.post<unknown, KeywordContentSuggestion[]>(`/admin/sites/${siteId}/keywords/clusters/${clusterId}/generate-suggestions`)
 }
+
+export function generateArticleFromSuggestionApi(siteId: number, suggestionId: number) {
+  return http.post<unknown, KeywordContentSuggestion>(`/admin/sites/${siteId}/keywords/content-suggestions/${suggestionId}/generate-article`)
+}

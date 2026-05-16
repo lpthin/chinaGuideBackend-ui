@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watchEffect } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Aim, CollectionTag, Connection, Cpu, DataAnalysis, Document, MagicStick, Search, TrendCharts, Upload } from '@element-plus/icons-vue'
-import { collectHotwordsApi, deleteKeywordApi, deleteKeywordClusterApi, deleteKeywordsBatchApi, deleteKeywordClustersBatchApi, distillKeywordsApi, generateClusterSuggestionsApi, importKeywordsApi, listKeywordClustersApi, listKeywordCollectionJobsApi, listKeywordsApi, updateKeywordContentSuggestionApi } from '@/api/keywords'
+import { collectHotwordsApi, deleteKeywordApi, deleteKeywordClusterApi, deleteKeywordsBatchApi, deleteKeywordClustersBatchApi, distillKeywordsApi, generateArticleFromSuggestionApi, generateClusterSuggestionsApi, importKeywordsApi, listKeywordClustersApi, listKeywordCollectionJobsApi, listKeywordsApi, updateKeywordContentSuggestionApi } from '@/api/keywords'
 import { useSiteStore } from '@/stores/site'
 import type { Keyword, KeywordCluster, KeywordCollectionJob, KeywordContentSuggestion } from '@/types/api'
 
@@ -25,6 +25,12 @@ const clusterDetailVisible = ref(false)
 const clusterDetailRow = ref<DistillCluster | null>(null)
 const poolPage = ref(1)
 const poolPageSize = ref(20)
+const promptExpandMap = ref<Record<string, boolean>>({})
+const promptPage = ref(1)
+const promptPageSize = ref(6)
+const promptCategoryFilter = ref('all')
+const promptGeneratedFilter = ref<'all' | 'generated' | 'pending'>('all')
+const generatingArticleId = ref<number | null>(null)
 const kwSelection = ref<Keyword[]>([])
 const clusterSelection = ref<DistillCluster[]>([])
 const distilling = ref(false)
@@ -61,7 +67,7 @@ const promptSuggestions = computed<PromptSuggestionRow[]>(() => clusters.value.f
         siteId: cluster.siteId,
         clusterId: cluster.id,
         title: cluster.articleTitle || cluster.name,
-        contentPrompt: cluster.contentPrompt || '待蒸馏生成内容 Prompt',
+        contentPrompt: cluster.contentPrompt || '待蒸馏新增内容 Prompt',
         score: cluster.priority,
         reason: '历史聚类字段',
         status: 'candidate'
@@ -76,6 +82,28 @@ const promptSuggestions = computed<PromptSuggestionRow[]>(() => clusters.value.f
   }))
 }))
 const promptReadyCount = computed(() => promptSuggestions.value.length)
+const promptCategoryOptions = computed(() => {
+  const cats = new Set<string>()
+  promptSuggestions.value.forEach((s) => { if (s.suggestedCategory) cats.add(s.suggestedCategory) })
+  return Array.from(cats).sort()
+})
+const filteredPromptSuggestions = computed(() => {
+  let list = promptSuggestions.value
+  if (promptCategoryFilter.value !== 'all') {
+    list = list.filter((s) => s.suggestedCategory === promptCategoryFilter.value)
+  }
+  if (promptGeneratedFilter.value === 'generated') {
+    list = list.filter((s) => s.articleId != null)
+  } else if (promptGeneratedFilter.value === 'pending') {
+    list = list.filter((s) => s.articleId == null)
+  }
+  return list
+})
+const paginatedPromptSuggestions = computed(() => {
+  const start = (promptPage.value - 1) * promptPageSize.value
+  return filteredPromptSuggestions.value.slice(start, start + promptPageSize.value)
+})
+const promptTotalFiltered = computed(() => filteredPromptSuggestions.value.length)
 const latestJob = computed(() => collectionJobs.value[0])
 
 const workflowCards = computed(() => [
@@ -177,6 +205,32 @@ function openJobKeywords(row: KeywordCollectionJob) {
 
 function clearBatchFilter() {
   keywordBatchFilter.value = ''
+}
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text || '').then(() => ElMessage.success('Prompt 已复制'))
+}
+
+async function generateArticleFromSuggestion(row: PromptSuggestionRow) {
+  if (!currentSiteId.value || !row.id) return
+  generatingArticleId.value = row.id
+  try {
+    await generateArticleFromSuggestionApi(currentSiteId.value, row.id)
+    ElMessage.success('文章已生成')
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '生成失败')
+  } finally {
+    generatingArticleId.value = null
+  }
+}
+
+function togglePromptExpand(key: string) {
+  promptExpandMap.value[key] = !promptExpandMap.value[key]
+}
+
+function getPromptPreview(prompt: string, maxLen = 120) {
+  return prompt.length > maxLen ? prompt.slice(0, maxLen) + '...' : prompt
 }
 
 function openSuggestionDetail(row: PromptSuggestionRow) {
@@ -410,25 +464,66 @@ watchEffect(() => { if (currentSiteId.value) load() })
 
       <el-tab-pane name="prompt">
         <template #label><span class="tab-label"><el-icon><Document /></el-icon>内容 Prompt</span></template>
-        <div class="prompt-list" v-loading="loading">
+        <!-- 筛选栏 -->
+        <div class="panel-toolbar">
+          <div><h3>内容建议</h3><p>按栏目和生成状态筛选，每页 6 条。</p></div>
+          <div class="toolbar-actions">
+            <el-select v-model="promptCategoryFilter" class="small-select" placeholder="栏目筛选" clearable>
+              <el-option label="全部栏目" value="all" />
+              <el-option v-for="cat in promptCategoryOptions" :key="cat" :label="cat" :value="cat" />
+            </el-select>
+            <el-segmented v-model="promptGeneratedFilter" :options="[{ label: '全部', value: 'all' }, { label: '已生成', value: 'generated' }, { label: '待生成', value: 'pending' }]" />
+          </div>
+        </div>
+        <!-- 卡片列表 -->
+        <div class="prompt-grid" v-loading="loading">
           <el-empty v-if="!promptSuggestions.length" description="暂无内容建议，先执行 AI 蒸馏" />
-          <article v-for="row in promptSuggestions" :key="`${row.clusterId}-${row.id || row.title}`" class="prompt-card">
+          <article v-for="row in paginatedPromptSuggestions" :key="`${row.clusterId}-${row.id || row.title}`" class="prompt-card">
             <div class="prompt-card-main">
               <div class="prompt-card-head">
                 <div>
-                  <el-tag type="primary" effect="light"><el-icon><Aim /></el-icon>{{ row.suggestedCategory || '待分栏' }}</el-tag>
+                  <div class="prompt-card-tags">
+                    <el-tag type="primary" effect="light"><el-icon><Aim /></el-icon>{{ row.suggestedCategory || '待分栏' }}</el-tag>
+                    <el-tag v-if="row.articleId" type="success" effect="light">✅ 已生成文章</el-tag>
+                    <el-tag v-else type="info" effect="light">⏳ 待生成</el-tag>
+                  </div>
                   <h3>{{ row.title }}</h3>
                 </div>
-                <el-tag :type="scoreType(row.score)" round>评分 {{ row.score || 0 }}</el-tag>
+                <div class="prompt-score-display">
+                  <div class="score-ring" :class="(row.score || 0) >= 85 ? 'score-high' : (row.score || 0) >= 70 ? 'score-mid' : 'score-low'">
+                    <span class="score-ring-num">{{ row.score || 0 }}</span>
+                  </div>
+                </div>
               </div>
               <p class="prompt-intent">{{ row.clusterName }} · {{ row.searchIntent || '暂无搜索意图说明' }}</p>
-              <div class="direction-box"><span>文章方向</span>{{ row.articleDirection || '待蒸馏生成' }}</div>
+              <div class="direction-box">
+                <span>文章方向</span>
+                <p :class="{ 'direction-expanded': promptExpandMap['card-' + (row.id || row.title)] }">
+                  {{ promptExpandMap['card-' + (row.id || row.title)] ? (row.articleDirection || '待蒸馏生成') : getPromptPreview(row.articleDirection || '待蒸馏生成', 80) }}
+                </p>
+                <el-button v-if="(row.articleDirection || '').length > 80" link type="primary" size="small" class="expand-btn" @click="togglePromptExpand('card-' + (row.id || row.title))">
+                  {{ promptExpandMap['card-' + (row.id || row.title)] ? '收起' : '展开' }}
+                </el-button>
+              </div>
               <p v-if="row.reason" class="prompt-reason">推荐原因：{{ row.reason }}</p>
             </div>
             <div class="prompt-card-action">
               <el-button type="primary" plain @click="openSuggestionDetail(row)">详情 / 编辑</el-button>
+              <el-button v-if="!row.articleId" type="success" plain size="small" :loading="generatingArticleId === row.id" @click="generateArticleFromSuggestion(row)">🤖 生成文章</el-button>
+              <el-button size="small" plain @click="copyToClipboard(row.contentPrompt || '')">复制</el-button>
             </div>
           </article>
+        </div>
+        <!-- 分页 -->
+        <div v-if="promptTotalFiltered > promptPageSize" class="pool-pagination">
+          <el-pagination
+            v-model:current-page="promptPage"
+            :page-size="promptPageSize"
+            :total="promptTotalFiltered"
+            layout="prev, pager, next"
+            background
+            small
+          />
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -438,7 +533,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
       <template #footer><el-button @click="importDialogVisible = false">取消</el-button><el-button type="primary" @click="importKeywords">导入</el-button></template>
     </el-dialog>
 
-    <el-dialog v-model="clusterDetailVisible" title="聚类详情" width="800px" class="cluster-detail-dialog">
+    <el-dialog v-model="clusterDetailVisible" title="聚类详情" width="860px" top="3vh" class="cluster-detail-dialog">
       <template v-if="clusterDetailRow">
         <el-descriptions :column="2" border class="cluster-detail-header">
           <el-descriptions-item label="聚类名称" span="2"><strong>{{ clusterDetailRow.name }}</strong></el-descriptions-item>
@@ -448,37 +543,63 @@ watchEffect(() => { if (currentSiteId.value) load() })
           <el-descriptions-item label="文章方向" span="2">{{ clusterDetailRow.articleDirection }}</el-descriptions-item>
         </el-descriptions>
         <div class="detail-actions">
-          <el-button type="primary" :loading="generatingClusterId === clusterDetailRow.id" @click="generateClusterSuggestions(clusterDetailRow.id!)"><el-icon><Connection /></el-icon>生成内容 Prompt</el-button>
+          <el-button type="primary" :loading="generatingClusterId === clusterDetailRow.id" @click="generateClusterSuggestions(clusterDetailRow.id!)"><el-icon><Connection /></el-icon>新增内容 Prompt</el-button>
         </div>
         <h4 style="margin:18px 0 12px;font-size:16px">内容建议（可多篇文章）</h4>
         <div v-if="clusterDetailRow.contentSuggestions?.length" class="suggestion-cards">
           <div v-for="s in clusterDetailRow.contentSuggestions" :key="s.id || s.title" class="suggestion-item">
             <div class="suggestion-head">
               <strong>{{ s.title }}</strong>
-              <el-tag :type="scoreType(s.score)" round size="small">{{ s.score }}</el-tag>
+              <div class="suggestion-score-bar">
+                <div class="score-track">
+                  <div class="score-fill" :class="(s.score || 0) >= 85 ? 'score-high' : (s.score || 0) >= 70 ? 'score-mid' : 'score-low'" :style="{ width: (s.score || 50) + '%' }"></div>
+                </div>
+                <el-tag :type="scoreType(s.score)" round size="small">{{ s.score || 0 }}</el-tag>
+              </div>
             </div>
-            <p class="suggestion-prompt">{{ s.contentPrompt }}</p>
+            <div class="suggestion-prompt-wrap">
+              <p class="suggestion-prompt" :class="{ expanded: promptExpandMap['detail-' + (s.id || s.title)] }">
+                {{ promptExpandMap['detail-' + (s.id || s.title)] ? s.contentPrompt : getPromptPreview(s.contentPrompt || '', 100) }}
+              </p>
+              <el-button v-if="(s.contentPrompt || '').length > 100" link type="primary" size="small" class="expand-btn" @click="togglePromptExpand('detail-' + (s.id || s.title))">
+                {{ promptExpandMap['detail-' + (s.id || s.title)] ? '收起' : '展开全文' }}
+              </el-button>
+            </div>
             <p v-if="s.reason" class="suggestion-reason">推荐原因：{{ s.reason }}</p>
-            <el-button size="small" @click="openSuggestionDetail({
-              ...s, clusterName: clusterDetailRow.name,
-              searchIntent: clusterDetailRow.searchIntent,
-              suggestedCategory: clusterDetailRow.suggestedCategory,
-              articleDirection: clusterDetailRow.articleDirection,
-              clusterPriority: clusterDetailRow.priority
-            })">编辑</el-button>
+            <div class="suggestion-actions">
+              <el-button size="small" @click="openSuggestionDetail({
+                ...s, clusterName: clusterDetailRow.name,
+                searchIntent: clusterDetailRow.searchIntent,
+                suggestedCategory: clusterDetailRow.suggestedCategory,
+                articleDirection: clusterDetailRow.articleDirection,
+                clusterPriority: clusterDetailRow.priority
+              })">编辑</el-button>
+              <el-button size="small" plain @click="copyToClipboard(s.contentPrompt || '')">复制 Prompt</el-button>
+            </div>
           </div>
         </div>
         <el-empty v-else description="暂无内容建议，点击上方按钮生成" :image-size="80" />
       </template>
     </el-dialog>
 
-    <el-dialog v-model="suggestionDialogVisible" title="内容建议详情" width="860px" class="suggestion-dialog">
+    <el-dialog v-model="suggestionDialogVisible" title="内容建议详情" width="900px" top="2vh" class="suggestion-dialog">
       <el-form label-width="90px">
-        <el-form-item label="标题"><el-input v-model="suggestionForm.title" /></el-form-item>
-        <el-form-item label="评分"><el-input-number v-model="suggestionForm.score" :min="1" :max="100" /></el-form-item>
-        <el-form-item label="状态"><el-select v-model="suggestionForm.status"><el-option label="候选" value="candidate" /><el-option label="采用" value="selected" /><el-option label="搁置" value="archived" /></el-select></el-form-item>
-        <el-form-item label="推荐原因"><el-input v-model="suggestionForm.reason" type="textarea" :rows="3" /></el-form-item>
-        <el-form-item label="Prompt"><el-input v-model="suggestionForm.contentPrompt" type="textarea" :rows="12" /></el-form-item>
+        <el-form-item label="标题"><el-input v-model="suggestionForm.title" placeholder="文章标题" /></el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="评分"><el-input-number v-model="suggestionForm.score" :min="1" :max="100" /></el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="状态"><el-select v-model="suggestionForm.status"><el-option label="候选" value="candidate" /><el-option label="采用" value="selected" /><el-option label="搁置" value="archived" /></el-select></el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="推荐原因"><el-input v-model="suggestionForm.reason" type="textarea" :rows="2" placeholder="为什么推荐这个选题？" /></el-form-item>
+        <el-form-item label="Prompt">
+          <div class="prompt-editor-wrap">
+            <el-input v-model="suggestionForm.contentPrompt" type="textarea" :rows="15" placeholder="在此编辑完整的 AI 文章生成 Prompt，包含结构要求、SEO 要求、风格指南等..." />
+            <el-button class="copy-prompt-btn" size="small" plain @click="copyToClipboard(suggestionForm.contentPrompt || '')">📋 复制 Prompt</el-button>
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer><el-button @click="suggestionDialogVisible = false">取消</el-button><el-button type="primary" @click="saveSuggestion">保存</el-button></template>
     </el-dialog>
@@ -486,15 +607,55 @@ watchEffect(() => { if (currentSiteId.value) load() })
 </template>
 
 <style scoped>
-.distill-page{display:flex;flex-direction:column;gap:18px;color:#0f172a}.hero-card{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;padding:28px;border-radius:24px;background:radial-gradient(circle at 12% 18%,rgba(96,165,250,.34),transparent 28%),linear-gradient(135deg,#0f172a 0%,#1e3a8a 48%,#5b21b6 100%);box-shadow:0 24px 60px rgba(15,23,42,.18);color:#fff}.hero-card:after{content:"";position:absolute;right:-90px;top:-90px;width:260px;height:260px;border-radius:999px;background:rgba(255,255,255,.12)}.hero-copy,.hero-panel{position:relative;z-index:1}.hero-kicker{display:inline-flex;gap:6px;align-items:center;margin-bottom:14px;border:0;background:rgba(255,255,255,.18);backdrop-filter:blur(14px)}.hero-copy h2{margin:0 0 10px;font-size:34px;line-height:1.15;letter-spacing:.02em}.hero-copy p{max-width:720px;margin:0;color:#dbeafe;font-size:15px;line-height:1.8}.hero-actions{display:flex;gap:12px;margin-top:22px}.hero-panel{padding:18px;border:1px solid rgba(255,255,255,.2);border-radius:20px;background:rgba(15,23,42,.24);backdrop-filter:blur(18px)}.hero-panel-title{display:flex;gap:8px;align-items:center;margin-bottom:12px;color:#bfdbfe;font-weight:700}.funnel-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.12);color:#e2e8f0}.funnel-row strong{font-size:24px;color:#fff}.funnel-row.highlight strong{color:#86efac}.latest-job{margin:14px 0 0;color:#c4b5fd;font-size:13px}.workflow-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.workflow-card{position:relative;overflow:hidden;display:grid;grid-template-columns:48px 1fr;gap:12px;padding:18px;border:1px solid #e2e8f0;border-radius:18px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 14px 35px rgba(15,23,42,.06)}.workflow-index{position:absolute;right:14px;top:10px;color:#e2e8f0;font-weight:900;font-size:26px}.workflow-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:14px;background:#eff6ff;color:#2563eb;font-size:22px}.workflow-content h3{margin:0 0 6px;font-size:16px}.workflow-content p{margin:0;color:#64748b;font-size:13px;line-height:1.6}.workflow-metric{grid-column:1 / -1;display:flex;align-items:baseline;gap:6px;margin-top:4px}.workflow-metric strong{font-size:28px}.workflow-metric span{color:#64748b}.distill-tabs{border:0;border-radius:22px;overflow:hidden;box-shadow:0 18px 45px rgba(15,23,42,.08)}:deep(.distill-tabs > .el-tabs__header){background:#f8fafc;border:0;padding:12px 12px 0}:deep(.distill-tabs .el-tabs__item){height:42px;border-radius:14px 14px 0 0;font-weight:700}:deep(.distill-tabs > .el-tabs__content){padding:18px;background:#fff}.tab-label{display:inline-flex;align-items:center;gap:6px}.panel-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px;padding:16px;border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc}.panel-toolbar.elevated{background:linear-gradient(135deg,#f8fafc,#eef2ff)}.panel-toolbar h3{margin:0 0 4px;font-size:16px}.panel-toolbar p{margin:0;color:#64748b;font-size:13px}.toolbar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.keyword-filters{max-width:900px}.source-select{width:360px}.small-select{width:150px}.soft-table{border-radius:16px;overflow:hidden}:deep(.soft-table th.el-table__cell){background:#f8fafc;color:#334155;font-weight:800}:deep(.soft-table .el-table__row:hover > td.el-table__cell){background:#f8fbff}.tag-list{display:flex;flex-wrap:wrap;gap:6px}.keyword-name{color:#0f172a}.muted{color:#94a3b8}.prompt-list{display:flex;flex-direction:column;gap:14px;min-height:220px}.prompt-card{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:16px;padding:18px;border:1px solid #e2e8f0;border-radius:20px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 14px 35px rgba(15,23,42,.06)}.prompt-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.prompt-card h3{margin:10px 0 0;font-size:18px;line-height:1.45}.prompt-intent{margin:12px 0;color:#475569;line-height:1.7}.direction-box{padding:12px 14px;border-radius:14px;background:#eef2ff;color:#1e293b;line-height:1.7}.direction-box span{display:block;margin-bottom:4px;color:#4f46e5;font-size:12px;font-weight:800}.prompt-reason{margin:10px 0 0;color:#64748b}.prompt-card-action{display:flex;align-items:center;justify-content:flex-end}.import-dialog :deep(.el-textarea__inner),.suggestion-dialog :deep(.el-textarea__inner),.suggestion-dialog :deep(.el-input__wrapper){border-radius:14px}
-@media (max-width: 1280px){.workflow-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-card{grid-template-columns:1fr}.prompt-card{grid-template-columns:1fr}.prompt-card-action{justify-content:flex-start}}@media (max-width: 760px){.hero-card{padding:22px}.hero-copy h2{font-size:28px}.hero-actions,.panel-toolbar,.toolbar-actions{align-items:stretch;flex-direction:column}.source-select,.small-select{width:100%}.workflow-grid{grid-template-columns:1fr}}
+.distill-page{display:flex;flex-direction:column;gap:18px;color:#0f172a}.hero-card{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;padding:28px;border-radius:24px;background:radial-gradient(circle at 12% 18%,rgba(96,165,250,.34),transparent 28%),linear-gradient(135deg,#0f172a 0%,#1e3a8a 48%,#5b21b6 100%);box-shadow:0 24px 60px rgba(15,23,42,.18);color:#fff}.hero-card:after{content:"";position:absolute;right:-90px;top:-90px;width:260px;height:260px;border-radius:999px;background:rgba(255,255,255,.12)}.hero-copy,.hero-panel{position:relative;z-index:1}.hero-kicker{display:inline-flex;gap:6px;align-items:center;margin-bottom:14px;border:0;background:rgba(255,255,255,.18);backdrop-filter:blur(14px)}.hero-copy h2{margin:0 0 10px;font-size:34px;line-height:1.15;letter-spacing:.02em}.hero-copy p{max-width:720px;margin:0;color:#dbeafe;font-size:15px;line-height:1.8}.hero-actions{display:flex;gap:12px;margin-top:22px}.hero-panel{padding:18px;border:1px solid rgba(255,255,255,.2);border-radius:20px;background:rgba(15,23,42,.24);backdrop-filter:blur(18px)}.hero-panel-title{display:flex;gap:8px;align-items:center;margin-bottom:12px;color:#bfdbfe;font-weight:700}.funnel-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.12);color:#e2e8f0}.funnel-row strong{font-size:24px;color:#fff}.funnel-row.highlight strong{color:#86efac}.latest-job{margin:14px 0 0;color:#c4b5fd;font-size:13px}.workflow-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.workflow-card{position:relative;overflow:hidden;display:grid;grid-template-columns:48px 1fr;gap:12px;padding:18px;border:1px solid #e2e8f0;border-radius:18px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 14px 35px rgba(15,23,42,.06)}.workflow-index{position:absolute;right:14px;top:10px;color:#e2e8f0;font-weight:900;font-size:26px}.workflow-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:14px;background:#eff6ff;color:#2563eb;font-size:22px}.workflow-content h3{margin:0 0 6px;font-size:16px}.workflow-content p{margin:0;color:#64748b;font-size:13px;line-height:1.6}.workflow-metric{grid-column:1 / -1;display:flex;align-items:baseline;gap:6px;margin-top:4px}.workflow-metric strong{font-size:28px}.workflow-metric span{color:#64748b}.distill-tabs{border:0;border-radius:22px;overflow:hidden;box-shadow:0 18px 45px rgba(15,23,42,.08)}:deep(.distill-tabs > .el-tabs__header){background:#f8fafc;border:0;padding:12px 12px 0}:deep(.distill-tabs .el-tabs__item){height:42px;border-radius:14px 14px 0 0;font-weight:700}:deep(.distill-tabs > .el-tabs__content){padding:18px;background:#fff}.tab-label{display:inline-flex;align-items:center;gap:6px}.panel-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px;padding:16px;border:1px solid #e2e8f0;border-radius:18px;background:#f8fafc}.panel-toolbar.elevated{background:linear-gradient(135deg,#f8fafc,#eef2ff)}.panel-toolbar h3{margin:0 0 4px;font-size:16px}.panel-toolbar p{margin:0;color:#64748b;font-size:13px}.toolbar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.keyword-filters{max-width:900px}.source-select{width:360px}.small-select{width:150px}.soft-table{border-radius:16px;overflow:hidden}:deep(.soft-table th.el-table__cell){background:#f8fafc;color:#334155;font-weight:800}:deep(.soft-table .el-table__row:hover > td.el-table__cell){background:#f8fbff}.tag-list{display:flex;flex-wrap:wrap;gap:6px}.keyword-name{color:#0f172a}.muted{color:#94a3b8}.prompt-list{display:flex;flex-direction:column;gap:14px;min-height:220px}.prompt-card{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:16px;padding:18px;border:1px solid #e2e8f0;border-radius:20px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 14px 35px rgba(15,23,42,.06)}.prompt-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.prompt-card h3{margin:10px 0 0;font-size:18px;line-height:1.45}.prompt-intent{margin:12px 0;color:#475569;line-height:1.7}.direction-box{padding:12px 14px;border-radius:14px;background:#eef2ff;color:#1e293b;line-height:1.7}.direction-box span{display:block;margin-bottom:4px;color:#4f46e5;font-size:12px;font-weight:800}.prompt-reason{margin:10px 0 0;color:#64748b}.prompt-card-action{display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-start;gap:8px}.import-dialog :deep(.el-textarea__inner),.suggestion-dialog :deep(.el-textarea__inner),.suggestion-dialog :deep(.el-input__wrapper){border-radius:14px}
+.prompt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;min-height:220px}.prompt-card-tags{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+@media (max-width: 1280px){.workflow-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-card{grid-template-columns:1fr}.prompt-grid{grid-template-columns:1fr}.prompt-card{grid-template-columns:1fr}.prompt-card-action{justify-content:flex-start}}@media (max-width: 760px){.hero-card{padding:22px}.hero-copy h2{font-size:28px}.hero-actions,.panel-toolbar,.toolbar-actions{align-items:stretch;flex-direction:column}.source-select,.small-select{width:100%}.workflow-grid{grid-template-columns:1fr}}
 .pool-pagination { margin-top: 12px; justify-content: center; }
+.cluster-detail-dialog :deep(.el-dialog__body) { max-height: 68vh; overflow-y: auto; padding-right: 8px; }
 .cluster-detail-dialog :deep(.el-descriptions__body) { border-radius: 14px; overflow: hidden; }
 .cluster-detail-dialog :deep(.el-descriptions__title) { font-weight: 700; }
 .detail-actions { margin: 16px 0; display: flex; gap: 10px; }
 .suggestion-cards { display: flex; flex-direction: column; gap: 12px; }
-.suggestion-item { padding: 16px; border: 1px solid #e2e8f0; border-radius: 14px; background: linear-gradient(180deg, #fff, #f8fafc); }
-.suggestion-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.suggestion-prompt { margin: 0 0 6px; color: #475569; line-height: 1.7; font-size: 14px; }
+.suggestion-item { padding: 16px; border: 1px solid #e2e8f0; border-radius: 14px; background: linear-gradient(180deg, #fff, #f8fafc); transition: box-shadow .2s; }
+.suggestion-item:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+.suggestion-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; margin-bottom: 8px; }
+.suggestion-head strong { font-size: 15px; flex: 1; }
+.suggestion-score-bar { display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-width: 110px; justify-content: flex-end; }
+.score-track { width: 64px; height: 6px; border-radius: 3px; background: #e5e7eb; overflow: hidden; flex-shrink: 0; }
+.score-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+.score-fill.score-high { background: linear-gradient(90deg, #22c55e, #16a34a); }
+.score-fill.score-mid { background: linear-gradient(90deg, #f59e0b, #d97706); }
+.score-fill.score-low { background: linear-gradient(90deg, #ef4444, #dc2626); }
+.suggestion-prompt-wrap { position: relative; }
+.suggestion-prompt { margin: 0 0 6px; color: #475569; line-height: 1.7; font-size: 14px; white-space: pre-wrap; }
+.suggestion-prompt:not(.expanded) { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .suggestion-reason { margin: 0 0 8px; color: #64748b; font-size: 13px; }
+.prompt-editor-wrap { position: relative; width: 100%; }
+.copy-prompt-btn { position: absolute; right: 8px; top: 8px; z-index: 1; font-size: 12px; }
+.prompt-editor-wrap :deep(.el-textarea__inner) { padding-top: 36px; }
+.suggestion-actions { display: flex; gap: 8px; margin-top: 6px; }
+.expand-btn { padding: 0; font-size: 12px; }
+.prompt-score-display { flex-shrink: 0; }
+.score-ring { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid; font-weight: 800; font-size: 16px; }
+.score-ring.score-high { border-color: #22c55e; color: #16a34a; background: #f0fdf4; }
+.score-ring.score-mid { border-color: #f59e0b; color: #d97706; background: #fffbeb; }
+.score-ring.score-low { border-color: #ef4444; color: #dc2626; background: #fef2f2; }
+.score-ring-num { line-height: 1; }
+.direction-box p { margin: 4px 0 0; }
+.direction-expanded { white-space: pre-wrap; }
+</style>
+
+
+<!-- 弹窗遮罩强制覆盖：修复侧边栏穿透 -->
+<style>
+.cluster-detail-dialog + .el-overlay,
+.suggestion-dialog + .el-overlay,
+.import-dialog + .el-overlay,
+.el-overlay {
+  z-index: 2000 !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+.el-dialog__wrapper {
+  z-index: 2010 !important;
+}
 </style>
