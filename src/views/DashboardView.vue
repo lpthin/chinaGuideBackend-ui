@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue'
+import { computed, ref, watchEffect, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import type { Component } from 'vue'
-import { Search, CollectionTag, DataAnalysis, Document, MagicStick, TrendCharts, Cpu, Upload, Connection, CreditCard, EditPen, View, Check } from '@element-plus/icons-vue'
+import { Search, CollectionTag, DataAnalysis, Document, MagicStick, TrendCharts, Cpu, Upload, Connection, CreditCard, EditPen, View, Check, User, DataLine, Wallet } from '@element-plus/icons-vue'
 import { getDashboardStatsApi } from '@/api/dashboard'
 import { listKeywordsApi, listKeywordClustersApi, listKeywordCollectionJobsApi } from '@/api/keywords'
+import { getCurrentTenantApi, getTenantUsageApi } from '@/api/tenants'
 import { useSiteStore } from '@/stores/site'
-import type { DashboardStats, Keyword, KeywordCluster, KeywordCollectionJob } from '@/types/api'
+import { useAuthStore } from '@/stores/auth'
+import type { DashboardStats, Keyword, KeywordCluster, KeywordCollectionJob, Tenant, TenantUsage } from '@/types/api'
 
 interface WorkflowCard {
   key: string; title: string; desc: string; metric: number; unit: string; color: string; route: string; icon: Component
@@ -15,12 +17,16 @@ interface WorkflowCard {
 
 const router = useRouter()
 const siteStore = useSiteStore()
+const auth = useAuthStore()
 const currentSiteId = computed(() => siteStore.currentSite?.id || siteStore.currentSiteId)
 const loading = ref(false)
+const tenantLoading = ref(false)
 const stats = ref<DashboardStats>({ keywords: 0, clusters: 0, articles: 0, pendingReviews: 0, approvedArticles: 0, pageViews: 0, todayPageViews: 0 })
 const keywords = ref<Keyword[]>([])
 const clusters = ref<KeywordCluster[]>([])
 const collectionJobs = ref<KeywordCollectionJob[]>([])
+const currentTenant = ref<Tenant | null>(null)
+const tenantUsage = ref<Record<string, TenantUsage>>({})
 
 const pendingKeywords = computed(() => keywords.value.filter((k) => k.status !== 'distilled').length)
 const distilledKeywords = computed(() => keywords.value.filter((k) => k.status === 'distilled').length)
@@ -112,10 +118,63 @@ function goToDistill() {
 }
 
 watchEffect(() => { if (currentSiteId.value) loadAll() })
+
+async function loadTenantInfo() {
+  if (!auth.isLoggedIn) return
+  tenantLoading.value = true
+  try {
+    const [tenant, usage] = await Promise.all([
+      getCurrentTenantApi(),
+      getTenantUsageApi()
+    ])
+    currentTenant.value = tenant
+    tenantUsage.value = usage
+  } catch (error) {
+    console.error('加载租户信息失败', error)
+  } finally {
+    tenantLoading.value = false
+  }
+}
+
+function goToUsage() {
+  router.push('/usage')
+}
+
+function goToPlans() {
+  router.push('/plans')
+}
+
+onMounted(() => {
+  loadTenantInfo()
+})
 </script>
 
 <template>
   <div class="dashboard-page">
+    <!-- Tenant Info -->
+    <section class="tenant-info-section" v-if="currentTenant">
+      <div class="tenant-info-card">
+        <div class="tenant-info-main">
+          <div class="tenant-icon"><el-icon><User /></el-icon></div>
+          <div class="tenant-info-content">
+            <h3 class="tenant-name">{{ currentTenant.name }}</h3>
+            <div class="tenant-meta">
+              <span class="tenant-code">租户代码: {{ currentTenant.code }}</span>
+              <el-tag v-if="currentTenant.plan" type="success" size="small" class="plan-tag">{{ currentTenant.plan.name }}</el-tag>
+            </div>
+          </div>
+        </div>
+        <div class="tenant-actions">
+          <el-button size="small" @click="goToUsage">
+            <el-icon><DataLine /></el-icon>查看使用量
+          </el-button>
+          <el-button type="primary" size="small" @click="goToPlans">
+            <el-icon><Wallet /></el-icon>套餐管理
+          </el-button>
+        </div>
+      </div>
+    </section>
+
     <!-- Hero -->
     <section class="hero-card">
       <div class="hero-copy">
@@ -206,6 +265,74 @@ watchEffect(() => { if (currentSiteId.value) loadAll() })
   flex-direction: column;
   gap: 20px;
   padding: 4px;
+}
+
+/* ── Tenant Info Section ── */
+.tenant-info-section {
+  margin-bottom: 4px;
+}
+
+.tenant-info-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);
+  box-shadow: 0 8px 24px rgba(15,23,42,.04);
+}
+
+.tenant-info-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tenant-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 28px;
+}
+
+.tenant-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tenant-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.tenant-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tenant-code {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.plan-tag {
+  font-weight: 600;
+}
+
+.tenant-actions {
+  display: flex;
+  gap: 10px;
 }
 
 /* ── Hero ── */

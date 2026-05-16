@@ -147,15 +147,24 @@ async function selectPlan(plan: Plan) {
     }
   }
 }
+
+function goToCompare() {
+  router.push('/plans/compare')
+}
 </script>
 
 <template>
   <div class="plans-page" v-loading="loading">
-    <el-page-header @back="$router.back()" title="返回">
-      <template #content>
-        <span class="page-title">套餐管理</span>
-      </template>
-    </el-page-header>
+    <div class="page-header-row">
+      <el-page-header @back="$router.back()" title="返回">
+        <template #content>
+          <span class="page-title">套餐管理</span>
+        </template>
+      </el-page-header>
+      <el-button type="primary" @click="goToCompare">
+        套餐对比
+      </el-button>
+    </div>
 
     <div class="plans-intro">
       <h2>选择适合您的方案</h2>
@@ -239,6 +248,13 @@ async function selectPlan(plan: Plan) {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px 0;
+}
+
+.page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .page-title {

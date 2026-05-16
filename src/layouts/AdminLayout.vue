@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled, Avatar, User, Lock, Tickets, MessageBox, Bell, CreditCard, DataLine } from '@element-plus/icons-vue'
+import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled, Avatar, User, Lock, Tickets, MessageBox, Bell, CreditCard, DataLine, Wallet, Setting } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSiteStore } from '@/stores/site'
 
@@ -29,7 +29,9 @@ const menuItems: Array<{ path?: string; label: string; icon: any; children?: Arr
     label: '多租户管理', icon: OfficeBuilding, children: [
       { path: '/tenant', label: '租户信息', icon: OfficeBuilding },
       { path: '/usage', label: '使用量统计', icon: DataLine },
-      { path: '/plans', label: '套餐管理', icon: CreditCard }
+      { path: '/plans', label: '套餐管理', icon: CreditCard },
+      { path: '/billing', label: '账单管理', icon: Wallet },
+      { path: '/payment-config', label: '支付配置', icon: Setting }
     ]
   },
   {

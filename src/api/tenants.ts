@@ -55,3 +55,37 @@ export const verifyPaymentApi = (paymentId: string, paymentMethod: string, signa
 export const getPaymentOrderApi = (orderId: string): Promise<any> => {
   return http.get(`/api/payments/order/${orderId}`)
 }
+
+export interface PaymentConfig {
+  id?: number
+  provider: string
+  appId?: string
+  appSecret?: string
+  merchantId?: string
+  privateKey?: string
+  publicKey?: string
+  callbackUrl?: string
+  returnUrl?: string
+  enabled: boolean
+  configJson?: string
+}
+
+export const getPaymentConfigsApi = (): Promise<PaymentConfig[]> => {
+  return http.get('/api/payment/config/list')
+}
+
+export const getPaymentConfigApi = (provider: string): Promise<PaymentConfig> => {
+  return http.get(`/api/payment/config/${provider}`)
+}
+
+export const savePaymentConfigApi = (config: PaymentConfig): Promise<PaymentConfig> => {
+  return http.post('/api/payment/config/save', config)
+}
+
+export const togglePaymentApi = (provider: string, enabled: boolean): Promise<boolean> => {
+  return http.put(`/api/payment/config/toggle/${provider}`, null, { params: { enabled } })
+}
+
+export const initPaymentConfigsApi = (): Promise<void> => {
+  return http.post('/api/payment/config/init')
+}
