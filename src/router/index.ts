@@ -22,6 +22,12 @@ const routes = [
     meta: { public: true }
   },
   {
+    path: '/payment-result',
+    name: 'payment-result',
+    component: () => import('@/views/PaymentResultView.vue'),
+    meta: { public: true }
+  },
+  {
     path: '/',
     component: AdminLayout,
     redirect: '/dashboard',

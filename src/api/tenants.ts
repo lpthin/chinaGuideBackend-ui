@@ -43,3 +43,15 @@ export const registerTenantApi = (data: {
 export const changePlanApi = (planId: number): Promise<any> => {
   return http.post('/tenants/change-plan', null, { params: { planId } })
 }
+
+export const createPaymentApi = (planId: number, paymentMethod?: string): Promise<any> => {
+  return http.post('/api/payments/create', null, { params: { planId, paymentMethod } })
+}
+
+export const verifyPaymentApi = (paymentId: string, paymentMethod: string, signature?: string): Promise<any> => {
+  return http.post('/api/payments/verify', null, { params: { paymentId, paymentMethod, signature } })
+}
+
+export const getPaymentOrderApi = (orderId: string): Promise<any> => {
+  return http.get(`/api/payments/order/${orderId}`)
+}

@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
-import { getPlansApi, changePlanApi } from '@/api/tenants'
+import { getPlansApi, changePlanApi, createPaymentApi } from '@/api/tenants'
 import type { Plan } from '@/types/api'
 import { useAuthStore } from '@/stores/auth'
 
+const router = useRouter()
 const loading = ref(false)
 const plans = ref<Plan[]>([])
 const upgradingPlanId = ref<number | null>(null)
 const currentPlanId = ref<number | null>(null)
 const auth = useAuthStore()
+
+const paymentMethods = [
+  { value: 'alipay', label: '支付宝' },
+  { value: 'wechatpay', label: '微信支付' }
+]
 
 onMounted(async () => {
   loading.value = true
@@ -56,14 +63,67 @@ function isCurrentPlan(plan: Plan): boolean {
   return currentPlanId.value === plan.id
 }
 
+async function handleFreePlan(plan: Plan) {
+  try {
+    await changePlanApi(plan.id)
+    ElMessage.success(`已成功切换到 ${plan.name} 套餐`)
+    currentPlanId.value = plan.id
+  } catch (error) {
+    ElMessage.error('套餐切换失败')
+    console.error(error)
+  }
+}
+
+async function handlePaidPlan(plan: Plan) {
+  try {
+    const { value: paymentMethod } = await ElMessageBox.prompt(
+      '请选择支付方式',
+      `升级到 ${plan.name}`,
+      {
+        confirmButtonText: '确认支付',
+        cancelButtonText: '取消',
+        inputPlaceholder: '选择支付方式',
+        inputPattern: /^(alipay|wechatpay)$/,
+        inputErrorMessage: '请选择有效的支付方式',
+        inputType: 'select',
+        inputOptions: paymentMethods
+      }
+    )
+
+    upgradingPlanId.value = plan.id
+
+    ElMessage.info('正在创建支付订单...')
+    const paymentResult = await createPaymentApi(plan.id, paymentMethod)
+
+    ElMessage.info('正在处理支付...')
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    router.push({
+      path: '/payment-result',
+      query: {
+        status: 'success',
+        orderId: paymentResult.orderId || 'ORD-' + Date.now(),
+        planId: plan.id
+      }
+    })
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('支付失败，请重试')
+      console.error(error)
+    }
+  } finally {
+    upgradingPlanId.value = null
+  }
+}
+
 async function selectPlan(plan: Plan) {
   if (isCurrentPlan(plan)) {
     ElMessage.info('您已选择该套餐')
     return
   }
-  
+
   const action = plan.price && plan.price > 0 ? '升级到' : '降级到'
-  
+
   try {
     await ElMessageBox.confirm(
       `确定要${action} ${plan.name} 套餐吗？`,
@@ -74,24 +134,17 @@ async function selectPlan(plan: Plan) {
         type: plan.price && plan.price > 0 ? 'success' : 'warning'
       }
     )
-    
-    upgradingPlanId.value = plan.id
-    
+
     if (plan.price && plan.price > 0) {
-      ElMessage.info('正在跳转到支付页面...')
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await handlePaidPlan(plan)
+    } else {
+      await handleFreePlan(plan)
     }
-    
-    await changePlanApi(plan.id)
-    ElMessage.success(`已成功${action} ${plan.name} 套餐`)
-    currentPlanId.value = plan.id
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('套餐变更失败')
       console.error(error)
     }
-  } finally {
-    upgradingPlanId.value = null
   }
 }
 </script>
