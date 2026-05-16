@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
-import { getPlansApi } from '@/api/tenants'
+import { getPlansApi, changePlanApi } from '@/api/tenants'
 import type { Plan } from '@/types/api'
+import { useAuthStore } from '@/stores/auth'
 
 const loading = ref(false)
 const plans = ref<Plan[]>([])
+const upgradingPlanId = ref<number | null>(null)
+const currentPlanId = ref<number | null>(null)
+const auth = useAuthStore()
 
 onMounted(async () => {
   loading.value = true
   try {
     plans.value = await getPlansApi()
+    if (auth.tenant?.planId) {
+      currentPlanId.value = auth.tenant.planId
+    }
   } catch (error) {
     ElMessage.error('加载套餐列表失败')
     console.error(error)
@@ -45,8 +52,47 @@ function getPlanFeatures(plan: Plan): string[] {
   return features
 }
 
-function selectPlan(plan: Plan) {
-  ElMessage.info(`您已选择 ${plan.name} 套餐，请联系销售进行升级`)
+function isCurrentPlan(plan: Plan): boolean {
+  return currentPlanId.value === plan.id
+}
+
+async function selectPlan(plan: Plan) {
+  if (isCurrentPlan(plan)) {
+    ElMessage.info('您已选择该套餐')
+    return
+  }
+  
+  const action = plan.price && plan.price > 0 ? '升级到' : '降级到'
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要${action} ${plan.name} 套餐吗？`,
+      '确认操作',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: plan.price && plan.price > 0 ? 'success' : 'warning'
+      }
+    )
+    
+    upgradingPlanId.value = plan.id
+    
+    if (plan.price && plan.price > 0) {
+      ElMessage.info('正在跳转到支付页面...')
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+    
+    await changePlanApi(plan.id)
+    ElMessage.success(`已成功${action} ${plan.name} 套餐`)
+    currentPlanId.value = plan.id
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('套餐变更失败')
+      console.error(error)
+    }
+  } finally {
+    upgradingPlanId.value = null
+  }
 }
 </script>
 
@@ -74,7 +120,8 @@ function selectPlan(plan: Plan) {
         <template #header>
           <div class="plan-header">
             <div class="plan-name">{{ plan.name }}</div>
-            <div v-if="plan.code === 'professional'" class="plan-badge">推荐</div>
+            <div v-if="isCurrentPlan(plan)" class="current-badge">当前套餐</div>
+            <div v-else-if="plan.code === 'professional'" class="plan-badge">推荐</div>
           </div>
         </template>
         
@@ -195,6 +242,15 @@ function selectPlan(plan: Plan) {
   right: 0;
   height: 4px;
   background: linear-gradient(90deg, #409eff, #67c23a);
+}
+
+.current-badge {
+  background: linear-gradient(135deg, #67c23a, #95d475);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .plan-header {

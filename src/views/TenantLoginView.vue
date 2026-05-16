@@ -16,7 +16,7 @@ const plansLoading = ref(true)
 
 const form = reactive({
   code: '',
-  email: '',
+  username: 'admin',
   password: ''
 })
 
@@ -35,13 +35,13 @@ onMounted(async () => {
 })
 
 async function submit() {
-  if (!form.code || !form.email || !form.password) {
-    ElMessage.warning('请输入租户代码、邮箱和密码')
+  if (!form.code || !form.password) {
+    ElMessage.warning('请输入租户代码和密码')
     return
   }
   loading.value = true
   try {
-    await auth.tenantLogin(form.code, form.email, form.password)
+    await auth.tenantLogin(form.code, form.username, form.password)
     ElMessage.success('登录成功')
     router.push((route.query.redirect as string) || '/dashboard')
   } catch (error) {
@@ -75,10 +75,10 @@ function goToAdminLogin() {
                 clearable
               />
             </el-form-item>
-            <el-form-item label="邮箱">
+            <el-form-item label="管理员账号">
               <el-input 
-                v-model="form.email" 
-                placeholder="请输入注册邮箱" 
+                v-model="form.username" 
+                placeholder="admin"
                 size="large"
                 clearable
               />
