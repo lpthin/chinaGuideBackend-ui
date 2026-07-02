@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowUp, Check } from '@element-plus/icons-vue'
+import { Check, Edit } from '@element-plus/icons-vue'
 import { listPlansApi, getCurrentTenantApi, createPaymentApi } from '@/api/tenants'
 import type { Plan, Tenant } from '@/types/api'
 
@@ -154,7 +154,7 @@ async function doUpgrade() {
           <li v-if="plan.aiCredits > 0"><el-icon><Check /></el-icon> {{ plan.aiCredits }} AI 积分</li>
         </ul>
         <el-button type="primary" class="select-btn">
-          <el-icon><ArrowUp /></el-icon>选择此套餐
+          <el-icon><Edit /></el-icon>选择此套餐
         </el-button>
       </div>
     </div>

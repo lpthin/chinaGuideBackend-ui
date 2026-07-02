@@ -10,10 +10,10 @@ interface SiteState {
 export const useSiteStore = defineStore('site', {
   state: (): SiteState => ({
     sites: [],
-    currentSiteId: Number(localStorage.getItem('geocms_current_site_id')) || null
+    currentSiteId: Number(localStorage.getItem('geocms_current_site_id')) || 0
   }),
   getters: {
-    currentSite: (state) => state.sites.find((site) => site.id === state.currentSiteId) || state.sites[0] || null
+    currentSite: (state) => state.sites.find((site) => site.id === state.currentSiteId) || state.sites[0] || { id: 0, name: '' }
   },
   actions: {
     async loadSites() {

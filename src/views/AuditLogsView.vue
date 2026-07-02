@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Clock, Search, Refresh } from '@element-plus/icons-vue'
+import { Document, Check, Edit } from '@element-plus/icons-vue'
 import { getAuditLogsApi, type AuditLog } from '@/api/tenants'
+import { formatTime } from '@/utils/format'
 
 const loading = ref(false)
 const auditLogs = ref<AuditLog[]>([])
@@ -47,11 +48,7 @@ function handleSizeChange(size: number) {
   loadLogs()
 }
 
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN')
-}
+
 
 function getMethodType(method?: string): string {
   const map: Record<string, string> = {
@@ -98,11 +95,11 @@ function getMethodType(method?: string): string {
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="loadLogs">
-            <el-icon><Search /></el-icon>
+            <el-icon><Document /></el-icon>
             查询
           </el-button>
           <el-button @click="filters = { action: '', resource: '' }; loadLogs()">
-            <el-icon><Refresh /></el-icon>
+            <el-icon><Edit /></el-icon>
             重置
           </el-button>
         </el-form-item>
@@ -142,7 +139,7 @@ function getMethodType(method?: string): string {
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="时间" width="180">
-          <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
+          <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
 

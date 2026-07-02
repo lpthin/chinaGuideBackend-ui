@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Check, Close, ShoppingCart } from '@element-plus/icons-vue'
+import { Check, Close, Document } from '@element-plus/icons-vue'
 import { getPlansApi, changePlanApi } from '@/api/tenants'
 import type { Plan } from '@/types/api'
 
@@ -120,7 +120,7 @@ const handleUpgrade = async () => {
       </template>
       <div class="help-content">
         <div class="help-item">
-          <el-icon><ShoppingCart /></el-icon>
+          <el-icon><Document /></el-icon>
           <span>查看订单详情</span>
         </div>
         <div class="help-item">

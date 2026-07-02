@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { TrendCharts, CreditCard, User, DataLine, Wallet } from '@element-plus/icons-vue'
+import { CreditCard, User, Document, Check } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 const stats = ref({
@@ -16,7 +16,7 @@ const stats = ref({
 const statCards = [
   { label: '总租户数', key: 'totalTenants', icon: User, color: '#3b82f6', bg: '#eff6ff' },
   { label: '活跃租户', key: 'activeTenants', icon: User, color: '#10b981', bg: '#ecfdf5' },
-  { label: '总收入', key: 'totalRevenue', icon: Wallet, color: '#8b5cf6', bg: '#f5f3ff', prefix: '¥' },
+  { label: '总收入', key: 'totalRevenue', icon: Document, color: '#8b5cf6', bg: '#f5f3ff', prefix: '¥' },
   { label: '本月收入', key: 'monthlyRevenue', icon: CreditCard, color: '#f59e0b', bg: '#fffbeb', prefix: '¥' }
 ]
 
@@ -91,7 +91,7 @@ function getBarHeight(value: number, max: number) {
       <div class="chart-card">
         <div class="chart-header">
           <h3 class="chart-title">租户增长趋势</h3>
-          <el-icon><DataLine /></el-icon>
+          <el-icon><Document /></el-icon>
         </div>
         <div class="chart-container">
           <div class="bar-chart">
@@ -109,7 +109,7 @@ function getBarHeight(value: number, max: number) {
       <div class="chart-card">
         <div class="chart-header">
           <h3 class="chart-title">收入趋势</h3>
-          <el-icon><TrendCharts /></el-icon>
+          <el-icon><Check /></el-icon>
         </div>
         <div class="chart-container">
           <div class="bar-chart">

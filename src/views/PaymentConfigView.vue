@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElSwitch } from 'element-plus'
-import { Setting, Check } from '@element-plus/icons-vue'
+import { Check, Edit } from '@element-plus/icons-vue'
 import { getPaymentConfigsApi, savePaymentConfigApi, togglePaymentApi, initPaymentConfigsApi, type PaymentConfig } from '@/api/tenants'
 
 const loading = ref(false)
@@ -130,7 +130,7 @@ async function initializeConfigs() {
 
         <div class="config-actions">
           <el-button type="primary" @click="openConfigDialog(config)">
-            <el-icon><Setting /></el-icon>
+            <el-icon><Edit /></el-icon>
             配置
           </el-button>
         </div>

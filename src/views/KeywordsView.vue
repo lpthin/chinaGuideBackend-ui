@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watchEffect } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Aim, CollectionTag, Connection, Cpu, DataAnalysis, Document, MagicStick, Search, TrendCharts, Upload } from '@element-plus/icons-vue'
+import { Document, Check, Edit } from '@element-plus/icons-vue'
 import { collectHotwordsApi, deleteKeywordApi, deleteKeywordClusterApi, deleteKeywordsBatchApi, deleteKeywordClustersBatchApi, distillKeywordsApi, generateArticleFromSuggestionApi, generateClusterSuggestionsApi, importKeywordsApi, listKeywordClustersApi, listKeywordCollectionJobsApi, listKeywordsApi, updateKeywordContentSuggestionApi } from '@/api/keywords'
 import { useSiteStore } from '@/stores/site'
 import type { Keyword, KeywordCluster, KeywordCollectionJob, KeywordContentSuggestion } from '@/types/api'
+import { formatTime } from '@/utils/format'
 
 type DistillCluster = KeywordCluster
 
@@ -107,9 +108,9 @@ const promptTotalFiltered = computed(() => filteredPromptSuggestions.value.lengt
 const latestJob = computed(() => collectionJobs.value[0])
 
 const workflowCards = computed(() => [
-  { key: 'collect', title: '热词采集', desc: '从站点画像与外部信源补充候选词', metric: collectionJobs.value.length, unit: '批次', icon: Search },
-  { key: 'pool', title: '关键词池', desc: '默认看未蒸馏词，可按状态/信源/批次过滤', metric: poolTotal.value, unit: '个', icon: CollectionTag },
-  { key: 'cluster', title: '意图聚类', desc: '一个聚类可沉淀最多 5 条内容建议', metric: clusters.value.length, unit: '组', icon: DataAnalysis },
+  { key: 'collect', title: '热词采集', desc: '从站点画像与外部信源补充候选词', metric: collectionJobs.value.length, unit: '批次', icon: Document },
+  { key: 'pool', title: '关键词池', desc: '默认看未蒸馏词，可按状态/信源/批次过滤', metric: poolTotal.value, unit: '个', icon: Document },
+  { key: 'cluster', title: '意图聚类', desc: '一个聚类可沉淀最多 5 条内容建议', metric: clusters.value.length, unit: '组', icon: Document },
   { key: 'prompt', title: '内容 Prompt', desc: '多建议列表、评分和详情编辑', metric: promptReadyCount.value, unit: '条', icon: Document }
 ])
 
@@ -164,13 +165,7 @@ function formatBatchNo(row: KeywordCollectionJob | string | undefined) {
   return batchDisplayMap.value.get(batchNo) || batchNo.replace(/^kw-?/, '')
 }
 
-function formatChineseTime(value?: string) {
-  if (!value) return '-'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
+
 
 function keywordStatusType(status?: string) {
   if (status === 'pending') return 'warning'
@@ -387,7 +382,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
 
     <el-tabs v-model="activeTab" class="distill-tabs" type="border-card">
       <el-tab-pane name="collect">
-        <template #label><span class="tab-label"><el-icon><Search /></el-icon>热词采集</span></template>
+        <template #label><span class="tab-label"><el-icon><Document /></el-icon>热词采集</span></template>
         <div class="panel-toolbar elevated">
           <div><h3>选择信源，生成候选关键词</h3><p>批次显示为「年月日-序号」，详情可直接跳转到该批次关键词。</p></div>
           <div class="toolbar-actions">
@@ -403,13 +398,13 @@ watchEffect(() => { if (currentSiteId.value) load() })
           <el-table-column prop="candidateCount" label="候选数" width="100" />
           <el-table-column prop="savedCount" label="入库/更新" width="110" />
           <el-table-column prop="status" label="状态" width="100"><template #default="{ row }"><el-tag type="success" effect="light">{{ row.status }}</el-tag></template></el-table-column>
-          <el-table-column label="时间" min-width="180"><template #default="{ row }">{{ formatChineseTime(row.createdAt) }}</template></el-table-column>
+          <el-table-column label="时间" min-width="180"><template #default="{ row }">{{ formatTime(row.createdAt) }}</template></el-table-column>
           <el-table-column label="操作" width="100"><template #default="{ row }"><el-button size="small" type="primary" plain @click="openJobKeywords(row)">详情</el-button></template></el-table-column>
         </el-table>
       </el-tab-pane>
 
       <el-tab-pane name="pool">
-        <template #label><span class="tab-label"><el-icon><CollectionTag /></el-icon>关键词池</span></template>
+        <template #label><span class="tab-label"><el-icon><Document /></el-icon>关键词池</span></template>
         <div class="panel-toolbar">
           <div><h3>关键词清单</h3><p>默认显示未被蒸馏关键词，可按状态、信源和批次过滤。</p></div>
           <div class="toolbar-actions keyword-filters">
@@ -432,18 +427,18 @@ watchEffect(() => { if (currentSiteId.value) load() })
           <el-table-column prop="sourceScore" label="来源评分" width="100" />
           <el-table-column label="优先级" width="100"><template #default="{ row }"><el-tag :type="priorityType(row.priority)" effect="light">{{ row.priority || 0 }}</el-tag></template></el-table-column>
           <el-table-column label="状态" width="110"><template #default="{ row }"><el-tag :type="keywordStatusType(row.status)">{{ keywordStatusText(row.status) }}</el-tag></template></el-table-column>
-          <el-table-column label="时间" min-width="180"><template #default="{ row }">{{ formatChineseTime(row.createdAt) }}</template></el-table-column>
+          <el-table-column label="时间" min-width="180"><template #default="{ row }">{{ formatTime(row.createdAt) }}</template></el-table-column>
           <el-table-column label="操作" width="86"><template #default="{ row }"><el-button size="small" type="danger" plain @click="deleteKeyword(row)">删除</el-button></template></el-table-column>
         </el-table>
         <el-pagination v-if="poolTotal > poolPageSize" small background layout="total, prev, pager, next" :total="poolTotal" :page-size="poolPageSize" v-model:current-page="poolPage" class="pool-pagination" />
       </el-tab-pane>
 
       <el-tab-pane name="cluster">
-        <template #label><span class="tab-label"><el-icon><DataAnalysis /></el-icon>意图聚类</span></template>
+        <template #label><span class="tab-label"><el-icon><Check /></el-icon>意图聚类</span></template>
         <div class="panel-toolbar elevated">
           <div><h3>搜索意图聚类</h3><p>每个聚类可输出最多 5 条内容建议，供内容 Prompt 列表评分和编辑。</p></div>
           <div class="toolbar-actions">
-            <el-button type="primary" :loading="distilling" @click="distill"><el-icon><Connection /></el-icon>AI 蒸馏</el-button>
+            <el-button type="primary" :loading="distilling" @click="distill"><el-icon><Document /></el-icon>AI 蒸馏</el-button>
             <el-button type="danger" plain :disabled="!clusterSelection.length" @click="deleteClustersBatch">批量删除</el-button>
           </div>
         </div>
@@ -483,7 +478,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
               <div class="prompt-card-head">
                 <div>
                   <div class="prompt-card-tags">
-                    <el-tag type="primary" effect="light"><el-icon><Aim /></el-icon>{{ row.suggestedCategory || '待分栏' }}</el-tag>
+                    <el-tag type="primary" effect="light"><el-icon><Document /></el-icon>{{ row.suggestedCategory || '待分栏' }}</el-tag>
                     <el-tag v-if="row.articleId" type="success" effect="light">✅ 已生成文章</el-tag>
                     <el-tag v-else type="info" effect="light">⏳ 待生成</el-tag>
                   </div>
@@ -543,7 +538,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
           <el-descriptions-item label="文章方向" span="2">{{ clusterDetailRow.articleDirection }}</el-descriptions-item>
         </el-descriptions>
         <div class="detail-actions">
-          <el-button type="primary" :loading="generatingClusterId === clusterDetailRow.id" @click="generateClusterSuggestions(clusterDetailRow.id!)"><el-icon><Connection /></el-icon>新增内容 Prompt</el-button>
+          <el-button type="primary" :loading="generatingClusterId === clusterDetailRow.id" @click="generateClusterSuggestions(clusterDetailRow.id!)"><el-icon><Document /></el-icon>新增内容 Prompt</el-button>
         </div>
         <h4 style="margin:18px 0 12px;font-size:16px">内容建议（可多篇文章）</h4>
         <div v-if="clusterDetailRow.contentSuggestions?.length" class="suggestion-cards">

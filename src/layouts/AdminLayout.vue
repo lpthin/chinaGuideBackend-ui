@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { House, OfficeBuilding, Collection, Key, Document, Checked, Upload, MagicStick, Picture, ChatDotSquare, UserFilled, Avatar, User, Lock, Tickets, MessageBox, Bell, CreditCard, DataLine, Wallet, Setting, DocumentCopy, Clock } from '@element-plus/icons-vue'
+import { Document, User, Check, Edit, CreditCard, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSiteStore } from '@/stores/site'
 
@@ -13,35 +13,35 @@ const siteStore = useSiteStore()
 const activeMenu = computed(() => route.path)
 
 const menuItems: Array<{ path?: string; label: string; icon: any; children?: Array<{ path: string; label: string; icon: any }> }> = [
-  { path: '/dashboard', label: '仪表盘', icon: House },
-  { path: '/categories', label: '栏目管理', icon: Collection },
-  { path: '/keywords', label: 'AI蒸馏', icon: Key },
+  { path: '/dashboard', label: '仪表盘', icon: Document },
+  { path: '/categories', label: '栏目管理', icon: Document },
+  { path: '/keywords', label: 'AI蒸馏', icon: Document },
   { path: '/articles', label: '内容草稿', icon: Document },
-  { path: '/reviews', label: '审核中心', icon: Checked },
-  { path: '/publishing', label: '发布任务', icon: Upload },
-  { path: '/prompt-templates', label: 'Prompt模板', icon: MagicStick },
-  { path: '/media', label: '媒体库', icon: Picture },
-  { path: '/comments', label: '评论管理', icon: ChatDotSquare },
-  { path: '/forms', label: '表单设计器', icon: Tickets },
-  { path: '/leads', label: '线索管理', icon: MessageBox },
-  { path: '/notifications', label: '站内提醒', icon: Bell },
+  { path: '/reviews', label: '审核中心', icon: Check },
+  { path: '/publishing', label: '发布任务', icon: Document },
+  { path: '/prompt-templates', label: 'Prompt模板', icon: Edit },
+  { path: '/media', label: '媒体库', icon: Document },
+  { path: '/comments', label: '评论管理', icon: Document },
+  { path: '/forms', label: '表单设计器', icon: Document },
+  { path: '/leads', label: '线索管理', icon: Document },
+  { path: '/notifications', label: '站内提醒', icon: Document },
   {
-    label: '多租户管理', icon: OfficeBuilding, children: [
-      { path: '/tenant', label: '租户信息', icon: OfficeBuilding },
-      { path: '/usage', label: '使用量统计', icon: DataLine },
+    label: '多租户管理', icon: Document, children: [
+      { path: '/tenant', label: '租户信息', icon: Document },
+      { path: '/usage', label: '使用量统计', icon: Document },
       { path: '/plans', label: '套餐管理', icon: CreditCard },
-      { path: '/billing', label: '账单管理', icon: Wallet },
-      { path: '/invoices', label: '发票管理', icon: DocumentCopy },
-      { path: '/payment-config', label: '支付配置', icon: Setting }
+      { path: '/billing', label: '账单管理', icon: Document },
+      { path: '/invoices', label: '发票管理', icon: Document },
+      { path: '/payment-config', label: '支付配置', icon: Edit }
     ]
   },
   {
-    label: '系统管理', icon: UserFilled, children: [
-      { path: '/sites', label: '站点管理', icon: OfficeBuilding },
-      { path: '/users', label: '用户管理', icon: Avatar },
+    label: '系统管理', icon: User, children: [
+      { path: '/sites', label: '站点管理', icon: Document },
+      { path: '/users', label: '用户管理', icon: User },
       { path: '/roles', label: '角色管理', icon: User },
       { path: '/permissions', label: '权限管理', icon: Lock },
-      { path: '/audit-logs', label: '审计日志', icon: Clock }
+      { path: '/audit-logs', label: '审计日志', icon: Document }
     ]
   }
 ]
@@ -82,7 +82,8 @@ function logout() {
     <el-container>
       <el-header class="admin-header">
         <el-select
-          :model-value="siteStore.currentSiteId"
+          v-if="siteStore.sites.length > 0"
+          :model-value="siteStore.currentSiteId || siteStore.sites[0]?.id"
           placeholder="选择站点"
           style="width: 240px"
           @update:model-value="handleSiteChange"
@@ -93,6 +94,9 @@ function logout() {
           <el-tag v-if="auth.tenantCode" type="success" size="small" class="tenant-tag">
             {{ auth.tenantCode }}
           </el-tag>
+          <router-link to="/v2" style="margin-right: 8px; color: #1890ff; font-weight: 500; text-decoration: none;">
+            ✨ 新版工作台
+          </router-link>
           <span class="username">{{ auth.user?.username || '管理员' }}</span>
           <el-button size="small" @click="logout">退出</el-button>
         </div>

@@ -3,13 +3,14 @@ import { computed, ref, watchEffect, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import type { Component } from 'vue'
-import { Search, CollectionTag, DataAnalysis, Document, MagicStick, TrendCharts, Cpu, Upload, Connection, CreditCard, EditPen, View, Check, User, DataLine, Wallet } from '@element-plus/icons-vue'
+import { Document, Edit, Check, User, CreditCard } from '@element-plus/icons-vue'
 import { getDashboardStatsApi } from '@/api/dashboard'
 import { listKeywordsApi, listKeywordClustersApi, listKeywordCollectionJobsApi } from '@/api/keywords'
 import { getCurrentTenantApi, getTenantUsageApi } from '@/api/tenants'
 import { useSiteStore } from '@/stores/site'
 import { useAuthStore } from '@/stores/auth'
 import type { DashboardStats, Keyword, KeywordCluster, KeywordCollectionJob, Tenant, TenantUsage } from '@/types/api'
+import { formatTime } from '@/utils/format'
 
 interface WorkflowCard {
   key: string; title: string; desc: string; metric: number; unit: string; color: string; route: string; icon: Component
@@ -60,13 +61,7 @@ function formatBatchNo(row: KeywordCollectionJob | string | undefined) {
   return batchDisplayMap.value.get(batchNo) || batchNo.replace(/^kw-?/, '')
 }
 
-function formatChineseTime(value?: string) {
-  if (!value) return '-'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
+
 
 function formatSources(value?: string | string[]) {
   if (!value) return []
@@ -79,15 +74,15 @@ function formatSources(value?: string | string[]) {
 }
 
 const workflowCards = computed<WorkflowCard[]>(() => [
-  { key: 'collect', title: '热词采集', desc: '从站点画像与外部信源补充候选词', metric: collectionJobs.value.length, unit: '批次', color: '#6366f1', route: '/sites/keywords', icon: Search },
-  { key: 'pool', title: '关键词池', desc: '默认看未蒸馏词，可按状态/信源/批次过滤', metric: keywords.value.length, unit: '个', color: '#0ea5e9', route: '/sites/keywords', icon: CollectionTag },
-  { key: 'cluster', title: '意图聚类', desc: '一个聚类可沉淀最多 5 条内容建议', metric: clusters.value.length, unit: '组', color: '#8b5cf6', route: '/sites/keywords', icon: DataAnalysis },
+  { key: 'collect', title: '热词采集', desc: '从站点画像与外部信源补充候选词', metric: collectionJobs.value.length, unit: '批次', color: '#6366f1', route: '/sites/keywords', icon: Document },
+  { key: 'pool', title: '关键词池', desc: '默认看未蒸馏词，可按状态/信源/批次过滤', metric: keywords.value.length, unit: '个', color: '#0ea5e9', route: '/sites/keywords', icon: Document },
+  { key: 'cluster', title: '意图聚类', desc: '一个聚类可沉淀最多 5 条内容建议', metric: clusters.value.length, unit: '组', color: '#8b5cf6', route: '/sites/keywords', icon: Document },
   { key: 'prompt', title: '内容 Prompt', desc: '多建议列表、评分和详情编辑', metric: promptReadyCount.value, unit: '条', color: '#10b981', route: '/sites/keywords', icon: Document }
 ])
 
 const quickMetrics = computed(() => [
-  { label: '文章总数', value: stats.value.articles, icon: EditPen, color: '#2563eb', bg: '#eff6ff' },
-  { label: '待审核', value: stats.value.pendingReviews, icon: View, color: '#f59e0b', bg: '#fffbeb' },
+  { label: '文章总数', value: stats.value.articles, icon: Edit, color: '#2563eb', bg: '#eff6ff' },
+  { label: '待审核', value: stats.value.pendingReviews, icon: Check, color: '#f59e0b', bg: '#fffbeb' },
   { label: '可发布', value: stats.value.approvedArticles, icon: Check, color: '#10b981', bg: '#ecfdf5' },
   { label: '今日浏览', value: stats.value.todayPageViews, icon: CreditCard, color: '#8b5cf6', bg: '#f5f3ff' },
 ])
@@ -181,10 +176,10 @@ function getUsageStatus(percentage: number): string {
         </div>
         <div class="tenant-actions">
           <el-button size="small" @click="goToUsage">
-            <el-icon><DataLine /></el-icon>查看使用量
+            <el-icon><Document /></el-icon>查看使用量
           </el-button>
           <el-button type="primary" size="small" @click="goToPlans">
-            <el-icon><Wallet /></el-icon>套餐管理
+            <el-icon><Document /></el-icon>套餐管理
           </el-button>
           <el-button size="small" @click="goToInvoices">
             <el-icon><Document /></el-icon>发票管理
@@ -225,16 +220,16 @@ function getUsageStatus(percentage: number): string {
     <!-- Hero -->
     <section class="hero-card">
       <div class="hero-copy">
-        <el-tag class="hero-kicker" effect="dark"><el-icon><MagicStick /></el-icon> GEO AI 工作台</el-tag>
+        <el-tag class="hero-kicker" effect="dark"><el-icon><Document /></el-icon> GEO AI 工作台</el-tag>
         <h2>{{ siteStore.currentSite?.name || '内容生产' }} 仪表盘</h2>
         <p>把散乱热词整理成「关键词池 → 搜索意图 → 内容 Prompt」的生产流水线，优先产出能被搜索和大模型引用的内容选题。</p>
         <div class="hero-actions">
-          <el-button type="primary" size="large" @click="goToDistill"><el-icon><Cpu /></el-icon>进入 AI 蒸馏</el-button>
-          <el-button size="large" :loading="loading" @click="loadAll"><el-icon><Upload /></el-icon>刷新数据</el-button>
+          <el-button type="primary" size="large" @click="goToDistill"><el-icon><Document /></el-icon>进入 AI 蒸馏</el-button>
+          <el-button size="large" :loading="loading" @click="loadAll"><el-icon><Check /></el-icon>刷新数据</el-button>
         </div>
       </div>
       <div class="hero-panel">
-        <div class="hero-panel-title"><el-icon><TrendCharts /></el-icon> 当前漏斗</div>
+        <div class="hero-panel-title"><el-icon><Document /></el-icon> 当前漏斗</div>
         <div class="funnel-row"><span>关键词总量</span><strong>{{ keywords.length }}</strong></div>
         <div class="funnel-row"><span>待蒸馏</span><strong>{{ pendingKeywords }}</strong></div>
         <div class="funnel-row"><span>已蒸馏</span><strong>{{ distilledKeywords }}</strong></div>
@@ -255,7 +250,7 @@ function getUsageStatus(percentage: number): string {
 
     <!-- Metrics Row -->
     <section class="metrics-section">
-      <h3 class="section-title"><el-icon><TrendCharts /></el-icon> 内容生产概览</h3>
+      <h3 class="section-title"><el-icon><Document /></el-icon> 内容生产概览</h3>
       <div class="metrics-grid">
         <div v-for="m in quickMetrics" :key="m.label" class="metric-card" :style="`--accent:${m.color};--bg:${m.bg}`">
           <div class="metric-icon"><el-icon><component :is="m.icon" /></el-icon></div>
@@ -271,7 +266,7 @@ function getUsageStatus(percentage: number): string {
     <div class="bottom-grid">
       <!-- Recent Collection Jobs -->
       <section class="recent-section">
-        <h3 class="section-title"><el-icon><Search /></el-icon> 最近采集</h3>
+        <h3 class="section-title"><el-icon><Document /></el-icon> 最近采集</h3>
         <div v-if="collectionJobs.length" class="job-list">
           <div v-for="job in collectionJobs.slice(0, 5)" :key="job.id" class="job-row">
             <div class="job-badge">{{ formatBatchNo(job) }}</div>
@@ -281,7 +276,7 @@ function getUsageStatus(percentage: number): string {
               </div>
               <span class="job-stats">候选 {{ job.candidateCount }} · 入库 {{ job.savedCount }}</span>
             </div>
-            <span class="job-time">{{ formatChineseTime(job.createdAt) }}</span>
+            <span class="job-time">{{ formatTime(job.createdAt) }}</span>
           </div>
         </div>
         <el-empty v-else description="暂无采集记录" :image-size="80" />
@@ -289,7 +284,7 @@ function getUsageStatus(percentage: number): string {
 
       <!-- Clusters Preview -->
       <section class="recent-section">
-        <h3 class="section-title"><el-icon><DataAnalysis /></el-icon> 最新聚类</h3>
+        <h3 class="section-title"><el-icon><Document /></el-icon> 最新聚类</h3>
         <div v-if="clusters.length" class="cluster-preview-list">
           <div v-for="c in clusters.slice(0, 5)" :key="c.id" class="cluster-preview-row">
             <div class="cluster-dot" :style="{ background: (c.priority || 0) >= 80 ? '#ef4444' : (c.priority || 0) >= 50 ? '#f59e0b' : '#10b981' }"></div>

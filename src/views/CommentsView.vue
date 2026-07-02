@@ -117,7 +117,7 @@ watchEffect(() => { if (currentSiteId.value) load() })
         <el-tag v-else-if="row.status === 'rejected'" type="danger">已驳回</el-tag>
         <el-tag v-else type="warning">待审核</el-tag>
       </template></el-table-column>
-      <el-table-column prop="createdAt" label="时间" width="180" />
+      <el-table-column label="时间" width="180"><template #default="{ row }">{{ formatTime(row.createdAt) }}</template></el-table-column>
       <el-table-column label="操作" width="180"><template #default="{ row }">
         <el-button v-if="row.status !== 'approved'" size="small" type="success" @click="review(row, 'approved')">通过</el-button>
         <el-button v-if="row.status !== 'rejected'" size="small" type="danger" @click="review(row, 'rejected')">驳回</el-button>

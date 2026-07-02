@@ -3,6 +3,7 @@ import { onMounted, ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getTenantUsageApi, getCurrentTenantApi } from '@/api/tenants'
 import type { Tenant, TenantUsage } from '@/types/api'
+import { formatTime } from '@/utils/format'
 
 const loading = ref(false)
 const tenant = ref<Tenant | null>(null)
@@ -160,7 +161,7 @@ function isUnlimited(limit: number): boolean {
           </template>
         </el-table-column>
         <el-table-column prop="date" label="统计日期" width="180" />
-        <el-table-column prop="createdAt" label="创建时间" />
+        <el-table-column label="创建时间" width="180"><template #default="{ row }">{{ formatTime(row.createdAt) }}</template></el-table-column>
       </el-table>
     </el-card>
 

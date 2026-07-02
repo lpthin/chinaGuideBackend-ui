@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Close, Wallet, Document, Cpu, Search, DataAnalysis } from '@element-plus/icons-vue'
+import { Check, Close, Document, Edit } from '@element-plus/icons-vue'
 import { getPlansApi, changePlanApi, createPaymentApi } from '@/api/tenants'
 import type { Plan } from '@/types/api'
 import { useAuthStore } from '@/stores/auth'
@@ -13,11 +13,11 @@ const loading = ref(false)
 const plans = ref<Plan[]>([])
 const selectedPlanId = ref<number | null>(null)
 
-const featureLabels = [
+const features = [
   { key: 'articleLimit', label: '文章配额', icon: Document },
-  { key: 'keywordLimit', label: '关键词配额', icon: Search },
-  { key: 'mediaLimit', label: '媒体文件配额', icon: Wallet },
-  { key: 'apiCallLimit', label: 'API 调用配额', icon: Cpu },
+  { key: 'keywordLimit', label: '关键词配额', icon: Document },
+  { key: 'mediaLimit', label: '媒体文件配额', icon: Document },
+  { key: 'apiCallLimit', label: 'API 调用配额', icon: Edit }
 ]
 
 onMounted(async () => {
@@ -132,13 +132,13 @@ function goToPlans() {
             <span class="feature-label"><el-icon><Document /></el-icon> 文章配额</span>
           </div>
           <div class="feature-row">
-            <span class="feature-label"><el-icon><Search /></el-icon> 关键词配额</span>
+            <span class="feature-label"><el-icon><Document /></el-icon> 关键词配额</span>
           </div>
           <div class="feature-row">
-            <span class="feature-label"><el-icon><Wallet /></el-icon> 媒体文件配额</span>
+            <span class="feature-label"><el-icon><Document /></el-icon> 媒体文件配额</span>
           </div>
           <div class="feature-row">
-            <span class="feature-label"><el-icon><Cpu /></el-icon> API 调用配额</span>
+            <span class="feature-label"><el-icon><Edit /></el-icon> API 调用配额</span>
           </div>
           <div class="feature-divider"></div>
           <div class="feature-row"></div>

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Document, Download, Plus, Delete } from '@element-plus/icons-vue'
+import { Document, Check, Edit, Close } from '@element-plus/icons-vue'
 import { getInvoicesApi, createInvoiceApi, downloadInvoiceApi, deleteInvoiceApi, type Invoice, type InvoiceRequest } from '@/api/tenants'
+import { formatTime } from '@/utils/format'
 
 const loading = ref(false)
 const invoices = ref<Invoice[]>([])
@@ -114,10 +115,7 @@ async function deleteInvoice(invoice: Invoice) {
   }
 }
 
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString('zh-CN')
-}
+
 
 function formatAmount(amount?: number): string {
   if (amount == null) return '¥0.00'
@@ -162,7 +160,7 @@ function getTypeText(type?: string): string {
 
     <el-card class="action-card">
       <el-button type="primary" @click="openCreateDialog">
-        <el-icon><Plus /></el-icon>
+        <el-icon><Edit /></el-icon>
         申请发票
       </el-button>
     </el-card>
@@ -191,7 +189,7 @@ function getTypeText(type?: string): string {
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="申请时间" width="120">
-          <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
+          <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
@@ -202,11 +200,11 @@ function getTypeText(type?: string): string {
               :loading="downloadLoading === row.id"
               @click="downloadInvoice(row)"
             >
-              <el-icon><Download /></el-icon>
+              <el-icon><Check /></el-icon>
               下载
             </el-button>
             <el-button type="danger" link size="small" @click="deleteInvoice(row)">
-              <el-icon><Delete /></el-icon>
+              <el-icon><Close /></el-icon>
               删除
             </el-button>
           </template>

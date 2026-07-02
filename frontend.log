@@ -1,0 +1,407 @@
+
+> china-guide-backend-ui@0.1.0 dev
+> vite --host 0.0.0.0
+
+
+  VITE v8.0.10  ready in 935 ms
+
+  ➜  Local:   http://localhost:5190/
+  ➜  Network: http://192.168.31.102:5190/
+  ➜  Network: http://192.168.64.1:5190/
+9:13:08 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+9:29:29 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+9:29:39 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+9:29:56 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+9:30:05 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+9:30:29 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+9:30:29 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/CategoriesPanel.vue:3:12
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+9:30:29 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/CategoriesPanel.vue:3:12
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+9:31:25 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue, /src/v2/views/workspace/CategoriesPanel.vue?vue&type=style&index=0&scoped=c19967c2&lang.css
+11:09:28 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+11:09:28 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/CategoriesPanel.vue:2:3
+  1  |  <template>
+  2  |    <div class="categories-panel">
+     |     ^
+  3  |  
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+11:09:28 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/CategoriesPanel.vue:2:3
+  1  |  <template>
+  2  |    <div class="categories-panel">
+     |     ^
+  3  |  
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+11:11:19 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue, /src/v2/views/workspace/CategoriesPanel.vue?vue&type=style&index=0&scoped=c19967c2&lang.css
+11:59:22 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+11:59:22 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/CategoriesPanel.vue:3:7
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+11:59:22 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/CategoriesPanel.vue:3:7
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+12:00:10 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue, /src/v2/views/workspace/CategoriesPanel.vue?vue&type=style&index=0&scoped=c19967c2&lang.css
+12:00:32 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+12:00:50 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+12:01:02 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+12:02:59 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+12:03:17 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+12:03:29 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+12:03:48 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+12:08:46 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+12:09:03 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+12:09:03 AM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/CategoriesPanel.vue:2:3
+  1  |  <template>
+  2  |    <div class="categories-panel">
+     |     ^
+  3  |  
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+12:09:03 AM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/CategoriesPanel.vue:2:3
+  1  |  <template>
+  2  |    <div class="categories-panel">
+     |     ^
+  3  |  
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+12:09:55 AM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue, /src/v2/views/workspace/CategoriesPanel.vue?vue&type=style&index=0&scoped=c19967c2&lang.css
+11:45:11 AM [vite] (client) hmr update /src/v2/views/workspace/WorkspaceView.vue
+11:45:26 AM [vite] (client) hmr update /src/v2/views/workspace/ArticlesPanel.vue
+11:46:01 AM [vite] (client) hmr update /src/v2/views/workspace/ClusterPanel.vue
+11:46:11 AM [vite] (client) hmr update /src/v2/views/workspace/ArticleGeneratePanel.vue
+11:46:32 AM [vite] (client) hmr update /src/v2/views/workspace/ReviewPanel.vue
+11:46:42 AM [vite] (client) hmr update /src/v2/views/workspace/PublishPanel.vue
+11:46:51 AM [vite] (client) hmr update /src/v2/views/workspace/MediaPanel.vue
+1:19:00 PM [vite] (client) hmr update /src/v2/views/workspace/CategoriesPanel.vue
+4:41:44 PM [vite] (client) hmr update /src/v2/views/workspace/KeywordCollectPanel.vue
+4:41:44 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:7:23
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:41:44 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:7:23
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:41:44 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:7:23
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:03 PM [vite] (client) hmr update /src/v2/views/workspace/KeywordCollectPanel.vue
+4:42:03 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:123:1
+  121 |  </template>
+  122 |  
+  123 |  <script setup lang="ts">
+      |   ^
+  124 |  import { ref, computed, onMount
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:03 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:123:1
+  121 |  </template>
+  122 |  
+  123 |  <script setup lang="ts">
+      |   ^
+  124 |  import { ref, computed, onMount
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:03 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:123:1
+  121 |  </template>
+  122 |  
+  123 |  <script setup lang="ts">
+      |   ^
+  124 |  import { ref, computed, onMount
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:33 PM [vite] (client) hmr update /src/v2/views/workspace/KeywordCollectPanel.vue
+4:42:33 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:340:10
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:33 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:340:10
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:34 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:340:10
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:34 PM [vite] Internal server error: Unexpected EOF in tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:340:10
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2610:11)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:34 PM [vite] (client) hmr update /src/v2/views/workspace/KeywordCollectPanel.vue, /src/v2/views/workspace/KeywordCollectPanel.vue?vue&type=style&index=0&scoped=2f2f0a90&lang.css
+4:42:34 PM [vite] Internal server error: Element is missing end tag.
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:34 PM [vite] Internal server error: Element is missing end tag.
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:34 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:340:1
+  338 |  </script>
+  339 |  
+  340 |  <style scoped>
+      |   ^
+  341 |  .keyword-collect-page {
+  342 |    width: 100%;
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:34 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:340:1
+  338 |  </script>
+  339 |  
+  340 |  <style scoped>
+      |   ^
+  341 |  .keyword-collect-page {
+  342 |    width: 100%;
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:34 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:340:1
+  338 |  </script>
+  339 |  
+  340 |  <style scoped>
+      |   ^
+  341 |  .keyword-collect-page {
+  342 |    width: 100%;
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:34 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/src/v2/views/workspace/KeywordCollectPanel.vue:340:1
+  338 |  </script>
+  339 |  
+  340 |  <style scoped>
+      |   ^
+  341 |  .keyword-collect-page {
+  342 |    width: 100%;
+      at createCompilerError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3014:5)
+      at Object.onend (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2616:7)
+      at Tokenizer.finish (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1246:14)
+      at Tokenizer.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1224:10)
+      at Object.baseParse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3053:13)
+      at Object.parse (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:910:23)
+      at Object.parse$1 [as parse] (/Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1824:24)
+      at createDescriptor (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/lpthin/openclaw/portalWebsite/chinaGuideBackend-ui/node_modules/@vitejs/plugin-vue/dist/index.mjs:1148:25)
+4:42:37 PM [vite] (client) hmr update /src/v2/views/workspace/KeywordCollectPanel.vue?vue&type=style&index=0&scoped=2f2f0a90&lang.css

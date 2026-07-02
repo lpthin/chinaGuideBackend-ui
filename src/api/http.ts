@@ -38,13 +38,8 @@ http.interceptors.response.use(
   },
   (error: AxiosError<{ message?: string }>) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('geocms_token')
-      localStorage.removeItem('geocms_user')
-      if (window.location.pathname !== '/login') {
-        ElMessage.warning('登录已过期，请重新登录')
-        const redirect = encodeURIComponent(window.location.pathname + window.location.search)
-        window.location.href = `/login?expired=1&redirect=${redirect}`
-      }
+      // 开发模式：401 时只显示警告，不主动跳转登录或清 token
+      ElMessage.warning('请先登录后访问该功能')
     }
     return Promise.reject(new Error(error.response?.data?.message || error.message || '网络请求失败'))
   }
