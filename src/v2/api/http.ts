@@ -1,33 +1,67 @@
-import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios'
+import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import type { ApiResponse } from '../types'
 import { message } from 'ant-design-vue'
+import { router } from '../router'
+import { useAuthStore as useV2AuthStore } from '../stores/auth'
 
-// 创建axios实例
+let isRedirecting = false
+
+function handleUnauthorized() {
+  if (isRedirecting) return
+  isRedirecting = true
+  try {
+    const v2Auth = useV2AuthStore()
+    v2Auth.accessToken = ''
+    v2Auth.refreshToken = ''
+    v2Auth.user = null
+  } catch (e) {}
+  localStorage.removeItem('v2_access_token')
+  localStorage.removeItem('v2_refresh_token')
+  localStorage.removeItem('v2_user_info')
+  localStorage.removeItem('geocms_token')
+  localStorage.removeItem('geocms_user')
+  localStorage.removeItem('geocms_tenant_id')
+  localStorage.removeItem('geocms_tenant_code')
+  message.warning('登录状态已失效，请重新登录')
+  const redirect = window.location.pathname + window.location.search
+  const loginPath = '/v2/login'
+  if (!redirect.startsWith(loginPath)) {
+    router.push({
+      path: loginPath,
+      query: { redirect }
+    })
+  } else {
+    router.push(loginPath)
+  }
+  setTimeout(() => {
+    isRedirecting = false
+  }, 1000)
+}
+
 const http = axios.create({
   baseURL: '/api/v2',
   timeout: 30000
 })
 
-// 请求拦截器
 http.interceptors.request.use(
-  (config: AxiosRequestConfig) => {
-    const token = localStorage.getItem('geocms_token')
+  (config: InternalAxiosRequestConfig) => {
+    const v2Auth = useV2AuthStore()
+    let token = v2Auth.accessToken
+      || localStorage.getItem('v2_access_token')
+      || localStorage.getItem('geocms_token')
     if (token) {
-      config.headers = config.headers || {}
       config.headers.Authorization = `Bearer ${token}`
     }
-    
-    const tenantId = localStorage.getItem('geocms_tenant_id')
+
+    const tenantId = v2Auth.tenantId || localStorage.getItem('geocms_tenant_id')
     const tenantCode = localStorage.getItem('geocms_tenant_code')
     if (tenantId) {
-      config.headers = config.headers || {}
-      config.headers['X-Tenant-Id'] = tenantId
+      config.headers['X-Tenant-Id'] = String(tenantId)
     }
     if (tenantCode) {
-      config.headers = config.headers || {}
       config.headers['X-Tenant-Code'] = tenantCode
     }
-    
+
     return config
   },
   (error) => {
@@ -35,39 +69,33 @@ http.interceptors.request.use(
   }
 )
 
-// 响应拦截器
 http.interceptors.response.use(
   (response) => {
-    console.log('HTTP response:', response)
-    const body = response.data as ApiResponse<unknown>
-    console.log('Response body:', body)
+    const body = response.data as any
     if (body && typeof body === 'object') {
-      // 优先检查 success 字段（因为后端同时返回了 success 和 code）
-      if ('success' in body) {
-        console.log('Found success field:', body.success)
+      const code = body.code !== undefined && body.code !== null ? String(body.code) : null
+      if (code === 'UNAUTHORIZED' || code === '401') {
+        handleUnauthorized()
+        return Promise.reject(new Error(body.message || '登录状态已失效，请重新登录'))
+      }
+      if (typeof body.success === 'boolean') {
         if (!body.success) {
           return Promise.reject(new Error(body.message || String(body.code) || '请求失败'))
         }
-        console.log('Returning body.data:', body.data)
         return body.data
-      } else if ('code' in body) {
-        console.log('Found code field:', body.code)
-        const code = String(body.code)
+      }
+      if (code !== null) {
         if (code !== '0' && code !== 'OK') {
           return Promise.reject(new Error(body.message || code || '请求失败'))
         }
-        console.log('Returning body.data:', body.data)
         return body.data
       }
     }
-    console.log('Returning raw response.data:', response.data)
     return response.data
   },
   (error: AxiosError<{ message?: string }>) => {
     if (error.response?.status === 401) {
-      // 开发模式：401 时只显示警告，不主动跳转登录或清 token
-      // 让页面继续渲染（虽然数据可能为空）
-      message.warning('请先登录后访问该功能')
+      handleUnauthorized()
     }
     return Promise.reject(new Error(error.response?.data?.message || error.message || '网络请求失败'))
   }

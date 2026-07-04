@@ -104,6 +104,9 @@ export interface Media {
   category: string
   tags: string
   useCount: number
+  ocrStatus?: string      // OCR分析状态: ANALYZING/COMPLETED/FAILED
+  ocrText?: string        // OCR提取的文字
+  aiDescription?: string  // AI生成的图片描述
   createdAt: string
   updatedAt: string
 }

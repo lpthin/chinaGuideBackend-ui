@@ -14,7 +14,7 @@
           :loading="loading"
         />
         <div class="search-type-tabs">
-          <a-radio-group v-model:value="searchType" button-style="solid" @change="handleSearch">
+          <a-radio-group v-model:value="searchType" button-style="solid" @change="handleFilterChange">
             <a-radio-button value="all">全部</a-radio-button>
             <a-radio-button value="document">文档</a-radio-button>
             <a-radio-button value="card">卡片</a-radio-button>
@@ -111,7 +111,7 @@
           </div>
           <div class="results-sort">
             <span class="sort-label">排序：</span>
-            <a-radio-group v-model:value="sortBy" button-style="solid" size="small" @change="handleSearch">
+            <a-radio-group v-model:value="sortBy" button-style="solid" size="small" @change="handleFilterChange">
               <a-radio-button value="relevance">相关度</a-radio-button>
               <a-radio-button value="time">最新</a-radio-button>
               <a-radio-button value="name">名称</a-radio-button>
@@ -133,8 +133,8 @@
                 <AppstoreOutlined v-else />
                 {{ getTypeLabel(item.type) }}
               </div>
-              <h3 class="result-title" v-html="item.highlightedTitle || item.title"></h3>
-              <p class="result-snippet" v-html="item.highlightedSnippet || item.snippet"></p>
+              <h3 class="result-title" v-html="sanitizeHighlight(item.highlightedTitle, item.title)"></h3>
+              <p class="result-snippet" v-html="sanitizeHighlight(item.highlightedSnippet, item.snippet)"></p>
               <div class="result-meta">
                 <span v-if="item.tags && item.tags.length > 0" class="result-tags">
                   <a-tag v-for="tag in item.tags.slice(0, 3)" :key="tag" color="blue" size="small">
@@ -193,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
@@ -235,6 +235,7 @@ const searchDuration = ref(0)
 
 const categories = ref<{ id: number; name: string }[]>([])
 
+// TODO: 临时硬编码方案，后续应从后端接口获取热门搜索词
 const hotKeywords = ref(['产品介绍', 'API文档', '使用指南', '常见问题'])
 
 const loadCategories = async () => {
@@ -249,7 +250,29 @@ const loadCategories = async () => {
   }
 }
 
-loadCategories()
+// 初始化 API 调用统一放在 onMounted 中执行，避免顶层异常中断 setup 导致白屏
+onMounted(() => {
+  try {
+    loadCategories()
+  } catch (error) {
+    console.error('初始化知识搜索页面失败:', error)
+  }
+})
+
+// 对带 <em> 高亮标签的内容做 XSS 转义：仅保留 <em></em> 标签，其余字符转义 < > &
+const sanitizeHighlight = (highlighted?: string, fallback?: string): string => {
+  const content = highlighted || fallback || ''
+  if (!content) return ''
+  return content.split(/(<\/?em>)/i).map(part => {
+    if (part === '<em>' || part === '</em>') {
+      return part
+    }
+    return part
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+  }).join('')
+}
 
 const handleSearch = async () => {
   if (!searchQuery.value.trim()) {
@@ -296,6 +319,12 @@ const resetFilters = () => {
   filterTimeRange.value = 'all'
 }
 
+// 切换搜索类型或排序时重置到第 1 页
+const handleFilterChange = () => {
+  currentPage.value = 1
+  handleSearch()
+}
+
 const handlePageChange = (page: number) => {
   currentPage.value = page
   handleSearch()
@@ -340,7 +369,7 @@ const formatTime = (time: string) => {
 
 const handleResultClick = (item: KnowledgeSearchResultItem) => {
   if (item.type === 'document') {
-    router.push(`/v2/workspace/knowledge/documents`)
+    router.push(`/v2/workspace/knowledge/documents?id=${item.id}`)
   } else if (item.type === 'card') {
     router.push(`/v2/workspace/knowledge/cards/${item.id}`)
   } else if (item.type === 'entity') {
@@ -353,8 +382,6 @@ const handleResultClick = (item: KnowledgeSearchResultItem) => {
 .knowledge-search-container {
   .search-content {
     padding: 24px;
-    max-width: 960px;
-    margin: 0 auto;
   }
 }
 

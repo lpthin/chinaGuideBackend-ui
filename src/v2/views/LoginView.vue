@@ -3,7 +3,7 @@
     <div class="login-wrapper">
       <div class="login-header">
         <div class="logo">
-          <component :is="AIModelOutlined" class="logo-icon" />
+          <component :is="RobotOutlined" class="logo-icon" />
         </div>
         <h1 class="title">AI 门户管理系统</h1>
         <p class="subtitle">登录您的账户以继续</p>
@@ -22,9 +22,12 @@
             v-model:value="formState.username"
             placeholder="用户名"
             size="large"
-            :prefix="UserOutlined"
             autocomplete="username"
-          />
+          >
+            <template #prefix>
+              <UserOutlined />
+            </template>
+          </a-input>
         </a-form-item>
 
         <a-form-item name="password">
@@ -32,9 +35,12 @@
             v-model:value="formState.password"
             placeholder="密码"
             size="large"
-            :prefix="LockOutlined"
             autocomplete="current-password"
-          />
+          >
+            <template #prefix>
+              <LockOutlined />
+            </template>
+          </a-input-password>
         </a-form-item>
 
         <a-form-item v-if="showCaptcha" name="captcha">
@@ -44,8 +50,11 @@
                 v-model:value="formState.captcha"
                 placeholder="验证码"
                 size="large"
-                :prefix="SafetyOutlined"
-              />
+              >
+                <template #prefix>
+                  <SafetyOutlined />
+                </template>
+              </a-input>
             </a-col>
             <a-col :span="8">
               <div class="captcha-image" @click="refreshCaptcha">
@@ -92,12 +101,13 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
-  AIModelOutlined,
+  RobotOutlined,
   UserOutlined,
   LockOutlined,
   SafetyOutlined,
 } from '@ant-design/icons-vue'
 import { useAuthStore } from '../stores/auth'
+import { authApi } from '../api'
 import type { LoginRequest } from '../types'
 
 const router = useRouter()
@@ -144,34 +154,52 @@ async function refreshCaptcha() {
 async function handleLogin() {
   try {
     loading.value = true
-    
-    // Mock login for demonstration
-    // In production, use: await authStore.login(formState)
-    setTimeout(() => {
-      const mockUser = {
-        id: 1,
-        username: formState.username,
-        nickname: '管理员',
-        email: 'admin@example.com',
-        phone: '13800138000',
-        avatar: '',
-        tenantId: 1,
-        tenantName: '默认租户',
-        roles: ['admin', 'user'],
-        permissions: ['*'],
-        status: 'enabled' as const,
-        createdAt: new Date().toISOString(),
-      }
-      
-      localStorage.setItem('v2_access_token', 'mock_access_token_' + Date.now())
-      localStorage.setItem('v2_refresh_token', 'mock_refresh_token')
-      localStorage.setItem('v2_user_info', JSON.stringify(mockUser))
-      
-      message.success('登录成功！')
-      router.push('/v2/workspace/dashboard')
-      loading.value = false
-    }, 1000)
-    
+
+    // 调用真实后端登录API
+    // 后端返回 { token, userId, username, nickname, tenantId, tenantCode }
+    // http拦截器返回 body.data，所以这里拿到的是 { token, userId, ... }
+    const resp: any = await authApi.login(formState)
+
+    // 映射后端响应到前端 LoginResponse 格式
+    const accessToken = resp?.token || resp?.accessToken || ''
+    if (!accessToken) {
+      throw new Error('登录失败：未获取到有效token')
+    }
+
+    const userInfo = {
+      id: resp?.userId || 0,
+      username: resp?.username || formState.username,
+      nickname: resp?.nickname || '',
+      email: '',
+      phone: '',
+      avatar: '',
+      tenantId: resp?.tenantId || 1,
+      tenantName: resp?.tenantCode || '',
+      roles: ['admin'],
+      permissions: ['*'],
+      status: 'enabled' as const,
+      createdAt: new Date().toISOString(),
+    }
+
+    // 存储到localStorage（与auth store使用的key一致）
+    localStorage.setItem('v2_access_token', accessToken)
+    localStorage.setItem('v2_refresh_token', '')
+    localStorage.setItem('v2_user_info', JSON.stringify(userInfo))
+
+    // 同步更新 geocms 旧版key（兼容v1代码）
+    localStorage.setItem('geocms_token', accessToken)
+    localStorage.setItem('geocms_user', JSON.stringify(userInfo))
+    localStorage.setItem('geocms_tenant_id', String(userInfo.tenantId))
+    localStorage.setItem('geocms_tenant_code', userInfo.tenantName)
+
+    // 更新Pinia store
+    authStore.accessToken = accessToken
+    authStore.refreshToken = ''
+    authStore.user = userInfo as any
+
+    message.success('登录成功！')
+    router.push('/v2/workspace/dashboard')
+    loading.value = false
   } catch (error: any) {
     message.error(error.message || '登录失败，请重试')
     loading.value = false

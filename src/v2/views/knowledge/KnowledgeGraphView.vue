@@ -145,14 +145,14 @@
                     <a-list-item>
                       <a-list-item-meta>
                         <template #title>
-                          <span style="color: #1890ff">{{ item.source }}</span>
+                          <span style="color: #1890ff">{{ item.sourceEntityName || '—' }}</span>
                           <ArrowRightOutlined style="margin: 0 8px; color: #8c8c8c" />
                           <a-tag size="small">{{ item.relationType }}</a-tag>
                           <ArrowRightOutlined style="margin: 0 8px; color: #8c8c8c" />
-                          <span style="color: #52c41a">{{ item.target }}</span>
+                          <span style="color: #52c41a">{{ item.targetEntityName || '—' }}</span>
                         </template>
                         <template #description>
-                          置信度 {{ (item.confidence * 100).toFixed(0) }}% · 来源: {{ item.sourceDocument || '未知' }}
+                          置信度 {{ (item.confidence * 100).toFixed(0) }}% · 来源: {{ item.sourceDocumentId ? '文档 #' + item.sourceDocumentId : '未知' }}
                         </template>
                       </a-list-item-meta>
                     </a-list-item>
@@ -297,8 +297,8 @@
             <a-tag :color="getEntityColor(selectedNode.type)">{{ selectedNode.type }}</a-tag>
           </a-descriptions-item>
           <a-descriptions-item label="关联数量">{{ selectedNode.value }}</a-descriptions-item>
-          <a-descriptions-item label="来源文档">产品需求规格说明书.pdf</a-descriptions-item>
-          <a-descriptions-item label="首次提取时间">2024-01-15 10:30</a-descriptions-item>
+          <a-descriptions-item label="来源文档">{{ selectedNode.sourceDocument || '—' }}</a-descriptions-item>
+          <a-descriptions-item label="首次提取时间">{{ selectedNode.extractTime || '—' }}</a-descriptions-item>
         </a-descriptions>
 
         <a-divider>关联实体</a-divider>
@@ -333,7 +333,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import {
@@ -350,7 +350,8 @@ import {
   FileTextOutlined
 } from '@ant-design/icons-vue'
 import { knowledgeGraphApi, knowledgeEntityApi, knowledgeDocumentApi } from '../../api/knowledge'
-import type { ExtractionResult, ExtractedEntity, ExtractedRelation, KnowledgeDocument } from '../../api/knowledge'
+import type { ExtractionResult, ExtractedEntity, ExtractedRelation } from '../../api/knowledge'
+import type { KnowledgeDocument, KnowledgeEntity, KnowledgeRelation, KnowledgeGraphData } from '../../types/knowledge'
 
 const showFilterPanel = ref(true)
 const showDetailDrawer = ref(false)
@@ -386,68 +387,109 @@ const searchKeyword = ref('')
 const layoutType = ref('force')
 const selectedNode = ref<any>(null)
 
-const stats = reactive({
-  totalEntities: 234,
-  totalRelations: 156,
-  entityTypes: [
-    { value: '产品', label: '产品', count: 45, color: '#1890ff' },
-    { value: '技术', label: '技术', count: 38, color: '#52c41a' },
-    { value: '人员', label: '人员', count: 32, color: '#722ed1' },
-    { value: '组织', label: '组织', count: 25, color: '#fa8c16' },
-    { value: '地点', label: '地点', count: 22, color: '#eb2f96' },
-    { value: '时间', label: '时间', count: 18, color: '#13c2c2' },
-    { value: '其他', label: '其他', count: 54, color: '#8c8c8c' }
-  ]
-})
-
-const entityTypes = ref([
-  { value: '产品', label: '产品', count: 45, color: '#1890ff' },
-  { value: '技术', label: '技术', count: 38, color: '#52c41a' },
-  { value: '人员', label: '人员', count: 32, color: '#722ed1' },
-  { value: '组织', label: '组织', count: 25, color: '#fa8c16' },
-  { value: '地点', label: '地点', count: 22, color: '#eb2f96' },
-  { value: '时间', label: '时间', count: 18, color: '#13c2c2' }
-])
-
-const relationTypes = ref([
-  { value: '属于', label: '属于', count: 42 },
-  { value: '使用', label: '使用', count: 38 },
-  { value: '包含', label: '包含', count: 29 },
-  { value: '关联', label: '关联', count: 25 },
-  { value: '依赖', label: '依赖', count: 14 },
-  { value: '开发', label: '开发', count: 8 }
-])
-
-const recentEntities = ref([
-  { id: 1, name: '用户管理模块', type: '产品', occurrences: 12, confidence: 0.95 },
-  { id: 2, name: 'Vue 3', type: '技术', occurrences: 8, confidence: 0.92 },
-  { id: 3, name: '张三', type: '人员', occurrences: 6, confidence: 0.88 },
-  { id: 4, name: '产品部', type: '组织', occurrences: 5, confidence: 0.85 },
-  { id: 5, name: '北京', type: '地点', occurrences: 4, confidence: 0.80 }
-])
-
-const recentRelations = ref([
-  { id: 1, source: '用户管理模块', target: 'Vue 3', relationType: '使用', confidence: 0.92, sourceDocument: '产品需求文档.pdf' },
-  { id: 2, source: '张三', target: '产品部', relationType: '属于', confidence: 0.95, sourceDocument: '组织架构.docx' },
-  { id: 3, source: '用户管理模块', target: '权限系统', relationType: '依赖', confidence: 0.88, sourceDocument: '系统设计.pdf' },
-  { id: 4, source: '产品部', target: '北京', relationType: '位于', confidence: 0.82, sourceDocument: '公司介绍.pdf' }
-])
-
-const nodeNeighbors = ref([
-  { name: '权限系统', type: '产品', relation: '依赖' },
-  { name: 'Vue 3', type: '技术', relation: '使用' },
-  { name: '产品部', type: '组织', relation: '负责' },
-  { name: '张三', type: '人员', relation: '开发' }
-])
-
-const nodeLocations = ref([
-  { document: '产品需求规格说明书.pdf', text: '用户管理模块包含登录、注册、密码找回等功能...' },
-  { document: '系统架构设计文档.docx', text: '用户管理模块采用微服务架构，独立部署...' }
-])
+// 实体类型颜色映射
+const ENTITY_COLOR_MAP: Record<string, string> = {
+  '产品': '#1890ff',
+  '技术': '#52c41a',
+  '人员': '#722ed1',
+  '组织': '#fa8c16',
+  '地点': '#eb2f96',
+  '时间': '#13c2c2',
+  '其他': '#8c8c8c'
+}
 
 const getEntityColor = (type: string): string => {
-  const found = entityTypes.value.find(e => e.value === type)
-  return found?.color || '#8c8c8c'
+  return ENTITY_COLOR_MAP[type] || '#8c8c8c'
+}
+
+// 统计数据 - 初始全部为 0，由 API 填充
+const stats = reactive({
+  totalEntities: 0,
+  totalRelations: 0,
+  entityTypes: [] as { type: string; count: number }[]
+})
+
+// 实体/关系类型列表 - 由 API 填充
+const entityTypes = ref<{ value: string; label: string; count: number; color: string }[]>([])
+const relationTypes = ref<{ value: string; label: string; count: number }[]>([])
+
+// 最近提取的实体/关系 - 由 API 填充
+const recentEntities = ref<KnowledgeEntity[]>([])
+const recentRelations = ref<KnowledgeRelation[]>([])
+
+// 节点详情抽屉数据 - 由 API 填充
+const nodeNeighbors = ref<{ name: string; type: string; relation: string }[]>([])
+const nodeLocations = ref<{ document: string; text: string }[]>([])
+
+// 图谱数据 - 由 API 填充
+const graphData = ref<KnowledgeGraphData | null>(null)
+const graphNodes = ref<any[]>([])
+
+// 加载知识图谱数据
+const loadGraphData = async () => {
+  loading.value = true
+  try {
+    const type = selectedTypes.value.length === 1 ? selectedTypes.value[0] : undefined
+    const res: any = await knowledgeGraphApi.getGraph(nodeLimit.value, type)
+    const data: KnowledgeGraphData | null = res?.data ?? res ?? null
+
+    if (!data) {
+      // API 无数据 - 显示空状态
+      graphData.value = null
+      stats.totalEntities = 0
+      stats.totalRelations = 0
+      stats.entityTypes = []
+      entityTypes.value = []
+      relationTypes.value = []
+      recentEntities.value = []
+      recentRelations.value = []
+      initGraph()
+      return
+    }
+
+    graphData.value = data
+
+    // 更新统计数据
+    stats.totalEntities = data.stats?.totalEntities ?? 0
+    stats.totalRelations = data.stats?.totalRelations ?? 0
+    stats.entityTypes = data.stats?.entityTypes ?? []
+
+    // 更新实体类型列表（带颜色）
+    entityTypes.value = (data.stats?.entityTypes || []).map(t => ({
+      value: t.type,
+      label: t.type,
+      count: t.count,
+      color: getEntityColor(t.type)
+    }))
+
+    // 更新关系类型列表
+    relationTypes.value = (data.stats?.relationTypes || []).map(t => ({
+      value: t.type,
+      label: t.type,
+      count: t.count
+    }))
+
+    // 更新最近实体/关系
+    recentEntities.value = (data.entities || []).slice(0, 5)
+    recentRelations.value = (data.relations || []).slice(0, 5)
+
+    initGraph()
+  } catch (e: any) {
+    console.warn('加载知识图谱数据失败', e)
+    message.error('加载知识图谱数据失败')
+    // 出错时显示空状态，不使用假数据
+    graphData.value = null
+    stats.totalEntities = 0
+    stats.totalRelations = 0
+    stats.entityTypes = []
+    entityTypes.value = []
+    relationTypes.value = []
+    recentEntities.value = []
+    recentRelations.value = []
+    initGraph()
+  } finally {
+    loading.value = false
+  }
 }
 
 const initGraph = () => {
@@ -459,13 +501,49 @@ const initGraph = () => {
 
   chartInstance = echarts.init(graphRef.value)
 
-  const categories = entityTypes.value.map((e, i) => ({
+  const categories = entityTypes.value.map(e => ({
     name: e.value,
     itemStyle: { color: e.color }
   }))
 
-  const nodes = generateMockNodes()
-  const links = generateMockLinks(nodes)
+  // 构建实体信息映射（用于节点详情抽屉的来源文档/提取时间）
+  const entityMap = new Map<string, KnowledgeEntity>()
+  ;(graphData.value?.entities || []).forEach(e => {
+    entityMap.set(String(e.id), e)
+    entityMap.set(e.name, e)
+  })
+
+  // 将后端 GraphNode 转为 ECharts 节点格式
+  const rawNodes = graphData.value?.nodes || []
+  const nodes: any[] = rawNodes.map(n => {
+    const entity = entityMap.get(String(n.id)) || entityMap.get(n.label)
+    return {
+      id: n.id,
+      name: n.label,
+      value: n.size,
+      category: n.type,
+      symbolSize: Math.max(20, n.size || 30),
+      itemStyle: { color: n.color || getEntityColor(n.type) },
+      // 来源文档/提取时间 - 从实体数据中读取，无值时为空字符串（模板显示 "—"）
+      sourceDocument: entity?.sourceDocumentId ? `文档 #${entity.sourceDocumentId}` : '',
+      extractTime: entity?.createdAt || ''
+    }
+  })
+
+  // 将后端 GraphEdge 转为 ECharts 边格式
+  const links: any[] = (graphData.value?.edges || []).map(e => ({
+    source: e.source,
+    target: e.target,
+    value: e.value,
+    label: {
+      show: true,
+      formatter: e.label,
+      fontSize: 10
+    }
+  }))
+
+  // 保存节点引用，供 focusNodeAdjacency 查找索引使用
+  graphNodes.value = nodes
 
   const option: echarts.EChartsOption = {
     tooltip: {
@@ -528,94 +606,108 @@ const initGraph = () => {
     if (params.dataType === 'node') {
       selectedNode.value = params.data
       showDetailDrawer.value = true
+      loadNodeNeighbors(params.data)
     }
   })
 }
 
-const generateMockNodes = () => {
-  const types = entityTypes.value.map(e => e.value)
-  const names = [
-    '用户管理', '权限系统', 'Vue 3', 'TypeScript', 'Node.js',
-    'MySQL', 'Redis', '微服务', 'API网关', '负载均衡',
-    '消息队列', 'Elasticsearch', '监控系统', '日志服务',
-    '产品部', '技术部', '运营部', '张三', '李四', '王五',
-    '北京', '上海', '广州', '深圳', 'Q1计划', 'Q2规划'
-  ]
-
-  return names.map((name, index) => ({
-    id: index,
-    name: name,
-    value: Math.floor(Math.random() * 10) + 1,
-    category: types[index % types.length],
-    symbolSize: Math.random() * 30 + 20,
-    itemStyle: { color: getEntityColor(types[index % types.length]) }
-  }))
-}
-
-const generateMockLinks = (nodes: any[]) => {
-  const links: any[] = []
-  const relationTypes = ['属于', '使用', '包含', '关联', '依赖', '开发']
-
-  for (let i = 0; i < Math.min(nodes.length * 1.5, 50); i++) {
-    const source = Math.floor(Math.random() * nodes.length)
-    const target = Math.floor(Math.random() * nodes.length)
-    if (source !== target) {
-      links.push({
-        source: source,
-        target: target,
-        lineStyle: { curveness: Math.random() * 0.5 - 0.25 },
-        label: {
-          show: Math.random() > 0.7,
-          formatter: relationTypes[Math.floor(Math.random() * relationTypes.length)],
-          fontSize: 10
-        }
-      })
-    }
-  }
-  return links
-}
-
-const zoomIn = () => {
-  if (chartInstance) {
-    const option = chartInstance.getOption()
-    const currentZoom = (option as any).series[0].zoom || 1
-    chartInstance.setOption({
-      series: [{ zoom: currentZoom * 1.2 }]
+// 加载选中节点的邻接关系
+const loadNodeNeighbors = async (node: any) => {
+  nodeNeighbors.value = []
+  nodeLocations.value = []
+  const entityId = Number(node.id)
+  if (!entityId || isNaN(entityId)) return
+  try {
+    const res: any = await knowledgeGraphApi.getNeighbors(entityId, 1)
+    const data: KnowledgeGraphData | null = res?.data ?? res ?? null
+    if (!data) return
+    const edges = data.edges || []
+    const neighborNodes = (data.nodes || []).filter(n => String(n.id) !== String(node.id))
+    nodeNeighbors.value = neighborNodes.map(n => {
+      // 查找连接该邻居与选中节点的边，获取关系类型
+      const edge = edges.find(e =>
+        (e.source === String(node.id) && e.target === String(n.id)) ||
+        (e.target === String(node.id) && e.source === String(n.id))
+      )
+      return {
+        name: n.label,
+        type: n.type,
+        relation: edge?.label || '关联'
+      }
     })
+  } catch (e) {
+    console.warn('加载邻接节点失败', e)
   }
+}
+
+// 通过 graphRoam 缩放 - 比直接修改 series.zoom 更可靠
+const zoomIn = () => {
+  chartInstance?.dispatchAction({
+    type: 'graphRoam',
+    seriesIndex: 0,
+    zoom: 1.2
+  })
 }
 
 const zoomOut = () => {
-  if (chartInstance) {
-    const option = chartInstance.getOption()
-    const currentZoom = (option as any).series[0].zoom || 1
-    chartInstance.setOption({
-      series: [{ zoom: currentZoom * 0.8 }]
-    })
-  }
-}
-
-const fitView = () => {
-  if (chartInstance) {
-    chartInstance.setOption({
-      series: [{ zoom: 1, center: ['50%', '50%'] }]
-    })
-  }
-}
-
-const searchNode = () => {
-  if (!chartInstance || !searchKeyword.value) return
-
-  chartInstance.dispatchAction({
-    type: 'highlight',
+  chartInstance?.dispatchAction({
+    type: 'graphRoam',
     seriesIndex: 0,
-    name: searchKeyword.value
+    zoom: 0.8
   })
 }
 
+const fitView = () => {
+  if (!chartInstance) return
+  // 重置缩放和居中 - 通过 setOption 更新 series 配置
+  chartInstance.setOption({
+    series: [{
+      zoom: 1,
+      center: ['50%', '50%']
+    }]
+  })
+}
+
+// 通过 focusNodeAdjacency 高亮目标节点及其相邻节点
+const searchNode = () => {
+  if (!chartInstance || !searchKeyword.value) return
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  if (!keyword) return
+
+  const idx = graphNodes.value.findIndex(n =>
+    String(n.name || '').toLowerCase().includes(keyword)
+  )
+  if (idx < 0) {
+    message.warning('未找到匹配的节点')
+    return
+  }
+
+  // 先取消之前的高亮
+  chartInstance.dispatchAction({ type: 'downplay', seriesIndex: 0 })
+  // 高亮目标节点及相邻节点
+  chartInstance.dispatchAction({
+    type: 'focusNodeAdjacency',
+    seriesIndex: 0,
+    dataIndex: idx
+  })
+}
+
+// 通过 focusNodeAdjacency 高亮关联节点（其他节点降低透明度）
 const focusNeighbors = () => {
   if (!chartInstance || !selectedNode.value) return
-  message.info('正在查看关联节点...')
+  const idx = graphNodes.value.findIndex(n =>
+    String(n.id) === String(selectedNode.value.id) ||
+    String(n.name) === String(selectedNode.value.name)
+  )
+  if (idx < 0) {
+    message.warning('未找到当前节点的位置')
+    return
+  }
+  chartInstance.dispatchAction({
+    type: 'focusNodeAdjacency',
+    seriesIndex: 0,
+    dataIndex: idx
+  })
 }
 
 const clearSelection = () => {
@@ -628,13 +720,9 @@ const clearSelection = () => {
 const onCanvasClick = (event: MouseEvent) => {
 }
 
-const applyFilter = () => {
-  loading.value = true
-  setTimeout(() => {
-    initGraph()
-    loading.value = false
-    message.success('筛选已应用')
-  }, 800)
+const applyFilter = async () => {
+  await loadGraphData()
+  message.success('筛选已应用')
 }
 
 const resetFilter = () => {
@@ -645,13 +733,9 @@ const resetFilter = () => {
   applyFilter()
 }
 
-const refreshGraph = () => {
-  loading.value = true
-  setTimeout(() => {
-    initGraph()
-    loading.value = false
-    message.success('图谱已刷新')
-  }, 800)
+const refreshGraph = async () => {
+  await loadGraphData()
+  message.success('图谱已刷新')
 }
 
 const rebuildGraph = () => {
@@ -682,13 +766,12 @@ const startRebuildStatusPolling = () => {
       const status = res.data || res
       if (status.status === 'completed') {
         message.success({ content: `知识图谱重建完成，新增实体 ${status.extractedEntities || 0} 个，关系 ${status.extractedRelations || 0} 个`, key: 'rebuild' })
-        stats.totalEntities += (status.extractedEntities || 0)
-        stats.totalRelations += (status.extractedRelations || 0)
-        initGraph()
         if (rebuildStatusTimer) {
           clearInterval(rebuildStatusTimer)
           rebuildStatusTimer = null
         }
+        // 重建完成后重新加载图谱数据（包含最新统计）
+        await loadGraphData()
       } else if (status.status === 'failed') {
         message.error({ content: `图谱重建失败: ${status.error || '未知错误'}`, key: 'rebuild' })
         if (rebuildStatusTimer) {
@@ -811,10 +894,9 @@ const confirmExtraction = async () => {
     )
     const data = res.data || res
     message.success(`入库完成：新增实体 ${data.createdEntities} 个，关系 ${data.createdRelations} 个，跳过重复实体 ${data.skippedEntities} 个，关系 ${data.skippedRelations} 个`)
-    stats.totalEntities += data.createdEntities
-    stats.totalRelations += data.createdRelations
     showExtractModal.value = false
-    initGraph()
+    // 入库后重新加载图谱数据（包含最新统计）
+    await loadGraphData()
   } catch (e: any) {
     message.error(e?.message || '确认失败')
   } finally {
@@ -826,10 +908,16 @@ const handleResize = () => {
   chartInstance?.resize()
 }
 
-onMounted(() => {
+// 筛选面板展开/收起后，容器宽度变化，需要触发 resize
+watch(showFilterPanel, () => {
   nextTick(() => {
-    initGraph()
+    chartInstance?.resize()
   })
+})
+
+onMounted(() => {
+  // 首次加载图谱数据（由 API 返回）
+  loadGraphData()
   window.addEventListener('resize', handleResize)
 })
 

@@ -181,8 +181,11 @@
             </a-form-item>
           </a-col>
           <a-col :span="24">
-            <a-form-item label="API Key" required>
+            <a-form-item label="API Key" :required="!editingConfig">
               <a-input-password v-model:value="configForm.apiKey" placeholder="输入 API Key" />
+              <div v-if="editingConfig && (!editingConfig.apiKey || editingConfig.apiKey.includes('*'))" class="api-key-hint">
+                <span style="color: #999; font-size: 12px">已配置，如需修改请重新输入</span>
+              </div>
             </a-form-item>
           </a-col>
           <a-col :span="12">
@@ -308,6 +311,7 @@ const providers = [
   { id: 'deepseek', name: 'DeepSeek', icon: ApiOutlined },
   { id: 'anthropic', name: 'Claude', icon: ApiOutlined },
   { id: 'openai', name: 'OpenAI', icon: ApiOutlined },
+  { id: 'volcengine', name: '火山引擎', icon: ApiOutlined },
   { id: 'ollama', name: 'Ollama', icon: BlockOutlined },
 ]
 
@@ -359,6 +363,7 @@ function getProviderIcon(provider: string) {
     deepseek: ApiOutlined,
     anthropic: ApiOutlined,
     openai: ApiOutlined,
+    volcengine: ApiOutlined,
     ollama: BlockOutlined,
   }
   return map[provider] || ApiOutlined
@@ -372,6 +377,7 @@ function getProviderColor(provider: string) {
     deepseek: 'geekblue',
     anthropic: 'orange',
     openai: 'cyan',
+    volcengine: 'red',
     ollama: 'default',
   }
   return map[provider] || 'default'
@@ -475,12 +481,11 @@ async function deleteConfig(id: number) {
 }
 
 function formToPayload() {
-  return {
+  const payload: Record<string, any> = {
     name: configForm.name,
     provider: configForm.provider,
     modelName: configForm.modelName,
     modelType: configForm.modelType,
-    apiKey: configForm.apiKey,
     apiEndpoint: configForm.baseUrl,
     temperature: configForm.temperature,
     maxTokens: configForm.maxTokens,
@@ -488,11 +493,19 @@ function formToPayload() {
     sortOrder: configForm.priority,
     isActive: configForm.isActive,
   }
+  if (configForm.apiKey) {
+    payload.apiKey = configForm.apiKey
+  }
+  return payload
 }
 
 async function handleSaveConfig() {
-  if (!configForm.name || !configForm.provider || !configForm.modelName || !configForm.apiKey) {
+  if (!configForm.name || !configForm.provider || !configForm.modelName) {
     message.error('请填写必填字段')
+    return
+  }
+  if (!editingConfig.value && !configForm.apiKey) {
+    message.error('请填写 API Key')
     return
   }
 

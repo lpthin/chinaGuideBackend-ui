@@ -22,7 +22,7 @@
                 <EyeOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalViews }}</div>
+                <div class="stat-value">{{ pagination.total }}</div>
                 <div class="stat-title">总浏览</div>
               </div>
             </div>
@@ -35,7 +35,7 @@
                 <LikeOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalLikes }}</div>
+                <div class="stat-value">{{ pagination.total }}</div>
                 <div class="stat-title">总点赞</div>
               </div>
             </div>
@@ -122,7 +122,7 @@
               <a-card
                 class="knowledge-card"
                 hoverable
-                :cover="card.coverImage ? renderCover(card.coverImage) : undefined"
+                :cover="renderCover(card)"
                 @click="goToDetail(card.id)"
               >
                 <div class="card-checkbox-wrapper" @click.stop="toggleCardSelect(card.id)">
@@ -286,9 +286,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
+import dayjs from 'dayjs'
 import {
   FileTextOutlined,
   EyeOutlined,
@@ -318,8 +319,6 @@ const batchTagValue = ref<string[]>([])
 const batchTagLoading = ref(false)
 
 const stats = reactive({
-  totalViews: 0,
-  totalLikes: 0,
   totalCategories: 0,
 })
 
@@ -356,12 +355,15 @@ const rowSelection = {
   },
 }
 
-function renderCover(url: string) {
-  return h('img', {
-    src: url,
-    alt: 'cover',
-    style: 'height: 120px; object-fit: cover;',
-  })
+function renderCover(card: KnowledgeCard) {
+  if (card.coverImage) {
+    return h('div', { class: 'card-cover' }, [
+      h('img', { src: card.coverImage, alt: card.title })
+    ])
+  }
+  return h('div', { class: 'card-cover-placeholder' }, [
+    h(FileTextOutlined)
+  ])
 }
 
 function getCategoryName(categoryId: number): string {
@@ -375,11 +377,11 @@ function getTagColor(tagName: string): string {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('zh-CN')
+  return dayjs(dateStr).format('YYYY-MM-DD HH:mm')
 }
 
 function goToDetail(id: number) {
-  router.push(`/knowledge/card/${id}`)
+  router.push(`/v2/workspace/knowledge/cards/${id}`)
 }
 
 function goToEdit(id?: number) {
@@ -490,9 +492,9 @@ async function loadCategories() {
     stats.totalCategories = result.length
   } catch (error) {
     console.error(error)
-    const mockData = generateMockCategories()
-    categories.value = mockData
-    stats.totalCategories = mockData.length
+    message.error('加载分类列表失败')
+    categories.value = []
+    stats.totalCategories = 0
   }
 }
 
@@ -517,78 +519,14 @@ async function loadData() {
     const result = await knowledgeCardApi.list(params)
     cardList.value = result.records
     pagination.total = result.total
-    stats.totalViews = result.records.reduce((sum, c) => sum + c.viewCount, 0)
-    stats.totalLikes = result.records.reduce((sum, c) => sum + c.likeCount, 0)
   } catch (error) {
     console.error(error)
-    const mockData = generateMockCards()
-    const start = (pagination.page - 1) * pagination.size
-    const end = start + pagination.size
-    cardList.value = mockData.slice(start, end)
-    pagination.total = mockData.length
-    stats.totalViews = mockData.reduce((sum, c) => sum + c.viewCount, 0)
-    stats.totalLikes = mockData.reduce((sum, c) => sum + c.likeCount, 0)
+    message.error('加载知识卡片列表失败')
+    cardList.value = []
+    pagination.total = 0
   } finally {
     loading.value = false
   }
-}
-
-function generateMockCategories(): KnowledgeCategory[] {
-  return [
-    { id: 1, tenantId: 1, parentId: null, name: '开发指南', icon: 'book', description: '', sort: 1, status: 'active', createdAt: '', updatedAt: '' },
-    { id: 2, tenantId: 1, parentId: 1, name: '前端开发', icon: 'folder', description: '', sort: 1, status: 'active', createdAt: '', updatedAt: '' },
-    { id: 3, tenantId: 1, parentId: 1, name: '后端开发', icon: 'folder', description: '', sort: 2, status: 'active', createdAt: '', updatedAt: '' },
-    { id: 4, tenantId: 1, parentId: null, name: '运维部署', icon: 'star', description: '', sort: 2, status: 'active', createdAt: '', updatedAt: '' },
-  ]
-}
-
-function generateMockCards(): KnowledgeCard[] {
-  const titles = [
-    'Vue 3 组合式 API 入门指南',
-    'TypeScript 高级类型技巧',
-    'React Hooks 最佳实践',
-    'Spring Boot 微服务架构',
-    'Docker 容器化部署详解',
-    'Node.js 性能优化指南',
-    'CSS Grid 布局完全教程',
-    'GraphQL 入门与实战',
-    'Redis 缓存策略详解',
-    'Kubernetes 集群管理',
-    'JavaScript 异步编程',
-    'Git 工作流最佳实践',
-    'Webpack 配置优化',
-    'MySQL 索引优化',
-    'Nginx 反向代理配置',
-  ]
-  const summaries = [
-    '本文详细介绍了 Vue 3 中组合式 API 的使用方法和最佳实践',
-    '深入探讨 TypeScript 的高级类型系统，包括泛型、条件类型等',
-    '从实际项目出发，讲解 React Hooks 的使用技巧和注意事项',
-    'Spring Boot 微服务架构的完整指南，包含服务注册、发现等',
-    'Docker 容器化的完整教程，从基础到生产环境部署',
-  ]
-  const tags = ['Vue', 'TypeScript', 'React', 'Spring', 'Docker', 'Node.js', 'CSS', 'GraphQL', 'Redis', 'K8s', 'JavaScript', 'Git', 'Webpack', 'MySQL', 'Nginx']
-
-  return titles.map((title, index) => ({
-    id: index + 1,
-    tenantId: 1,
-    categoryId: (index % 4) + 1,
-    title,
-    summary: summaries[index % summaries.length],
-    content: '',
-    coverImage: '',
-    tags: [tags[index % tags.length], tags[(index + 1) % tags.length]].join(','),
-    viewCount: Math.floor(Math.random() * 1000),
-    likeCount: Math.floor(Math.random() * 100),
-    sort: index,
-    status: 'active',
-    createdAt: '2024-01-01 10:00:00',
-    updatedAt: '2024-01-15 10:00:00',
-  }))
-}
-
-function h(tag: string, props: any, children?: any) {
-  return { tag, props, children } as any
 }
 
 onMounted(async () => {
@@ -651,9 +589,33 @@ onMounted(async () => {
   padding: 8px 0;
 }
 
+.card-cover {
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+.card-cover-placeholder {
+  width: 100%;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  color: #bfbfbf;
+  font-size: 32px;
+}
+
 .knowledge-card {
   margin-bottom: 16px;
-  height: 280px;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
   position: relative;

@@ -18,7 +18,12 @@
           <a-col :span="6" v-for="project in projects" :key="project.name">
             <a-card class="project-card" hoverable @click="enterProject(project.name)">
               <div class="project-cover">
-                <img v-if="project.coverUrl" :src="project.coverUrl" alt="cover" />
+                <img
+                  v-if="project.coverUrl && !failedImageIds.has(`cover-${project.name}`)"
+                  :src="project.coverUrl"
+                  alt="cover"
+                  @error="onImageError(`cover-${project.name}`)"
+                />
                 <div v-else class="cover-placeholder">
                   <FolderOpenOutlined />
                 </div>
@@ -111,10 +116,14 @@
                 <div class="media-preview" @click="toggleSelect(file.id)">
                   <a-checkbox :checked="selectedIds.includes(file.id)" class="media-checkbox" />
                   <img
-                    v-if="isImage(file.mimeType)"
+                    v-if="isImage(file.mimeType) && !failedImageIds.has(file.id)"
                     :src="`/api/v2/workspace/media/${file.id}/file`"
                     :alt="file.originalName"
+                    @error="onImageError(file.id)"
                   />
+                  <div v-else-if="isImage(file.mimeType)" class="file-placeholder image-placeholder">
+                    <PictureOutlined />
+                  </div>
                   <div v-else-if="isVideo(file.mimeType)" class="file-placeholder video-placeholder">
                     <VideoCameraOutlined />
                   </div>
@@ -145,6 +154,11 @@
                     </a-tag>
                     <a-tag v-if="file.vectorStatus" :color="getVectorStatusColor(file.vectorStatus)" size="small">
                       向量: {{ getVectorStatusText(file.vectorStatus) }}
+                    </a-tag>
+                  </div>
+                  <div v-if="file.ocrStatus" class="status-tags">
+                    <a-tag :color="getOcrStatusColor(file.ocrStatus)" size="small">
+                      OCR: {{ getOcrStatusText(file.ocrStatus) }}
                     </a-tag>
                   </div>
                 </template>
@@ -279,10 +293,32 @@
           <template v-if="currentPreviewType === 'image'">
             <div class="image-preview-wrapper">
               <img
+                v-if="!failedImageIds.has(`preview-${previewDocData?.id || previewMediaData?.id}`)"
                 :src="previewDocData?.fileDownloadUrl || getMediaFileUrl(previewMediaData)"
                 :alt="previewDocData?.originalName || previewMediaData?.originalName"
                 class="preview-image"
+                @error="onImageError(`preview-${previewDocData?.id || previewMediaData?.id}`)"
               />
+              <div v-else class="preview-image-placeholder">
+                <PictureOutlined style="font-size: 64px; color: #d9d9d9" />
+                <p style="margin-top: 12px; color: #8c8c8c">图片加载失败</p>
+              </div>
+            </div>
+            <div v-if="previewMediaData?.ocrStatus === 'COMPLETED'" class="ocr-result-section">
+              <div v-if="previewMediaData?.aiDescription" class="ocr-field">
+                <span class="ocr-label">AI描述：</span>
+                <span class="ocr-text">{{ previewMediaData.aiDescription }}</span>
+              </div>
+              <div v-if="previewMediaData?.ocrText" class="ocr-field">
+                <span class="ocr-label">OCR文字：</span>
+                <span class="ocr-text">{{ previewMediaData.ocrText }}</span>
+              </div>
+            </div>
+            <div v-else-if="previewMediaData?.ocrStatus === 'ANALYZING'" class="ocr-result-section">
+              <a-spin tip="图片分析中..." />
+            </div>
+            <div v-else-if="previewMediaData?.ocrStatus === 'FAILED'" class="ocr-result-section">
+              <span style="color: #ff4d4f">图片分析失败</span>
             </div>
           </template>
 
@@ -432,6 +468,7 @@ import {
   FileImageOutlined,
   VideoCameraOutlined,
   FileTextOutlined,
+  PictureOutlined,
   EyeOutlined,
   DownloadOutlined,
   DeleteOutlined,
@@ -476,6 +513,15 @@ const relatedCardsLoading = ref(false)
 const previewLoading = ref(false)
 const previewDocData = ref<any | null>(null)
 const previewIndex = ref(-1)
+
+// 记录加载失败的图片 key，用于触发占位图标渲染
+const failedImageIds = ref<Set<string | number>>(new Set())
+
+function onImageError(key: string | number) {
+  if (!failedImageIds.value.has(key)) {
+    failedImageIds.value = new Set(failedImageIds.value).add(key)
+  }
+}
 
 const mediaColumns = [
   { title: '文件名', key: 'name' },
@@ -592,6 +638,7 @@ async function handleBatchUpload(file: File): Promise<boolean> {
     await mediaApi.upload(file, currentProject.value)
     message.success(`${file.name} 上传成功`)
     await loadFiles()
+    startOcrPolling()
   } catch (e) {
     console.error('上传失败:', e)
     message.error(`${file.name} 上传失败`)
@@ -601,6 +648,37 @@ async function handleBatchUpload(file: File): Promise<boolean> {
   return false
 }
 
+let ocrPollingTimer: ReturnType<typeof setInterval> | null = null
+let ocrPollingCount = 0
+const OCR_POLLING_MAX = 60 // 60 次 × 5 秒 = 5 分钟
+
+function startOcrPolling() {
+  if (ocrPollingTimer) clearInterval(ocrPollingTimer)
+  ocrPollingCount = 0
+  ocrPollingTimer = setInterval(async () => {
+    ocrPollingCount++
+    if (ocrPollingCount >= OCR_POLLING_MAX) {
+      if (ocrPollingTimer) {
+        clearInterval(ocrPollingTimer)
+        ocrPollingTimer = null
+      }
+      message.warning('OCR 分析超时（超过 5 分钟），请稍后刷新页面查看结果')
+      return
+    }
+    const hasAnalyzing = mediaFiles.value.some(
+      f => f.mimeType?.startsWith('image/') && f.ocrStatus === 'ANALYZING'
+    )
+    if (!hasAnalyzing) {
+      if (ocrPollingTimer) {
+        clearInterval(ocrPollingTimer)
+        ocrPollingTimer = null
+      }
+      return
+    }
+    await loadFiles()
+  }, 5000)
+}
+
 function toggleSelect(id: number) {
   const idx = selectedIds.value.indexOf(id)
   if (idx >= 0) {
@@ -608,11 +686,6 @@ function toggleSelect(id: number) {
   } else {
     selectedIds.value.push(id)
   }
-}
-
-function previewMediaFile(file: any) {
-  previewMediaData.value = file
-  mediaPreviewVisible.value = true
 }
 
 function downloadMediaFile(file: any) {
@@ -844,7 +917,8 @@ async function handleBatchSetCategory() {
 }
 
 // ==================== 工具方法 ====================
-const formatFileSize = (bytes: number): string => {
+const formatFileSize = (bytes?: number | null): string => {
+  if (bytes == null) return '0 B'
   if (!bytes) return '0 B'
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
@@ -913,6 +987,24 @@ function getVectorStatusText(status: string): string {
   return map[status] || status
 }
 
+function getOcrStatusColor(status: string): string {
+  const map: Record<string, string> = {
+    ANALYZING: 'processing',
+    COMPLETED: 'success',
+    FAILED: 'error',
+  }
+  return map[status] || 'default'
+}
+
+function getOcrStatusText(status: string): string {
+  const map: Record<string, string> = {
+    ANALYZING: '分析中',
+    COMPLETED: '已分析',
+    FAILED: '分析失败',
+  }
+  return map[status] || status
+}
+
 onMounted(() => {
   loadProjects()
   loadCategories()
@@ -972,21 +1064,31 @@ onMounted(() => {
 
 .media-card {
   margin-bottom: 16px;
+
+  :deep(.ant-card-cover) {
+    height: 160px;
+    overflow: hidden;
+  }
+
+  :deep(.ant-card-meta) {
+    min-height: 88px;
+  }
 }
 
 .media-preview {
-  height: 150px;
+  height: 160px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #f5f5f5;
   position: relative;
   cursor: pointer;
+  overflow: hidden;
 
   img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .file-placeholder {
@@ -994,6 +1096,10 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .image-placeholder {
+    color: #8c8c8c;
   }
 
   .video-placeholder {
@@ -1154,6 +1260,19 @@ onMounted(() => {
       object-fit: contain;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
+
+    .preview-image-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px;
+
+      p {
+        margin: 12px 0 0 0;
+        color: #8c8c8c;
+      }
+    }
   }
 
   .pdf-preview-wrapper {
@@ -1260,5 +1379,23 @@ onMounted(() => {
       }
     }
   }
+}
+
+.ocr-result-section {
+  padding: 16px 24px;
+  background: #fafafa;
+  border-top: 1px solid #f0f0f0;
+}
+.ocr-field {
+  margin-bottom: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.ocr-label {
+  font-weight: 500;
+  color: #666;
+}
+.ocr-text {
+  color: #333;
 }
 </style>

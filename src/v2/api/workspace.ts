@@ -261,6 +261,9 @@ export const mediaApi = {
     return http.post<Media[]>('/workspace/media/upload-batch', formData)
   },
 
+  // 获取图片分析状态
+  getAnalysisStatus: (id: number) => http.get<{ ocrStatus: string; ocrText: string; aiDescription: string }>(`/workspace/media/${id}/analysis-status`),
+
   // 删除媒体
   delete: (id: number) =>
     http.delete<void>(`/workspace/media/${id}`),

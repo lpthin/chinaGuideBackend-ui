@@ -82,10 +82,10 @@
               @search="onSearch"
             />
             <a-tree
-              v-if="treeData.length"
+              v-if="filteredTreeData.length"
               v-model:selectedKeys="selectedKeys"
               v-model:expandedKeys="expandedKeys"
-              :tree-data="treeData"
+              :tree-data="filteredTreeData"
               :show-icon="true"
               :draggable="true"
               @drop="onDrop"
@@ -111,7 +111,7 @@
                 </div>
               </template>
             </a-tree>
-            <a-empty v-else description="暂无分类" />
+            <a-empty v-else :description="searchText ? '未找到匹配分类' : '暂无分类'" />
           </a-card>
         </a-col>
 
@@ -184,7 +184,12 @@
               </a-space>
             </template>
           </a-card>
-          <a-empty v-else description="请选择左侧分类进行编辑" />
+          <a-empty v-else :description="categories.length === 0 ? '请先在左侧创建分类' : '请选择左侧分类进行编辑'">
+            <a-button v-if="categories.length === 0" type="primary" @click="showAddModal">
+              <template #icon><PlusOutlined /></template>
+              新增分类
+            </a-button>
+          </a-empty>
         </a-col>
       </a-row>
 
@@ -261,7 +266,7 @@ const stats = reactive({
   totalCategories: 0,
   totalCards: 0,
   totalViews: 0,
-  maxLevel: 3,
+  maxLevel: 0,
 })
 
 const searchText = ref('')
@@ -283,6 +288,28 @@ const modalForm = reactive<KnowledgeCategoryForm>({
 
 const treeData = computed(() => buildTree(categories.value, null))
 const treeSelectData = computed(() => buildSelectTree(categories.value, null))
+const filteredTreeData = computed(() => {
+  if (!searchText.value) return treeData.value
+  return filterTree(treeData.value, searchText.value)
+})
+
+function filterTree(nodes: any[], keyword: string): any[] {
+  const lowerKeyword = keyword.toLowerCase()
+  const result: any[] = []
+  nodes.forEach(node => {
+    const matches = String(node.title).toLowerCase().includes(lowerKeyword)
+    const filteredChildren = node.children && node.children.length
+      ? filterTree(node.children, keyword)
+      : []
+    if (matches || filteredChildren.length > 0) {
+      result.push({
+        ...node,
+        children: filteredChildren,
+      })
+    }
+  })
+  return result
+}
 
 function getCategoryStats(id: number): KnowledgeCategoryStats | undefined {
   return categoryStats.value.find(s => s.id === id)
@@ -362,24 +389,51 @@ function onSelect(keys: string[]) {
   }
 }
 
-function onDrop(info: any) {
+async function onDrop(info: any) {
   const dragKey = info.dragNode.key
   const dropKey = info.node.key
   const dropPos = info.node.pos.split('-')
   const dropPosition = info.dropPosition - Number(dropPos[dropPos.length - 1])
 
-  const data = [...categories.value]
-  const dragItem = data.find(item => String(item.id) === dragKey)
-  const dropItem = data.find(item => String(item.id) === dropKey)
+  const dragItem = categories.value.find(item => String(item.id) === dragKey)
+  const dropItem = categories.value.find(item => String(item.id) === dropKey)
 
   if (!dragItem || !dropItem) return
 
+  const oldParentId = dragItem.parentId
+  let newParentId: number | null
+
   if (dropPosition === 0) {
-    dragItem.parentId = dropItem.id
-    message.success('已移动为子分类')
+    newParentId = dropItem.id
   } else {
-    dragItem.parentId = dropItem.parentId
-    message.success('已移动到同一级别')
+    newParentId = dropItem.parentId
+  }
+
+  // 不允许移动到自身下
+  if (newParentId === dragItem.id) {
+    message.error('不能将分类移动到自身下')
+    return
+  }
+
+  // 乐观更新本地数据
+  dragItem.parentId = newParentId
+
+  try {
+    await knowledgeCategoryApi.update(dragItem.id, {
+      tenantId: dragItem.tenantId,
+      name: dragItem.name,
+      parentId: newParentId,
+      icon: dragItem.icon,
+      description: dragItem.description,
+      sort: dragItem.sort,
+      status: dragItem.status,
+    })
+    message.success(dropPosition === 0 ? '已移动为子分类' : '已移动到同一级别')
+  } catch (error) {
+    // 回滚拖拽操作
+    dragItem.parentId = oldParentId
+    message.error('移动分类失败，已回滚')
+    console.error(error)
   }
 }
 
@@ -501,23 +555,20 @@ async function loadData() {
     }
   } catch (error) {
     console.error(error)
-    const mockData = generateMockData()
-    categories.value = mockData
+    categories.value = []
     categoryStats.value = []
-    stats.totalCategories = mockData.length
+    stats.totalCategories = 0
     stats.totalCards = 0
     stats.totalViews = 0
-    stats.maxLevel = getMaxLevel(mockData)
-    if (mockData.length && !selectedKeys.value.length) {
-      selectedKeys.value = [String(mockData[0].id)]
-      currentCategory.value = { ...mockData[0] }
-    }
+    stats.maxLevel = 0
+    message.error('加载分类数据失败')
   } finally {
     loading.value = false
   }
 }
 
 function getMaxLevel(list: KnowledgeCategory[]): number {
+  if (!list.length) return 0
   let max = 1
   list.forEach(item => {
     let level = 1
@@ -530,71 +581,6 @@ function getMaxLevel(list: KnowledgeCategory[]): number {
     max = Math.max(max, level)
   })
   return max
-}
-
-function generateMockData(): KnowledgeCategory[] {
-  return [
-    {
-      id: 1,
-      tenantId: 1,
-      parentId: null,
-      name: '开发指南',
-      icon: 'book',
-      description: '项目开发相关的知识文档',
-      sort: 1,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-    {
-      id: 2,
-      tenantId: 1,
-      parentId: 1,
-      name: '前端开发',
-      icon: 'folder',
-      description: 'Vue、React 等前端框架相关知识',
-      sort: 1,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-    {
-      id: 3,
-      tenantId: 1,
-      parentId: 1,
-      name: '后端开发',
-      icon: 'folder',
-      description: 'Java、Python 等后端开发知识',
-      sort: 2,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-    {
-      id: 4,
-      tenantId: 1,
-      parentId: null,
-      name: '运维部署',
-      icon: 'star',
-      description: '服务器部署、运维相关文档',
-      sort: 2,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-    {
-      id: 5,
-      tenantId: 1,
-      parentId: 4,
-      name: 'Docker',
-      icon: 'file',
-      description: 'Docker 容器化相关知识',
-      sort: 1,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-  ]
 }
 
 onMounted(() => {
@@ -670,7 +656,7 @@ onMounted(() => {
 }
 
 .node-actions {
-  opacity: 0;
+  opacity: 0.5;
   transition: opacity 0.3s;
   margin-left: auto;
 }

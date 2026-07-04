@@ -8,6 +8,7 @@ export const enum ModelProvider {
   DEEPSEEK = 'deepseek',          // DeepSeek
   ANTHROPIC = 'anthropic',        // Claude
   OPENAI = 'openai',              // OpenAI
+  VOLCENGINE = 'volcengine',      // 火山引擎
   OLLAMA = 'ollama',              // Ollama 本地模型
 }
 

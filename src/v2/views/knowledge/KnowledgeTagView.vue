@@ -8,7 +8,7 @@
               v-model:value="searchKeyword"
               placeholder="搜索标签"
               style="width: 200px"
-              @search="loadData"
+              @search="onSearch"
               enter-button
             />
             <a-button type="primary" @click="showAddModal">
@@ -20,10 +20,11 @@
 
         <a-table
           :columns="columns"
-          :data-source="tagList"
+          :data-source="pagedList"
           :pagination="paginationConfig"
           :row-key="record => record.id"
           :loading="loading"
+          :locale="{ emptyText: '暂无标签' }"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'name'">
@@ -31,6 +32,9 @@
             </template>
             <template v-if="column.key === 'useCount'">
               <a-badge :count="record.useCount" />
+            </template>
+            <template v-if="column.key === 'createdAt'">
+              {{ formatDateTime(record.createdAt) }}
             </template>
             <template v-if="column.key === 'actions'">
               <a-space>
@@ -63,18 +67,18 @@
           />
         </a-form-item>
         <a-form-item label="标签颜色">
-          <a-select
-            v-model:value="formData.color"
-            placeholder="选择标签颜色"
-            style="width: 100%"
-          >
-            <a-select-option value="blue">蓝色</a-select-option>
-            <a-select-option value="green">绿色</a-select-option>
-            <a-select-option value="orange">橙色</a-select-option>
-            <a-select-option value="red">红色</a-select-option>
-            <a-select-option value="purple">紫色</a-select-option>
-            <a-select-option value="cyan">青色</a-select-option>
-          </a-select>
+          <a-radio-group v-model:value="formData.color" class="color-radio-group">
+            <a-radio
+              v-for="opt in colorOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              <span class="color-option">
+                <span class="color-dot" :style="{ background: opt.hex }"></span>
+                <span class="color-label">{{ opt.label }}</span>
+              </span>
+            </a-radio>
+          </a-radio-group>
         </a-form-item>
       </a-form>
     </a-modal>
@@ -82,9 +86,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
+import dayjs from 'dayjs'
 import { knowledgeTagApi } from '../../api/knowledge'
 import type { KnowledgeTag, KnowledgeTagForm } from '../../types/knowledge'
 
@@ -101,6 +106,18 @@ const formData = reactive<KnowledgeTagForm>({
   color: 'blue',
 })
 
+// 颜色选项：value 对齐 a-tag 的预设颜色，hex 用于色块预览
+const colorOptions = [
+  { label: '蓝色', value: 'blue', hex: '#1677ff' },
+  { label: '绿色', value: 'green', hex: '#52c41a' },
+  { label: '橙色', value: 'orange', hex: '#fa8c16' },
+  { label: '红色', value: 'red', hex: '#f5222d' },
+  { label: '紫色', value: 'purple', hex: '#722ed1' },
+  { label: '青色', value: 'cyan', hex: '#13c2c2' },
+  { label: '粉色', value: 'pink', hex: '#eb2f96' },
+  { label: '金色', value: 'gold', hex: '#faad14' },
+]
+
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
   { title: '标签名称', key: 'name', width: 200 },
@@ -116,17 +133,34 @@ const paginationConfig = reactive({
   showSizeChanger: true,
   showQuickJumper: true,
   showTotal: (total: number) => `共 ${total} 条`,
+  // 前端分页：仅更新本地分页状态，不触发后端请求
   onChange: (page: number, pageSize: number) => {
     paginationConfig.current = page
     paginationConfig.pageSize = pageSize
-    loadData()
   },
-  onShowSizeChange: (page: number, pageSize: number) => {
+  onShowSizeChange: (_page: number, pageSize: number) => {
     paginationConfig.current = 1
     paginationConfig.pageSize = pageSize
-    loadData()
   },
 })
+
+// 前端分页：基于 tagList 切片当前页数据
+const pagedList = computed(() => {
+  const start = (paginationConfig.current - 1) * paginationConfig.pageSize
+  const end = start + paginationConfig.pageSize
+  return tagList.value.slice(start, end)
+})
+
+function formatDateTime(value: string): string {
+  if (!value) return '-'
+  const d = dayjs(value)
+  return d.isValid() ? d.format('YYYY-MM-DD HH:mm') : value
+}
+
+function onSearch() {
+  paginationConfig.current = 1
+  loadData()
+}
 
 function showAddModal() {
   editingTag.value = null
@@ -181,43 +215,27 @@ async function handleModalOk() {
 async function loadData() {
   loading.value = true
   try {
+    // 后端过滤：仅传 keyword（API 支持），不传 page/size 以获取完整结果集
     const result = await knowledgeTagApi.list({
       tenantId: 1,
       keyword: searchKeyword.value,
-      page: paginationConfig.current,
-      size: paginationConfig.pageSize,
     })
     const list = Array.isArray(result) ? result : (result as any).records || []
-    if (searchKeyword.value) {
-      tagList.value = list.filter((t: KnowledgeTag) =>
-        t.name.toLowerCase().includes(searchKeyword.value.toLowerCase())
-      )
-    } else {
-      tagList.value = list
+    tagList.value = list
+    paginationConfig.total = list.length
+    // 修正越界：搜索/删除后若当前页超出范围，回退到最后一页
+    const maxPage = Math.max(1, Math.ceil(list.length / paginationConfig.pageSize))
+    if (paginationConfig.current > maxPage) {
+      paginationConfig.current = maxPage
     }
-    paginationConfig.total = tagList.value.length
   } catch (error) {
     console.error(error)
-    const mockData = generateMockTags()
-    tagList.value = mockData
-    paginationConfig.total = mockData.length
+    message.error('加载标签列表失败')
+    tagList.value = []
+    paginationConfig.total = 0
   } finally {
     loading.value = false
   }
-}
-
-function generateMockTags(): KnowledgeTag[] {
-  const names = ['Vue', 'React', 'TypeScript', 'JavaScript', 'Node.js', 'Python', 'Docker', 'Git', 'CSS', 'HTML', 'MySQL', 'Redis', 'MongoDB', 'GraphQL', 'REST API']
-  const colors = ['blue', 'green', 'orange', 'red', 'purple', 'cyan']
-
-  return names.map((name, index) => ({
-    id: index + 1,
-    tenantId: 1,
-    name,
-    color: colors[index % colors.length],
-    useCount: Math.floor(Math.random() * 100),
-    createdAt: '2024-01-01 10:00:00',
-  }))
 }
 
 onMounted(() => {
@@ -228,5 +246,26 @@ onMounted(() => {
 <style scoped lang="less">
 .knowledge-tag-page {
   width: 100%;
+}
+
+.color-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.color-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);
 }
 </style>

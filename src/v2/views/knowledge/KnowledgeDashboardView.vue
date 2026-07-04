@@ -103,7 +103,7 @@
         </a-col>
       </a-row>
 
-      <a-row :gutter="16" style="margin-top: 16px">
+      <a-row :gutter="16" style="margin-top: 16px" align="stretch">
         <a-col :xs="24" :md="12">
           <a-card title="快捷操作" class="quick-actions-card">
             <a-space direction="vertical" style="width: 100%">
@@ -199,13 +199,14 @@ import {
 } from '@ant-design/icons-vue'
 import { knowledgeStatsApi, knowledgeCategoryApi, knowledgeDocumentApi, smartQAApi } from '../../api/knowledge'
 import type { StreamQAReference, KnowledgeCategoryStats } from '../../api/knowledge'
+import type { Dayjs } from 'dayjs'
 
 const router = useRouter()
 
 // 租户ID常量（与同模块其他页面一致）
 const TENANT_ID = 1
 
-const dateRange = ref<[Date, Date] | undefined>()
+const dateRange = ref<[Dayjs, Dayjs] | undefined>()
 const trendChartRef = ref<HTMLDivElement>()
 const categoryChartRef = ref<HTMLDivElement>()
 let trendChart: echarts.ECharts | null = null
@@ -238,6 +239,7 @@ interface CategoryItem {
 interface Activity {
   id: number
   type: string
+  status?: string
   title: string
   time: string
   userName: string
@@ -256,10 +258,10 @@ const parseStats = reactive({
 })
 
 const statsCards = ref([
-  { key: 'documents', label: '文档总数', value: '0', color: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)', icon: FileTextOutlined },
-  { key: 'parsed', label: '已解析文档', value: '0', color: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)', icon: CheckCircleOutlined },
-  { key: 'vectorized', label: '已向量化', value: '0', color: 'linear-gradient(135deg, #722ed1 0%, #531dab 100%)', icon: DatabaseOutlined },
-  { key: 'entities', label: '知识实体', value: '0', color: 'linear-gradient(135deg, #fa8c16 0%, #d46b08 100%)', icon: ShareAltOutlined }
+  { key: 'documents', label: '文档总数', value: 0, color: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)', icon: FileTextOutlined },
+  { key: 'parsed', label: '已解析文档', value: 0, color: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)', icon: CheckCircleOutlined },
+  { key: 'vectorized', label: '已向量化', value: 0, color: 'linear-gradient(135deg, #722ed1 0%, #531dab 100%)', icon: DatabaseOutlined },
+  { key: 'entities', label: '知识实体', value: 0, color: 'linear-gradient(135deg, #fa8c16 0%, #d46b08 100%)', icon: ShareAltOutlined }
 ])
 
 const currentQuestion = ref('')
@@ -287,10 +289,10 @@ const loadStats = async () => {
     }
     stats.value = result
 
-    statsCards.value[0].value = String(result.totalDocuments ?? 0)
-    statsCards.value[1].value = String(result.parsedDocuments ?? 0)
-    statsCards.value[2].value = String(result.vectorizedDocuments ?? 0)
-    statsCards.value[3].value = String(result.totalEntities ?? 0)
+    statsCards.value[0].value = result.totalDocuments ?? 0
+    statsCards.value[1].value = result.parsedDocuments ?? 0
+    statsCards.value[2].value = result.vectorizedDocuments ?? 0
+    statsCards.value[3].value = result.totalEntities ?? 0
 
     parseStats.total = result.totalDocuments ?? 0
     parseStats.success = result.parsedDocuments ?? 0
@@ -367,13 +369,17 @@ const loadActivities = async () => {
     } as any)
     const result = res?.data ?? res
     const records = result?.records || []
-    activities.value = records.map((doc: any) => ({
-      id: doc.id,
-      type: 'upload',
-      title: `上传了文档 "${doc.fileName || doc.originalName || '未命名文档'}"`,
-      time: doc.createdAt || '',
-      userName: doc.uploadedByName || '未知'
-    }))
+    activities.value = records.map((doc: any) => {
+      const status = doc.parseStatus || doc.status || 'pending'
+      return {
+        id: doc.id,
+        type: inferActivityType(status),
+        status,
+        title: `上传了文档 "${doc.fileName || doc.originalName || '未命名文档'}"`,
+        time: doc.createdAt || '',
+        userName: doc.uploadedByName || '未知'
+      }
+    })
   } catch (error) {
     console.error('加载活动数据失败:', error)
     activities.value = []
@@ -518,13 +524,33 @@ const refreshData = async () => {
   message.success({ content: '数据已刷新', key: 'refresh' })
 }
 
+// 根据文档状态推断活动类型（用于时间轴颜色区分）
+const inferActivityType = (status: string): string => {
+  switch (status) {
+    case 'success':
+      return 'parsed'
+    case 'processing':
+      return 'parsing'
+    case 'failed':
+      return 'failed'
+    case 'pending':
+      return 'pending'
+    default:
+      return 'upload'
+  }
+}
+
 const getActivityColor = (type: string) => {
   const colors: Record<string, string> = {
     upload: 'blue',
     parse: 'green',
     vectorize: 'purple',
     create: 'orange',
-    extract: 'cyan'
+    extract: 'cyan',
+    parsed: 'green',
+    parsing: 'blue',
+    failed: 'red',
+    pending: 'gray'
   }
   return colors[type] || 'gray'
 }
@@ -695,7 +721,7 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 300px;
+    height: 200px;
   }
 }
 
@@ -770,6 +796,9 @@ onUnmounted(() => {
 }
 
 .quick-actions-card {
+  min-height: 420px;
+  height: 100%;
+
   .ant-btn {
     height: 52px;
   }
@@ -778,7 +807,8 @@ onUnmounted(() => {
 .qa-card {
   display: flex;
   flex-direction: column;
-  height: 420px;
+  min-height: 420px;
+  height: 100%;
 
   .qa-history {
     flex: 1;

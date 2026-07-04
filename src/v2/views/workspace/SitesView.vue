@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { siteApi } from '../../api'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '../../stores/auth'
 import { useSiteStore } from '@/stores/site'
 import type { Site } from '../../types'
 
