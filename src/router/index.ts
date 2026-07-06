@@ -20,6 +20,7 @@ import UsersPanel from '@/v2/views/workspace/UsersPanel.vue'
 // 📚 知识库模块
 const KnowledgeDashboardView = () => import('@/v2/views/knowledge/KnowledgeDashboardView.vue')
 const KnowledgeDocumentView = () => import('@/v2/views/knowledge/KnowledgeDocumentView.vue')
+const KnowledgeSearchView = () => import('@/v2/views/knowledge/KnowledgeSearchView.vue')
 const KnowledgeGraphView = () => import('@/v2/views/knowledge/KnowledgeGraphView.vue')
 const KnowledgeCategoryView = () => import('@/v2/views/knowledge/KnowledgeCategoryView.vue')
 const KnowledgeCardListView = () => import('@/v2/views/knowledge/KnowledgeCardListView.vue')
@@ -174,6 +175,7 @@ const routes = [
           // ===== 新增：知识库 =====
           { path: 'knowledge/dashboard', name: 'v2-knowledge-dashboard', component: KnowledgeDashboardView },
           { path: 'knowledge/documents', name: 'v2-knowledge-documents', component: KnowledgeDocumentView },
+          { path: 'knowledge/search', name: 'v2-knowledge-search', component: KnowledgeSearchView },
           { path: 'knowledge/graph', name: 'v2-knowledge-graph', component: KnowledgeGraphView },
           { path: 'knowledge/categories', name: 'v2-knowledge-categories', component: KnowledgeCategoryView },
           { path: 'knowledge/cards', name: 'v2-knowledge-cards', component: KnowledgeCardListView },

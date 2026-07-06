@@ -124,8 +124,10 @@
               <div class="stat-info">
                 <div class="stat-value">{{ successRate.toFixed(1) }}%</div>
                 <div class="stat-title">调用成功率</div>
-                <div class="stat-trend up">
-                  <ArrowUpOutlined /> 0.5% 较昨日
+                <div class="stat-trend" :class="successRateGrowth >= 0 ? 'up' : 'down'">
+                  <ArrowUpOutlined v-if="successRateGrowth >= 0" />
+                  <ArrowDownOutlined v-else />
+                  {{ Math.abs(successRateGrowth).toFixed(1) }}% 较昨日
                 </div>
               </div>
             </div>
@@ -141,21 +143,27 @@
                 <div class="mini-stat">
                   <div class="mini-value">{{ todayStats.tokens.toLocaleString() }}</div>
                   <div class="mini-label">今日 Token</div>
-                  <div class="mini-diff up">+12.5%</div>
+                  <div class="mini-diff" :class="todayStats.tokenGrowth >= 0 ? 'up' : 'down'">
+                    {{ todayStats.tokenGrowth >= 0 ? '+' : '' }}{{ todayStats.tokenGrowth.toFixed(1) }}%
+                  </div>
                 </div>
               </a-col>
               <a-col :span="8">
                 <div class="mini-stat">
                   <div class="mini-value">{{ todayStats.calls.toLocaleString() }}</div>
                   <div class="mini-label">今日调用</div>
-                  <div class="mini-diff up">+8.3%</div>
+                  <div class="mini-diff" :class="todayStats.callGrowth >= 0 ? 'up' : 'down'">
+                    {{ todayStats.callGrowth >= 0 ? '+' : '' }}{{ todayStats.callGrowth.toFixed(1) }}%
+                  </div>
                 </div>
               </a-col>
               <a-col :span="8">
                 <div class="mini-stat">
                   <div class="mini-value">¥{{ todayStats.cost.toFixed(2) }}</div>
                   <div class="mini-label">今日费用</div>
-                  <div class="mini-diff up">+15.2%</div>
+                  <div class="mini-diff" :class="todayStats.costGrowth >= 0 ? 'up' : 'down'">
+                    {{ todayStats.costGrowth >= 0 ? '+' : '' }}{{ todayStats.costGrowth.toFixed(1) }}%
+                  </div>
                 </div>
               </a-col>
             </a-row>
@@ -355,7 +363,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, h } from 'vue'
+import { ref, reactive, computed, onMounted, watch, h } from 'vue'
 import { message } from 'ant-design-vue'
 import dayjs, { type Dayjs } from 'dayjs'
 import {
@@ -364,11 +372,15 @@ import {
   ApiOutlined,
   CheckCircleOutlined,
   ArrowUpOutlined,
+  ArrowDownOutlined,
   DownloadOutlined,
   SearchOutlined,
   ReloadOutlined,
 } from '@ant-design/icons-vue'
-import { usageApi } from '../../api/ai-model'
+import { aiModelApi } from '../../api/ai-model'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const quickDate = ref<string>('month')
@@ -383,49 +395,39 @@ const dateRanges = {
   '近90天': [dayjs().subtract(89, 'day'), dayjs()],
 }
 
-const totalCost = ref(1256.78)
-const totalTokens = ref(3845620)
-const totalCalls = ref(15420)
-const successRate = ref(99.2)
-const costGrowth = ref(15.8)
-const tokenGrowth = ref(12.3)
-const callGrowth = ref(8.5)
+const totalCost = ref(0)
+const totalTokens = ref(0)
+const totalCalls = ref(0)
+const successRate = ref(0)
+const successRateGrowth = ref(0)
+const costGrowth = ref(0)
+const tokenGrowth = ref(0)
+const callGrowth = ref(0)
 
 const todayStats = reactive({
-  tokens: 45230,
-  calls: 234,
-  cost: 15.23,
+  tokens: 0,
+  calls: 0,
+  cost: 0,
+  tokenGrowth: 0,
+  callGrowth: 0,
+  costGrowth: 0,
 })
 
-const budgetUsed = ref(1256.78)
-const budgetTotal = ref(2000)
+const budgetUsed = ref(0)
+const budgetTotal = ref(0)
 
 const timeRange = ref('7d')
-const avgResponseTime = ref(156)
-const p50ResponseTime = ref(120)
-const p90ResponseTime = ref(380)
-const retryRate = ref(1.2)
-const limitRate = ref(0.3)
+const avgResponseTime = ref(0)
+const p50ResponseTime = ref(0)
+const p90ResponseTime = ref(0)
+const retryRate = ref(0)
+const limitRate = ref(0)
 
 const modelColors = ['#722ed1', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96']
 
-const modelUsageList = ref([
-  { name: '通义千问', tokens: 1856780, percent: 48.3 },
-  { name: 'GPT-4', tokens: 987650, percent: 25.7 },
-  { name: '智谱 AI', tokens: 567890, percent: 14.8 },
-  { name: '文心一言', tokens: 320450, percent: 8.3 },
-  { name: 'Claude', tokens: 112850, percent: 2.9 },
-])
+const modelUsageList = ref<any[]>([])
 
-const usageChartData = ref([
-  { date: '06-22', tokens: 450000, cost: 145.2 },
-  { date: '06-23', tokens: 520000, cost: 168.5 },
-  { date: '06-24', tokens: 480000, cost: 155.8 },
-  { date: '06-25', tokens: 610000, cost: 198.2 },
-  { date: '06-26', tokens: 550000, cost: 178.9 },
-  { date: '06-27', tokens: 620000, cost: 201.4 },
-  { date: '06-28', tokens: 595770, cost: 192.8 },
-])
+const usageChartData = ref<any[]>([])
 
 const maxToken = computed(() => {
   return Math.max(...usageChartData.value.map(d => d.tokens))
@@ -439,13 +441,23 @@ const getBudgetColor = () => {
 }
 
 const getPieGradient = () => {
-  return `conic-gradient(
-    ${modelColors[0]} 0% ${modelUsageList.value[0].percent}%,
-    ${modelColors[1]} ${modelUsageList.value[0].percent}% ${modelUsageList.value[0].percent + modelUsageList.value[1].percent}%,
-    ${modelColors[2]} ${modelUsageList.value[0].percent + modelUsageList.value[1].percent}% ${modelUsageList.value.slice(0, 3).reduce((a, b) => a + b.percent, 0)}%,
-    ${modelColors[3]} ${modelUsageList.value.slice(0, 3).reduce((a, b) => a + b.percent, 0)}% ${modelUsageList.value.slice(0, 4).reduce((a, b) => a + b.percent, 0)}%,
-    ${modelColors[4]} ${modelUsageList.value.slice(0, 4).reduce((a, b) => a + b.percent, 0)}% 100%
-  )`
+  if (modelUsageList.value.length === 0) {
+    return '#e5e7eb'
+  }
+  const colors = modelColors.slice(0, modelUsageList.value.length)
+  let gradient = ''
+  let currentPercent = 0
+  for (let i = 0; i < colors.length; i++) {
+    const nextPercent = currentPercent + modelUsageList.value[i].percent
+    gradient += `${colors[i]} ${currentPercent}% ${nextPercent}%,`
+    currentPercent = nextPercent
+  }
+  if (currentPercent < 100) {
+    gradient += `#e5e7eb ${currentPercent}% 100%`
+  } else {
+    gradient = gradient.slice(0, -1)
+  }
+  return `conic-gradient(${gradient})`
 }
 
 const logFilter = reactive({
@@ -456,71 +468,13 @@ const logFilter = reactive({
 const logPagination = reactive({
   current: 1,
   pageSize: 20,
-  total: 156,
+  total: 0,
 })
 
-const logList = ref([
-  {
-    id: 1,
-    model: '通义千问',
-    type: 'chat',
-    prompt: '你好，请介绍一下...',
-    tokens: 256,
-    cost: 0.008,
-    status: 'success',
-    duration: 156,
-    createdAt: '2024-06-28 14:32:15',
-  },
-  {
-    id: 2,
-    model: 'GPT-4',
-    type: 'chat',
-    prompt: '分析以下数据...',
-    tokens: 1024,
-    cost: 0.032,
-    status: 'success',
-    duration: 280,
-    createdAt: '2024-06-28 14:28:42',
-  },
-  {
-    id: 3,
-    model: '智谱 Embedding',
-    type: 'embedding',
-    prompt: '向量化处理...',
-    tokens: 512,
-    cost: 0.002,
-    status: 'success',
-    duration: 89,
-    createdAt: '2024-06-28 14:25:18',
-  },
-  {
-    id: 4,
-    model: '通义千问',
-    type: 'chat',
-    prompt: '生成报告...',
-    tokens: 2048,
-    cost: 0.064,
-    status: 'error',
-    duration: 5000,
-    createdAt: '2024-06-28 14:20:33',
-  },
-  {
-    id: 5,
-    model: '文心一言',
-    type: 'chat',
-    prompt: '翻译以下内容...',
-    tokens: 768,
-    cost: 0.015,
-    status: 'success',
-    duration: 198,
-    createdAt: '2024-06-28 14:15:56',
-  },
-])
+const logList = ref<any[]>([])
 
 const paginatedLogs = computed(() => {
-  const start = (logPagination.current - 1) * logPagination.pageSize
-  const end = start + logPagination.pageSize
-  return logList.value.slice(start, end)
+  return logList.value
 })
 
 const logColumns = [
@@ -618,19 +572,100 @@ function handleSearch() {
   fetchData()
 }
 
+const getCommonParams = () => {
+  return {
+    tenantId: authStore.selectedTenantId ?? undefined,
+    startDate: dateRange.value?.[0]?.format('YYYY-MM-DD'),
+    endDate: dateRange.value?.[1]?.format('YYYY-MM-DD'),
+  }
+}
+
+const loadStats = async () => {
+  try {
+    const params = getCommonParams()
+    const result = await aiModelApi.getStats(params)
+    totalCost.value = result.totalCost ?? 0
+    totalTokens.value = result.totalTokens ?? 0
+    totalCalls.value = result.totalCalls ?? 0
+    successRate.value = result.successRate ?? 0
+    successRateGrowth.value = result.successRateGrowth ?? 0
+    costGrowth.value = result.costGrowth ?? 0
+    tokenGrowth.value = result.tokenGrowth ?? 0
+    callGrowth.value = result.callGrowth ?? 0
+    todayStats.tokens = result.todayTokens ?? 0
+    todayStats.calls = result.todayCalls ?? 0
+    todayStats.cost = result.todayCost ?? 0
+    todayStats.tokenGrowth = result.todayTokenGrowth ?? 0
+    todayStats.callGrowth = result.todayCallGrowth ?? 0
+    todayStats.costGrowth = result.todayCostGrowth ?? 0
+    budgetUsed.value = result.budgetUsed ?? 0
+    budgetTotal.value = result.budgetTotal ?? 0
+    avgResponseTime.value = result.avgResponseTime ?? 0
+    p50ResponseTime.value = result.p50ResponseTime ?? 0
+    p90ResponseTime.value = result.p90ResponseTime ?? 0
+    retryRate.value = result.retryRate ?? 0
+    limitRate.value = result.limitRate ?? 0
+  } catch (error) {
+    message.error('加载统计数据失败')
+    console.error('Failed to load stats:', error)
+  }
+}
+
+const loadUsageByModel = async () => {
+  try {
+    const params = getCommonParams()
+    const result = await aiModelApi.getUsageByModel(params)
+    modelUsageList.value = result ?? []
+  } catch (error) {
+    message.error('加载模型用量数据失败')
+    console.error('Failed to load usage by model:', error)
+    modelUsageList.value = []
+  }
+}
+
+const loadUsageTrend = async () => {
+  try {
+    const params = getCommonParams()
+    const result = await aiModelApi.getUsageTrend(params)
+    usageChartData.value = result ?? []
+  } catch (error) {
+    message.error('加载用量趋势数据失败')
+    console.error('Failed to load usage trend:', error)
+    usageChartData.value = []
+  }
+}
+
+const loadLogs = async () => {
+  try {
+    const params = {
+      ...getCommonParams(),
+      page: logPagination.current,
+      pageSize: logPagination.pageSize,
+      type: logFilter.type,
+      keyword: logFilter.keyword || undefined,
+    }
+    const result = await aiModelApi.getLogs(params)
+    logList.value = result.records ?? []
+    logPagination.total = result.total ?? 0
+  } catch (error) {
+    message.error('加载调用日志失败')
+    console.error('Failed to load logs:', error)
+    logList.value = []
+    logPagination.total = 0
+  }
+}
+
 const fetchData = async () => {
   loading.value = true
   try {
-    const startDate = dateRange.value?.[0]?.format('YYYY-MM-DD')
-    const endDate = dateRange.value?.[1]?.format('YYYY-MM-DD')
-    const params: any = { startDate, endDate }
-    const [overview, statistics, performance, records] = await Promise.all([
-      usageApi.getOverview(),
-      usageApi.getStatistics(params),
-      usageApi.getPerformance(),
-      usageApi.getUsageRecords({ page: 1, pageSize: 20, ...params } as any),
+    await Promise.all([
+      loadStats(),
+      loadUsageByModel(),
+      loadUsageTrend(),
+      loadLogs(),
     ])
   } catch (error) {
+    message.error('数据加载失败')
     console.error('Failed to fetch usage data:', error)
   } finally {
     loading.value = false
@@ -640,6 +675,13 @@ const fetchData = async () => {
 const exportLogs = () => {
   message.info('正在导出日志...')
 }
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    fetchData()
+  },
+)
 
 onMounted(() => {
   fetchData()
@@ -728,6 +770,10 @@ onMounted(() => {
 
     &.up {
       color: #52c41a;
+    }
+
+    &.down {
+      color: #f5222d;
     }
   }
 }

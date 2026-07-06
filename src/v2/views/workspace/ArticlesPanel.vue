@@ -659,7 +659,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, h } from 'vue'
+import { ref, reactive, computed, onMounted, h, watch } from 'vue'
 import { message, Modal, Empty } from 'ant-design-vue'
 import {
   FileTextOutlined,
@@ -697,7 +697,10 @@ import {
   CloseCircleOutlined,
   ClockCircleOutlined,
 } from '@ant-design/icons-vue'
-import { articleManageApi, categoryApi } from '../../api'
+import { articleManageApi, categoryApi, userApi } from '../../api'
+import { useAuthStore } from '../../stores/auth'
+
+const auth = useAuthStore()
 
 const loading = ref(false)
 const showArticleEditor = ref(false)
@@ -738,8 +741,8 @@ const statusCounts = computed(() => ({
 
 const articles = ref<any[]>([])
 const categories = ref<any[]>([])
-const authors = ref([{ id: 1, name: '管理员' }])
-const allTags = ref(['热点', '推荐', '头条', '精选', '原创'])
+const authors = ref<any[]>([])
+const allTags = ref<string[]>([])
 
 const selectedRowKeys = ref<number[]>([])
 const selectedRows = ref<any[]>([])
@@ -760,16 +763,10 @@ const articleForm = reactive({
   isRecommend: false,
 })
 
-const recentEdits = ref([
-  { id: 1, title: '2024年技术趋势分析报告', coverImage: '', updatedAt: '2024-01-15 14:30' },
-  { id: 2, title: '产品使用指南 - 新手入门篇', coverImage: '', updatedAt: '2024-01-15 10:20' },
-  { id: 3, title: '行业动态：最新政策解读', coverImage: '', updatedAt: '2024-01-14 16:45' },
-  { id: 4, title: '用户案例分享：企业数字化转型', coverImage: '', updatedAt: '2024-01-14 09:15' },
-  { id: 5, title: '产品更新公告 v2.0', coverImage: '', updatedAt: '2024-01-13 15:30' },
-])
+const recentEdits = ref<any[]>([])
 
 const draftCount = computed(() => articles.value.filter(a => a.status?.toLowerCase() === 'draft').length)
-const trashCount = ref(12)
+const trashCount = ref(0)
 const reviewCount = computed(() => articles.value.filter(a => {
   const s = a.status?.toLowerCase()
   return s === 'reviewing' || s === 'pending_review' || s === 'pending-review' || s === 'pending'
@@ -1009,9 +1006,9 @@ function batchSetTags() {
   message.info('批量设置标签功能')
 }
 
+// TODO: 待接入文章批量导出 API 后替换为真实调用
 function batchExport() {
-  message.info('正在导出...')
-  setTimeout(() => message.success('导出成功'), 1000)
+  message.info('批量导出功能开发中...')
 }
 
 function batchDelete() {
@@ -1060,12 +1057,38 @@ function goToReview() {
 async function loadData() {
   loading.value = true
   try {
-    const articlesData = await articleManageApi.list({ page: 1, size: 100 } as any)
-    const categoriesData = await categoryApi.list({ all: true }) as any
+    const [articlesData, categoriesData, authorsData] = await Promise.all([
+      articleManageApi.list({ page: 1, size: 100 } as any),
+      categoryApi.list({ all: true }) as any,
+      userApi.list({} as any).catch(() => []),
+    ])
+
     const articleList = (articlesData as any)?.records || (articlesData as any) || []
     const categoryList = categoriesData?.records || categoriesData || []
+    const authorList = (authorsData as any)?.records || (authorsData as any) || []
+
     articles.value = articleList
     categories.value = categoryList
+    authors.value = authorList.map((u: any) => ({
+      id: u.id,
+      name: u.nickname || u.username || u.name,
+    }))
+
+    const tagSet = new Set<string>()
+    articleList.forEach((a: any) => {
+      if (a.tags && Array.isArray(a.tags)) {
+        a.tags.forEach((t: string) => tagSet.add(t))
+      }
+      if (a.keywords) {
+        String(a.keywords).split(/[,，]/).filter(Boolean).forEach((k: string) => tagSet.add(k.trim()))
+      }
+    })
+    allTags.value = Array.from(tagSet)
+
+    recentEdits.value = [...articleList]
+      .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
+      .slice(0, 5)
+
     stats.totalArticles = articleList.length
     stats.todayCount = articleList.filter((a: any) => {
       const today = new Date().toDateString()
@@ -1079,11 +1102,19 @@ async function loadData() {
     const topArticle = articleList.reduce((max: any, a: any) => (a.views || 0) > (max?.views || 0) ? a : max, null)
     stats.topViews = topArticle?.views || 0
   } catch (error) {
+    message.error('数据加载失败')
     console.error(error)
   } finally {
     loading.value = false
   }
 }
+
+watch(
+  () => auth.selectedTenantId,
+  () => {
+    loadData()
+  }
+)
 
 onMounted(() => {
   loadData()

@@ -229,7 +229,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import type { FormInstance } from 'ant-design-vue'
 import {
@@ -242,8 +242,11 @@ import {
   DeleteOutlined,
   ReloadOutlined,
 } from '@ant-design/icons-vue'
+import { useAuthStore } from '@/stores/auth'
 import type { GeoRegion, GeoRegionForm, GeoRegionQuery } from '../../types/geo'
-import { RegionLevel } from '../../types/geo'
+import { geoRegionApi } from '../../api/geo'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const treeLoading = ref(false)
@@ -456,35 +459,53 @@ function handleView(record: GeoRegion) {
   loadRegionList()
 }
 
-function handleDelete() {
+async function handleDelete() {
   if (!currentRegion.value) return
-  message.success('删除成功')
-  loadTreeData()
-  currentRegion.value = null
-  selectedKeys.value = []
-  queryParams.parentId = null
-  loadRegionList()
+  try {
+    await geoRegionApi.delete(currentRegion.value.id)
+    message.success('删除成功')
+    loadTreeData()
+    currentRegion.value = null
+    selectedKeys.value = []
+    queryParams.parentId = null
+    loadRegionList()
+  } catch (error) {
+    message.error('删除失败')
+    console.error(error)
+  }
 }
 
-function handleDeleteRecord(record: GeoRegion) {
-  message.success('删除成功')
-  loadTreeData()
-  loadRegionList()
+async function handleDeleteRecord(record: GeoRegion) {
+  try {
+    await geoRegionApi.delete(record.id)
+    message.success('删除成功')
+    loadTreeData()
+    loadRegionList()
+  } catch (error) {
+    message.error('删除失败')
+    console.error(error)
+  }
 }
 
 async function handleSubmit() {
   try {
     await formRef.value?.validate()
     modalLoading.value = true
-    setTimeout(() => {
-      modalLoading.value = false
-      modalVisible.value = false
-      message.success(isEdit.value ? '更新成功' : '创建成功')
-      loadTreeData()
-      loadRegionList()
-    }, 500)
-  } catch {
-    message.error('请填写完整信息')
+    if (isEdit.value && formData.id) {
+      await geoRegionApi.update(formData.id, formData)
+      message.success('更新成功')
+    } else {
+      await geoRegionApi.create(formData)
+      message.success('创建成功')
+    }
+    modalVisible.value = false
+    loadTreeData()
+    loadRegionList()
+  } catch (error) {
+    message.error(isEdit.value ? '更新失败' : '创建失败')
+    console.error(error)
+  } finally {
+    modalLoading.value = false
   }
 }
 
@@ -495,10 +516,11 @@ function handleCancel() {
 async function loadTreeData() {
   treeLoading.value = true
   try {
-    const mockData = generateMockTreeData()
-    treeData.value = mockData
-    countRegions(mockData)
+    const res = await geoRegionApi.tree()
+    treeData.value = res
+    countRegions(res)
   } catch (error) {
+    message.error('区域树数据加载失败')
     console.error(error)
   } finally {
     treeLoading.value = false
@@ -531,102 +553,29 @@ function countRegions(list: GeoRegion[]) {
 async function loadRegionList() {
   tableLoading.value = true
   try {
-    const mockData = generateMockRegionList()
-    let filtered = mockData
-    if (queryParams.keyword) {
-      filtered = filtered.filter(r => 
-        r.name.includes(queryParams.keyword!) || 
-        r.code.includes(queryParams.keyword!) ||
-        r.fullName.includes(queryParams.keyword!)
-      )
-    }
-    pagination.total = filtered.length
-    const start = (pagination.current - 1) * pagination.pageSize
-    const end = start + pagination.pageSize
-    regionList.value = filtered.slice(start, end)
+    const res = await geoRegionApi.list(queryParams)
+    regionList.value = res.list
+    pagination.total = res.total
   } catch (error) {
+    message.error('区域列表加载失败')
     console.error(error)
   } finally {
     tableLoading.value = false
   }
 }
 
-function generateMockTreeData(): GeoRegion[] {
-  return [
-    {
-      id: 1, parentId: null, level: 1, name: '北京市', code: '110000',
-      fullName: '北京市', pinyin: 'beijing', lng: 116.4074, lat: 39.9042,
-      sortOrder: 1, status: 'active',
-      children: [
-        {
-          id: 11, parentId: 1, level: 2, name: '北京市', code: '110100',
-          fullName: '北京市', pinyin: 'beijing', lng: 116.4074, lat: 39.9042,
-          sortOrder: 1, status: 'active',
-          children: [
-            { id: 111, parentId: 11, level: 3, name: '东城区', code: '110101', fullName: '北京市东城区', pinyin: 'dongcheng', lng: 116.41, lat: 39.92, sortOrder: 1, status: 'active' },
-            { id: 112, parentId: 11, level: 3, name: '西城区', code: '110102', fullName: '北京市西城区', pinyin: 'xicheng', lng: 116.36, lat: 39.91, sortOrder: 2, status: 'active' },
-            { id: 113, parentId: 11, level: 3, name: '朝阳区', code: '110105', fullName: '北京市朝阳区', pinyin: 'chaoyang', lng: 116.44, lat: 39.92, sortOrder: 3, status: 'active' },
-            { id: 114, parentId: 11, level: 3, name: '海淀区', code: '110108', fullName: '北京市海淀区', pinyin: 'haidian', lng: 116.29, lat: 39.95, sortOrder: 4, status: 'active' },
-          ]
-        }
-      ]
-    },
-    {
-      id: 2, parentId: null, level: 1, name: '上海市', code: '310000',
-      fullName: '上海市', pinyin: 'shanghai', lng: 121.4737, lat: 31.2304,
-      sortOrder: 2, status: 'active',
-      children: [
-        {
-          id: 21, parentId: 2, level: 2, name: '上海市', code: '310100',
-          fullName: '上海市', pinyin: 'shanghai', lng: 121.4737, lat: 31.2304,
-          sortOrder: 1, status: 'active',
-          children: [
-            { id: 211, parentId: 21, level: 3, name: '黄浦区', code: '310101', fullName: '上海市黄浦区', pinyin: 'huangpu', lng: 121.48, lat: 31.23, sortOrder: 1, status: 'active' },
-            { id: 212, parentId: 21, level: 3, name: '徐汇区', code: '310104', fullName: '上海市徐汇区', pinyin: 'xuhui', lng: 121.43, lat: 31.19, sortOrder: 2, status: 'active' },
-            { id: 213, parentId: 21, level: 3, name: '浦东新区', code: '310115', fullName: '上海市浦东新区', pinyin: 'pudong', lng: 121.54, lat: 31.22, sortOrder: 3, status: 'active' },
-          ]
-        }
-      ]
-    },
-    {
-      id: 3, parentId: null, level: 1, name: '广东省', code: '440000',
-      fullName: '广东省', pinyin: 'guangdong', lng: 113.2644, lat: 23.1291,
-      sortOrder: 3, status: 'active',
-      children: [
-        {
-          id: 31, parentId: 3, level: 2, name: '广州市', code: '440100',
-          fullName: '广东省广州市', pinyin: 'guangzhou', lng: 113.2644, lat: 23.1291,
-          sortOrder: 1, status: 'active',
-          children: [
-            { id: 311, parentId: 31, level: 3, name: '天河区', code: '440106', fullName: '广东省广州市天河区', pinyin: 'tianhe', lng: 113.36, lat: 23.12, sortOrder: 1, status: 'active' },
-            { id: 312, parentId: 31, level: 3, name: '越秀区', code: '440104', fullName: '广东省广州市越秀区', pinyin: 'yuexiu', lng: 113.27, lat: 23.12, sortOrder: 2, status: 'active' },
-          ]
-        },
-        {
-          id: 32, parentId: 3, level: 2, name: '深圳市', code: '440300',
-          fullName: '广东省深圳市', pinyin: 'shenzhen', lng: 114.0579, lat: 22.5431,
-          sortOrder: 2, status: 'active',
-          children: [
-            { id: 321, parentId: 32, level: 3, name: '南山区', code: '440305', fullName: '广东省深圳市南山区', pinyin: 'nanshan', lng: 113.93, lat: 22.53, sortOrder: 1, status: 'active' },
-            { id: 322, parentId: 32, level: 3, name: '福田区', code: '440304', fullName: '广东省深圳市福田区', pinyin: 'futian', lng: 114.05, lat: 22.52, sortOrder: 2, status: 'active' },
-          ]
-        }
-      ]
-    }
-  ]
-}
+onMounted(async () => {
+  await loadTreeData()
+  await loadRegionList()
+})
 
-function generateMockRegionList(): GeoRegion[] {
-  if (currentRegion.value && currentRegion.value.children) {
-    return currentRegion.value.children
-  }
-  if (!currentRegion.value) {
-    return treeData.value
-  }
-  return []
-}
-
-onMounted(() => {
+watch(() => authStore.selectedTenantId, () => {
+  currentRegion.value = null
+  selectedKeys.value = []
+  expandedKeys.value = []
+  queryParams.parentId = null
+  queryParams.page = 1
+  pagination.current = 1
   loadTreeData()
   loadRegionList()
 })

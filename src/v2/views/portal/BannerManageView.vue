@@ -1,12 +1,7 @@
 <template>
   <div class="banner-manage-page">
-    <div class="header-wrapper">
-      <div class="tenant-select-wrapper">
-        <TenantSelect v-model:modelValue="selectedTenantId" @change="handleTenantChange" />
-      </div>
-      <a-page-header title="Banner管理" sub-title="管理门户网站的轮播图和横幅广告">
-      </a-page-header>
-    </div>
+    <a-page-header title="Banner管理" sub-title="管理门户网站的轮播图和横幅广告">
+    </a-page-header>
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">
@@ -182,15 +177,14 @@ import {
 } from '@ant-design/icons-vue'
 import { bannerApi } from '../../api/portal'
 import type { Banner } from '../../types/portal'
-import type { Tenant } from '../../types/workspace'
-import TenantSelect from '../../components/TenantSelect.vue'
+import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
+const auth = useAuthStore()
 const loading = ref(false)
 const bannerList = ref<Banner[]>([])
 const previewVisible = ref(false)
 const previewBanner = ref<Banner | null>(null)
-const selectedTenantId = ref<number | undefined>()
 
 const stats = reactive({
   totalBanners: 0,
@@ -287,7 +281,6 @@ async function handleDelete(id: number) {
 }
 
 async function loadData() {
-  if (!selectedTenantId.value) return
   loading.value = true
   try {
     const params: Record<string, any> = {
@@ -321,20 +314,8 @@ function handleSizeChange(_current: number, size: number) {
   loadData()
 }
 
-function handleTenantChange(tenant: Tenant | null) {
-  if (tenant) {
-    selectedTenantId.value = tenant.id
-    pagination.page = 1
-    loadData()
-  }
-}
-
 onMounted(() => {
-  const storedTenantId = localStorage.getItem('geocms_tenant_id')
-  if (storedTenantId) {
-    selectedTenantId.value = Number(storedTenantId)
-    loadData()
-  }
+  loadData()
 })
 </script>
 
@@ -342,17 +323,6 @@ onMounted(() => {
 .banner-manage-page {
   width: 100%;
   padding: 0;
-}
-
-.header-wrapper {
-  padding: 16px 24px 0;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
-
-  .tenant-select-wrapper {
-    width: 200px;
-    margin-bottom: 12px;
-  }
 }
 
 .content-wrapper {

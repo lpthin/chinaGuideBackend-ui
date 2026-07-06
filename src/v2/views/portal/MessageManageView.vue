@@ -1,12 +1,6 @@
 <template>
   <div class="message-manage-page">
     <a-spin :spinning="loading">
-      <div class="header-wrapper">
-        <div class="tenant-select-wrapper" style="width: 200px">
-          <TenantSelect v-model:modelValue="selectedTenantId" @change="handleTenantChange" />
-        </div>
-      </div>
-
       <div class="content-wrapper">
         <a-row :gutter="16" style="margin-bottom: 16px">
           <a-col :span="6">
@@ -187,10 +181,11 @@ import { portalMessageApi } from '../../api/portal'
 import type { PortalMessage, PortalMessageStats, PortalMessageBroadcast } from '../../types/portal'
 import type { Tenant } from '../../types/workspace'
 import TenantSelect from '../../components/TenantSelect.vue'
+import { useAuthStore } from '../../stores/auth'
 
+const auth = useAuthStore()
 const loading = ref(false)
 const sending = ref(false)
-const selectedTenantId = ref<number | undefined>()
 const showSendModal = ref(false)
 
 const stats = reactive<PortalMessageStats>({
@@ -300,14 +295,6 @@ async function loadAllData() {
   await Promise.all([loadStats(), loadMessageList()])
 }
 
-function handleTenantChange(tenant: Tenant | null) {
-  if (tenant) {
-    selectedTenantId.value = tenant.id
-    paginationConfig.current = 1
-    loadAllData()
-  }
-}
-
 function handleTypeChange() {
   paginationConfig.current = 1
   loadMessageList()
@@ -388,23 +375,13 @@ async function handleSendMessage() {
 }
 
 onMounted(() => {
-  const storedTenantId = localStorage.getItem('geocms_tenant_id')
-  if (storedTenantId) {
-    selectedTenantId.value = Number(storedTenantId)
-    loadAllData()
-  }
+  loadAllData()
 })
 </script>
 
 <style scoped lang="less">
 .message-manage-page {
   width: 100%;
-}
-
-.header-wrapper {
-  padding: 16px 24px 0;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
 }
 
 .content-wrapper {

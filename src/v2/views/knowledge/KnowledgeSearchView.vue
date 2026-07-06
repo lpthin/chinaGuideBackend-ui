@@ -193,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
@@ -208,11 +208,12 @@ import {
   ClockCircleOutlined
 } from '@ant-design/icons-vue'
 import { knowledgeSearchApi, knowledgeCategoryApi } from '../../api/knowledge'
+import { hotKeywordApi } from '../../api/hotKeyword'
+import { useAuthStore } from '../../stores/auth'
 import type { KnowledgeSearchResultItem, KnowledgeSearchQuery } from '../../types/knowledge'
 
 const router = useRouter()
-
-const TENANT_ID = 1
+const authStore = useAuthStore()
 
 const searchQuery = ref('')
 const searchType = ref<'all' | 'document' | 'card' | 'entity'>('all')
@@ -235,28 +236,47 @@ const searchDuration = ref(0)
 
 const categories = ref<{ id: number; name: string }[]>([])
 
-// TODO: 临时硬编码方案，后续应从后端接口获取热门搜索词
-const hotKeywords = ref(['产品介绍', 'API文档', '使用指南', '常见问题'])
+const hotKeywords = ref<string[]>([])
 
 const loadCategories = async () => {
   try {
-    const res: any = await knowledgeCategoryApi.all(TENANT_ID)
+    const tenantId = authStore.selectedTenantId ?? authStore.tenantId
+    const res: any = await knowledgeCategoryApi.all(tenantId)
     const data = res?.data ?? res
     if (Array.isArray(data)) {
       categories.value = data.map((cat: any) => ({ id: cat.id, name: cat.name }))
     }
   } catch (error) {
+    message.error('加载分类失败')
     console.error('加载分类失败:', error)
   }
 }
 
-// 初始化 API 调用统一放在 onMounted 中执行，避免顶层异常中断 setup 导致白屏
-onMounted(() => {
+const loadHotKeywords = async () => {
   try {
-    loadCategories()
+    const res: any = await hotKeywordApi.dailyTop()
+    const data = res?.data ?? res
+    if (Array.isArray(data)) {
+      hotKeywords.value = data.map((item: any) => item.keyword).filter(Boolean)
+    }
   } catch (error) {
-    console.error('初始化知识搜索页面失败:', error)
+    console.error('加载热门搜索词失败:', error)
   }
+}
+
+const loadData = async () => {
+  await Promise.all([
+    loadCategories(),
+    loadHotKeywords()
+  ])
+}
+
+onMounted(async () => {
+  await loadData()
+})
+
+watch(() => authStore.selectedTenantId, () => {
+  loadData()
 })
 
 // 对带 <em> 高亮标签的内容做 XSS 转义：仅保留 <em></em> 标签，其余字符转义 < > &
@@ -294,7 +314,7 @@ const handleSearch = async () => {
       sort: sortBy.value,
       page: currentPage.value,
       size: pageSize.value,
-      tenantId: TENANT_ID
+      tenantId: authStore.selectedTenantId ?? authStore.tenantId
     }
 
     const res: any = await knowledgeSearchApi.search(params)

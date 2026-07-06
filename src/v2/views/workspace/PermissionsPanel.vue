@@ -10,6 +10,7 @@
               placeholder="权限类型"
               style="width: 120px"
               allowClear
+              @change="loadPermissions"
             >
               <a-select-option value="menu">菜单</a-select-option>
               <a-select-option value="button">按钮</a-select-option>
@@ -143,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PlusOutlined,
@@ -156,7 +157,10 @@ import {
   UserOutlined,
   TeamOutlined,
 } from '@ant-design/icons-vue'
-import type { Permission } from '../../types'
+import { adminApi } from '../../api/workspace'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const filterType = ref<string | undefined>()
@@ -172,162 +176,11 @@ const iconMap: Record<string, any> = {
   TeamOutlined,
 }
 
-const permissions = ref<Permission[]>([
-  {
-    id: 1,
-    tenantId: 1,
-    parentId: null,
-    name: '系统管理',
-    code: 'system',
-    type: 'menu',
-    icon: 'SettingOutlined',
-    path: '/system',
-    sort: 1,
-    status: 'active',
-    createdAt: '2024-01-01 00:00:00',
-    updatedAt: '2024-01-01 00:00:00',
-    children: [
-      {
-        id: 11,
-        tenantId: 1,
-        parentId: 1,
-        name: '用户管理',
-        code: 'system:user',
-        type: 'menu',
-        icon: 'UserOutlined',
-        path: '/system/users',
-        sort: 1,
-        status: 'active',
-        createdAt: '2024-01-01 00:00:00',
-        updatedAt: '2024-01-01 00:00:00',
-        children: [
-          {
-            id: 111,
-            tenantId: 1,
-            parentId: 11,
-            name: '查看用户',
-            code: 'system:user:view',
-            type: 'button',
-            sort: 1,
-            status: 'active',
-            createdAt: '2024-01-01 00:00:00',
-            updatedAt: '2024-01-01 00:00:00',
-          },
-          {
-            id: 112,
-            tenantId: 1,
-            parentId: 11,
-            name: '创建用户',
-            code: 'system:user:create',
-            type: 'button',
-            sort: 2,
-            status: 'active',
-            createdAt: '2024-01-01 00:00:00',
-            updatedAt: '2024-01-01 00:00:00',
-          },
-          {
-            id: 113,
-            tenantId: 1,
-            parentId: 11,
-            name: '编辑用户',
-            code: 'system:user:edit',
-            type: 'button',
-            sort: 3,
-            status: 'active',
-            createdAt: '2024-01-01 00:00:00',
-            updatedAt: '2024-01-01 00:00:00',
-          },
-          {
-            id: 114,
-            tenantId: 1,
-            parentId: 11,
-            name: '删除用户',
-            code: 'system:user:delete',
-            type: 'button',
-            sort: 4,
-            status: 'active',
-            createdAt: '2024-01-01 00:00:00',
-            updatedAt: '2024-01-01 00:00:00',
-          },
-        ],
-      },
-      {
-        id: 12,
-        tenantId: 1,
-        parentId: 1,
-        name: '角色管理',
-        code: 'system:role',
-        type: 'menu',
-        icon: 'TeamOutlined',
-        path: '/system/roles',
-        sort: 2,
-        status: 'active',
-        createdAt: '2024-01-01 00:00:00',
-        updatedAt: '2024-01-01 00:00:00',
-      },
-      {
-        id: 13,
-        tenantId: 1,
-        parentId: 1,
-        name: '权限管理',
-        code: 'system:permission',
-        type: 'menu',
-        icon: 'SafetyOutlined',
-        path: '/system/permissions',
-        sort: 3,
-        status: 'active',
-        createdAt: '2024-01-01 00:00:00',
-        updatedAt: '2024-01-01 00:00:00',
-      },
-    ],
-  },
-  {
-    id: 2,
-    tenantId: 1,
-    parentId: null,
-    name: '内容管理',
-    code: 'content',
-    type: 'menu',
-    icon: 'MenuOutlined',
-    path: '/content',
-    sort: 2,
-    status: 'active',
-    createdAt: '2024-01-01 00:00:00',
-    updatedAt: '2024-01-01 00:00:00',
-    children: [
-      {
-        id: 21,
-        tenantId: 1,
-        parentId: 2,
-        name: '文章管理',
-        code: 'content:article',
-        type: 'menu',
-        path: '/content/articles',
-        sort: 1,
-        status: 'active',
-        createdAt: '2024-01-01 00:00:00',
-        updatedAt: '2024-01-01 00:00:00',
-      },
-      {
-        id: 22,
-        tenantId: 1,
-        parentId: 2,
-        name: '分类管理',
-        code: 'content:category',
-        type: 'menu',
-        path: '/content/categories',
-        sort: 2,
-        status: 'active',
-        createdAt: '2024-01-01 00:00:00',
-        updatedAt: '2024-01-01 00:00:00',
-      },
-    ],
-  },
-])
+const permissions = ref<any[]>([])
 
 const formState = reactive({
   id: null as number | null,
-  parentId: null as number | null,
+  parentId: null as number | string | null,
   name: '',
   code: '',
   type: 'menu' as 'menu' | 'button' | 'api',
@@ -373,7 +226,7 @@ const columns = [
     title: '路由/API',
     key: 'path',
     width: 200,
-    customRender: ({ record }: { record: Permission }) => record.path || record.api || '-',
+    customRender: ({ record }: { record: any }) => record.path || record.api || record.action || '-',
   },
   {
     title: '排序',
@@ -426,9 +279,9 @@ function getTypeColor(type: string): string {
 }
 
 function findPermission(
-  list: Permission[],
-  id: number
-): Permission | null {
+  list: any[],
+  id: number | string
+): any | null {
   for (const item of list) {
     if (item.id === id) {
       return item
@@ -441,17 +294,40 @@ function findPermission(
   return null
 }
 
-function getParentName(parentId: number | null): string {
+function getParentName(parentId: number | string | null): string {
   if (!parentId) return '-'
   const parent = findPermission(permissions.value, parentId)
   return parent?.name || '-'
 }
 
-function loadPermissions() {
+async function loadPermissions() {
   loading.value = true
-  setTimeout(() => {
+  try {
+    const result = await adminApi.permissions.tree()
+    let treeData = result || []
+    
+    if (filterType.value) {
+      treeData = filterTreeByType(treeData, filterType.value)
+    }
+    
+    permissions.value = treeData
+  } catch (error: any) {
+    message.error(error.message || '加载权限列表失败')
+  } finally {
     loading.value = false
-  }, 500)
+  }
+}
+
+function filterTreeByType(tree: any[], type: string): any[] {
+  return tree
+    .map(node => {
+      const filteredChildren = node.children ? filterTreeByType(node.children, type) : []
+      if (node.type === type || filteredChildren.length > 0) {
+        return { ...node, children: filteredChildren }
+      }
+      return null
+    })
+    .filter(Boolean)
 }
 
 function handleAdd() {
@@ -468,7 +344,7 @@ function handleAdd() {
   modalVisible.value = true
 }
 
-function handleAddChild(record: Permission) {
+function handleAddChild(record: any) {
   formState.id = null
   formState.parentId = record.id
   formState.name = ''
@@ -482,26 +358,37 @@ function handleAddChild(record: Permission) {
   modalVisible.value = true
 }
 
-function handleEdit(record: Permission) {
-  formState.id = record.id
+function handleEdit(record: any) {
+  formState.id = typeof record.id === 'number' ? record.id : null
   formState.parentId = record.parentId
   formState.name = record.name
   formState.code = record.code
-  formState.type = record.type
+  formState.type = record.type || 'menu'
   formState.icon = record.icon || ''
   formState.path = record.path || ''
   formState.api = record.api || ''
-  formState.sort = record.sort
-  formState.status = record.status
+  formState.sort = record.sort || 1
+  formState.status = record.status || 'active'
   modalVisible.value = true
 }
 
-function handleSubmit() {
-  formRef.value?.validate().then(() => {
-    message.success(formState.id ? '更新成功' : '创建成功')
+async function handleSubmit() {
+  try {
+    await formRef.value?.validate()
+    
+    if (formState.id) {
+      message.success('更新成功')
+    } else {
+      message.success('创建成功')
+    }
+    
     modalVisible.value = false
     loadPermissions()
-  })
+  } catch (error: any) {
+    if (error.message && error.message !== '校验失败') {
+      message.error(error.message || '操作失败')
+    }
+  }
 }
 
 function handleModalCancel() {
@@ -509,30 +396,32 @@ function handleModalCancel() {
   modalVisible.value = false
 }
 
-function handleDelete(record: Permission) {
-  const deleteRecursive = (list: Permission[], id: number): boolean => {
-    for (let i = 0; i < list.length; i++) {
-      if (list[i].id === id) {
-        if (list[i].children && list[i].children!.length > 0) {
-          message.error('存在子权限，无法删除')
-          return false
-        }
-        list.splice(i, 1)
-        return true
-      }
-      if (list[i].children) {
-        if (deleteRecursive(list[i].children!, id)) {
-          return true
-        }
-      }
-    }
-    return false
+async function handleDelete(record: any) {
+  if (record.children && record.children.length > 0) {
+    message.error('存在子权限，无法删除')
+    return
   }
-
-  if (deleteRecursive(permissions.value, record.id)) {
+  
+  if (typeof record.id !== 'number') {
+    message.error('该节点无法删除')
+    return
+  }
+  
+  try {
+    await adminApi.permissions.delete(record.id)
     message.success('删除成功')
+    loadPermissions()
+  } catch (error: any) {
+    message.error(error.message || '删除失败')
   }
 }
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    loadPermissions()
+  }
+)
 
 onMounted(() => {
   loadPermissions()

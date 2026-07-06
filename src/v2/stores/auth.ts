@@ -8,6 +8,7 @@ import type { UserInfo, LoginRequest, LoginResponse } from '../types'
 const TOKEN_KEY = 'v2_access_token'
 const REFRESH_TOKEN_KEY = 'v2_refresh_token'
 const USER_KEY = 'v2_user_info'
+const SELECTED_TENANT_ID_KEY = 'v2_selected_tenant_id'
 
 function getStoredToken(): string {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -27,15 +28,27 @@ function getStoredUser(): UserInfo | null {
   }
 }
 
+function getStoredSelectedTenantId(): number | null {
+  const raw = localStorage.getItem(SELECTED_TENANT_ID_KEY)
+  if (!raw) return null
+  try {
+    return Number(raw)
+  } catch {
+    return null
+  }
+}
+
 export const useAuthStore = defineStore('v2-auth', () => {
   // State
   const accessToken = ref<string>(getStoredToken())
   const refreshToken = ref<string>(getStoredRefreshToken())
   const user = ref<UserInfo | null>(getStoredUser())
+  const selectedTenantId = ref<number | null>(getStoredSelectedTenantId())
   const loading = ref(false)
 
   // Getters
   const isLoggedIn = computed(() => !!accessToken.value)
+  const isSuperAdmin = computed(() => roles.value.includes('super_admin') || roles.value.includes('admin'))
   const username = computed(() => user.value?.username || '')
   const nickname = computed(() => user.value?.nickname || '')
   const avatar = computed(() => user.value?.avatar || '')
@@ -75,9 +88,11 @@ export const useAuthStore = defineStore('v2-auth', () => {
       accessToken.value = ''
       refreshToken.value = ''
       user.value = null
+      selectedTenantId.value = null
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(REFRESH_TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
+      localStorage.removeItem(SELECTED_TENANT_ID_KEY)
     }
   }
 
@@ -115,15 +130,26 @@ export const useAuthStore = defineStore('v2-auth', () => {
     return roleCodes.some(code => roles.value.includes(code))
   }
 
+  function switchTenant(tenantId: number | null): void {
+    selectedTenantId.value = tenantId
+    if (tenantId !== null) {
+      localStorage.setItem(SELECTED_TENANT_ID_KEY, String(tenantId))
+    } else {
+      localStorage.removeItem(SELECTED_TENANT_ID_KEY)
+    }
+  }
+
   return {
     // State
     accessToken,
     refreshToken,
     user,
+    selectedTenantId,
     loading,
     
     // Getters
     isLoggedIn,
+    isSuperAdmin,
     username,
     nickname,
     avatar,
@@ -140,5 +166,6 @@ export const useAuthStore = defineStore('v2-auth', () => {
     hasAnyPermission,
     hasRole,
     hasAnyRole,
+    switchTenant,
   }
 })

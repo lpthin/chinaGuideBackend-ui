@@ -1,7 +1,6 @@
 <template>
   <div class="billing-page">
     <a-spin :spinning="loading">
-      <!-- 账户概览 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
@@ -66,13 +65,12 @@
               </div>
             </div>
             <div class="stat-extra">
-              <span class="credit-used">已用 ¥{{ formatAmount(accountBalance.creditLimit || 0 - accountBalance.availableBalance) }}</span>
+              <span class="credit-used">已用 ¥{{ formatAmount((accountBalance.creditLimit || 0) - accountBalance.availableBalance) }}</span>
             </div>
           </a-card>
         </a-col>
       </a-row>
 
-      <!-- 充值套餐 -->
       <a-card title="充值套餐" :bordered="false" style="margin-bottom: 16px">
         <a-row :gutter="16">
           <a-col :span="6" v-for="pkg in rechargePackages" :key="pkg.id">
@@ -109,7 +107,6 @@
         </a-row>
       </a-card>
 
-      <!-- 账单列表 -->
       <a-card title="账单管理" :bordered="false">
         <template #extra>
           <a-space>
@@ -191,11 +188,11 @@
       </a-card>
     </a-spin>
 
-    <!-- 充值弹窗 -->
     <a-modal
       v-model:open="rechargeModalVisible"
       title="账户充值"
       width="520px"
+      :confirm-loading="rechargeLoading"
       @ok="handleConfirmRecharge"
     >
       <a-form :model="rechargeForm" layout="vertical">
@@ -220,7 +217,6 @@
       </a-form>
     </a-modal>
 
-    <!-- 提现弹窗 -->
     <a-modal
       v-model:open="withdrawModalVisible"
       title="账户提现"
@@ -248,7 +244,6 @@
       </a-form>
     </a-modal>
 
-    <!-- 账单详情抽屉 -->
     <InvoiceDetailDrawer
       v-model:open="detailDrawerVisible"
       :invoice-id="currentInvoiceId"
@@ -257,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   WalletOutlined,
@@ -267,10 +262,15 @@ import {
 } from '@ant-design/icons-vue'
 import { InvoiceStatus, PaymentMethod, Currency } from '../../types/billing'
 import type { Invoice, RechargePackage } from '../../types/billing'
+import { walletApi, packageApi, statsApi, invoiceApi } from '../../api/billing'
+import { useAuthStore } from '../../stores/auth'
 import InvoiceDetailDrawer from './InvoiceDetailDrawer.vue'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const tableLoading = ref(false)
+const rechargeLoading = ref(false)
 const rechargeModalVisible = ref(false)
 const withdrawModalVisible = ref(false)
 const detailDrawerVisible = ref(false)
@@ -278,24 +278,24 @@ const currentInvoiceId = ref<number | null>(null)
 const dateRange = ref<[string, string] | undefined>()
 
 const accountBalance = reactive({
-  balance: 15680.50,
+  balance: 0,
   frozenBalance: 0,
-  availableBalance: 15680.50,
+  availableBalance: 0,
   currency: Currency.CNY,
-  creditLimit: 50000,
-  totalIncome: 125680,
-  totalExpense: 110000,
+  creditLimit: 0,
+  totalIncome: 0,
+  totalExpense: 0,
 })
 
 const invoiceStats = reactive({
-  total: 12,
-  pending: 2,
-  paid: 10,
+  total: 0,
+  pending: 0,
+  paid: 0,
 })
 
 const consumptionStats = reactive({
-  monthAmount: 15680.50,
-  growthRate: 12.5,
+  monthAmount: 0,
+  growthRate: 0,
 })
 
 const queryParams = reactive({
@@ -320,22 +320,9 @@ const pagination = reactive({
   },
 })
 
-const rechargePackages = ref<RechargePackage[]>([
-  { id: 1, name: '基础套餐', description: '', originalAmount: 100, discountAmount: 100, bonusAmount: 0, totalAmount: 100, currency: Currency.CNY, isPopular: false, isRecommended: false, sort: 1, status: 'active', createdAt: '' },
-  { id: 2, name: '标准套餐', description: '', originalAmount: 500, discountAmount: 480, bonusAmount: 50, totalAmount: 530, currency: Currency.CNY, isPopular: true, isRecommended: false, sort: 2, status: 'active', createdAt: '' },
-  { id: 3, name: '高级套餐', description: '', originalAmount: 1000, discountAmount: 900, bonusAmount: 150, totalAmount: 1050, currency: Currency.CNY, isPopular: false, isRecommended: true, sort: 3, status: 'active', createdAt: '' },
-  { id: 4, name: '企业套餐', description: '', originalAmount: 5000, discountAmount: 4200, bonusAmount: 1000, totalAmount: 5200, currency: Currency.CNY, isPopular: false, isRecommended: false, sort: 4, status: 'active', createdAt: '' },
-])
+const rechargePackages = ref<RechargePackage[]>([])
 
-const invoiceList = ref<Invoice[]>([
-  { id: 1, tenantId: 1, invoiceNo: 'INV2024030001', title: '3月份月度账单', amount: 5680.50, currency: Currency.CNY, status: InvoiceStatus.PAID, billingCycle: 'monthly', billingStartDate: '2024-03-01', billingEndDate: '2024-03-31', dueDate: '2024-04-15', paidAt: '2024-03-15 10:30:00', paidAmount: 5680.50, paymentMethod: PaymentMethod.ALIPAY, createdAt: '2024-03-01 00:00:00', updatedAt: '2024-03-15 10:30:00' },
-  { id: 2, tenantId: 1, invoiceNo: 'INV2024030002', title: 'AI模型API调用费用', amount: 2340.00, currency: Currency.CNY, status: InvoiceStatus.PENDING, billingCycle: 'once', dueDate: '2024-03-25', createdAt: '2024-03-20 09:15:00', updatedAt: '2024-03-20 09:15:00' },
-  { id: 3, tenantId: 1, invoiceNo: 'INV2024020001', title: '2月份月度账单', amount: 4520.80, currency: Currency.CNY, status: InvoiceStatus.PAID, billingCycle: 'monthly', billingStartDate: '2024-02-01', billingEndDate: '2024-02-29', dueDate: '2024-03-15', paidAt: '2024-02-28 16:45:00', paidAmount: 4520.80, paymentMethod: PaymentMethod.BALANCE, createdAt: '2024-02-01 00:00:00', updatedAt: '2024-02-28 16:45:00' },
-  { id: 4, tenantId: 1, invoiceNo: 'INV2024010001', title: '1月份月度账单', amount: 3890.20, currency: Currency.CNY, status: InvoiceStatus.PAID, billingCycle: 'monthly', billingStartDate: '2024-01-01', billingEndDate: '2024-01-31', dueDate: '2024-02-15', paidAt: '2024-01-30 14:20:00', paidAmount: 3890.20, paymentMethod: PaymentMethod.WECHAT, createdAt: '2024-01-01 00:00:00', updatedAt: '2024-01-30 14:20:00' },
-  { id: 5, tenantId: 1, invoiceNo: 'INV2023120001', title: '12月份月度账单', amount: 6210.00, currency: Currency.CNY, status: InvoiceStatus.PAID, billingCycle: 'monthly', billingStartDate: '2023-12-01', billingEndDate: '2023-12-31', dueDate: '2024-01-15', paidAt: '2023-12-28 09:30:00', paidAmount: 6210.00, paymentMethod: PaymentMethod.ALIPAY, createdAt: '2023-12-01 00:00:00', updatedAt: '2023-12-28 09:30:00' },
-])
-
-pagination.total = invoiceList.value.length
+const invoiceList = ref<Invoice[]>([])
 
 const invoiceColumns = [
   { title: '账单号', dataIndex: 'invoiceNo', key: 'invoiceNo', width: 180 },
@@ -358,6 +345,10 @@ const withdrawForm = reactive({
   amount: 100,
   accountId: undefined as string | undefined,
 })
+
+function getTenantId(): number {
+  return authStore.selectedTenantId || authStore.tenantId || 1
+}
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -387,9 +378,9 @@ function getStatusColor(status: InvoiceStatus): string {
   return colorMap[status] || 'default'
 }
 
-function getPaymentMethodName(method?: PaymentMethod): string {
+function getPaymentMethodName(method?: PaymentMethod | string): string {
   if (!method) return '-'
-  const nameMap: Record<PaymentMethod, string> = {
+  const nameMap: Record<string, string> = {
     [PaymentMethod.ALIPAY]: '支付宝',
     [PaymentMethod.WECHAT]: '微信支付',
     [PaymentMethod.BANK_TRANSFER]: '银行转账',
@@ -399,11 +390,99 @@ function getPaymentMethodName(method?: PaymentMethod): string {
   return nameMap[method] || method
 }
 
-function loadInvoices() {
+async function loadWalletInfo() {
+  const tenantId = getTenantId()
+  try {
+    const res = await walletApi.getInfo(tenantId)
+    if (res) {
+      accountBalance.balance = res.balance || 0
+      accountBalance.frozenBalance = res.frozenAmount || res.frozenBalance || 0
+      accountBalance.availableBalance = res.availableBalance || 0
+      accountBalance.creditLimit = res.creditLimit || 0
+      accountBalance.totalIncome = res.totalRecharge || res.totalIncome || 0
+      accountBalance.totalExpense = res.totalConsume || res.totalExpense || 0
+    }
+  } catch (error: any) {
+    console.error('加载钱包信息失败:', error)
+    message.error(error.message || '加载钱包信息失败')
+  }
+}
+
+async function loadPackages() {
+  const tenantId = getTenantId()
+  try {
+    const res = await packageApi.list(tenantId)
+    rechargePackages.value = res as unknown as RechargePackage[]
+  } catch (error: any) {
+    console.error('加载充值套餐失败:', error)
+    message.error(error.message || '加载充值套餐失败')
+    rechargePackages.value = []
+  }
+}
+
+async function loadStats() {
+  const tenantId = getTenantId()
+  try {
+    const res = await statsApi.overview(tenantId)
+    if (res) {
+      consumptionStats.monthAmount = res.thisMonthConsume || res.monthAmount || 0
+      consumptionStats.growthRate = res.growthRate || 0
+    }
+  } catch (error: any) {
+    console.error('加载消费统计失败:', error)
+    message.error(error.message || '加载消费统计失败')
+  }
+}
+
+async function loadInvoices() {
+  const tenantId = getTenantId()
   tableLoading.value = true
-  setTimeout(() => {
+  try {
+    const params: any = {
+      tenantId,
+      page: pagination.current,
+      size: pagination.pageSize,
+    }
+    if (queryParams.status) params.status = queryParams.status
+    if (queryParams.keyword) params.keyword = queryParams.keyword
+    if (queryParams.startDate) params.startDate = queryParams.startDate
+    if (queryParams.endDate) params.endDate = queryParams.endDate
+
+    const res = await invoiceApi.list(params)
+    invoiceList.value = res.records || []
+    pagination.total = res.total || 0
+
+    let pendingCount = 0
+    let paidCount = 0
+    invoiceList.value.forEach(inv => {
+      if (inv.status === InvoiceStatus.PENDING) pendingCount++
+      if (inv.status === InvoiceStatus.PAID) paidCount++
+    })
+    invoiceStats.total = invoiceList.value.length
+    invoiceStats.pending = pendingCount
+    invoiceStats.paid = paidCount
+  } catch (error: any) {
+    console.error('加载账单列表失败:', error)
+    message.error(error.message || '加载账单列表失败')
+    invoiceList.value = []
+    pagination.total = 0
+  } finally {
     tableLoading.value = false
-  }, 500)
+  }
+}
+
+async function loadAllData() {
+  loading.value = true
+  try {
+    await Promise.all([
+      loadWalletInfo(),
+      loadPackages(),
+      loadStats(),
+      loadInvoices(),
+    ])
+  } finally {
+    loading.value = false
+  }
 }
 
 function handleDateChange(dates: [string, string] | undefined) {
@@ -418,7 +497,7 @@ function handleDateChange(dates: [string, string] | undefined) {
 }
 
 function handleExport() {
-  message.success('导出功能')
+  message.info('导出功能开发中')
 }
 
 function showRechargeModal() {
@@ -433,13 +512,29 @@ function showWithdrawModal() {
   withdrawModalVisible.value = true
 }
 
-function handleConfirmRecharge() {
-  message.success('充值成功')
-  rechargeModalVisible.value = false
+async function handleConfirmRecharge() {
+  if (!rechargeForm.amount || rechargeForm.amount <= 0) {
+    message.warning('请输入充值金额')
+    return
+  }
+  const tenantId = getTenantId()
+  rechargeLoading.value = true
+  try {
+    await walletApi.recharge(tenantId, rechargeForm.amount, rechargeForm.paymentMethod)
+    message.success('充值成功')
+    rechargeModalVisible.value = false
+    await loadWalletInfo()
+    await loadStats()
+  } catch (error: any) {
+    console.error('充值失败:', error)
+    message.error(error.message || '充值失败')
+  } finally {
+    rechargeLoading.value = false
+  }
 }
 
 function handleConfirmWithdraw() {
-  message.success('提现已提交，预计1-3个工作日到账')
+  message.info('提现功能开发中')
   withdrawModalVisible.value = false
 }
 
@@ -457,19 +552,47 @@ function viewInvoiceDetail(record: Invoice) {
   detailDrawerVisible.value = true
 }
 
-function handlePay(record: Invoice) {
-  message.success(`支付账单：${record.invoiceNo}`)
+async function handlePay(record: Invoice) {
+  try {
+    await invoiceApi.pay(record.id, { paymentMethod: 'balance' })
+    message.success('支付成功')
+    await loadInvoices()
+    await loadWalletInfo()
+    await loadStats()
+  } catch (error: any) {
+    console.error('支付失败:', error)
+    message.error(error.message || '支付失败')
+  }
 }
 
-function handleDownload(record: Invoice) {
-  message.success(`下载账单：${record.invoiceNo}`)
+async function handleDownload(record: Invoice) {
+  try {
+    const res = await invoiceApi.download(record.id)
+    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `账单_${record.invoiceNo}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success('下载成功')
+  } catch (error: any) {
+    console.error('下载失败:', error)
+    message.error(error.message || '下载失败')
+  }
 }
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    pagination.current = 1
+    loadAllData()
+  }
+)
 
 onMounted(() => {
-  loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 300)
+  loadAllData()
 })
 </script>
 

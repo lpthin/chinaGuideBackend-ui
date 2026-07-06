@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import type { RouteComponent } from 'vue-router'
-import WorkspaceView from '../views/workspace/WorkspaceView.vue'
 import { useAuthStore } from '../stores/auth'
+
+// 🔐 主布局
+const WorkspaceView = () => import('../views/workspace/WorkspaceView.vue')
 
 // 类型定义
 type LazyComponent = () => Promise<{ default: RouteComponent }>

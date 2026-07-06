@@ -248,7 +248,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   FileTextOutlined,
@@ -269,6 +269,10 @@ import {
 import { CaseStatus, CasePriority, CaseType } from '../../types/case'
 import type { Case, CaseCategory } from '../../types/case'
 import CaseDetailDrawer from './CaseDetailDrawer.vue'
+import { caseApi } from '../../api/case'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const tableLoading = ref(false)
@@ -284,7 +288,6 @@ const stats = reactive({
 })
 
 const queryParams = reactive({
-  tenantId: 1,
   categoryId: undefined as number | undefined,
   status: undefined as CaseStatus | undefined,
   type: undefined as CaseType | undefined,
@@ -306,66 +309,9 @@ const pagination = reactive({
   },
 })
 
-const categories = ref<CaseCategory[]>([
-  { id: 1, tenantId: 1, name: '金融科技', icon: '', description: '', sort: 1, status: 'active', caseCount: 15, createdAt: '', updatedAt: '' },
-  { id: 2, tenantId: 1, name: '电子商务', icon: '', description: '', sort: 2, status: 'active', caseCount: 12, createdAt: '', updatedAt: '' },
-  { id: 3, tenantId: 1, name: '在线教育', icon: '', description: '', sort: 3, status: 'active', caseCount: 8, createdAt: '', updatedAt: '' },
-  { id: 4, tenantId: 1, name: '医疗健康', icon: '', description: '', sort: 4, status: 'active', caseCount: 10, createdAt: '', updatedAt: '' },
-])
+const categories = ref<CaseCategory[]>([])
 
-const caseList = ref<Case[]>([
-  {
-    id: 1, tenantId: 1, categoryId: 1, categoryName: '金融科技',
-    title: '某大型银行数字化转型解决方案', summary: '帮助银行实现核心系统重构和数字化转型',
-    content: '', type: CaseType.TECHNICAL_IMPLEMENTATION, status: CaseStatus.PUBLISHED,
-    priority: CasePriority.HIGH, customerName: '中国工商银行', customerIndustry: '金融',
-    customerScale: '大型企业', tags: '数字化转型,核心系统,金融科技', tagList: ['数字化转型', '核心系统', '金融科技'],
-    viewCount: 15680, likeCount: 428, shareCount: 89, downloadCount: 156,
-    authorId: 1, authorName: '张三', createdAt: '2024-03-10 10:30:00', updatedAt: '2024-03-15 14:20:00',
-  },
-  {
-    id: 2, tenantId: 1, categoryId: 2, categoryName: '电子商务',
-    title: '电商平台双11高并发架构升级', summary: '支撑双11峰值流量的高可用架构设计',
-    content: '', type: CaseType.BEST_PRACTICE, status: CaseStatus.PUBLISHED,
-    priority: CasePriority.URGENT, customerName: '阿里巴巴集团', customerIndustry: '电商',
-    customerScale: '超大型企业', tags: '高并发,分布式架构,电商', tagList: ['高并发', '分布式架构', '电商'],
-    viewCount: 23450, likeCount: 685, shareCount: 156, downloadCount: 234,
-    authorId: 2, authorName: '李四', createdAt: '2024-03-08 09:15:00', updatedAt: '2024-03-12 16:45:00',
-  },
-  {
-    id: 3, tenantId: 1, categoryId: 3, categoryName: '在线教育',
-    title: '在线教育平台智慧课堂系统', summary: 'AI驱动的智慧课堂解决方案',
-    content: '', type: CaseType.PRODUCT_DEMO, status: CaseStatus.REVIEWING,
-    priority: CasePriority.MEDIUM, customerName: '新东方在线', customerIndustry: '教育',
-    customerScale: '大型企业', tags: 'AI教育,智慧课堂,在线学习', tagList: ['AI教育', '智慧课堂'],
-    viewCount: 18920, likeCount: 512, shareCount: 78, downloadCount: 189,
-    authorId: 3, authorName: '王五', createdAt: '2024-03-05 14:20:00', updatedAt: '2024-03-10 11:30:00',
-  },
-  {
-    id: 4, tenantId: 1, categoryId: 4, categoryName: '医疗健康',
-    title: '互联网医院全流程解决方案', summary: '覆盖问诊、处方、配送全流程',
-    content: '', type: CaseType.CUSTOMER_SUCCESS, status: CaseStatus.DRAFT,
-    priority: CasePriority.LOW, customerName: '微医集团', customerIndustry: '医疗',
-    customerScale: '大型企业', tags: '互联网医院,在线问诊,医疗科技', tagList: ['互联网医院', '在线问诊'],
-    viewCount: 12350, likeCount: 356, shareCount: 45, downloadCount: 123,
-    authorId: 4, authorName: '赵六', createdAt: '2024-03-01 16:00:00', updatedAt: '2024-03-08 09:15:00',
-  },
-  {
-    id: 5, tenantId: 1, categoryId: 1, categoryName: '金融科技',
-    title: '券商量化交易系统建设', summary: '高性能量化交易平台搭建',
-    content: '', type: CaseType.INDUSTRY_SOLUTION, status: CaseStatus.PUBLISHED,
-    priority: CasePriority.HIGH, customerName: '华泰证券', customerIndustry: '金融',
-    customerScale: '大型企业', tags: '量化交易,风控系统,金融科技', tagList: ['量化交易', '风控系统', '金融科技'],
-    viewCount: 7650, likeCount: 218, shareCount: 34, downloadCount: 89,
-    authorId: 5, authorName: '钱七', createdAt: '2024-02-25 10:00:00', updatedAt: '2024-03-05 15:30:00',
-  },
-])
-
-pagination.total = caseList.value.length
-stats.totalCases = caseList.value.length
-stats.publishedCases = caseList.value.filter(c => c.status === CaseStatus.PUBLISHED).length
-stats.totalViews = caseList.value.reduce((sum, c) => sum + c.viewCount, 0)
-stats.totalLikes = caseList.value.reduce((sum, c) => sum + c.likeCount, 0)
+const caseList = ref<Case[]>([])
 
 const columns = [
   { title: '案例信息', key: 'title', width: 280 },
@@ -459,11 +405,37 @@ function getStatusColor(status: CaseStatus): string {
   return colorMap[status] || 'default'
 }
 
-function loadCases() {
+function updateStats(records: Case[] = caseList.value) {
+  stats.totalCases = pagination.total
+  stats.publishedCases = records.filter(c => c.status === CaseStatus.PUBLISHED).length
+  stats.totalViews = records.reduce((sum, c) => sum + (c.viewCount || 0), 0)
+  stats.totalLikes = records.reduce((sum, c) => sum + (c.likeCount || 0), 0)
+}
+
+async function loadCases() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
   tableLoading.value = true
-  setTimeout(() => {
+  try {
+    const params: any = {
+      tenantId,
+      page: pagination.current,
+      size: pagination.pageSize,
+    }
+    if (queryParams.categoryId) params.categoryId = queryParams.categoryId
+    if (queryParams.status) params.status = queryParams.status
+    if (queryParams.keyword) params.keyword = queryParams.keyword
+
+    const res = await caseApi.list(params)
+    caseList.value = res.records || []
+    pagination.total = res.total || 0
+    updateStats(res.records || [])
+  } catch (error) {
+    console.error('Failed to load cases:', error)
+    message.error('加载案例列表失败')
+    caseList.value = []
+  } finally {
     tableLoading.value = false
-  }, 500)
+  }
 }
 
 function handleAdd() {
@@ -572,11 +544,21 @@ function exportData() {
   message.info('导出功能')
 }
 
-onMounted(() => {
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    pagination.current = 1
+    loadCases()
+  }
+)
+
+onMounted(async () => {
   loading.value = true
-  setTimeout(() => {
+  try {
+    await loadCases()
+  } finally {
     loading.value = false
-  }, 300)
+  }
 })
 </script>
 

@@ -180,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
@@ -200,8 +200,10 @@ import {
 import { knowledgeStatsApi, knowledgeCategoryApi, knowledgeDocumentApi, smartQAApi } from '../../api/knowledge'
 import type { StreamQAReference, KnowledgeCategoryStats } from '../../api/knowledge'
 import type { Dayjs } from 'dayjs'
+import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
+const auth = useAuthStore()
 
 // 租户ID常量（与同模块其他页面一致）
 const TENANT_ID = 1
@@ -375,7 +377,7 @@ const loadActivities = async () => {
         id: doc.id,
         type: inferActivityType(status),
         status,
-        title: `上传了文档 "${doc.fileName || doc.originalName || '未命名文档'}"`,
+        title: `上传了文档 "${doc.title || doc.originalName || doc.fileName || '未命名文档'}"`,
         time: doc.createdAt || '',
         userName: doc.uploadedByName || '未知'
       }
@@ -643,6 +645,13 @@ const handleResize = () => {
   trendChart?.resize()
   categoryChart?.resize()
 }
+
+watch(
+  () => auth.selectedTenantId,
+  () => {
+    loadAll()
+  }
+)
 
 onMounted(() => {
   loadAll()

@@ -7,7 +7,15 @@ import type {
   DataReportQuery,
   CustomerCaseForm,
   DataReportForm,
-  PageResult
+  PageResult,
+  OperationStats,
+  TrafficTrendItem,
+  CategoryDistributionItem,
+  UserStats,
+  UserGrowthItem,
+  UserActivityItem,
+  TrafficSourceItem,
+  DeviceDistributionItem
 } from '../types/operation'
 
 // 客户案例 API
@@ -106,8 +114,65 @@ export const operationStatsApi = {
     http.get<{ id: number; title: string; views: number }[]>('/operation/stats/top-cases', { params: { tenantId, limit } })
 }
 
+// 运营统计 API
+export const operationApi = {
+  // 获取基础统计数据
+  getStats: (tenantId: number, startDate?: string, endDate?: string) =>
+    http.get<OperationStats>('/operation/stats', { params: { tenantId, startDate, endDate } }),
+
+  // 获取流量趋势
+  getTrafficTrend: (tenantId: number, days: number = 7) =>
+    http.get<TrafficTrendItem[]>('/operation/traffic/trend', { params: { tenantId, days } }),
+
+  // 获取分类分布
+  getCategoryDistribution: (tenantId: number) =>
+    http.get<CategoryDistributionItem[]>('/operation/category/distribution', { params: { tenantId } }),
+
+  // 获取用户统计
+  getUserStats: (tenantId: number) =>
+    http.get<UserStats>('/operation/user/stats', { params: { tenantId } }),
+
+  // 获取用户增长
+  getUserGrowth: (tenantId: number, months: number = 6) =>
+    http.get<UserGrowthItem[]>('/operation/user/growth', { params: { tenantId, months } }),
+
+  // 获取用户活跃度
+  getUserActivity: (tenantId: number) =>
+    http.get<UserActivityItem[]>('/operation/user/activity', { params: { tenantId } }),
+
+  // 获取流量来源
+  getTrafficSource: (tenantId: number) =>
+    http.get<TrafficSourceItem[]>('/operation/traffic/source', { params: { tenantId } }),
+
+  // 获取设备分布
+  getDeviceDistribution: (tenantId: number) =>
+    http.get<DeviceDistributionItem[]>('/operation/device/distribution', { params: { tenantId } }),
+
+  // 获取运营看板总览
+  getDashboard: (tenantId: number) =>
+    http.get<{
+      today: { views: number; articles: number; activeUsers: number }
+      weeklyTrend: TrafficTrendItem[]
+      keyMetrics: {
+        totalArticles: number
+        totalViews: number
+        totalComments: number
+        totalLikes: number
+        totalUsers: number
+      }
+    }>('/operation/dashboard', { params: { tenantId } }),
+
+  // 导出统计报表
+  exportStats: (tenantId: number, type: 'article' | 'traffic' | 'user' = 'article', format: 'excel' | 'csv' = 'excel') =>
+    http.get('/operation/stats/export', {
+      params: { tenantId, type, format },
+      responseType: 'blob'
+    })
+}
+
 export default {
   customerCase: customerCaseApi,
   dataReport: dataReportApi,
-  stats: operationStatsApi
+  stats: operationStatsApi,
+  operation: operationApi
 }

@@ -172,3 +172,80 @@ export interface PageResult<T> {
   size: number
   pages: number
 }
+
+// 审计日志
+export interface AuditLog {
+  id: number
+  tenantId: number
+  userId: number
+  username: string
+  action: string
+  module: string
+  ip: string
+  userAgent: string
+  detail: string
+  createdAt: string
+}
+
+// 审计日志查询参数
+export interface AuditLogQuery {
+  page?: number
+  size?: number
+  tenantId?: number
+  action?: string
+  module?: string
+  username?: string
+  startDate?: string
+  endDate?: string
+}
+
+// 审计日志统计
+export interface AuditLogStats {
+  total: number
+  todayTotal: number
+  loginCount: number
+  errorCount: number
+  sensitiveCount: number
+}
+
+// 系统设置
+export interface SystemSettings {
+  site: SiteSettings
+  ai: AiSettings
+  workflow: WorkflowSettings
+  system: Record<string, any>
+  tenantId: number
+}
+
+export interface SiteSettings {
+  name?: string
+  description?: string
+  logo?: string
+  contactEmail?: string
+  contactPhone?: string
+  icp?: string
+  copyright?: string
+}
+
+export interface AiSettings {
+  defaultModel?: string
+  apiKey?: string
+  apiBaseUrl?: string
+  temperature?: number
+  maxTokens?: number
+  streamEnabled?: boolean
+  systemPrompt?: string
+}
+
+export interface WorkflowSettings {
+  keywordCrawlInterval?: string
+  keywordCrawlLimit?: number
+  autoCrawlEnabled?: boolean
+  clusterThreshold?: number
+  minClusterSize?: number
+  autoGenerateEnabled?: boolean
+  dailyGenerateLimit?: number
+  autoReviewEnabled?: boolean
+  autoPublishEnabled?: boolean
+  publishTime?: string
+}

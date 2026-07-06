@@ -53,7 +53,11 @@ http.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
-    const tenantId = v2Auth.tenantId || localStorage.getItem('geocms_tenant_id')
+    const tenantId = v2Auth.selectedTenantId !== null
+      ? v2Auth.selectedTenantId
+      : v2Auth.tenantId !== null
+        ? v2Auth.tenantId
+        : localStorage.getItem('geocms_tenant_id')
     const tenantCode = localStorage.getItem('geocms_tenant_code')
     if (tenantId) {
       config.headers['X-Tenant-Id'] = String(tenantId)

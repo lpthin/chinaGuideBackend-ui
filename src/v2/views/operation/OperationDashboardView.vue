@@ -79,16 +79,19 @@
               </a-radio-group>
             </template>
             <div class="chart-container">
-              <div class="chart-placeholder">
-                <div v-for="(item, index) in trendData" :key="index" class="chart-bar">
-                  <div class="bar-label">{{ item.date }}</div>
-                  <div class="bar-wrapper">
-                    <div class="bar" :style="{ height: `${item.height}%` }">
-                      <span class="bar-value">{{ item.value.toLocaleString() }}</span>
+              <template v-if="trendData.length > 0">
+                <div class="chart-placeholder">
+                  <div v-for="(item, index) in trendData" :key="index" class="chart-bar">
+                    <div class="bar-label">{{ item.date }}</div>
+                    <div class="bar-wrapper">
+                      <div class="bar" :style="{ height: `${item.height}%` }">
+                        <span class="bar-value">{{ item.value.toLocaleString() }}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </template>
+              <a-empty v-else description="暂无数据" />
             </div>
           </a-card>
         </a-col>
@@ -96,19 +99,22 @@
         <a-col :span="8">
           <a-card title="分类分布" :bordered="false">
             <div class="pie-placeholder">
-              <div class="pie-chart">
-                <div class="pie-center">
-                  <div class="pie-total">{{ stats.totalArticles }}</div>
-                  <div class="pie-label">总文章</div>
+              <template v-if="categoryData.length > 0">
+                <div class="pie-chart">
+                  <div class="pie-center">
+                    <div class="pie-total">{{ stats.totalArticles }}</div>
+                    <div class="pie-label">总文章</div>
+                  </div>
                 </div>
-              </div>
-              <div class="pie-legend">
-                <div v-for="(item, index) in categoryData" :key="index" class="legend-item">
-                  <span class="legend-color" :style="{ background: item.color }"></span>
-                  <span class="legend-name">{{ item.name }}</span>
-                  <span class="legend-value">{{ item.value }}</span>
+                <div class="pie-legend">
+                  <div v-for="(item, index) in categoryData" :key="index" class="legend-item">
+                    <span class="legend-color" :style="{ background: item.color }"></span>
+                    <span class="legend-name">{{ item.name }}</span>
+                    <span class="legend-value">{{ item.value }}</span>
+                  </div>
                 </div>
-              </div>
+              </template>
+              <a-empty v-else description="暂无数据" />
             </div>
           </a-card>
         </a-col>
@@ -117,7 +123,8 @@
       <a-row :gutter="16" style="margin-top: 16px">
         <a-col :span="12">
           <a-card title="热门文章 TOP10" :bordered="false">
-            <a-list :data-source="topArticles" :split="false">
+            <a-empty v-if="topArticles.length === 0" description="暂无数据" />
+            <a-list v-else :data-source="topArticles" :split="false">
               <template #renderItem="{ item, index }">
                 <a-list-item class="rank-item">
                   <span class="rank-number" :class="{ top: index < 3 }">{{ index + 1 }}</span>
@@ -136,7 +143,8 @@
 
         <a-col :span="12">
           <a-card title="热门案例 TOP5" :bordered="false">
-            <a-list :data-source="topCases" :split="false">
+            <a-empty v-if="topCases.length === 0" description="暂无数据" />
+            <a-list v-else :data-source="topCases" :split="false">
               <template #renderItem="{ item, index }">
                 <a-list-item class="rank-item">
                   <span class="rank-number" :class="{ top: index < 3 }">{{ index + 1 }}</span>
@@ -157,7 +165,8 @@
       <a-row style="margin-top: 16px">
         <a-col :span="24">
           <a-card title="最新动态" :bordered="false">
-            <a-timeline>
+            <a-empty v-if="recentActivities.length === 0" description="暂无动态" />
+            <a-timeline v-else>
               <a-timeline-item v-for="(item, index) in recentActivities" :key="index">
                 <template #dot>
                   <component :is="item.icon" :style="{ color: item.color }" />
@@ -176,7 +185,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { message } from 'ant-design-vue'
 import {
   EyeOutlined,
   FileTextOutlined,
@@ -190,77 +200,152 @@ import {
   DeleteOutlined,
   MessageOutlined,
 } from '@ant-design/icons-vue'
+import { useAuthStore } from '../../stores/auth'
+import { operationApi } from '../../api/operation'
+import type {
+  TrafficTrendItem,
+  CategoryDistributionItem
+} from '../../types/operation'
+
+const auth = useAuthStore()
 
 const loading = ref(false)
 const trendPeriod = ref<'week' | 'month' | 'quarter'>('week')
 
 const stats = reactive({
-  totalViews: 128563,
-  viewGrowth: 12.5,
-  totalArticles: 256,
-  articleGrowth: 8.3,
-  totalCases: 89,
-  caseGrowth: 15.2,
-  totalUsers: 3421,
-  userGrowth: 2.1,
+  totalViews: 0,
+  viewGrowth: 0,
+  totalArticles: 0,
+  articleGrowth: 0,
+  totalCases: 0,
+  caseGrowth: 0,
+  totalUsers: 0,
+  userGrowth: 0,
 })
 
-const trendData = computed(() => {
-  const days = trendPeriod.value === 'week' ? 7 : trendPeriod.value === 'month' ? 30 : 90
-  const labels = trendPeriod.value === 'week'
-    ? ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-    : Array.from({ length: Math.min(days, 15) }, (_, i) => `${i + 1}日`)
+const trendData = ref<{ date: string; value: number; height: number }[]>([])
+const categoryData = ref<{ name: string; value: number; color: string }[]>([])
+const topArticles = ref<{ title: string; viewCount: number; likeCount: number }[]>([])
+const topCases = ref<{ title: string; viewCount: number; likeCount: number }[]>([])
+const recentActivities = ref<{ title: string; time: string; icon: any; color: string }[]>([])
 
-  return labels.map((date, index) => ({
-    date,
-    value: Math.floor(Math.random() * 5000) + 2000,
-    height: 30 + Math.random() * 60,
+const chartColors = [
+  '#1890ff',
+  '#52c41a',
+  '#faad14',
+  '#722ed1',
+  '#eb2f96',
+  '#13c2c2',
+  '#fa8c16',
+  '#2f54eb',
+]
+
+function getTenantId(): number {
+  return auth.selectedTenantId || 0
+}
+
+function calculateGrowth(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0
+  return Math.round(((current - previous) / previous) * 1000) / 10
+}
+
+function mapTrendData(data: TrafficTrendItem[]): { date: string; value: number; height: number }[] {
+  if (data.length === 0) return []
+  const maxValue = Math.max(...data.map(d => d.views)) || 1
+  return data.map(item => ({
+    date: item.date.substring(5),
+    value: item.views,
+    height: Math.max(10, (item.views / maxValue) * 90)
   }))
-})
+}
 
-const categoryData = [
-  { name: '公司新闻', value: 45, color: '#1890ff' },
-  { name: '行业动态', value: 62, color: '#52c41a' },
-  { name: '产品发布', value: 28, color: '#faad14' },
-  { name: '技术博客', value: 75, color: '#722ed1' },
-  { name: '其他', value: 46, color: '#8c8c8c' },
-]
+function mapCategoryData(data: CategoryDistributionItem[]): { name: string; value: number; color: string }[] {
+  return data.map((item, index) => ({
+    name: item.categoryName,
+    value: item.count,
+    color: chartColors[index % chartColors.length]
+  }))
+}
 
-const topArticles = [
-  { title: '2024年行业发展趋势报告发布', viewCount: 8563, likeCount: 256 },
-  { title: '公司完成新一轮融资，加速产品研发', viewCount: 7234, likeCount: 189 },
-  { title: '新产品 v2.0 正式发布，新增多项功能', viewCount: 6521, likeCount: 178 },
-  { title: 'Vue 3 组合式 API 最佳实践', viewCount: 5892, likeCount: 156 },
-  { title: '微服务架构设计原则详解', viewCount: 4567, likeCount: 134 },
-  { title: 'TypeScript 5.0 新特性介绍', viewCount: 4234, likeCount: 123 },
-  { title: 'Docker 容器化部署完整指南', viewCount: 3892, likeCount: 98 },
-  { title: '前端工程化完整方案分享', viewCount: 3567, likeCount: 87 },
-  { title: 'API 设计最佳实践总结', viewCount: 3234, likeCount: 76 },
-  { title: '自动化测试完整教程', viewCount: 2892, likeCount: 65 },
-]
+async function loadStats() {
+  try {
+    const res: any = await operationApi.getStats(getTenantId())
+    stats.totalViews = res.totalViews || 0
+    stats.totalArticles = res.totalArticles || 0
+    stats.totalUsers = res.totalUsers || 0
+    stats.totalCases = 0
+  } catch (error) {
+    console.error('加载统计数据失败', error)
+    message.error('加载统计数据失败')
+  }
+}
 
-const topCases = [
-  { title: '某大型电商平台数字化转型案例', viewCount: 6543, likeCount: 198 },
-  { title: '金融行业智能客服系统解决方案', viewCount: 5432, likeCount: 167 },
-  { title: '制造业生产管理系统成功案例', viewCount: 4321, likeCount: 134 },
-  { title: '教育行业在线学习平台建设', viewCount: 3876, likeCount: 112 },
-  { title: '医疗健康大数据平台实施案例', viewCount: 3234, likeCount: 98 },
-]
+async function loadTrafficTrend() {
+  try {
+    const res: any = await operationApi.getTrafficTrend(getTenantId(), 7)
+    trendData.value = mapTrendData(res as TrafficTrendItem[])
+    if (trendData.value.length >= 2) {
+      const current = trendData.value[trendData.value.length - 1].value
+      const previous = trendData.value[trendData.value.length - 2].value
+      stats.viewGrowth = calculateGrowth(current, previous)
+    }
+  } catch (error) {
+    console.error('加载流量趋势失败', error)
+    message.error('加载流量趋势失败')
+  }
+}
 
-const recentActivities = [
-  { title: '新文章《2024 Q1 市场分析报告》已发布', time: '5分钟前', icon: PlusOutlined, color: '#52c41a' },
-  { title: '用户 张三 提交了新的留言', time: '12分钟前', icon: MessageOutlined, color: '#1890ff' },
-  { title: '文章《产品更新公告》被编辑更新', time: '30分钟前', icon: EditOutlined, color: '#faad14' },
-  { title: 'Banner「春季特惠活动」已上线', time: '1小时前', icon: PlusOutlined, color: '#722ed1' },
-  { title: '文章《旧版功能说明》已被删除', time: '2小时前', icon: DeleteOutlined, color: '#ff4d4f' },
-  { title: '新用户 李四 完成注册', time: '3小时前', icon: UserOutlined, color: '#13c2c2' },
-]
+async function loadCategoryDistribution() {
+  try {
+    const res: any = await operationApi.getCategoryDistribution(getTenantId())
+    categoryData.value = mapCategoryData(res as CategoryDistributionItem[])
+  } catch (error) {
+    console.error('加载分类分布失败', error)
+    message.error('加载分类分布失败')
+  }
+}
+
+async function loadDashboard() {
+  try {
+    const res: any = await operationApi.getDashboard(getTenantId())
+    if (res.keyMetrics) {
+      stats.totalViews = res.keyMetrics.totalViews || 0
+      stats.totalArticles = res.keyMetrics.totalArticles || 0
+      stats.totalUsers = res.keyMetrics.totalUsers || 0
+    }
+    if (res.weeklyTrend && res.weeklyTrend.length > 0) {
+      trendData.value = mapTrendData(res.weeklyTrend as TrafficTrendItem[])
+    }
+  } catch (error) {
+    console.error('加载看板数据失败', error)
+  }
+}
+
+async function loadAllData() {
+  if (!auth.selectedTenantId) return
+  loading.value = true
+  try {
+    await Promise.all([
+      loadDashboard(),
+      loadCategoryDistribution(),
+    ])
+  } catch (error) {
+    console.error('数据加载失败', error)
+    message.error('数据加载失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(
+  () => auth.selectedTenantId,
+  () => {
+    loadAllData()
+  }
+)
 
 onMounted(() => {
-  loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 500)
+  loadAllData()
 })
 </script>
 

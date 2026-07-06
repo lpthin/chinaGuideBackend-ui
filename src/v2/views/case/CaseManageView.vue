@@ -102,7 +102,7 @@
       <a-card :bordered="false">
         <a-table
           :columns="columns"
-          :data-source="caseList"
+          :data-source="caseListData"
           :loading="tableLoading"
           :pagination="paginationConfig"
           :row-key="record => record.id"
@@ -211,7 +211,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import type { FormInstance, UploadFile } from 'ant-design-vue'
 import {
@@ -224,7 +224,10 @@ import {
 } from '@ant-design/icons-vue'
 import { caseApi, caseCategoryApi, caseStatsApi } from '../../api/case'
 import type { Case, CaseCategory, CaseForm } from '../../types/case'
+import { useAuthStore } from '../../stores/auth'
 import dayjs from 'dayjs'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const tableLoading = ref(false)
@@ -259,16 +262,16 @@ const paginationConfig = reactive({
   onChange: (page: number, pageSize: number) => {
     paginationConfig.current = page
     paginationConfig.pageSize = pageSize
-    loadCases()
+    loadCaseList()
   },
 })
 
 const categories = ref<CaseCategory[]>([])
-const caseList = ref<Case[]>([])
+const caseListData = ref<Case[]>([])
 const coverImageList = ref<UploadFile[]>([])
 
 const formData = reactive<CaseForm & { tagList: string[]; sortOrder: number }>({
-  tenantId: 1,
+  tenantId: 0,
   categoryId: undefined as any,
   title: '',
   summary: '',
@@ -297,38 +300,32 @@ const columns = [
 ]
 
 async function loadStats() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
   try {
-    const res = await caseStatsApi.getStats(1)
+    const res = await caseStatsApi.getStats(tenantId)
     stats.totalCases = res.totalCases || 0
     stats.publishedCases = res.publishedCases || 0
     stats.draftCases = res.draftCases || 0
     // 今日新增通过列表计算
     const today = dayjs().format('YYYY-MM-DD')
-    stats.todayCases = caseList.value.filter(
+    stats.todayCases = caseListData.value.filter(
       c => dayjs(c.createdAt).format('YYYY-MM-DD') === today
     ).length
-  } catch {
+  } catch (error) {
+    console.error('Failed to load case stats:', error)
     // 使用默认值
-    stats.totalCases = caseList.value.length
-    stats.publishedCases = caseList.value.filter(c => c.status === 'published').length
-    stats.draftCases = caseList.value.filter(c => c.status === 'draft').length
+    stats.totalCases = caseListData.value.length
+    stats.publishedCases = caseListData.value.filter(c => c.status === 'published').length
+    stats.draftCases = caseListData.value.filter(c => c.status === 'draft').length
   }
 }
 
-async function loadCategories() {
-  try {
-    const res = await caseCategoryApi.all(1)
-    categories.value = res || []
-  } catch {
-    categories.value = []
-  }
-}
-
-async function loadCases() {
+async function loadCaseList() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
   tableLoading.value = true
   try {
     const params: any = {
-      tenantId: 1,
+      tenantId,
       page: paginationConfig.current,
       size: paginationConfig.pageSize,
     }
@@ -341,25 +338,38 @@ async function loadCases() {
     }
 
     const res = await caseApi.list(params)
-    caseList.value = res.records || []
+    caseListData.value = res.records || []
     paginationConfig.total = res.total || 0
-  } catch {
-    caseList.value = []
+  } catch (error) {
+    console.error('Failed to load case list:', error)
+    message.error('加载案例列表失败')
+    caseListData.value = []
   } finally {
     tableLoading.value = false
   }
 }
 
+async function loadCategories() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  try {
+    const res = await caseCategoryApi.all(tenantId)
+    categories.value = res || []
+  } catch (error) {
+    console.error('Failed to load categories:', error)
+    categories.value = []
+  }
+}
+
 async function loadAll() {
   loading.value = true
-  await Promise.all([loadCategories(), loadCases()])
+  await Promise.all([loadCategories(), loadCaseList()])
   await loadStats()
   loading.value = false
 }
 
 function handleSearch() {
   paginationConfig.current = 1
-  loadCases()
+  loadCaseList()
 }
 
 function handleReset() {
@@ -368,8 +378,15 @@ function handleReset() {
   queryParams.status = undefined
   queryParams.dateRange = null
   paginationConfig.current = 1
-  loadCases()
+  loadCaseList()
 }
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    loadAll()
+  }
+)
 
 function showAddModal() {
   isEdit.value = false
@@ -412,14 +429,15 @@ function viewDetail(record: Case) {
 async function handlePublish(record: Case) {
   try {
     await caseApi.publish(record.id)
-    const item = caseList.value.find(c => c.id === record.id)
+    const item = caseListData.value.find(c => c.id === record.id)
     if (item) {
       item.status = 'published'
     }
     stats.publishedCases += 1
     stats.draftCases -= 1
     message.success('发布成功')
-  } catch {
+  } catch (error) {
+    console.error('Failed to publish case:', error)
     message.error('发布失败')
   }
 }
@@ -427,20 +445,21 @@ async function handlePublish(record: Case) {
 async function handleDelete(id: number) {
   try {
     await caseApi.delete(id)
-    const index = caseList.value.findIndex(c => c.id === id)
+    const index = caseListData.value.findIndex(c => c.id === id)
     if (index > -1) {
-      const item = caseList.value[index]
+      const item = caseListData.value[index]
       if (item.status === 'published') {
         stats.publishedCases -= 1
       } else {
         stats.draftCases -= 1
       }
       stats.totalCases -= 1
-      caseList.value.splice(index, 1)
+      caseListData.value.splice(index, 1)
       paginationConfig.total -= 1
     }
     message.success('删除成功')
-  } catch {
+  } catch (error) {
+    console.error('Failed to delete case:', error)
     message.error('删除失败')
   }
 }
@@ -461,10 +480,11 @@ async function handleSave() {
     }
 
     modalVisible.value = false
-    loadCases()
+    loadCaseList()
     loadStats()
-  } catch {
-    // 表单验证失败或API错误
+  } catch (error) {
+    console.error('Failed to save case:', error)
+    message.error('保存失败')
   } finally {
     saveLoading.value = false
   }
@@ -477,7 +497,7 @@ function handleCancel() {
 
 function resetForm() {
   formData.id = undefined
-  formData.tenantId = 1
+  formData.tenantId = authStore.selectedTenantId || authStore.tenantId
   formData.categoryId = undefined
   formData.title = ''
   formData.summary = ''

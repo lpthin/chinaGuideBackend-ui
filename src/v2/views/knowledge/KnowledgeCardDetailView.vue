@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -90,9 +90,11 @@ import {
 } from '@ant-design/icons-vue'
 import { knowledgeCardApi, knowledgeCategoryApi } from '../../api/knowledge'
 import type { KnowledgeCard, KnowledgeCategory } from '../../types/knowledge'
+import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
 const route = useRoute()
+const auth = useAuthStore()
 const loading = ref(false)
 const card = ref<KnowledgeCard | null>(null)
 const categories = ref<KnowledgeCategory[]>([])
@@ -170,10 +172,11 @@ async function handleDelete() {
 
 async function loadCategories() {
   try {
-    const result = await knowledgeCategoryApi.all(1)
+    const result = await knowledgeCategoryApi.all(auth.selectedTenantId!)
     categories.value = result
   } catch (error) {
     console.error(error)
+    message.error('加载分类列表失败')
   }
 }
 
@@ -184,107 +187,40 @@ async function loadCard() {
     card.value = result
   } catch (error) {
     console.error(error)
-    card.value = generateMockCard()
+    message.error('加载卡片详情失败')
+    card.value = null
   } finally {
     loading.value = false
   }
 }
 
 async function loadRelatedCards() {
+  if (!card.value?.categoryId) {
+    relatedCards.value = []
+    return
+  }
   try {
     const result = await knowledgeCardApi.list({
-      tenantId: 1,
-      categoryId: card.value?.categoryId,
+      categoryId: card.value.categoryId,
       page: 1,
       size: 5,
     })
     relatedCards.value = result.records.filter(c => c.id !== cardId.value).slice(0, 4)
   } catch (error) {
     console.error(error)
-    relatedCards.value = generateMockRelatedCards()
+    message.error('加载相关推荐失败')
+    relatedCards.value = []
   }
 }
 
-function generateMockCard(): KnowledgeCard {
-  return {
-    id: 1,
-    tenantId: 1,
-    categoryId: 1,
-    title: 'Vue 3 组合式 API 入门指南',
-    summary: '本文详细介绍了 Vue 3 中组合式 API 的使用方法和最佳实践',
-    content: `
-      <h2>什么是组合式 API</h2>
-      <p>组合式 API 是 Vue 3 引入的一种新的组件编写方式。它允许我们使用函数来组织组件逻辑，而不是依赖选项对象。</p>
-      
-      <h3>核心概念</h3>
-      <ul>
-        <li><strong>ref</strong> - 创建响应式的基本类型数据</li>
-        <li><strong>reactive</strong> - 创建响应式的对象</li>
-        <li><strong>computed</strong> - 创建计算属性</li>
-        <li><strong>watch</strong> - 监听数据变化</li>
-        <li><strong>生命周期钩子</strong> - onMounted, onUpdated 等</li>
-      </ul>
-      
-      <h3>使用示例</h3>
-      <pre><code>
-import { ref, computed, onMounted } from 'vue'
-
-export default {
-  setup() {
-    const count = ref(0)
-    const doubled = computed(() => count.value * 2)
-    
-    function increment() {
-      count.value++
-    }
-    
-    onMounted(() => {
-      console.log('Component mounted')
-    })
-    
-    return { count, doubled, increment }
+watch(
+  () => auth.selectedTenantId,
+  async () => {
+    await loadCategories()
+    await loadCard()
+    await loadRelatedCards()
   }
-}
-      </code></pre>
-      
-      <h3>为什么使用组合式 API</h3>
-      <p>组合式 API 提供了更好的代码组织方式，特别是在处理复杂组件时。它使得逻辑复用变得更加容易，并且提供了更好的 TypeScript 支持。</p>
-    `,
-    coverImage: '',
-    tags: 'Vue,Vue3,组合式API',
-    viewCount: 1256,
-    likeCount: 89,
-    sort: 0,
-    status: 'active',
-    createdAt: '2024-01-01 10:00:00',
-    updatedAt: '2024-01-15 10:00:00',
-  }
-}
-
-function generateMockRelatedCards(): KnowledgeCard[] {
-  const titles = [
-    'TypeScript 高级类型技巧',
-    'Vue 3 响应式原理详解',
-    'Pinia 状态管理入门',
-    'Vite 构建工具使用指南',
-  ]
-  return titles.map((title, index) => ({
-    id: index + 2,
-    tenantId: 1,
-    categoryId: 1,
-    title,
-    summary: '',
-    content: '',
-    coverImage: '',
-    tags: '',
-    viewCount: 0,
-    likeCount: 0,
-    sort: 0,
-    status: 'active',
-    createdAt: '',
-    updatedAt: '',
-  }))
-}
+)
 
 onMounted(async () => {
   await loadCategories()

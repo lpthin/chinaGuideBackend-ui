@@ -1,9 +1,6 @@
 <template>
   <div class="portal-template-container">
     <div class="header-wrapper">
-      <div class="tenant-select-wrapper">
-        <TenantSelect v-model:modelValue="selectedTenantId" @change="handleTenantChange" />
-      </div>
       <a-page-header title="门户模板管理" sub-title="选择和定制您的门户网站风格">
         <template #extra>
           <a-space>
@@ -355,11 +352,11 @@ import { portalTemplateApi } from '../../api/portal'
 import type { PortalTemplate, PortalTemplateForm } from '../../types/portal'
 import type { Tenant } from '../../types/workspace'
 import TemplatePreview from './TemplatePreview.vue'
-import TenantSelect from '../../components/TenantSelect.vue'
+import { useAuthStore } from '../../stores/auth'
 
+const auth = useAuthStore()
 const templates = ref<PortalTemplate[]>([])
 const currentTemplate = ref<PortalTemplate | null>(null)
-const selectedTenantId = ref<number | undefined>()
 const filterType = ref<string>('all')
 const searchKeyword = ref('')
 const loading = ref(false)
@@ -458,9 +455,9 @@ const loadTemplates = async () => {
 }
 
 const loadCurrentTemplate = async () => {
-  if (!selectedTenantId.value) return
+  if (!auth.selectedTenantId) return
   try {
-    const result = await portalTemplateApi.getCurrentTemplate(selectedTenantId.value)
+    const result = await portalTemplateApi.getCurrentTemplate(auth.selectedTenantId)
     currentTemplate.value = result
   } catch (error) {
     currentTemplate.value = null
@@ -496,15 +493,6 @@ const handlePageSizeChange = (_current: number, size: number) => {
   loadTemplates()
 }
 
-const handleTenantChange = (tenant: Tenant | null) => {
-  if (tenant) {
-    selectedTenantId.value = tenant.id
-    pagination.page = 1
-    loadTemplates()
-    loadCurrentTemplate()
-  }
-}
-
 const previewTemplate = (template: PortalTemplate) => {
   previewingTemplate.value = template
   showPreviewModal.value = true
@@ -535,13 +523,13 @@ const editTemplate = (template: PortalTemplate) => {
 }
 
 const applyTemplate = async (template: PortalTemplate) => {
-  if (!selectedTenantId.value) {
+  if (!auth.selectedTenantId) {
     message.warning('请先选择租户')
     return
   }
   try {
     message.loading({ content: '正在应用模板...', key: 'apply' })
-    await portalTemplateApi.apply(template.id, selectedTenantId.value)
+    await portalTemplateApi.apply(template.id, auth.selectedTenantId)
     currentTemplate.value = template
     showPreviewModal.value = false
     message.success({ content: `已成功应用「${template.name}」`, key: 'apply' })
@@ -602,7 +590,7 @@ const createTemplate = async () => {
 onMounted(() => {
   const storedTenantId = localStorage.getItem('geocms_tenant_id')
   if (storedTenantId) {
-    selectedTenantId.value = Number(storedTenantId)
+    auth.selectedTenantId = Number(storedTenantId)
     loadTemplates()
     loadCurrentTemplate()
   }
@@ -618,11 +606,6 @@ onMounted(() => {
   padding: 16px 24px 0;
   background: #fff;
   border-bottom: 1px solid #f0f0f0;
-
-  .tenant-select-wrapper {
-    width: 200px;
-    margin-bottom: 12px;
-  }
 }
 
 .content-wrapper {

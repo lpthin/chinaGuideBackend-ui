@@ -72,7 +72,7 @@
             placeholder="搜索订单号/商品名称"
             style="width: 250px"
             enter-button
-            @search="loadOrders"
+            @search="handleSearch"
           />
         </a-space>
       </a-card>
@@ -88,7 +88,7 @@
 
         <a-table
           :columns="columns"
-          :data-source="orderList"
+          :data-source="orderListData"
           :pagination="paginationConfig"
           :loading="tableLoading"
           :row-key="record => record.id"
@@ -170,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   FileTextOutlined,
@@ -179,6 +179,10 @@ import {
   RefundOutlined,
   ExportOutlined,
 } from '@ant-design/icons-vue'
+import { orderApi } from '../../api/billing'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const tableLoading = ref(false)
@@ -208,7 +212,7 @@ const paginationConfig = reactive({
   onChange: (page: number, pageSize: number) => {
     paginationConfig.current = page
     paginationConfig.pageSize = pageSize
-    loadOrders()
+    loadOrderList()
   },
 })
 
@@ -222,25 +226,20 @@ const columns = [
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 150 },
 ]
 
-const orderList = ref([
-  { id: 1, orderNo: 'ORD2024030001', productName: 'AI模型API调用套餐', amount: 1280.00, paidAmount: 1280.00, status: 'paid', paymentMethod: 'alipay', createdAt: '2024-03-15 10:30:00', paidAt: '2024-03-15 10:35:00', remark: '' },
-  { id: 2, orderNo: 'ORD2024030002', productName: '存储空间扩容 100GB', amount: 99.00, paidAmount: 0, status: 'pending', paymentMethod: 'wechat', createdAt: '2024-03-14 15:20:00', paidAt: '', remark: '' },
-  { id: 3, orderNo: 'ORD2024030003', productName: '企业版月度订阅', amount: 2999.00, paidAmount: 2999.00, status: 'paid', paymentMethod: 'bank_transfer', createdAt: '2024-03-13 09:15:00', paidAt: '2024-03-13 14:00:00', remark: '企业转账' },
-  { id: 4, orderNo: 'ORD2024030004', productName: 'AI模型API调用套餐', amount: 2560.00, paidAmount: 2560.00, status: 'paid', paymentMethod: 'alipay', createdAt: '2024-03-10 11:30:00', paidAt: '2024-03-10 11:35:00', remark: '' },
-  { id: 5, orderNo: 'ORD2024030005', productName: '带宽升级', amount: 599.00, paidAmount: 599.00, status: 'refunded', paymentMethod: 'wechat', createdAt: '2024-03-08 16:45:00', paidAt: '2024-03-08 16:50:00', remark: '测试订单已退款' },
-  { id: 6, orderNo: 'ORD2024030006', productName: '技术咨询服务', amount: 5000.00, paidAmount: 0, status: 'cancelled', paymentMethod: '', createdAt: '2024-03-05 09:00:00', paidAt: '', remark: '客户取消' },
-])
+const orderListData = ref<any[]>([])
 
-function updateStats() {
-  orderStats.total = orderList.value.length
-  orderStats.pending = orderList.value.filter(o => o.status === 'pending').length
-  orderStats.paid = orderList.value.filter(o => o.status === 'paid').length
-  orderStats.cancelled = orderList.value.filter(o => o.status === 'cancelled').length
-  orderStats.refunded = orderList.value.filter(o => o.status === 'refunded').length
+function updateStats(records: any[] = orderListData.value) {
+  orderStats.total = paginationConfig.total
+  orderStats.pending = records.filter(o => o.status === 'pending').length
+  orderStats.paid = records.filter(o => o.status === 'paid').length
+  orderStats.cancelled = records.filter(o => o.status === 'cancelled').length
+  orderStats.refunded = records.filter(o => o.status === 'refunded').length
 }
 
-updateStats()
-paginationConfig.total = orderList.value.length
+function handleSearch() {
+  paginationConfig.current = 1
+  loadOrderList()
+}
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -285,31 +284,65 @@ function getPaymentMethodName(method: string): string {
 
 function handleStatusChange() {
   paginationConfig.current = 1
-  loadOrders()
+  loadOrderList()
 }
 
-function loadOrders() {
+async function loadOrderList() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
   tableLoading.value = true
-  setTimeout(() => {
+  try {
+    const params: any = {
+      tenantId,
+      page: paginationConfig.current,
+      size: paginationConfig.pageSize,
+    }
+    if (queryParams.status) params.status = queryParams.status
+    if (queryParams.keyword) params.keyword = queryParams.keyword
+
+    const res = await orderApi.list(params)
+    orderListData.value = res.records || []
+    paginationConfig.total = res.total || 0
+    updateStats(res.records || [])
+  } catch (error) {
+    console.error('Failed to load orders:', error)
+    message.error('加载订单列表失败')
+    orderListData.value = []
+  } finally {
     tableLoading.value = false
-  }, 500)
+  }
 }
 
-function showOrderDetail(order: any) {
-  currentOrder.value = order
-  detailModalVisible.value = true
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    loadOrderList()
+  }
+)
+
+async function showOrderDetail(order: any) {
+  try {
+    const res = await orderApi.get(order.id)
+    currentOrder.value = res
+    detailModalVisible.value = true
+  } catch (error) {
+    console.error('Failed to load order detail:', error)
+    message.error('加载订单详情失败')
+  }
 }
 
 function handlePay(order: any) {
   Modal.confirm({
     title: '确认支付',
     content: `确定要支付订单 ${order.orderNo} 吗？金额：¥${formatAmount(order.amount)}`,
-    onOk: () => {
-      order.status = 'paid'
-      order.paidAt = new Date().toISOString().replace('T', ' ').substring(0, 19)
-      order.paidAmount = order.amount
-      updateStats()
-      message.success('支付成功')
+    onOk: async () => {
+      try {
+        await orderApi.pay(order.id, 'balance')
+        message.success('支付成功')
+        loadOrderList()
+      } catch (error) {
+        console.error('Failed to pay order:', error)
+        message.error('支付失败')
+      }
     },
   })
 }
@@ -319,27 +352,42 @@ function handleRefund(order: any) {
     title: '确认退款',
     content: `确定要退款订单 ${order.orderNo} 吗？金额：¥${formatAmount(order.amount)}`,
     okType: 'danger',
-    onOk: () => {
-      order.status = 'refunded'
-      order.paidAmount = 0
-      updateStats()
-      message.success('退款成功')
+    onOk: async () => {
+      try {
+        await orderApi.refund(order.id, order.amount)
+        message.success('退款成功')
+        loadOrderList()
+      } catch (error) {
+        console.error('Failed to refund order:', error)
+        message.error('退款失败')
+      }
     },
   })
 }
 
-function handleExport() {
-  message.success('正在导出订单...')
-  setTimeout(() => {
+async function handleExport() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  try {
+    const params: any = { tenantId }
+    if (queryParams.status) params.status = queryParams.status
+    const res = await orderApi.export(params)
+    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `orders_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
     message.success('导出成功')
-  }, 1000)
+  } catch (error) {
+    console.error('Failed to export orders:', error)
+    message.error('导出失败')
+  }
 }
 
 onMounted(() => {
-  loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 300)
+  loadOrderList()
 })
 </script>
 

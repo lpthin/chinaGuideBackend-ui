@@ -14,6 +14,7 @@
       </div>
       <div class="header-right">
         <a-space>
+          <TenantSwitcher v-if="auth.isSuperAdmin" />
           <a-tooltip title="统计面板">
             <a-button type="text" @click="openDashboard">
               <BarChartOutlined />
@@ -351,9 +352,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, provide, inject } from 'vue'
+import { ref, computed, onMounted, provide, inject, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import TenantSwitcher from '../../components/TenantSwitcher.vue'
 import {
   DownloadOutlined,
   ClusterOutlined,
@@ -621,6 +623,14 @@ provide('setImportCallback', (callback: () => void) => {
   importCallback.value = callback
 })
 
+// 监听租户切换，刷新当前页面
+watch(
+  () => auth.selectedTenantId,
+  () => {
+    refresh()
+  }
+)
+
 // 清除回调，避免内存泄漏
 onMounted(() => {
   // 路由变化时清除回调
@@ -752,6 +762,37 @@ onMounted(() => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   overflow: visible;
   box-sizing: border-box;
+}
+
+/* TenantSwitcher 样式适配白色导航栏 */
+:deep(.tenant-switcher) {
+  width: 160px;
+}
+
+:deep(.tenant-switcher .ant-select-selector) {
+  background-color: #f5f7fa !important;
+  border: 1px solid #e8e8e8 !important;
+  color: #1a1a1a !important;
+  border-radius: 4px;
+  height: 32px !important;
+}
+
+:deep(.tenant-switcher .ant-select-arrow) {
+  color: #666 !important;
+}
+
+:deep(.tenant-switcher .ant-select-selection-placeholder) {
+  color: #999 !important;
+}
+
+:deep(.tenant-switcher .ant-select-selection-item) {
+  color: #1a1a1a !important;
+  line-height: 32px !important;
+}
+
+:deep(.tenant-switcher:hover .ant-select-selector) {
+  background-color: #e8f0fe !important;
+  border-color: #1890ff !important;
 }
 
 /* 页面切换动画 */

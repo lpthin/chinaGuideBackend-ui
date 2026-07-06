@@ -313,6 +313,7 @@ import {
   BulbOutlined,
 } from '@ant-design/icons-vue'
 import { articleApi, reviewApi } from '../../api/workspace'
+import { aiGenerateApi } from '../../api/ai-model'
 
 const router = useRouter()
 const route = useRoute()
@@ -579,25 +580,22 @@ async function handleGenerateSeo() {
 
   generatingSeo.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    const result = await aiGenerateApi.generateSeo({
+      title: articleForm.title,
+      content: articleForm.summary || articleForm.content,
+      keywords: selectedTags.value.join(','),
+    })
 
-    const baseTitle = articleForm.title || '文章标题'
-    const baseDesc = articleForm.summary || articleForm.content.slice(0, 100) || '文章描述'
-
-    seoForm.title = `${baseTitle} - ${baseTitle.slice(0, 10)}完整指南`
-    seoForm.description = baseDesc.slice(0, 150) + '...了解更多相关内容，请阅读全文。'
-
-    const keywords = [
-      baseTitle.slice(0, 5),
-      '行业动态',
-      '深度分析',
-      '2024趋势',
-    ]
-    seoKeywords.value = keywords
+    seoForm.title = result.seoTitle
+    seoForm.description = result.seoDescription
+    if (result.seoKeywords && Array.isArray(result.seoKeywords)) {
+      seoKeywords.value = result.seoKeywords
+    }
 
     message.success('SEO 智能生成成功')
-  } catch (error) {
-    message.error('生成失败')
+  } catch (error: any) {
+    console.error('SEO generate failed:', error)
+    message.error(error?.message || '生成失败，请重试')
   } finally {
     generatingSeo.value = false
   }

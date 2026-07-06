@@ -179,6 +179,28 @@ export const usageApi = {
     http.get<any>('/ai/usage/today', { params: { tenantId } }),
 }
 
+// AI模型使用统计 API
+export const aiModelApi = {
+  // 获取统计总览
+  getStats: (params?: { tenantId?: number; startDate?: string; endDate?: string }) =>
+    http.get<any>('/ai/model/stats', { params }),
+
+  // 按模型统计
+  getUsageByModel: (params?: { tenantId?: number; startDate?: string; endDate?: string }) =>
+    http.get<any[]>('/ai/model/usage', { params }),
+
+  // 按日期统计趋势
+  getUsageTrend: (params?: { tenantId?: number; startDate?: string; endDate?: string }) =>
+    http.get<any[]>('/ai/model/trend', { params }),
+
+  // 获取调用日志列表
+  getLogs: (params?: { tenantId?: number; page?: number; pageSize?: number; type?: string; keyword?: string }) =>
+    http.get<{
+      records: any[]
+      total: number
+    }>('/ai/model/logs', { params }),
+}
+
 // 软文模板 API
 export const articleTemplateApi = {
   // 获取模板列表
@@ -230,6 +252,48 @@ export const articleTemplateApi = {
     }>('/ai/article-templates/generation-logs', { params }),
 }
 
+// AI 生成 API
+export const aiGenerateApi = {
+  generateArticle: (data: {
+    prompt: string
+    templateId?: number
+    keywords?: string
+    tenantId?: number
+  }) =>
+    http.post<{
+      content: string
+      wordCount: number
+      tokensUsed: number
+      model: string
+      cost: number
+      duration: number
+    }>('/ai/generate/article', data),
+
+  generateSeo: (data: {
+    title?: string
+    content?: string
+    keywords?: string
+  }) =>
+    http.post<{
+      seoTitle: string
+      seoDescription: string
+      seoKeywords: string[]
+    }>('/ai/generate/seo', data),
+
+  chunkPreview: (data: {
+    content: string
+    chunkSize?: number
+    overlap?: number
+  }) =>
+    http.post<
+      {
+        text: string
+        tokens: number
+        size: number
+      }[]
+    >('/ai/embedding/chunk-preview', data),
+}
+
 export default {
   model: modelApi,
   config: modelConfigApi,
@@ -237,5 +301,7 @@ export default {
   vectorDb: vectorDbApi,
   embedding: embeddingConfigApi,
   usage: usageApi,
+  aiModel: aiModelApi,
   articleTemplate: articleTemplateApi,
+  generate: aiGenerateApi,
 }

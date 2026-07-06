@@ -477,7 +477,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import {
@@ -514,6 +514,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons-vue'
 import { keywordApi, clusterApi } from '../../api'
+import { useAuthStore } from '../../stores/auth'
 import type { KeywordCluster } from '../../types/workspace'
 
 interface Keyword {
@@ -528,7 +529,9 @@ interface Keyword {
   quality?: number
 }
 
+const auth = useAuthStore()
 const loading = ref(false)
+const chartLoading = ref(false)
 const collecting = ref(false)
 const distilling = ref(false)
 const importing = ref(false)
@@ -555,18 +558,13 @@ const sourceChartRef = ref<HTMLElement>()
 let trendChart: echarts.ECharts | null = null
 let sourceChart: echarts.ECharts | null = null
 
-const mockTrendData = {
-  dates: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-  count: [45, 52, 38, 65, 48, 29, 35]
-}
-
-const mockSourceData = [
-  { name: '站点画像', value: 320 },
-  { name: '规则扩展', value: 280 },
-  { name: '百度联想', value: 220 },
-  { name: '新闻热点', value: 120 },
-  { name: '社交媒体', value: 80 }
-]
+const chartData = ref<{
+  trendData: { dates: string[]; counts: number[] } | null
+  sourceDistribution: { name: string; value: number }[]
+}>({
+  trendData: null,
+  sourceDistribution: []
+})
 
 const stats = reactive({
   todayCount: 0,
@@ -852,6 +850,22 @@ function handleTableChange(pagination: any) {
   }
 }
 
+async function loadKeywordStats() {
+  chartLoading.value = true
+  try {
+    const res = await keywordApi.getKeywordStats()
+    chartData.value.trendData = res.trendData
+    chartData.value.sourceDistribution = res.sourceDistribution
+    initTrendChart()
+    initSourceChart()
+  } catch (error) {
+    console.error('获取图表数据失败:', error)
+    message.error('获取图表数据失败')
+  } finally {
+    chartLoading.value = false
+  }
+}
+
 async function fetchData() {
   loading.value = true
   try {
@@ -874,6 +888,13 @@ async function fetchData() {
   }
 }
 
+async function loadAllData() {
+  await Promise.all([
+    fetchData(),
+    loadKeywordStats()
+  ])
+}
+
 async function startCollect() {
   const enabledSources = dataSources.value.filter(s => s.enabled)
   if (enabledSources.length === 0) {
@@ -890,30 +911,17 @@ async function startCollect() {
       sourceCodes: enabledSources.map(s => s.key),
     })
     
-    let step = 0
-    const interval = setInterval(() => {
-      step++
-      currentCollectStep.value = step
-      collectProgress.value = Math.min(Math.round((step / totalCollectSteps.value) * 100), 90)
-      if (step >= totalCollectSteps.value) {
-        clearInterval(interval)
-        collectProgress.value = 100
-      }
-    }, 300)
-    
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    const savedCount = res.data?.collected ?? 0
+    collectProgress.value = 100
+    currentCollectStep.value = totalCollectSteps.value
+    const savedCount = res?.collected ?? 0
     message.success(`采集完成，新增 ${savedCount} 个关键词`)
     fetchData()
   } catch (error) {
     console.error('采集失败:', error)
     message.error('采集失败')
   } finally {
-    setTimeout(() => {
-      collecting.value = false
-      collectProgress.value = 0
-    }, 500)
+    collecting.value = false
+    collectProgress.value = 0
   }
 }
 
@@ -980,22 +988,14 @@ async function startDistill() {
   showDistillProgress.value = true
   distillProgress.value = 0
   try {
-    const result = await clusterApi.distill()
-    
-    let progress = 0
-    const interval = setInterval(() => {
-      progress += 10
-      distillProgress.value = Math.min(progress, 100)
-      if (progress >= 100) {
-        clearInterval(interval)
-        distilling.value = false
-        message.success('蒸馏完成！')
-        fetchData()
-      }
-    }, 500)
+    await clusterApi.distill()
+    distillProgress.value = 100
+    message.success('蒸馏完成！')
+    fetchData()
   } catch (error) {
     console.error('启动蒸馏失败:', error)
     message.error('启动蒸馏失败')
+  } finally {
     distilling.value = false
     showDistillProgress.value = false
   }
@@ -1012,9 +1012,11 @@ function saveRuleConfig() {
 }
 
 const initTrendChart = () => {
-  if (!trendChartRef.value) return
+  if (!trendChartRef.value || !chartData.value.trendData) return
   
-  trendChart = echarts.init(trendChartRef.value)
+  if (!trendChart) {
+    trendChart = echarts.init(trendChartRef.value)
+  }
   
   const option: echarts.EChartsOption = {
     tooltip: {
@@ -1040,7 +1042,7 @@ const initTrendChart = () => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: mockTrendData.dates,
+      data: chartData.value.trendData.dates,
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: { color: '#94a3b8', fontSize: 11 }
@@ -1060,7 +1062,7 @@ const initTrendChart = () => {
         symbol: 'circle',
         symbolSize: 6,
         showSymbol: false,
-        data: mockTrendData.count,
+        data: chartData.value.trendData.counts,
         lineStyle: { color: '#6366f1', width: 2.5 },
         itemStyle: { color: '#6366f1' },
         emphasis: {
@@ -1081,9 +1083,11 @@ const initTrendChart = () => {
 }
 
 const initSourceChart = () => {
-  if (!sourceChartRef.value) return
+  if (!sourceChartRef.value || !chartData.value.sourceDistribution || chartData.value.sourceDistribution.length === 0) return
   
-  sourceChart = echarts.init(sourceChartRef.value)
+  if (!sourceChart) {
+    sourceChart = echarts.init(sourceChartRef.value)
+  }
   
   const colors = ['#6366f1', '#a855f7', '#22c55e', '#f97316', '#ec4899']
   
@@ -1140,10 +1144,10 @@ const initSourceChart = () => {
         labelLine: {
           show: false
         },
-        data: mockSourceData.map((item, index) => ({
+        data: chartData.value.sourceDistribution.map((item, index) => ({
           ...item,
           itemStyle: {
-            color: colors[index]
+            color: colors[index % colors.length]
           }
         }))
       }
@@ -1166,6 +1170,13 @@ onMounted(() => {
     window.addEventListener('resize', handleResize)
   }, 100)
 })
+
+watch(
+  () => auth.tenantId,
+  () => {
+    refreshAll()
+  }
+)
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)

@@ -16,6 +16,10 @@ import type {
   ReviewActionParams,
   PageResult,
   Tenant,
+  AuditLog,
+  AuditLogQuery,
+  AuditLogStats,
+  SystemSettings,
 } from '../types/workspace'
 
 // ==================== 仪表盘 API ====================
@@ -58,6 +62,13 @@ export const keywordApi = {
   // 获取关键词统计
   getStats: () =>
     http.get<{ total: number; pending: number; distilled: number }>('/workspace/keywords/stats'),
+
+  // 获取关键词图表数据（趋势图和来源分布）
+  getKeywordStats: () =>
+    http.get<{
+      trendData: { dates: string[]; counts: number[] }
+      sourceDistribution: { name: string; value: number }[]
+    }>('/workspace/keywords/stats'),
 }
 
 // ==================== 聚类蒸馏 API ====================
@@ -71,12 +82,12 @@ export const clusterApi = {
     http.get<KeywordCluster>(`/api/v2/workspace/clusters/${id}`),
 
   // 执行聚类蒸馏
-  distill: () =>
-    http.post<{ clusterCount: number; clusters: KeywordCluster[] }>('/workspace/clusters/distill'),
+  distill: (params?: { tenantId?: number }) =>
+    http.post<{ clusterCount: number; clusters: KeywordCluster[] }>('/workspace/clusters/distill', null, { params }),
 
   // 生成聚类内容建议
-  generateSuggestions: (clusterId: number) =>
-    http.post<KeywordContentSuggestion[]>('/workspace/clusters/' + clusterId + '/generate-suggestions'),
+  generateSuggestions: (clusterId: number, params?: { tenantId?: number }) =>
+    http.post<KeywordContentSuggestion[]>('/workspace/clusters/' + clusterId + '/generate-suggestions', null, { params }),
 }
 
 // ==================== 内容建议 API ====================
@@ -145,6 +156,15 @@ export const reviewApi = {
     http.post<{ articleId: number; status: string; rejectedAt: string; reason: string }>(`/api/v2/workspace/reviews/${articleId}/reject`, {
       reason: reason || ''
     }),
+
+  // 获取审核统计
+  getReviewStats: (tenantId?: number) =>
+    http.get<{
+      rejectDistribution: { name: string; value: number }[]
+      pendingCount: number
+      rejectedCount: number
+      approvedCount: number
+    }>('/workspace/reviews/stats', tenantId ? { params: { tenantId } } : {}),
 }
 
 // ==================== 发布管理 API ====================
@@ -164,6 +184,10 @@ export const publishApi = {
   // 获取发布统计
   getStats: () =>
     http.get<{ pending: number; completed: number; failed: number }>('/workspace/publish/stats'),
+
+  // 获取发布统计详情
+  getStatsDetail: (tenantId?: number) =>
+    http.get<any>('/workspace/publish/stats/detail' + (tenantId ? '?tenantId=' + tenantId : '')),
 }
 
 // ==================== 发布配置 API ====================
@@ -285,6 +309,28 @@ export const tenantApi = {
 
 // ==================== 系统管理 API ====================
 export const adminApi = {
+  // 用户管理
+  users: {
+    list: (params: { page?: number; size?: number; keyword?: string; status?: string; tenantId?: number }) =>
+      http.get<PageResult<any>>('/admin/users', { params }),
+    get: (id: number) =>
+      http.get<any>(`/admin/users/${id}`),
+    create: (data: any) =>
+      http.post<any>('/admin/users', data),
+    update: (id: number, data: any) =>
+      http.put<any>(`/admin/users/${id}`, data),
+    delete: (id: number) =>
+      http.delete<void>(`/admin/users/${id}`),
+    updateStatus: (id: number, status: string) =>
+      http.patch<void>(`/admin/users/${id}/status`, { status }),
+    getRoles: (id: number) =>
+      http.get<number[]>(`/admin/users/${id}/roles`),
+    assignRoles: (id: number, roleIds: number[]) =>
+      http.put<void>(`/admin/users/${id}/roles`, roleIds),
+    resetPassword: (id: number) =>
+      http.post<{ newPassword: string }>(`/admin/users/${id}/reset-password`),
+  },
+
   // 站点管理
   sites: {
     list: (params: { page?: number; size?: number; status?: string }) =>
@@ -301,7 +347,7 @@ export const adminApi = {
 
   // 角色管理
   roles: {
-    list: (params: { page?: number; size?: number }) =>
+    list: (params: { page?: number; size?: number; keyword?: string; status?: string }) =>
       http.get<PageResult<any>>('/admin/roles', { params }),
     all: () =>
       http.get<any[]>('/admin/roles/all'),
@@ -313,18 +359,22 @@ export const adminApi = {
       http.put<any>(`/admin/roles/${id}`, data),
     delete: (id: number) =>
       http.delete<void>(`/admin/roles/${id}`),
+    updateStatus: (id: number, status: string) =>
+      http.patch<void>(`/admin/roles/${id}/status`, { status }),
     getPermissions: (id: number) =>
-      http.get<any[]>(`/admin/roles/${id}/permissions`),
-    updatePermissions: (id: number, permissionIds: number[]) =>
-      http.put<{ roleId: number; permissionCount: number }>(`/admin/roles/${id}/permissions`, { permissionIds }),
+      http.get<number[]>(`/admin/roles/${id}/permissions`),
+    assignPermissions: (id: number, permissionIds: number[]) =>
+      http.put<void>(`/admin/roles/${id}/permissions`, permissionIds),
   },
 
   // 权限管理
   permissions: {
-    list: () =>
-      http.get<any[]>('/admin/permissions'),
-    tree: () =>
-      http.get<any[]>('/admin/permissions/tree'),
+    list: (params?: { module?: string; keyword?: string }) =>
+      http.get<any[]>('/admin/permissions', { params }),
+    tree: (params?: { module?: string }) =>
+      http.get<any[]>('/admin/permissions/tree', { params }),
+    get: (id: number) =>
+      http.get<any>(`/admin/permissions/${id}`),
     create: (data: any) =>
       http.post<any>('/admin/permissions', data),
     update: (id: number, data: any) =>
@@ -353,6 +403,33 @@ export const adminApi = {
       http.get<{ totalCalls: number; todayCalls: number; successCalls: number; successRate: string }>('/admin/ai/stats'),
     getLogs: (params: { page?: number; size?: number; model?: string; status?: string }) =>
       http.get<PageResult<any>>('/admin/ai/logs', { params }),
+  },
+
+  // 审计日志
+  auditLogs: {
+    list: (params: AuditLogQuery) =>
+      http.get<PageResult<AuditLog>>('/admin/audit-logs', { params }),
+    getStats: (tenantId?: number) =>
+      http.get<AuditLogStats>('/admin/audit-logs/stats', tenantId ? { params: { tenantId } } : {}),
+    export: (params: AuditLogQuery) => {
+      const queryStr = new URLSearchParams()
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryStr.append(key, String(value))
+        }
+      })
+      window.open(`/api/v2/admin/audit-logs/export?${queryStr.toString()}`, '_blank')
+    },
+  },
+
+  // 系统设置
+  settings: {
+    get: (tenantId?: number) =>
+      http.get<SystemSettings>('/admin/settings', tenantId ? { params: { tenantId } } : {}),
+    update: (data: Partial<SystemSettings>, tenantId?: number) =>
+      http.put<SystemSettings>('/admin/settings', data, tenantId ? { params: { tenantId } } : {}),
+    testAiConnection: (data: any, tenantId?: number) =>
+      http.post<{ success: boolean; message: string; model?: string }>('/admin/settings/ai/test', data, tenantId ? { params: { tenantId } } : {}),
   },
 
   // 管理后台仪表盘

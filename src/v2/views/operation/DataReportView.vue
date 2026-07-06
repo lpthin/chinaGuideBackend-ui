@@ -88,65 +88,51 @@
               <a-col :span="16">
                 <a-card title="流量趋势" size="small">
                   <div class="chart-container">
-                    <div class="chart-bar-group">
-                      <div
-                        v-for="(item, index) in chartData"
-                        :key="index"
-                        class="chart-bar-item"
-                      >
-                        <div class="bar-value">{{ item.value }}</div>
+                    <template v-if="chartData.length > 0">
+                      <div class="chart-bar-group">
                         <div
-                          class="bar"
-                          :style="{ height: `${(item.value / maxValue) * 200}px` }"
-                        ></div>
-                        <div class="bar-label">{{ item.date }}</div>
+                          v-for="(item, index) in chartData"
+                          :key="index"
+                          class="chart-bar-item"
+                        >
+                          <div class="bar-value">{{ item.value }}</div>
+                          <div
+                            class="bar"
+                            :style="{ height: `${(item.value / maxValue) * 200}px` }"
+                          ></div>
+                          <div class="bar-label">{{ item.date }}</div>
+                        </div>
                       </div>
-                    </div>
+                    </template>
+                    <a-empty v-else description="暂无数据" />
                   </div>
                 </a-card>
               </a-col>
               <a-col :span="8">
                 <a-card title="分类占比" size="small">
                   <div class="pie-chart-container">
-                    <div class="pie-legend">
-                      <div
-                        v-for="(item, index) in categoryData"
-                        :key="index"
-                        class="legend-item"
-                      >
-                        <span
-                          class="legend-color"
-                          :style="{ background: item.color }"
-                        ></span>
-                        <span class="legend-name">{{ item.name }}</span>
-                        <span class="legend-value">{{ item.value }}篇</span>
-                        <span class="legend-percent">{{ item.percent }}%</span>
+                    <template v-if="categoryData.length > 0">
+                      <div class="pie-legend">
+                        <div
+                          v-for="(item, index) in categoryData"
+                          :key="index"
+                          class="legend-item"
+                        >
+                          <span
+                            class="legend-color"
+                            :style="{ background: item.color }"
+                          ></span>
+                          <span class="legend-name">{{ item.name }}</span>
+                          <span class="legend-value">{{ item.value }}篇</span>
+                          <span class="legend-percent">{{ item.percent }}%</span>
+                        </div>
                       </div>
-                    </div>
+                    </template>
+                    <a-empty v-else description="暂无数据" />
                   </div>
                 </a-card>
               </a-col>
             </a-row>
-          </a-tab-pane>
-
-          <a-tab-pane key="article" tab="文章分析">
-            <a-table
-              :columns="articleColumns"
-              :data-source="articleData"
-              :pagination="articlePagination"
-              :row-key="record => record.id"
-              style="margin-top: 16px"
-            >
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'viewGrowth'">
-                  <span :class="record.viewGrowth >= 0 ? 'growth-up' : 'growth-down'">
-                    <ArrowUpOutlined v-if="record.viewGrowth >= 0" />
-                    <ArrowDownOutlined v-else />
-                    {{ Math.abs(record.viewGrowth) }}%
-                  </span>
-                </template>
-              </template>
-            </a-table>
           </a-tab-pane>
 
           <a-tab-pane key="user" tab="用户分析">
@@ -154,35 +140,41 @@
               <a-col :span="12">
                 <a-card title="用户增长趋势" size="small">
                   <div class="chart-container">
-                    <div class="chart-line">
-                      <div
-                        v-for="(item, index) in userGrowthData"
-                        :key="index"
-                        class="line-point"
-                        :style="{ left: `${(index / (userGrowthData.length - 1)) * 100}%`, bottom: `${(item.value / 500) * 100}%` }"
-                      >
-                        <div class="point-tooltip">{{ item.value }}人</div>
+                    <template v-if="userGrowthData.length > 0">
+                      <div class="chart-line">
+                        <div
+                          v-for="(item, index) in userGrowthData"
+                          :key="index"
+                          class="line-point"
+                          :style="{ left: `${(index / (userGrowthData.length - 1)) * 100}%`, bottom: `${(item.value / 500) * 100}%` }"
+                        >
+                          <div class="point-tooltip">{{ item.value }}人</div>
+                        </div>
                       </div>
-                    </div>
+                    </template>
+                    <a-empty v-else description="暂无数据" />
                   </div>
                 </a-card>
               </a-col>
               <a-col :span="12">
                 <a-card title="用户活跃度" size="small">
-                  <a-list size="small" :data-source="userActivityData">
-                    <template #renderItem="{ item }">
-                      <a-list-item>
-                        <span>{{ item.name }}</span>
-                        <a-progress
-                          :percent="item.value"
-                          :stroke-color="item.color"
-                          size="small"
-                          style="width: 200px"
-                        />
-                        <span>{{ item.value }}%</span>
-                      </a-list-item>
-                    </template>
-                  </a-list>
+                  <template v-if="userActivityData.length > 0">
+                    <a-list size="small" :data-source="userActivityData">
+                      <template #renderItem="{ item }">
+                        <a-list-item>
+                          <span>{{ item.name }}</span>
+                          <a-progress
+                            :percent="item.value"
+                            :stroke-color="item.color"
+                            size="small"
+                            style="width: 200px"
+                          />
+                          <span>{{ item.value }}%</span>
+                        </a-list-item>
+                      </template>
+                    </a-list>
+                  </template>
+                  <a-empty v-else description="暂无数据" />
                 </a-card>
               </a-col>
             </a-row>
@@ -193,48 +185,54 @@
               <a-col :span="12">
                 <a-card title="流量来源" size="small">
                   <div class="source-list">
-                    <div
-                      v-for="(item, index) in sourceData"
-                      :key="index"
-                      class="source-item"
-                    >
-                      <div class="source-header">
-                        <span class="source-name">{{ item.name }}</span>
-                        <span class="source-percent">{{ item.percent }}%</span>
+                    <template v-if="sourceData.length > 0">
+                      <div
+                        v-for="(item, index) in sourceData"
+                        :key="index"
+                        class="source-item"
+                      >
+                        <div class="source-header">
+                          <span class="source-name">{{ item.name }}</span>
+                          <span class="source-percent">{{ item.percent }}%</span>
+                        </div>
+                        <a-progress
+                          :percent="item.percent"
+                          :stroke-color="item.color"
+                          size="small"
+                          :show-info="false"
+                        />
+                        <div class="source-detail">
+                          <span>访问量：{{ item.visits.toLocaleString() }}</span>
+                          <span>占比：{{ item.percent }}%</span>
+                        </div>
                       </div>
-                      <a-progress
-                        :percent="item.percent"
-                        :stroke-color="item.color"
-                        size="small"
-                        :show-info="false"
-                      />
-                      <div class="source-detail">
-                        <span>访问量：{{ item.visits.toLocaleString() }}</span>
-                        <span>占比：{{ item.percent }}%</span>
-                      </div>
-                    </div>
+                    </template>
+                    <a-empty v-else description="暂无数据" />
                   </div>
                 </a-card>
               </a-col>
               <a-col :span="12">
                 <a-card title="设备分布" size="small">
                   <div class="device-list">
-                    <div
-                      v-for="(item, index) in deviceData"
-                      :key="index"
-                      class="device-item"
-                    >
-                      <div class="device-icon" :style="{ background: item.color }">
-                        <component :is="item.icon" />
-                      </div>
-                      <div class="device-info">
-                        <div class="device-name">{{ item.name }}</div>
-                        <div class="device-stats">
-                          <span>访问：{{ item.visits.toLocaleString() }}</span>
-                          <span>占比：{{ item.percent }}%</span>
+                    <template v-if="deviceData.length > 0">
+                      <div
+                        v-for="(item, index) in deviceData"
+                        :key="index"
+                        class="device-item"
+                      >
+                        <div class="device-icon" :style="{ background: item.color }">
+                          <component :is="item.icon" />
+                        </div>
+                        <div class="device-info">
+                          <div class="device-name">{{ item.name }}</div>
+                          <div class="device-stats">
+                            <span>访问：{{ item.visits.toLocaleString() }}</span>
+                            <span>占比：{{ item.percent }}%</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </template>
+                    <a-empty v-else description="暂无数据" />
                   </div>
                 </a-card>
               </a-col>
@@ -247,7 +245,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   FileTextOutlined,
@@ -255,21 +253,30 @@ import {
   UserOutlined,
   LikeOutlined,
   DownloadOutlined,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
   MobileOutlined,
   TabletOutlined,
   DesktopOutlined,
 } from '@ant-design/icons-vue'
+import { operationApi } from '../../api/operation'
+import { useAuthStore } from '../../stores/auth'
+import type {
+  TrafficTrendItem,
+  CategoryDistributionItem,
+  UserGrowthItem,
+  UserActivityItem,
+  TrafficSourceItem,
+  DeviceDistributionItem
+} from '../../types/operation'
 
+const authStore = useAuthStore()
 const loading = ref(false)
 const activeTab = ref('overview')
 
 const stats = reactive({
-  totalArticles: 1256,
-  totalViews: 895623,
-  totalUsers: 3256,
-  totalLikes: 45632,
+  totalArticles: 0,
+  totalViews: 0,
+  totalUsers: 0,
+  totalLikes: 0,
 })
 
 const queryParams = reactive({
@@ -277,109 +284,237 @@ const queryParams = reactive({
   dateRange: [] as any[],
 })
 
-const chartData = ref([
-  { date: '周一', value: 12500 },
-  { date: '周二', value: 15800 },
-  { date: '周三', value: 14200 },
-  { date: '周四', value: 18500 },
-  { date: '周五', value: 21200 },
-  { date: '周六', value: 16800 },
-  { date: '周日', value: 13500 },
-])
-
-const maxValue = computed(() => Math.max(...chartData.value.map(d => d.value)))
-
-const categoryData = ref([
-  { name: '公司新闻', value: 356, color: '#1890ff', percent: 28 },
-  { name: '行业动态', value: 423, color: '#52c41a', percent: 34 },
-  { name: '技术博客', value: 289, color: '#722ed1', percent: 23 },
-  { name: '产品发布', value: 188, color: '#fa8c16', percent: 15 },
-])
-
-const articleColumns = [
-  { title: '文章标题', dataIndex: 'title', key: 'title', width: 250 },
-  { title: '分类', dataIndex: 'category', key: 'category', width: 120 },
-  { title: '浏览量', dataIndex: 'views', key: 'views', width: 100, align: 'right' },
-  { title: '周环比', key: 'viewGrowth', width: 100, align: 'right' },
-  { title: '点赞数', dataIndex: 'likes', key: 'likes', width: 100, align: 'right' },
-  { title: '评论数', dataIndex: 'comments', key: 'comments', width: 100, align: 'right' },
-  { title: '作者', dataIndex: 'author', key: 'author', width: 100 },
-  { title: '发布时间', dataIndex: 'publishTime', key: 'publishTime', width: 180 },
-]
-
-const articleData = ref([
-  { id: 1, title: '2024年AI行业发展趋势分析报告', category: '行业动态', views: 15680, viewGrowth: 25.6, likes: 456, comments: 89, author: '张三', publishTime: '2024-03-15' },
-  { id: 2, title: '产品 v2.0 正式发布，新增多项AI功能', category: '产品发布', views: 12350, viewGrowth: 18.3, likes: 328, comments: 67, author: '李四', publishTime: '2024-03-14' },
-  { id: 3, title: '公司完成新一轮融资，估值突破10亿', category: '公司新闻', views: 28960, viewGrowth: 42.1, likes: 892, comments: 156, author: '王五', publishTime: '2024-03-13' },
-  { id: 4, title: '深度解析：大语言模型的商业化路径', category: '技术博客', views: 9870, viewGrowth: -5.2, likes: 234, comments: 45, author: '赵六', publishTime: '2024-03-12' },
-  { id: 5, title: '一文读懂AIGC在各行业的应用', category: '技术博客', views: 18650, viewGrowth: 32.8, likes: 567, comments: 98, author: '钱七', publishTime: '2024-03-11' },
-])
-
-const articlePagination = reactive({
-  current: 1,
-  pageSize: 10,
-  total: 56,
-  showSizeChanger: true,
-  showQuickJumper: true,
-  showTotal: (total: number) => `共 ${total} 条`,
+const chartData = ref<{ date: string; value: number }[]>([])
+const maxValue = computed(() => {
+  if (chartData.value.length === 0) return 0
+  return Math.max(...chartData.value.map(d => d.value))
 })
 
-const userGrowthData = ref([
-  { date: '1月', value: 280 },
-  { date: '2月', value: 320 },
-  { date: '3月', value: 380 },
-  { date: '4月', value: 420 },
-  { date: '5月', value: 480 },
-  { date: '6月', value: 520 },
-])
+const categoryData = ref<{ name: string; value: number; color: string; percent: number }[]>([])
 
-const userActivityData = ref([
-  { name: '日活跃用户', value: 68, color: '#1890ff' },
-  { name: '周活跃用户', value: 82, color: '#52c41a' },
-  { name: '月活跃用户', value: 95, color: '#722ed1' },
-  { name: '用户留存率', value: 76, color: '#fa8c16' },
-  { name: '用户转化率', value: 24, color: '#eb2f96' },
-])
+const userGrowthData = ref<{ date: string; value: number }[]>([])
+const userActivityData = ref<{ name: string; value: number; color: string }[]>([])
+const sourceData = ref<{ name: string; visits: number; percent: number; color: string }[]>([])
+const deviceData = ref<{ name: string; visits: number; percent: number; color: string; icon: any }[]>([])
 
-const sourceData = ref([
-  { name: '直接访问', visits: 285620, percent: 32, color: '#1890ff' },
-  { name: '搜索引擎', visits: 198560, percent: 22, color: '#52c41a' },
-  { name: '社交媒体', visits: 156890, percent: 18, color: '#722ed1' },
-  { name: '外部链接', visits: 124580, percent: 14, color: '#fa8c16' },
-  { name: '邮件营销', visits: 89650, percent: 10, color: '#eb2f96' },
-  { name: '其他来源', visits: 40323, percent: 4, color: '#8c8c8c' },
-])
+const iconMap: Record<string, any> = {
+  mobile: MobileOutlined,
+  tablet: TabletOutlined,
+  desktop: DesktopOutlined,
+  MobileOutlined,
+  TabletOutlined,
+  DesktopOutlined,
+}
 
-const deviceData = ref([
-  { name: '桌面端', visits: 456820, percent: 51, color: '#1890ff', icon: DesktopOutlined },
-  { name: '移动端', visits: 385260, percent: 43, color: '#52c41a', icon: MobileOutlined },
-  { name: '平板端', visits: 53543, percent: 6, color: '#722ed1', icon: TabletOutlined },
-])
+const chartColors = [
+  '#1890ff',
+  '#52c41a',
+  '#faad14',
+  '#722ed1',
+  '#eb2f96',
+  '#13c2c2',
+  '#fa8c16',
+  '#2f54eb',
+]
 
-async function loadData() {
+function mapTrafficTrend(data: TrafficTrendItem[]): { date: string; value: number }[] {
+  return data.map(item => ({
+    date: item.date,
+    value: item.views
+  }))
+}
+
+function mapCategoryDistribution(data: CategoryDistributionItem[]): { name: string; value: number; color: string; percent: number }[] {
+  const total = data.reduce((sum, item) => sum + item.count, 0) || 1
+  return data.map((item, index) => ({
+    name: item.categoryName,
+    value: item.count,
+    color: chartColors[index % chartColors.length],
+    percent: Math.round((item.count / total) * 100)
+  }))
+}
+
+function mapUserGrowth(data: UserGrowthItem[]): { date: string; value: number }[] {
+  return data.map(item => ({
+    date: item.month,
+    value: item.newUsers
+  }))
+}
+
+function mapUserActivity(data: UserActivityItem[]): { name: string; value: number; color: string }[] {
+  return data.map((item, index) => ({
+    name: item.description,
+    value: item.count,
+    color: chartColors[index % chartColors.length]
+  }))
+}
+
+function mapTrafficSource(data: TrafficSourceItem[]): { name: string; visits: number; percent: number; color: string }[] {
+  const total = data.reduce((sum, item) => sum + item.count, 0) || 1
+  return data.map((item, index) => ({
+    name: item.source,
+    visits: item.count,
+    percent: Math.round((item.count / total) * 100),
+    color: chartColors[index % chartColors.length]
+  }))
+}
+
+function mapDeviceDistribution(data: DeviceDistributionItem[]): { name: string; visits: number; percent: number; color: string; icon: any }[] {
+  const total = data.reduce((sum, item) => sum + item.count, 0) || 1
+  return data.map((item, index) => ({
+    name: item.device,
+    visits: item.count,
+    percent: Math.round((item.count / total) * 100),
+    color: chartColors[index % chartColors.length],
+    icon: iconMap[item.deviceKey] || DesktopOutlined
+  }))
+}
+
+function getTenantId(): number {
+  return authStore.selectedTenantId || 0
+}
+
+async function loadStats() {
+  try {
+    const res = await operationApi.getStats(getTenantId())
+    Object.assign(stats, res as any)
+  } catch (error) {
+    console.error('加载统计数据失败', error)
+    message.error('加载统计数据失败')
+  }
+}
+
+async function loadTrafficTrend() {
+  try {
+    const res = await operationApi.getTrafficTrend(getTenantId(), 7)
+    chartData.value = mapTrafficTrend(res as any)
+  } catch (error) {
+    console.error('加载流量趋势失败', error)
+    message.error('加载流量趋势失败')
+  }
+}
+
+async function loadCategoryDistribution() {
+  try {
+    const res = await operationApi.getCategoryDistribution(getTenantId())
+    categoryData.value = mapCategoryDistribution(res as any)
+  } catch (error) {
+    console.error('加载分类分布失败', error)
+    message.error('加载分类分布失败')
+  }
+}
+
+async function loadUserGrowth() {
+  try {
+    const res = await operationApi.getUserGrowth(getTenantId(), 6)
+    userGrowthData.value = mapUserGrowth(res as any)
+  } catch (error) {
+    console.error('加载用户增长失败', error)
+    message.error('加载用户增长失败')
+  }
+}
+
+async function loadUserActivity() {
+  try {
+    const res = await operationApi.getUserActivity(getTenantId())
+    userActivityData.value = mapUserActivity(res as any)
+  } catch (error) {
+    console.error('加载用户活跃度失败', error)
+    message.error('加载用户活跃度失败')
+  }
+}
+
+async function loadTrafficSource() {
+  try {
+    const res = await operationApi.getTrafficSource(getTenantId())
+    sourceData.value = mapTrafficSource(res as any)
+  } catch (error) {
+    console.error('加载流量来源失败', error)
+    message.error('加载流量来源失败')
+  }
+}
+
+async function loadDeviceDistribution() {
+  try {
+    const res = await operationApi.getDeviceDistribution(getTenantId())
+    deviceData.value = mapDeviceDistribution(res as any)
+  } catch (error) {
+    console.error('加载设备分布失败', error)
+    message.error('加载设备分布失败')
+  }
+}
+
+async function loadAllData() {
+  if (!authStore.selectedTenantId) return
   loading.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 500))
-    message.success('数据加载完成')
+    await Promise.all([
+      loadStats(),
+      loadTrafficTrend(),
+      loadCategoryDistribution(),
+      loadUserGrowth(),
+      loadUserActivity(),
+      loadTrafficSource(),
+      loadDeviceDistribution(),
+    ])
   } catch (error) {
+    console.error('数据加载失败', error)
     message.error('数据加载失败')
   } finally {
     loading.value = false
   }
 }
 
+function loadData() {
+  loadAllData()
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
 async function exportReport() {
   try {
     message.loading({ content: '正在生成报表...', key: 'export' })
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    const typeMap: Record<string, 'article' | 'traffic' | 'user'> = {
+      article: 'article',
+      knowledge: 'article',
+      user: 'user',
+      traffic: 'traffic'
+    }
+    const exportType = typeMap[queryParams.reportType] || 'article'
+    const blob: any = await operationApi.exportStats(getTenantId(), exportType, 'excel')
+    const filenameMap: Record<string, string> = {
+      article: '文章数据报表.csv',
+      knowledge: '知识库数据报表.csv',
+      user: '用户数据报表.csv',
+      traffic: '流量数据报表.csv'
+    }
+    const filename = filenameMap[queryParams.reportType] || '统计报表.csv'
+    downloadBlob(blob, filename)
     message.success({ content: '报表导出成功', key: 'export' })
   } catch (error) {
-    message.error('导出失败')
+    console.error('导出失败', error)
+    message.error({ content: '导出失败', key: 'export' })
   }
 }
 
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    loadAllData()
+  }
+)
+
 onMounted(() => {
-  loadData()
+  loadAllData()
 })
 </script>
 

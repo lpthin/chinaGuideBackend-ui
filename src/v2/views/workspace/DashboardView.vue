@@ -235,7 +235,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
@@ -256,11 +256,15 @@ import {
   ThunderboltOutlined
 } from '@ant-design/icons-vue'
 import { dashboardApi } from '../../api'
+import { useAuthStore } from '../../stores/auth'
 import type { DashboardStats, Article } from '../../types'
 import { formatTime } from '@/utils/format'
 
 const router = useRouter()
+const auth = useAuthStore()
 const loading = ref(false)
+const chartLoading = ref(false)
+const chartData = ref<any>(null)
 const stats = ref<DashboardStats>()
 const recentArticles = ref<Article[]>([])
 const trendChartRef = ref<HTMLElement>()
@@ -336,41 +340,29 @@ const pendingTasks = computed(() => stats.value?.pendingReviews || 0)
 const todayNew = computed(() => 12)
 const monthTotal = computed(() => stats.value?.articles || 0)
 
-const mockTrendData = {
-  week: {
-    dates: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-    articles: [12, 19, 15, 22, 18, 8, 14],
-    keywords: [28, 32, 25, 38, 30, 15, 22],
-    views: [180, 245, 210, 320, 280, 120, 195]
-  },
-  month: {
-    dates: ['第1周', '第2周', '第3周', '第4周'],
-    articles: [78, 92, 85, 108],
-    keywords: [168, 190, 175, 220],
-    views: [1250, 1580, 1420, 1890]
-  },
-  year: {
-    dates: ['1月', '2月', '3月', '4月', '5月', '6月'],
-    articles: [120, 132, 101, 134, 90, 230],
-    keywords: [220, 182, 191, 234, 290, 330],
-    views: [150, 232, 201, 154, 190, 330]
+const loadChartData = async () => {
+  chartLoading.value = true
+  try {
+    const data = await dashboardApi.getCharts()
+    chartData.value = data
+  } catch (error) {
+    console.error('获取图表数据失败:', error)
+    chartData.value = null
+    message.error('获取图表数据失败')
+  } finally {
+    chartLoading.value = false
   }
 }
 
-const mockCategoryData = [
-  { name: '技术文章', value: 120 },
-  { name: '行业资讯', value: 80 },
-  { name: '产品评测', value: 60 },
-  { name: '用户指南', value: 45 },
-  { name: '案例分析', value: 35 }
-]
-
 const initTrendChart = () => {
-  if (!trendChartRef.value) return
+  if (!trendChartRef.value || !chartData.value?.articleTrend) return
   
   trendChart = echarts.init(trendChartRef.value)
   
-  const data = mockTrendData[trendType.value as keyof typeof mockTrendData] || mockTrendData.week
+  const articleTrend = chartData.value.articleTrend
+  const data = articleTrend[trendType.value as keyof typeof articleTrend] || articleTrend.week
+  
+  if (!data) return
   
   const option: echarts.EChartsOption = {
     tooltip: {
@@ -491,10 +483,11 @@ const initTrendChart = () => {
 }
 
 const initCategoryChart = () => {
-  if (!categoryChartRef.value) return
+  if (!categoryChartRef.value || !chartData.value?.categoryDistribution) return
   
   categoryChart = echarts.init(categoryChartRef.value)
   
+  const categoryData = chartData.value.categoryDistribution
   const colors = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']
   
   const option: echarts.EChartsOption = {
@@ -550,10 +543,10 @@ const initCategoryChart = () => {
         labelLine: {
           show: false
         },
-        data: mockCategoryData.map((item, index) => ({
+        data: categoryData.map((item: any, index: number) => ({
           ...item,
           itemStyle: {
-            color: colors[index]
+            color: colors[index % colors.length]
           }
         }))
       }
@@ -573,7 +566,8 @@ const fetchDashboardData = async () => {
   try {
     const [statsData, articlesData] = await Promise.all([
       dashboardApi.getStats(),
-      dashboardApi.getRecentArticles()
+      dashboardApi.getRecentArticles(),
+      loadChartData()
     ])
     stats.value = statsData
     recentArticles.value = (articlesData.records || articlesData || []).slice(0, 5)
@@ -602,6 +596,13 @@ const fetchDashboardData = async () => {
     })
   }
 }
+
+watch(
+  () => auth.selectedTenantId,
+  () => {
+    loadChartData()
+  }
+)
 
 const refreshData = () => {
   fetchDashboardData()

@@ -64,6 +64,7 @@
               style="width: 150px"
               placeholder="选择分类"
               allowClear
+              @change="handleQueryChange"
             >
               <a-select-option v-for="cat in categories" :key="cat" :value="cat">
                 {{ cat }}
@@ -74,6 +75,7 @@
               style="width: 120px"
               placeholder="文件类型"
               allowClear
+              @change="handleQueryChange"
             >
               <a-select-option value="image">图片</a-select-option>
               <a-select-option value="video">视频</a-select-option>
@@ -84,6 +86,7 @@
               placeholder="搜索文件名/标签"
               style="width: 250px"
               enter-button
+              @search="handleQueryChange"
             />
             <a-button type="primary" @click="showUploadModal = true">
               <template #icon><UploadOutlined /></template>
@@ -114,7 +117,7 @@
                 @click="toggleSelect(item.id)"
               >
                 <div class="image-thumbnail">
-                  <img :src="item.thumbnail || item.url" :alt="item.name" />
+                  <img :src="item.url" :alt="item.name" />
                   <div class="overlay">
                     <a-space>
                       <a-button type="primary" size="small" @click.stop="previewImage(item)">
@@ -167,10 +170,11 @@
             :columns="listColumns"
             :row-key="record => record.id"
             :row-selection="tableRowSelection"
+            :pagination="false"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'preview'">
-                <img :src="record.thumbnail || record.url" class="table-thumbnail" />
+                <img :src="record.url" class="table-thumbnail" @click="previewImage(record)" />
               </template>
               <template v-else-if="column.key === 'tags'">
                 <div class="table-tags">
@@ -213,6 +217,7 @@
             :show-quick-jumper="true"
             :page-size-options="['12', '24', '48', '96']"
             :show-total="(total) => `共 ${total} 条`"
+            @change="handlePageChange"
           />
         </div>
       </a-card>
@@ -373,7 +378,7 @@ const listColumns = [
   { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
   { title: '标签', key: 'tags', width: 200, ellipsis: true },
   { title: '文件大小', key: 'fileSize', width: 100, customRender: ({ record }: { record: ImageLibrary }) => formatFileSize(record.fileSize) },
-  { title: '分辨率', key: 'resolution', width: 110, customRender: ({ record }: { record: ImageLibrary }) => `${record.width} x ${record.height}` },
+  { title: '分辨率', key: 'resolution', width: 110, customRender: ({ record }: { record: ImageLibrary }) => `${record.width || '-'} x ${record.height || '-'}` },
   { title: '使用次数', dataIndex: 'useCount', key: 'useCount', width: 90 },
   { title: '上传时间', dataIndex: 'createdAt', key: 'createdAt', width: 170 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 200 },
@@ -387,7 +392,7 @@ const tableRowSelection = {
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
+  if (!bytes || bytes === 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
@@ -421,6 +426,7 @@ async function handleTagOk() {
     message.success('标签更新成功')
     showTagModal.value = false
   } catch (error) {
+    console.error('更新标签失败:', error)
     message.error('标签更新失败')
   }
 }
@@ -440,7 +446,10 @@ function previewImage(item: ImageLibrary) {
 }
 
 function copyUrl(item: ImageLibrary) {
-  navigator.clipboard.writeText(item.url).then(() => {
+  const fullUrl = window.location.origin + item.url
+  navigator.clipboard.writeText(fullUrl).then(() => {
+    message.success('链接已复制')
+  }).catch(() => {
     message.success('链接已复制')
   })
 }
@@ -462,15 +471,27 @@ async function handleUploadOk() {
 
   uploading.value = true
   try {
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    const formData = new FormData()
+    uploadFileList.value.forEach((fileItem, index) => {
+      if (fileItem.originFileObj) {
+        formData.append('files', fileItem.originFileObj)
+      }
+    })
+    if (uploadCategory.value) {
+      formData.append('category', uploadCategory.value)
+    }
+
+    await imageLibraryApi.uploadBatch(formData)
     message.success('上传成功')
     showUploadModal.value = false
     uploadFileList.value = []
     uploadCategory.value = ''
     uploadTags.value = []
+    selectedKeys.value = []
     await loadData()
-  } catch (error) {
-    message.error('上传失败')
+  } catch (error: any) {
+    console.error('上传失败:', error)
+    message.error(error?.message || '上传失败')
   } finally {
     uploading.value = false
   }
@@ -480,71 +501,74 @@ async function handleDelete(id: number) {
   try {
     await imageLibraryApi.delete(id)
     message.success('删除成功')
+    selectedKeys.value = selectedKeys.value.filter(k => k !== id)
     await loadData()
-  } catch (error) {
-    console.error(error)
-    // Mock delete
-    const index = imageList.value.findIndex(item => item.id === id)
-    if (index > -1) {
-      imageList.value.splice(index, 1)
-      pagination.total -= 1
-      message.success('删除成功')
-    }
+  } catch (error: any) {
+    console.error('删除失败:', error)
+    message.error(error?.message || '删除失败')
   }
 }
 
 async function batchDelete() {
+  if (selectedKeys.value.length === 0) {
+    message.warning('请选择要删除的文件')
+    return
+  }
   try {
     await imageLibraryApi.batchDelete(selectedKeys.value)
     message.success('批量删除成功')
     selectedKeys.value = []
     await loadData()
-  } catch (error) {
-    console.error(error)
-    // Mock batch delete
-    imageList.value = imageList.value.filter(item => !selectedKeys.value.includes(item.id))
-    pagination.total -= selectedKeys.value.length
-    selectedKeys.value = []
-    message.success('批量删除成功')
+  } catch (error: any) {
+    console.error('批量删除失败:', error)
+    message.error(error?.message || '批量删除失败')
   }
+}
+
+function handleQueryChange() {
+  pagination.page = 1
+  loadData()
+}
+
+function handlePageChange(page: number, size: number) {
+  pagination.page = page
+  pagination.size = size
+  loadData()
 }
 
 async function loadData() {
   loading.value = true
   try {
-    const result = await imageLibraryApi.list(queryParams)
-    imageList.value = result.records
-    pagination.total = result.total
-  } catch (error) {
-    console.error(error)
-    // Mock data
-    imageList.value = generateMockData()
-    pagination.total = 50
+    const params: any = {
+      page: pagination.page,
+      size: pagination.size,
+    }
+    if (queryParams.category) params.category = queryParams.category
+    if (queryParams.fileType) params.fileType = queryParams.fileType
+    if (queryParams.keyword) params.keyword = queryParams.keyword
+
+    const result = await imageLibraryApi.list(params)
+    imageList.value = result.records || []
+    pagination.total = result.total || 0
+
+    updateStats()
+  } catch (error: any) {
+    console.error('加载文件列表失败:', error)
+    message.error(error?.message || '加载文件列表失败')
+    imageList.value = []
+    pagination.total = 0
   } finally {
     loading.value = false
   }
 }
 
-function generateMockData(): ImageLibrary[] {
-  const categories = ['产品图片', '文章配图', '用户头像', '活动海报', '公司相册', '其他']
-  const fileTypes = ['image/jpeg', 'image/png', 'image/webp']
-
-  return Array.from({ length: 24 }, (_, i) => ({
-    id: i + 1,
-    tenantId: 1,
-    category: categories[i % categories.length],
-    name: `图片文件_${i + 1}.jpg`,
-    url: `https://picsum.photos/seed/${i + 1}/400/300`,
-    thumbnail: `https://picsum.photos/seed/${i + 1}/100/100`,
-    fileSize: Math.floor(Math.random() * 5000 * 1024) + 1024,
-    fileType: fileTypes[i % fileTypes.length],
-    width: 1920,
-    height: 1080,
-    tags: '图片,素材',
-    useCount: Math.floor(Math.random() * 100),
-    createdAt: new Date(Date.now() - i * 86400000).toISOString().slice(0, 19).replace('T', ' '),
-    updatedAt: new Date(Date.now() - i * 86400000).toISOString().slice(0, 19).replace('T', ' '),
-  }))
+function updateStats() {
+  stats.total = pagination.total
+  const totalBytes = imageList.value.reduce((sum, item) => sum + (item.fileSize || 0), 0)
+  stats.totalSize = formatFileSize(totalBytes)
+  stats.totalUsed = imageList.value.reduce((sum, item) => sum + (item.useCount || 0), 0)
+  const uniqueCategories = new Set(imageList.value.map(item => item.category).filter(Boolean))
+  stats.categories = uniqueCategories.size
 }
 
 onMounted(() => {

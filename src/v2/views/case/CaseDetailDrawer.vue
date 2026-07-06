@@ -216,7 +216,11 @@ import { ref, reactive, watch, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { CaseStatus, CasePriority, CaseType } from '../../types/case'
-import type { Case, CaseCategory } from '../../types/case'
+import type { Case, CaseCategory, CaseTag } from '../../types/case'
+import { caseApi, caseCategoryApi, caseTagApi } from '../../api/case'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const props = defineProps<{
   open: boolean
@@ -233,24 +237,8 @@ const formRef = ref()
 const caseData = ref<Case | null>(null)
 
 const selectedTags = ref<string[]>([])
-
-const hotTags = [
-  '数字化转型',
-  'AI应用',
-  '最佳实践',
-  '客户成功',
-  '技术创新',
-  '效率提升',
-  '降本增效',
-  '解决方案',
-]
-
-const categories = ref<CaseCategory[]>([
-  { id: 1, tenantId: 1, name: '金融科技', icon: '', description: '', sort: 1, status: 'active', caseCount: 15, createdAt: '', updatedAt: '' },
-  { id: 2, tenantId: 1, name: '电子商务', icon: '', description: '', sort: 2, status: 'active', caseCount: 12, createdAt: '', updatedAt: '' },
-  { id: 3, tenantId: 1, name: '在线教育', icon: '', description: '', sort: 3, status: 'active', caseCount: 8, createdAt: '', updatedAt: '' },
-  { id: 4, tenantId: 1, name: '医疗健康', icon: '', description: '', sort: 4, status: 'active', caseCount: 10, createdAt: '', updatedAt: '' },
-])
+const hotTags = ref<string[]>([])
+const categories = ref<CaseCategory[]>([])
 
 const formState = reactive({
   tenantId: 1,
@@ -281,6 +269,7 @@ const isReadonly = computed(() => {
 
 watch(() => props.open, (newVal) => {
   if (newVal) {
+    loadInitialData()
     if (props.caseId) {
       loadCaseData(props.caseId)
     } else {
@@ -289,10 +278,46 @@ watch(() => props.open, (newVal) => {
   }
 })
 
+function getTenantId() {
+  return authStore.selectedTenantId || authStore.tenantId || 1
+}
+
+async function loadInitialData() {
+  const tenantId = getTenantId()
+  try {
+    await Promise.all([
+      loadCategories(tenantId),
+      loadHotTags(tenantId)
+    ])
+  } catch (error) {
+    console.error('加载初始数据失败', error)
+  }
+}
+
+async function loadCategories(tenantId: number) {
+  try {
+    const res = await caseCategoryApi.list({ tenantId, status: 'ACTIVE' })
+    categories.value = res as any || []
+  } catch (error: any) {
+    message.error(error.message || '加载分类失败')
+    console.error(error)
+  }
+}
+
+async function loadHotTags(tenantId: number) {
+  try {
+    const res = await caseTagApi.hot(tenantId, 10)
+    hotTags.value = (res as any)?.map((tag: CaseTag) => tag.name) || []
+  } catch (error) {
+    console.error('加载热门标签失败', error)
+  }
+}
+
 function resetForm() {
+  const tenantId = getTenantId()
   caseData.value = null
-  formState.tenantId = 1
-  formState.categoryId = 1
+  formState.tenantId = tenantId
+  formState.categoryId = categories.value.length > 0 ? categories.value[0].id : 0
   formState.title = ''
   formState.summary = ''
   formState.content = ''
@@ -307,63 +332,31 @@ function resetForm() {
   selectedTags.value = []
 }
 
-function loadCaseData(id: number) {
+async function loadCaseData(id: number) {
   loading.value = true
-  setTimeout(() => {
-    const mockCase: Case = {
-      id,
-      tenantId: 1,
-      categoryId: 1,
-      categoryName: '金融科技',
-      title: '某大型银行数字化转型解决方案',
-      summary: '帮助银行实现核心系统重构和数字化转型，提升业务效率，降低运营成本。',
-      content: `
-        <h3>项目背景</h3>
-        <p>该银行作为国内领先的商业银行，面临着数字化转型的迫切需求。随着金融科技的快速发展，传统的核心系统已经无法满足业务发展的需要。</p>
-        
-        <h3>解决方案</h3>
-        <p>我们提供了一套完整的数字化转型解决方案，包括：</p>
-        <ul>
-          <li>核心系统重构：采用微服务架构，实现系统的高可用和弹性扩展</li>
-          <li>移动银行升级：打造全新的移动银行APP，提供丰富的金融服务</li>
-          <li>数据中台建设：建立统一的数据平台，支持大数据分析和AI应用</li>
-          <li>智能客服系统：引入AI客服，提升客户服务效率</li>
-        </ul>
-        
-        <h3>实施成果</h3>
-        <p>项目上线后，取得了显著的成果：</p>
-        <ul>
-          <li>系统响应时间缩短60%</li>
-          <li>业务处理效率提升80%</li>
-          <li>运营成本降低40%</li>
-          <li>客户满意度提升35%</li>
-        </ul>
-      `,
-      tags: '数字化转型,核心系统,金融科技',
-      tagList: ['数字化转型', '核心系统', '金融科技'],
-      viewCount: 15680,
-      likeCount: 428,
-      shareCount: 89,
-      downloadCount: 156,
-      authorId: 1,
-      authorName: '张三',
-      createdAt: '2024-03-10 10:30:00',
-      updatedAt: '2024-03-15 14:20:00',
-    }
-    caseData.value = mockCase
-    formState.categoryId = mockCase.categoryId
-    formState.title = mockCase.title
-    formState.summary = mockCase.summary
-    formState.content = mockCase.content
-    formState.type = mockCase.type
-    formState.priority = mockCase.priority
-    formState.status = mockCase.status
-    formState.customerName = mockCase.customerName || '中国工商银行'
-    formState.customerIndustry = mockCase.customerIndustry || '金融'
-    formState.customerScale = mockCase.customerScale || '大型企业'
-    selectedTags.value = mockCase.tagList || []
+  try {
+    const caseInfo = await caseApi.get(id) as any
+    caseData.value = caseInfo
+    formState.tenantId = caseInfo.tenantId || getTenantId()
+    formState.categoryId = caseInfo.categoryId || (categories.value.length > 0 ? categories.value[0].id : 0)
+    formState.title = caseInfo.title || ''
+    formState.summary = caseInfo.summary || ''
+    formState.content = caseInfo.content || ''
+    formState.type = caseInfo.type || CaseType.CUSTOMER_SUCCESS
+    formState.priority = caseInfo.priority || CasePriority.MEDIUM
+    formState.status = (caseInfo.status as CaseStatus) || CaseStatus.DRAFT
+    formState.customerName = caseInfo.customerName || ''
+    formState.customerIndustry = caseInfo.customerIndustry || ''
+    formState.customerScale = caseInfo.customerScale || ''
+    formState.coverImage = caseInfo.coverImage || ''
+    formState.tags = caseInfo.tags || ''
+    selectedTags.value = caseInfo.tags ? caseInfo.tags.split(',').filter((t: string) => t) : []
+  } catch (error: any) {
+    message.error(error.message || '加载案例详情失败')
+    console.error(error)
+  } finally {
     loading.value = false
-  }, 500)
+  }
 }
 
 function handleClose() {

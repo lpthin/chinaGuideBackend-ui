@@ -399,7 +399,7 @@ import {
   DownloadOutlined,
   FunctionOutlined,
 } from '@ant-design/icons-vue'
-import { articleTemplateApi, modelConfigApi } from '../../api/ai-model'
+import { articleTemplateApi, modelConfigApi, aiGenerateApi } from '../../api/ai-model'
 import type {
   ArticleTemplate,
   ArticleTemplateForm,
@@ -628,6 +628,7 @@ const deleteTemplate = async (id: number) => {
   message.success('删除成功')
 }
 
+// TODO: 接入真实的模板列表 API
 const loadTemplates = () => {
   loading.value = true
   setTimeout(() => {
@@ -677,21 +678,29 @@ const handleGenerate = async () => {
     await generateFormRef.value?.validate()
     generating.value = true
 
-    setTimeout(() => {
-      let content = selectedTemplate.value?.content || ''
-      Object.entries(generateFormData).forEach(([key, value]) => {
-        content = content.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value || ''))
-      })
-      generatedContent.value = content
-      generateResult.wordCount = content.length
-      generateResult.tokensUsed = Math.floor(content.length / 0.75)
-      generateResult.cost = generateResult.tokensUsed * 0.000012
-      generateResult.duration = Math.floor(Math.random() * 2000) + 500
-      generating.value = false
-      message.success('生成成功')
-    }, 2000)
-  } catch (error) {
+    let prompt = selectedTemplate.value?.content || ''
+    const variables: Record<string, string> = {}
+    Object.entries(generateFormData).forEach(([key, value]) => {
+      prompt = prompt.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value || ''))
+      variables[key] = String(value || '')
+    })
+
+    const result = await aiGenerateApi.generateArticle({
+      prompt,
+      templateId: selectedTemplate.value?.id,
+      tenantId: 1,
+    })
+
+    generatedContent.value = result.content
+    generateResult.wordCount = result.wordCount
+    generateResult.tokensUsed = result.tokensUsed
+    generateResult.cost = result.cost
+    generateResult.duration = result.duration
+    message.success('生成成功')
+  } catch (error: any) {
     console.error('Generate failed:', error)
+    message.error(error?.message || '生成失败，请重试')
+  } finally {
     generating.value = false
   }
 }

@@ -1,12 +1,7 @@
 <template>
   <div class="seo-config-page">
-    <div class="header-wrapper">
-      <div class="tenant-select-wrapper">
-        <TenantSelect v-model:modelValue="selectedTenantId" @change="handleTenantChange" />
-      </div>
-      <a-page-header title="SEO配置" sub-title="管理门户网站的SEO优化配置">
-      </a-page-header>
-    </div>
+    <a-page-header title="SEO配置" sub-title="管理门户网站的SEO优化配置">
+    </a-page-header>
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">
@@ -245,7 +240,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   FileSearchOutlined,
@@ -257,14 +252,13 @@ import {
 } from '@ant-design/icons-vue'
 import { seoConfigApi } from '../../api/portal'
 import type { SeoConfig, SeoConfigForm } from '../../types/portal'
-import type { Tenant } from '../../types/workspace'
-import TenantSelect from '../../components/TenantSelect.vue'
+import { useAuthStore } from '../../stores/auth'
 
+const auth = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
 const modalVisible = ref(false)
 const editingRecord = ref<SeoConfig | null>(null)
-const selectedTenantId = ref<number | undefined>()
 
 const stats = reactive({
   totalPages: 0,
@@ -315,7 +309,7 @@ function getKeywordCount(config: SeoConfig): number {
 function showAddModal() {
   editingRecord.value = null
   Object.assign(formData, {
-    tenantId: selectedTenantId.value || 0,
+    tenantId: auth.selectedTenantId || 0,
     pageKey: '',
     pageTitle: '',
     metaKeywords: '',
@@ -364,7 +358,7 @@ async function handleModalOk() {
   try {
     const payload: SeoConfigForm = {
       ...formData,
-      tenantId: selectedTenantId.value || 0,
+      tenantId: auth.selectedTenantId || 0,
       metaKeywords: metaKeywordsList.value.join(','),
     }
     
@@ -397,10 +391,10 @@ async function handleDelete(id: number) {
 }
 
 async function loadData() {
-  if (!selectedTenantId.value) return
+  if (!auth.selectedTenantId) return
   loading.value = true
   try {
-    const result = await seoConfigApi.list(selectedTenantId.value)
+    const result = await seoConfigApi.list(auth.selectedTenantId)
     configList.value = result || []
     pagination.total = configList.value.length
     stats.totalPages = configList.value.length
@@ -418,20 +412,8 @@ function handleSizeChange(_current: number, size: number) {
   loadData()
 }
 
-function handleTenantChange(tenant: Tenant | null) {
-  if (tenant) {
-    selectedTenantId.value = tenant.id
-    pagination.page = 1
-    loadData()
-  }
-}
-
 onMounted(() => {
-  const storedTenantId = localStorage.getItem('geocms_tenant_id')
-  if (storedTenantId) {
-    selectedTenantId.value = Number(storedTenantId)
-    loadData()
-  }
+  loadData()
 })
 </script>
 
@@ -439,17 +421,6 @@ onMounted(() => {
 .seo-config-page {
   width: 100%;
   padding: 0;
-}
-
-.header-wrapper {
-  padding: 16px 24px 0;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
-
-  .tenant-select-wrapper {
-    width: 200px;
-    margin-bottom: 12px;
-  }
 }
 
 .content-wrapper {

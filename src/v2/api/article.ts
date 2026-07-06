@@ -121,19 +121,31 @@ export const articleManageApi = {
 export const imageLibraryApi = {
   // 获取图片列表
   list: (params: ImageLibraryQuery) =>
-    http.get<PageResult<ImageLibrary>>('/article/images', { params }),
+    http.get<PageResult<ImageLibrary>>('/media', { params }),
 
   // 搜索图片
   search: (params: ImageLibraryQuery) =>
-    http.get<PageResult<ImageLibrary>>('/article/images/search', { params }),
+    http.get<PageResult<ImageLibrary>>('/media', { params }),
 
   // 获取图片详情
   get: (id: number) =>
-    http.get<ImageLibrary>(`/article/images/${id}`),
+    http.get<ImageLibrary>(`/media/${id}`),
 
   // 上传图片
   upload: (formData: FormData, onProgress?: (progress: number) => void) =>
-    http.post<ImageLibrary>('/article/images', formData, {
+    http.post<ImageLibrary>('/media/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          onProgress(progress)
+        }
+      }
+    }),
+
+  // 批量上传
+  uploadBatch: (formData: FormData, onProgress?: (progress: number) => void) =>
+    http.post<ImageLibrary[]>('/media/upload-batch', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
@@ -145,11 +157,11 @@ export const imageLibraryApi = {
 
   // 删除图片
   delete: (id: number) =>
-    http.delete(`/article/images/${id}`),
+    http.delete(`/media/${id}`),
 
   // 批量删除
   batchDelete: (ids: number[]) =>
-    http.delete('/article/images/batch', { data: ids })
+    http.delete('/media/batch', { data: ids })
 }
 
 export default {

@@ -79,15 +79,15 @@
             placeholder="搜索发票抬头/税号"
             style="width: 250px"
             enter-button
-            @search="loadInvoices"
+            @search="handleSearch"
           />
         </template>
 
         <a-table
           :columns="columns"
-          :data-source="invoiceList"
+          :data-source="invoiceListData"
           :pagination="paginationConfig"
-          :loading="tableLoading"
+          :loading="loading"
           :row-key="record => record.id"
         >
           <template #bodyCell="{ column, record }">
@@ -205,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   FileTextOutlined,
@@ -215,9 +215,12 @@ import {
   PlusOutlined,
   ExportOutlined,
 } from '@ant-design/icons-vue'
+import { invoiceApi } from '../../api/billing'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
-const tableLoading = ref(false)
 const applyModalVisible = ref(false)
 const detailModalVisible = ref(false)
 const currentInvoice = ref<any>(null)
@@ -244,7 +247,7 @@ const paginationConfig = reactive({
   onChange: (page: number, pageSize: number) => {
     paginationConfig.current = page
     paginationConfig.pageSize = pageSize
-    loadInvoices()
+    loadInvoiceList()
   },
 })
 
@@ -257,24 +260,20 @@ const columns = [
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 120 },
 ]
 
-const invoiceList = ref([
-  { id: 1, invoiceNo: 'INV2024030001', type: 'company', title: '上海某某科技有限公司', taxNumber: '91310000MA1FL1234X', amount: 12800.00, status: 'approved', email: 'finance@example.com', createdAt: '2024-03-15 10:30:00', remark: '' },
-  { id: 2, invoiceNo: 'INV2024030002', type: 'company', title: '北京某某信息技术有限公司', taxNumber: '91110000MA1KL5678Y', amount: 5680.50, status: 'pending', email: 'billing@example.com', createdAt: '2024-03-14 15:20:00', remark: '' },
-  { id: 3, invoiceNo: 'INV2024030003', type: 'personal', title: '张三', taxNumber: '', amount: 999.00, status: 'approved', email: 'zhangsan@163.com', createdAt: '2024-03-10 09:15:00', remark: '' },
-  { id: 4, invoiceNo: 'INV2024030004', type: 'company', title: '深圳某某网络有限公司', taxNumber: '91440000MA5DP1234Z', amount: 15600.00, status: 'rejected', email: '', createdAt: '2024-03-08 14:00:00', remark: '税号信息有误' },
-  { id: 5, invoiceNo: 'INV2024030005', type: 'company', title: '广州某某贸易有限公司', taxNumber: '91440100MA5CMT5678A', amount: 8800.00, status: 'approved', email: 'account@example.com', createdAt: '2024-03-05 11:30:00', remark: '' },
-])
+const invoiceListData = ref<any[]>([])
 
-function updateStats() {
-  invoiceStats.total = invoiceList.value.length
-  invoiceStats.approved = invoiceList.value.filter(i => i.status === 'approved').length
-  invoiceStats.pending = invoiceList.value.filter(i => i.status === 'pending').length
-  invoiceStats.rejected = invoiceList.value.filter(i => i.status === 'rejected').length
-  invoiceStats.totalAmount = invoiceList.value.reduce((sum, i) => sum + i.amount, 0)
+function updateStats(records: any[] = invoiceListData.value) {
+  invoiceStats.total = paginationConfig.total
+  invoiceStats.approved = records.filter(i => i.status === 'approved').length
+  invoiceStats.pending = records.filter(i => i.status === 'pending').length
+  invoiceStats.rejected = records.filter(i => i.status === 'rejected').length
+  invoiceStats.totalAmount = records.reduce((sum, i) => sum + i.amount, 0)
 }
 
-updateStats()
-paginationConfig.total = invoiceList.value.length
+function handleSearch() {
+  paginationConfig.current = 1
+  loadInvoiceList()
+}
 
 const applyForm = reactive({
   type: 'company',
@@ -312,12 +311,36 @@ function getStatusColor(status: string): string {
   return map[status] || 'default'
 }
 
-function loadInvoices() {
-  tableLoading.value = true
-  setTimeout(() => {
-    tableLoading.value = false
-  }, 500)
+async function loadInvoiceList() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  loading.value = true
+  try {
+    const params: any = {
+      tenantId,
+      page: paginationConfig.current,
+      size: paginationConfig.pageSize,
+    }
+    if (queryParams.keyword) params.keyword = queryParams.keyword
+
+    const res = await invoiceApi.list(params)
+    invoiceListData.value = res.records || []
+    paginationConfig.total = res.total || 0
+    updateStats(res.records || [])
+  } catch (error) {
+    console.error('Failed to load invoices:', error)
+    message.error('加载发票列表失败')
+    invoiceListData.value = []
+  } finally {
+    loading.value = false
+  }
 }
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    loadInvoiceList()
+  }
+)
 
 function showApplyModal() {
   applyForm.type = 'company'
@@ -329,7 +352,7 @@ function showApplyModal() {
   applyModalVisible.value = true
 }
 
-function handleConfirmApply() {
+async function handleConfirmApply() {
   if (!applyForm.title) {
     message.error('请输入发票抬头')
     return
@@ -343,50 +366,81 @@ function handleConfirmApply() {
     return
   }
 
-  const newInvoice = {
-    id: invoiceList.value.length + 1,
-    invoiceNo: `INV202403${String(invoiceList.value.length + 1).padStart(4, '0')}`,
-    type: applyForm.type,
-    title: applyForm.title,
-    taxNumber: applyForm.taxNumber || '',
-    amount: applyForm.amount,
-    status: 'pending',
-    email: applyForm.email || '',
-    createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-    remark: applyForm.remark || '',
-  }
-
-  invoiceList.value.unshift(newInvoice)
-  updateStats()
-  paginationConfig.total = invoiceList.value.length
-  applyModalVisible.value = false
-  message.success('开票申请已提交')
-}
-
-function viewInvoice(invoice: any) {
-  currentInvoice.value = invoice
-  detailModalVisible.value = true
-}
-
-function handleDownload(invoice: any) {
-  message.success(`正在下载发票 ${invoice.invoiceNo}...`)
-  setTimeout(() => {
-    message.success('下载成功')
-  }, 1000)
-}
-
-function handleExport() {
-  message.success('正在导出发票列表...')
-  setTimeout(() => {
-    message.success('导出成功')
-  }, 1000)
-}
-
-onMounted(() => {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
   loading.value = true
-  setTimeout(() => {
+  try {
+    await invoiceApi.create({
+      tenantId,
+      title: applyForm.title,
+      type: applyForm.type,
+      taxNumber: applyForm.taxNumber || undefined,
+      amount: applyForm.amount,
+      email: applyForm.email || undefined,
+      remark: applyForm.remark || undefined,
+    })
+    applyModalVisible.value = false
+    message.success('开票申请已提交')
+    paginationConfig.current = 1
+    loadInvoiceList()
+  } catch (error) {
+    console.error('Failed to create invoice:', error)
+    message.error('申请开票失败')
+  } finally {
     loading.value = false
-  }, 300)
+  }
+}
+
+async function viewInvoice(invoice: any) {
+  try {
+    const res = await invoiceApi.getDetail(invoice.id)
+    currentInvoice.value = res.invoice || res
+    detailModalVisible.value = true
+  } catch (error) {
+    console.error('Failed to load invoice detail:', error)
+    message.error('加载发票详情失败')
+  }
+}
+
+async function handleDownload(invoice: any) {
+  try {
+    const res = await invoiceApi.download(invoice.id)
+    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `${invoice.invoiceNo || 'invoice'}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success('下载成功')
+  } catch (error) {
+    console.error('Failed to download invoice:', error)
+    message.error('下载失败')
+  }
+}
+
+async function handleExport() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  try {
+    const params: any = { tenantId }
+    const res = await invoiceApi.export(params)
+    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `invoices_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success('导出成功')
+  } catch (error) {
+    console.error('Failed to export invoices:', error)
+    message.error('导出失败')
+  }
+}
+
+onMounted(async () => {
+  await loadInvoiceList()
 })
 </script>
 

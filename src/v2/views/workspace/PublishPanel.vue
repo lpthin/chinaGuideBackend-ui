@@ -495,7 +495,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, reactive, computed } from 'vue'
+import { ref, onMounted, onUnmounted, reactive, computed, watch, nextTick } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import {
@@ -530,6 +530,9 @@ import {
   SafetyOutlined,
 } from '@ant-design/icons-vue'
 import { publishApi, articleApi } from '../../api'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const showBatchSchedule = ref(false)
@@ -548,25 +551,9 @@ let trendChart: echarts.ECharts | null = null
 let successRateChart: echarts.ECharts | null = null
 let categoryChart: echarts.ECharts | null = null
 
-const mockTrendData = {
-  dates: ['1日', '2日', '3日', '4日', '5日', '6日', '7日'],
-  success: [25, 32, 28, 35, 30, 22, 28],
-  failed: [2, 3, 1, 2, 0, 1, 2]
-}
-
-const mockSuccessRateData = {
-  total: 200,
-  success: 190,
-  failed: 10
-}
-
-const mockCategoryData = [
-  { name: '技术文章', value: 65 },
-  { name: '行业资讯', value: 45 },
-  { name: '产品评测', value: 35 },
-  { name: '用户指南', value: 30 },
-  { name: '案例分析', value: 25 }
-]
+const trendData = ref<any>({ dates: [], success: [], failed: [] })
+const successRateData = ref<any>({ total: 0, success: 0, failed: 0, successRate: 0 })
+const categoryData = ref<any[]>([])
 
 const stats = reactive({
   pendingCount: 0,
@@ -646,12 +633,7 @@ const scheduleForm = reactive({
   date: null as any,
 })
 
-const timelineData = ref([
-  { time: '09:00', title: '批量发布 15 篇文章', desc: '全部成功', color: 'green', type: 'success', canRetry: false },
-  { time: '12:00', title: '批量发布 10 篇文章', desc: '2 篇失败', color: 'red', type: 'error', canRetry: true },
-  { time: '15:00', title: '手动发布 3 篇文章', desc: '全部成功', color: 'green', type: 'success', canRetry: false },
-  { time: '18:00', title: '待发布 8 篇', desc: '队列中', color: 'blue', type: 'pending', canRetry: false },
-])
+const timelineData = ref<any[]>([])
 
 const tableColumns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
@@ -765,6 +747,24 @@ async function loadData() {
   }
 }
 
+async function loadStatsDetail() {
+  try {
+    const data = await publishApi.getStatsDetail()
+    trendData.value = data.trendData
+    successRateData.value = data.successRateData
+    categoryData.value = data.categoryDistribution
+    timelineData.value = data.timelineData
+    stats.successRate = data.successRateData.successRate
+    nextTick(() => {
+      initTrendChart()
+      initSuccessRateChart()
+      initCategoryChart()
+    })
+  } catch (error) {
+    console.error('加载发布统计失败:', error)
+  }
+}
+
 async function batchPublish() {
   const publishableRows = selectedRows.value.filter(r => canPublishArticle(r))
   if (!publishableRows.length) {
@@ -850,14 +850,17 @@ function batchCancel() {
   })
 }
 
+// TODO: 待接入发布报表导出 API 后替换为真实调用
 function exportReport() {
-  message.info('正在生成报表...')
-  setTimeout(() => message.success('报表导出成功'), 1000)
+  message.info('报表导出功能开发中...')
 }
 
 const initTrendChart = () => {
   if (!trendChartRef.value) return
   
+  if (trendChart) {
+    trendChart.dispose()
+  }
   trendChart = echarts.init(trendChartRef.value)
   
   const option: echarts.EChartsOption = {
@@ -878,7 +881,7 @@ const initTrendChart = () => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: mockTrendData.dates
+      data: trendData.value.dates
     },
     yAxis: {
       type: 'value'
@@ -888,7 +891,7 @@ const initTrendChart = () => {
         name: '成功',
         type: 'line',
         smooth: true,
-        data: mockTrendData.success,
+        data: trendData.value.success,
         lineStyle: {
           color: '#52c41a',
           width: 3
@@ -907,7 +910,7 @@ const initTrendChart = () => {
         name: '失败',
         type: 'line',
         smooth: true,
-        data: mockTrendData.failed,
+        data: trendData.value.failed,
         lineStyle: {
           color: '#ff4d4f',
           width: 2
@@ -925,6 +928,9 @@ const initTrendChart = () => {
 const initSuccessRateChart = () => {
   if (!successRateChartRef.value) return
   
+  if (successRateChart) {
+    successRateChart.dispose()
+  }
   successRateChart = echarts.init(successRateChartRef.value)
   
   const option: any = {
@@ -947,7 +953,8 @@ const initSuccessRateChart = () => {
           show: true,
           position: 'center',
           formatter: () => {
-            return `${((mockSuccessRateData.success / mockSuccessRateData.total) * 100).toFixed(1)}%\n成功率`
+            const total = successRateData.value.total || 1
+            return `${((successRateData.value.success / total) * 100).toFixed(1)}%\n成功率`
           },
           rich: {
             fontSize: 16,
@@ -966,12 +973,12 @@ const initSuccessRateChart = () => {
         },
         data: [
           {
-            value: mockSuccessRateData.success,
+            value: successRateData.value.success,
             name: '成功',
             itemStyle: { color: '#52c41a' }
           },
           {
-            value: mockSuccessRateData.failed,
+            value: successRateData.value.failed,
             name: '失败',
             itemStyle: { color: '#ff4d4f' }
           }
@@ -986,6 +993,9 @@ const initSuccessRateChart = () => {
 const initCategoryChart = () => {
   if (!categoryChartRef.value) return
   
+  if (categoryChart) {
+    categoryChart.dispose()
+  }
   categoryChart = echarts.init(categoryChartRef.value)
   
   const option: echarts.EChartsOption = {
@@ -1018,7 +1028,7 @@ const initCategoryChart = () => {
         labelLine: {
           show: false
         },
-        data: mockCategoryData.map((item, index) => ({
+        data: categoryData.value.map((item: any, index: number) => ({
           ...item,
           itemStyle: {
             color: ['#1890ff', '#722ed1', '#52c41a', '#fa8c16', '#eb2f96'][index]
@@ -1037,14 +1047,16 @@ const handleResize = () => {
   categoryChart?.resize()
 }
 
-onMounted(() => {
-  loadData()
-  setTimeout(() => {
-    initTrendChart()
-    initSuccessRateChart()
-    initCategoryChart()
-    window.addEventListener('resize', handleResize)
-  }, 100)
+onMounted(async () => {
+  await Promise.all([
+    loadData(),
+    loadStatsDetail(),
+  ])
+  window.addEventListener('resize', handleResize)
+})
+
+watch(() => authStore.selectedTenantId, () => {
+  loadStatsDetail()
 })
 
 onUnmounted(() => {

@@ -65,14 +65,14 @@
             placeholder="搜索公司名称/联系人/手机号"
             style="width: 280px"
             enter-button
-            @search="loadCustomers"
+            @search="loadCustomerList"
           />
           <a-select
             v-model:value="queryParams.status"
             style="width: 120px"
             placeholder="状态"
             allowClear
-            @change="loadCustomers"
+            @change="loadCustomerList"
           >
             <a-select-option value="active">活跃</a-select-option>
             <a-select-option value="inactive">未激活</a-select-option>
@@ -85,7 +85,7 @@
       <a-card title="客户列表" :bordered="false">
         <a-table
           :columns="columns"
-          :data-source="customerList"
+          :data-source="customerListData"
           :pagination="paginationConfig"
           :loading="tableLoading"
           :row-key="record => record.id"
@@ -189,7 +189,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   TeamOutlined,
@@ -197,6 +197,10 @@ import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons-vue'
+import { customerApi } from '../../api/billing'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const tableLoading = ref(false)
@@ -227,7 +231,7 @@ const paginationConfig = reactive({
   onChange: (page: number, pageSize: number) => {
     paginationConfig.current = page
     paginationConfig.pageSize = pageSize
-    loadCustomers()
+    loadCustomerList()
   },
 })
 
@@ -242,28 +246,18 @@ const columns = [
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 180 },
 ]
 
-const customerList = ref([
-  { id: 1, companyName: '上海某某科技有限公司', contactPerson: '李经理', phone: '13812345678', email: 'li@example.com', level: 'gold', status: 'active', registeredAt: '2024-01-15 10:30:00', lastLoginAt: '2024-03-15 14:20:00', remark: '' },
-  { id: 2, companyName: '北京某某信息技术有限公司', contactPerson: '王总监', phone: '13923456789', email: 'wang@example.com', level: 'silver', status: 'active', registeredAt: '2024-02-20 09:15:00', lastLoginAt: '2024-03-14 11:30:00', remark: '' },
-  { id: 3, companyName: '深圳某某网络有限公司', contactPerson: '张主管', phone: '13634567890', email: 'zhang@example.com', level: 'normal', status: 'inactive', registeredAt: '2024-03-01 14:00:00', lastLoginAt: '', remark: '待激活' },
-  { id: 4, companyName: '广州某某贸易有限公司', contactPerson: '陈经理', phone: '13545678901', email: 'chen@example.com', level: 'platinum', status: 'active', registeredAt: '2023-12-10 16:45:00', lastLoginAt: '2024-03-15 09:00:00', remark: '' },
-  { id: 5, companyName: '杭州某某电子商务有限公司', contactPerson: '刘经理', phone: '13756789012', email: 'liu@example.com', level: 'gold', status: 'disabled', registeredAt: '2023-11-25 10:00:00', lastLoginAt: '2024-01-30 15:30:00', remark: '账号异常已禁用' },
-  { id: 6, companyName: '成都某某软件开发有限公司', contactPerson: '赵经理', phone: '13867890123', email: 'zhao@example.com', level: 'silver', status: 'active', registeredAt: '2024-03-10 11:20:00', lastLoginAt: '2024-03-15 16:00:00', remark: '' },
-])
+const customerListData = ref<any[]>([])
 
 function updateStats() {
-  customerStats.total = customerList.value.length
-  customerStats.active = customerList.value.filter(c => c.status === 'active').length
-  customerStats.inactive = customerList.value.filter(c => c.status === 'inactive').length
-  customerStats.newThisMonth = customerList.value.filter(c => {
+  customerStats.total = customerListData.value.length
+  customerStats.active = customerListData.value.filter(c => c.status === 'active').length
+  customerStats.inactive = customerListData.value.filter(c => c.status === 'inactive').length
+  customerStats.newThisMonth = customerListData.value.filter(c => {
     const regDate = new Date(c.registeredAt)
     const now = new Date()
     return regDate.getMonth() === now.getMonth() && regDate.getFullYear() === now.getFullYear()
   }).length
 }
-
-updateStats()
-paginationConfig.total = customerList.value.length
 
 const editForm = reactive({
   companyName: '',
@@ -317,12 +311,37 @@ function getLevelColor(level: string): string {
   return map[level] || 'default'
 }
 
-function loadCustomers() {
+async function loadCustomerList() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
   tableLoading.value = true
-  setTimeout(() => {
+  try {
+    const params: any = {
+      tenantId,
+      page: paginationConfig.current,
+      size: paginationConfig.pageSize,
+    }
+    if (queryParams.keyword) params.keyword = queryParams.keyword
+    if (queryParams.status) params.status = queryParams.status
+
+    const res = await customerApi.list(params)
+    customerListData.value = res.records || []
+    paginationConfig.total = res.total || 0
+    updateStats()
+  } catch (error) {
+    console.error('Failed to load customers:', error)
+    message.error('加载客户列表失败')
+    customerListData.value = []
+  } finally {
     tableLoading.value = false
-  }, 500)
+  }
 }
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    loadCustomerList()
+  }
+)
 
 function showCustomerDetail(customer: any) {
   currentCustomer.value = customer
@@ -340,21 +359,27 @@ function editCustomer(customer: any) {
   editModalVisible.value = true
 }
 
-function toggleStatus(customer: any) {
+async function toggleStatus(customer: any) {
   const newStatus = customer.status === 'active' ? 'disabled' : 'active'
   const action = newStatus === 'active' ? '启用' : '禁用'
   Modal.confirm({
     title: `确认${action}`,
     content: `确定要${action}客户 ${customer.companyName} 吗？`,
-    onOk: () => {
-      customer.status = newStatus
-      updateStats()
-      message.success(`${action}成功`)
+    onOk: async () => {
+      try {
+        await customerApi.toggleStatus(customer.id, newStatus)
+        customer.status = newStatus
+        updateStats()
+        message.success(`${action}成功`)
+      } catch (error) {
+        console.error(`Failed to ${action} customer:`, error)
+        message.error(`${action}失败`)
+      }
     },
   })
 }
 
-function handleConfirmEdit() {
+async function handleConfirmEdit() {
   if (!editForm.companyName) {
     message.error('请输入公司名称')
     return
@@ -368,41 +393,43 @@ function handleConfirmEdit() {
     return
   }
 
-  if (editingCustomer.value) {
-    editingCustomer.value.companyName = editForm.companyName
-    editingCustomer.value.contactPerson = editForm.contactPerson
-    editingCustomer.value.phone = editForm.phone
-    editingCustomer.value.email = editForm.email
-    editingCustomer.value.level = editForm.level
-    editingCustomer.value.remark = editForm.remark
-    message.success('编辑成功')
-  } else {
-    const newCustomer = {
-      id: customerList.value.length + 1,
-      companyName: editForm.companyName,
-      contactPerson: editForm.contactPerson,
-      phone: editForm.phone,
-      email: editForm.email,
-      level: editForm.level,
-      status: 'inactive',
-      registeredAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      lastLoginAt: '',
-      remark: editForm.remark,
-    }
-    customerList.value.unshift(newCustomer)
-    updateStats()
-    paginationConfig.total = customerList.value.length
-    message.success('新建成功')
-  }
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
 
-  editModalVisible.value = false
+  try {
+    if (editingCustomer.value) {
+      await customerApi.update(editingCustomer.value.id, {
+        tenantId,
+        companyName: editForm.companyName,
+        contactPerson: editForm.contactPerson,
+        phone: editForm.phone,
+        email: editForm.email,
+        level: editForm.level,
+        remark: editForm.remark,
+      })
+      message.success('编辑成功')
+    } else {
+      await customerApi.create({
+        tenantId,
+        companyName: editForm.companyName,
+        contactPerson: editForm.contactPerson,
+        phone: editForm.phone,
+        email: editForm.email,
+        level: editForm.level,
+        remark: editForm.remark,
+      })
+      message.success('新建成功')
+    }
+
+    editModalVisible.value = false
+    loadCustomerList()
+  } catch (error) {
+    console.error('Failed to save customer:', error)
+    message.error('保存失败')
+  }
 }
 
 onMounted(() => {
-  loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 300)
+  loadCustomerList()
 })
 </script>
 

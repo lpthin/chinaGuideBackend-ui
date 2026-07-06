@@ -125,7 +125,7 @@
                 <a-button type="primary" :loading="saving" @click="saveAiSettings">
                   保存设置
                 </a-button>
-                <a-button @click="testAiConnection">测试连接</a-button>
+                <a-button :loading="testing" @click="testAiConnection">测试连接</a-button>
               </a-space>
             </a-form-item>
           </a-form>
@@ -218,74 +218,62 @@
             </a-form-item>
           </a-form>
         </a-tab-pane>
-
-        <!-- 系统参数 -->
-        <a-tab-pane key="system" tab="系统参数">
-          <a-table
-            :columns="systemParamColumns"
-            :data-source="systemParams"
-            :pagination="false"
-            row-key="key"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'value'">
-                <a-input
-                  v-if="record.type === 'string'"
-                  v-model:value="record.value"
-                  placeholder="请输入值"
-                />
-                <a-input-number
-                  v-if="record.type === 'number'"
-                  v-model:value="record.value"
-                  style="width: 100%"
-                />
-                <a-switch v-if="record.type === 'boolean'" v-model:checked="record.value" />
-                <a-select
-                  v-if="record.type === 'select'"
-                  v-model:value="record.value"
-                  style="width: 100%"
-                >
-                  <a-select-option
-                    v-for="option in record.options"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </a-select-option>
-                </a-select>
-              </template>
-              <template v-if="column.key === 'actions'">
-                <a-button type="link" size="small" @click="saveSystemParam(record)">
-                  保存
-                </a-button>
-              </template>
-            </template>
-          </a-table>
-        </a-tab-pane>
       </a-tabs>
     </a-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import type { UploadProps } from 'ant-design-vue'
+import { adminApi } from '../../api/workspace'
+import { useAuthStore } from '../../stores/auth'
+import type { SiteSettings, AiSettings, WorkflowSettings } from '../../types/workspace'
+
+const authStore = useAuthStore()
 
 const activeTab = ref('site')
 const saving = ref(false)
+const testing = ref(false)
+const loading = ref(false)
 
-// 站点设置
 const siteFormRef = ref()
+const aiFormRef = ref()
+const workflowFormRef = ref()
+
 const siteForm = reactive({
-  siteName: 'AI Content Platform',
-  siteDescription: '一站式AI内容生成平台，提供关键词采集、聚类分析、文章生成、自动发布等功能',
+  siteName: '',
+  siteDescription: '',
   logo: '',
-  contactEmail: 'contact@example.com',
-  contactPhone: '400-123-4567',
-  icp: '京ICP备12345678号-1',
-  copyright: '© 2024 AI Content Platform. All rights reserved.'
+  contactEmail: '',
+  contactPhone: '',
+  icp: '',
+  copyright: ''
+})
+
+const aiForm = reactive({
+  defaultModel: 'gpt-4',
+  apiKey: '',
+  apiBaseUrl: 'https://api.openai.com/v1',
+  temperature: 0.7,
+  maxTokens: 4096,
+  streamEnabled: true,
+  systemPrompt: ''
+})
+
+const workflowForm = reactive({
+  keywordCrawlInterval: 'daily',
+  keywordCrawlLimit: 100,
+  autoCrawlEnabled: true,
+  clusterThreshold: 0.7,
+  minClusterSize: 5,
+  autoGenerateEnabled: false,
+  dailyGenerateLimit: 10,
+  autoReviewEnabled: true,
+  autoPublishEnabled: false,
+  publishTime: undefined as any
 })
 
 const logoFileList = ref<UploadProps['fileList']>([])
@@ -297,89 +285,6 @@ const siteRules = {
   ]
 }
 
-// AI配置
-const aiFormRef = ref()
-const aiForm = reactive({
-  defaultModel: 'gpt-4',
-  apiKey: '',
-  apiBaseUrl: 'https://api.openai.com/v1',
-  temperature: 0.7,
-  maxTokens: 4096,
-  streamEnabled: true,
-  systemPrompt: '你是一个专业的内容创作助手，擅长撰写高质量的文章和内容。'
-})
-
-// 工作流配置
-const workflowFormRef = ref()
-const workflowForm = reactive({
-  keywordCrawlInterval: 'daily',
-  keywordCrawlLimit: 100,
-  autoCrawlEnabled: true,
-  clusterThreshold: 0.7,
-  minClusterSize: 5,
-  autoGenerateEnabled: false,
-  dailyGenerateLimit: 10,
-  autoReviewEnabled: true,
-  autoPublishEnabled: false,
-  publishTime: ref()
-})
-
-// 系统参数
-const systemParams = ref([
-  {
-    key: 'max_upload_size',
-    name: '最大上传大小',
-    value: 10,
-    type: 'number',
-    unit: 'MB',
-    description: '允许上传的最大文件大小'
-  },
-  {
-    key: 'session_timeout',
-    name: '会话超时时间',
-    value: 30,
-    type: 'number',
-    unit: '分钟',
-    description: '用户无操作后自动退出登录时间'
-  },
-  {
-    key: 'enable_registration',
-    name: '开放注册',
-    value: true,
-    type: 'boolean',
-    description: '是否允许新用户注册'
-  },
-  {
-    key: 'maintenance_mode',
-    name: '维护模式',
-    value: false,
-    type: 'boolean',
-    description: '开启后只有管理员可访问'
-  },
-  {
-    key: 'log_level',
-    name: '日志级别',
-    value: 'info',
-    type: 'select',
-    options: [
-      { label: '调试', value: 'debug' },
-      { label: '信息', value: 'info' },
-      { label: '警告', value: 'warn' },
-      { label: '错误', value: 'error' }
-    ],
-    description: '系统日志记录级别'
-  }
-])
-
-const systemParamColumns = [
-  { title: '参数名称', dataIndex: 'name', key: 'name', width: 200 },
-  { title: '参数值', key: 'value', width: 300 },
-  { title: '单位', dataIndex: 'unit', key: 'unit', width: 100 },
-  { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
-  { title: '操作', key: 'actions', fixed: 'right' as const, width: 100 }
-]
-
-// Logo上传
 const beforeUploadLogo: UploadProps['beforeUpload'] = (file) => {
   const isImage = file.type.startsWith('image/')
   if (!isImage) {
@@ -391,21 +296,85 @@ const beforeUploadLogo: UploadProps['beforeUpload'] = (file) => {
     message.error('图片大小不能超过 2MB')
     return false
   }
-  return false // 不上传到服务器，前端处理
+  return false
 }
 
-// 保存站点设置
+const fetchSettings = async () => {
+  loading.value = true
+  try {
+    const result = await adminApi.settings.get(authStore.selectedTenantId || undefined) as any
+
+    if (result.site) {
+      const site = result.site as any
+      siteForm.siteName = site.name || site.siteName || ''
+      siteForm.siteDescription = site.description || site.siteDescription || ''
+      siteForm.logo = site.logo || ''
+      siteForm.contactEmail = site.contactEmail || ''
+      siteForm.contactPhone = site.contactPhone || ''
+      siteForm.icp = site.icp || ''
+      siteForm.copyright = site.copyright || ''
+    }
+
+    if (result.ai) {
+      const ai = result.ai as any
+      aiForm.defaultModel = ai.defaultModel || ai.default_model || 'gpt-4'
+      aiForm.apiKey = ai.apiKey || ai.api_key || ''
+      aiForm.apiBaseUrl = ai.apiBaseUrl || ai.api_base_url || 'https://api.openai.com/v1'
+      aiForm.temperature = Number(ai.temperature) || 0.7
+      aiForm.maxTokens = Number(ai.maxTokens) || 4096
+      aiForm.streamEnabled = Boolean(ai.streamEnabled) || Boolean(ai.stream_enabled) || true
+      aiForm.systemPrompt = ai.systemPrompt || ai.system_prompt || ''
+    }
+
+    if (result.workflow) {
+      const wf = result.workflow as any
+      workflowForm.keywordCrawlInterval = wf.keywordCrawlInterval || wf.keyword_crawl_interval || 'daily'
+      workflowForm.keywordCrawlLimit = Number(wf.keywordCrawlLimit) || Number(wf.keyword_crawl_limit) || 100
+      workflowForm.autoCrawlEnabled = Boolean(wf.autoCrawlEnabled) || Boolean(wf.auto_crawl_enabled) || true
+      workflowForm.clusterThreshold = Number(wf.clusterThreshold) || Number(wf.cluster_threshold) || 0.7
+      workflowForm.minClusterSize = Number(wf.minClusterSize) || Number(wf.min_cluster_size) || 5
+      workflowForm.autoGenerateEnabled = Boolean(wf.autoGenerateEnabled) || Boolean(wf.auto_generate_enabled) || false
+      workflowForm.dailyGenerateLimit = Number(wf.dailyGenerateLimit) || Number(wf.daily_generate_limit) || 10
+      workflowForm.autoReviewEnabled = Boolean(wf.autoReviewEnabled) || Boolean(wf.auto_review_enabled) || true
+      workflowForm.autoPublishEnabled = Boolean(wf.autoPublishEnabled) || Boolean(wf.auto_publish_enabled) || false
+      workflowForm.publishTime = wf.publishTime || wf.publish_time || undefined
+    }
+  } catch (error: any) {
+    message.error(error.message || '获取系统设置失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 const saveSiteSettings = async () => {
   try {
     await siteFormRef.value?.validate()
     saving.value = true
-    // 模拟API调用
-    setTimeout(() => {
-      message.success('站点设置保存成功')
-      saving.value = false
-    }, 1000)
-  } catch {
-    message.error('表单验证失败')
+
+    const siteData: SiteSettings = {
+      name: siteForm.siteName,
+      description: siteForm.siteDescription,
+      logo: siteForm.logo,
+      contactEmail: siteForm.contactEmail,
+      contactPhone: siteForm.contactPhone,
+      icp: siteForm.icp,
+      copyright: siteForm.copyright
+    }
+
+    await adminApi.settings.update(
+      { site: siteData },
+      authStore.selectedTenantId || undefined
+    )
+
+    message.success('站点设置保存成功')
+  } catch (error: any) {
+    if (error.errorFields) {
+      message.error('表单验证失败')
+    } else {
+      message.error(error.message || '保存失败')
+    }
+  } finally {
+    saving.value = false
   }
 }
 
@@ -413,39 +382,104 @@ const resetSiteForm = () => {
   siteFormRef.value?.resetFields()
 }
 
-// 保存AI设置
 const saveAiSettings = async () => {
-  saving.value = true
-  setTimeout(() => {
+  try {
+    saving.value = true
+
+    const aiData: AiSettings = {
+      defaultModel: aiForm.defaultModel,
+      apiKey: aiForm.apiKey,
+      apiBaseUrl: aiForm.apiBaseUrl,
+      temperature: aiForm.temperature,
+      maxTokens: aiForm.maxTokens,
+      streamEnabled: aiForm.streamEnabled,
+      systemPrompt: aiForm.systemPrompt
+    }
+
+    await adminApi.settings.update(
+      { ai: aiData },
+      authStore.selectedTenantId || undefined
+    )
+
     message.success('AI配置保存成功')
+  } catch (error: any) {
+    message.error(error.message || '保存失败')
+  } finally {
     saving.value = false
-  }, 1000)
+  }
 }
 
 const testAiConnection = async () => {
-  message.info('正在测试AI连接...')
-  setTimeout(() => {
-    message.success('AI连接测试成功！')
-  }, 1500)
+  try {
+    testing.value = true
+
+    const aiConfig = {
+      defaultModel: aiForm.defaultModel,
+      apiKey: aiForm.apiKey,
+      apiBaseUrl: aiForm.apiBaseUrl
+    }
+
+    const result = await adminApi.settings.testAiConnection(
+      aiConfig,
+      authStore.selectedTenantId || undefined
+    ) as any
+
+    if (result.success) {
+      message.success(result.message || '连接测试成功')
+    } else {
+      message.error(result.message || '连接测试失败')
+    }
+  } catch (error: any) {
+    message.error(error.message || '连接测试失败')
+  } finally {
+    testing.value = false
+  }
 }
 
-// 保存工作流设置
 const saveWorkflowSettings = async () => {
-  saving.value = true
-  setTimeout(() => {
+  try {
+    saving.value = true
+
+    const workflowData: WorkflowSettings = {
+      keywordCrawlInterval: workflowForm.keywordCrawlInterval,
+      keywordCrawlLimit: workflowForm.keywordCrawlLimit,
+      autoCrawlEnabled: workflowForm.autoCrawlEnabled,
+      clusterThreshold: workflowForm.clusterThreshold,
+      minClusterSize: workflowForm.minClusterSize,
+      autoGenerateEnabled: workflowForm.autoGenerateEnabled,
+      dailyGenerateLimit: workflowForm.dailyGenerateLimit,
+      autoReviewEnabled: workflowForm.autoReviewEnabled,
+      autoPublishEnabled: workflowForm.autoPublishEnabled,
+      publishTime: workflowForm.publishTime
+    }
+
+    await adminApi.settings.update(
+      { workflow: workflowData },
+      authStore.selectedTenantId || undefined
+    )
+
     message.success('工作流配置保存成功')
+  } catch (error: any) {
+    message.error(error.message || '保存失败')
+  } finally {
     saving.value = false
-  }, 1000)
+  }
 }
 
 const resetWorkflowForm = () => {
   workflowFormRef.value?.resetFields()
 }
 
-// 保存系统参数
-const saveSystemParam = (record: any) => {
-  message.success(`参数 ${record.name} 已保存`)
-}
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    fetchSettings()
+  }
+)
+
+onMounted(() => {
+  fetchSettings()
+})
 </script>
 
 <style scoped lang="less">

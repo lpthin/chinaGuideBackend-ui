@@ -385,8 +385,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import { useAuthStore } from '@/stores/auth'
 import {
   FileTextOutlined,
   SettingOutlined,
@@ -408,6 +409,8 @@ import {
   type TemplateVariable,
   type TemplateVersion,
 } from '../../api/articleTemplate'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -652,109 +655,15 @@ function insertVariable(name: string) {
   }
 }
 
-const mockTemplates: ArticleTemplate[] = [
-  {
-    id: 1,
-    name: '热点新闻软文模板',
-    type: 'hot_keyword',
-    category: 'general',
-    description: '适用于热点新闻类软文，包含标题、导语、正文、结语结构',
-    content: '# {{title}}\n\n## 导语\n{{introduction}}\n\n## 正文\n{{content}}\n\n## 结语\n{{conclusion}}',
-    variables: [
-      { name: 'title', label: '标题', type: 'string', required: true, defaultValue: '', description: '文章标题' },
-      { name: 'introduction', label: '导语', type: 'string', required: true, defaultValue: '', description: '文章导语' },
-      { name: 'content', label: '正文', type: 'string', required: true, defaultValue: '', description: '文章正文' },
-      { name: 'conclusion', label: '结语', type: 'string', required: false, defaultValue: '', description: '文章结语' },
-    ],
-    version: '1.2.0',
-    versions: [],
-    useCount: 156,
-    isSystem: false,
-    status: 'active',
-    createdAt: '2024-03-10 10:00:00',
-    updatedAt: '2024-03-15 14:30:00',
-  },
-  {
-    id: 2,
-    name: '企业案例宣传模板',
-    type: 'case',
-    category: 'general',
-    description: '适用于企业客户案例宣传，突出客户痛点和解决方案',
-    content: '# {{company}}案例：{{solution}}\n\n## 客户背景\n{{background}}\n\n## 面临挑战\n{{challenges}}\n\n## 解决方案\n{{solution_detail}}\n\n## 实现效果\n{{results}}\n',
-    variables: [
-      { name: 'company', label: '客户名称', type: 'string', required: true, defaultValue: '', description: '客户公司名称' },
-      { name: 'solution', label: '解决方案', type: 'string', required: true, defaultValue: '', description: '提供的解决方案' },
-      { name: 'background', label: '客户背景', type: 'string', required: true, defaultValue: '', description: '客户背景介绍' },
-      { name: 'challenges', label: '面临挑战', type: 'string', required: true, defaultValue: '', description: '客户面临的挑战' },
-      { name: 'solution_detail', label: '方案详情', type: 'string', required: true, defaultValue: '', description: '解决方案详情' },
-      { name: 'results', label: '实现效果', type: 'string', required: true, defaultValue: '', description: '实现的效果' },
-    ],
-    version: '2.0.0',
-    versions: [],
-    useCount: 89,
-    isSystem: false,
-    status: 'active',
-    createdAt: '2024-02-20 09:00:00',
-    updatedAt: '2024-03-12 11:20:00',
-  },
-  {
-    id: 3,
-    name: '产品推广软文模板',
-    type: 'system',
-    category: 'general',
-    description: '系统内置的产品推广模板，适合产品发布和促销活动',
-    content: '# 重磅发布：{{product_name}}\n\n## 产品亮点\n- {{highlight_1}}\n- {{highlight_2}}\n- {{highlight_3}}\n\n## 产品介绍\n{{product_intro}}\n\n## 立即体验\n{{cta_text}}',
-    variables: [
-      { name: 'product_name', label: '产品名称', type: 'string', required: true, defaultValue: '', description: '产品名称' },
-      { name: 'highlight_1', label: '亮点1', type: 'string', required: true, defaultValue: '', description: '产品亮点1' },
-      { name: 'highlight_2', label: '亮点2', type: 'string', required: true, defaultValue: '', description: '产品亮点2' },
-      { name: 'highlight_3', label: '亮点3', type: 'string', required: true, defaultValue: '', description: '产品亮点3' },
-      { name: 'product_intro', label: '产品介绍', type: 'string', required: true, defaultValue: '', description: '产品详细介绍' },
-      { name: 'cta_text', label: '行动号召', type: 'string', required: false, defaultValue: '点击了解更多', description: 'CTA文案' },
-    ],
-    version: '1.0.0',
-    versions: [],
-    useCount: 234,
-    isSystem: true,
-    status: 'active',
-    createdAt: '2024-01-15 08:00:00',
-    updatedAt: '2024-01-15 08:00:00',
-  },
-  {
-    id: 4,
-    name: '科技资讯解读模板',
-    type: 'hot_keyword',
-    category: 'tech',
-    description: '科技类热点资讯深度解读模板',
-    content: '# {{event}}深度解读\n\n## 事件背景\n{{background}}\n\n## 技术分析\n{{technical_analysis}}\n\n## 行业影响\n{{industry_impact}}\n\n## 未来展望\n{{future_outlook}}',
-    variables: [
-      { name: 'event', label: '事件名称', type: 'string', required: true, defaultValue: '', description: '热点事件名称' },
-      { name: 'background', label: '事件背景', type: 'string', required: true, defaultValue: '', description: '事件背景介绍' },
-      { name: 'technical_analysis', label: '技术分析', type: 'string', required: true, defaultValue: '', description: '技术层面分析' },
-      { name: 'industry_impact', label: '行业影响', type: 'string', required: true, defaultValue: '', description: '对行业的影响' },
-      { name: 'future_outlook', label: '未来展望', type: 'string', required: false, defaultValue: '', description: '未来发展展望' },
-    ],
-    version: '1.1.0',
-    versions: [],
-    useCount: 67,
-    isSystem: false,
-    status: 'active',
-    createdAt: '2024-03-05 15:00:00',
-    updatedAt: '2024-03-10 16:45:00',
-  },
-]
+onMounted(async () => {
+  await loadStats()
+  await loadTemplates()
+})
 
-onMounted(() => {
-  loading.value = true
-  stats.totalCount = 28
-  stats.systemCount = 8
-  stats.hotKeywordCount = 12
-  stats.caseCount = 5
-  templateList.value = mockTemplates
-  paginationConfig.total = mockTemplates.length
-  setTimeout(() => {
-    loading.value = false
-  }, 300)
+watch(() => authStore.selectedTenantId, () => {
+  paginationConfig.current = 1
+  loadStats()
+  loadTemplates()
 })
 </script>
 

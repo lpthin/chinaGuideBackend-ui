@@ -148,6 +148,7 @@ import {
 } from '@ant-design/icons-vue'
 import { GeoStoreStatus, StoreType } from '../../types/geo'
 import type { GeoStore } from '../../types/geo'
+import { geoLocationApi } from '../../api/geo'
 
 const loading = ref(false)
 const radius = ref(5000)
@@ -187,14 +188,22 @@ function formatDistance(distance: number): string {
   return `${(distance / 1000).toFixed(2)}公里`
 }
 
-function refreshLocation() {
+async function refreshLocation() {
   message.loading({ content: '正在获取位置...', key: 'location' })
-  setTimeout(() => {
-    currentLocation.lng = 116.4074 + (Math.random() - 0.5) * 0.1
-    currentLocation.lat = 39.9042 + (Math.random() - 0.5) * 0.1
+  try {
+    const res = await geoLocationApi.getCurrent()
+    if (res.lng && res.lat) {
+      currentLocation.lng = res.lng
+      currentLocation.lat = res.lat
+      currentLocation.address = `${res.province || ''}${res.city || ''}${res.district || ''}`
+    }
     message.success({ content: '定位成功', key: 'location' })
     loadNearbyStores()
-  }, 1000)
+  } catch (error) {
+    console.error('Failed to get location:', error)
+    message.error({ content: '定位失败，使用默认位置', key: 'location' })
+    loadNearbyStores()
+  }
 }
 
 async function loadNearbyStores() {

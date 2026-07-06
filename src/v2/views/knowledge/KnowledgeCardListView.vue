@@ -286,7 +286,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from 'vue'
+import { ref, reactive, onMounted, h, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import dayjs from 'dayjs'
@@ -302,8 +302,10 @@ import {
 } from '@ant-design/icons-vue'
 import { knowledgeCardApi, knowledgeCategoryApi, knowledgeTagApi } from '../../api/knowledge'
 import type { KnowledgeCard, KnowledgeCategory, KnowledgeTag } from '../../types/knowledge'
+import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
+const auth = useAuthStore()
 const loading = ref(false)
 const viewMode = ref<'card' | 'list'>('card')
 const cardList = ref<KnowledgeCard[]>([])
@@ -323,7 +325,6 @@ const stats = reactive({
 })
 
 const queryParams = reactive({
-  tenantId: 1,
   categoryId: null as number | null,
   keyword: '',
   status: undefined as string | undefined,
@@ -487,7 +488,7 @@ async function handleBatchSetTags() {
 
 async function loadCategories() {
   try {
-    const result = await knowledgeCategoryApi.all(1)
+    const result = await knowledgeCategoryApi.all(auth.selectedTenantId!)
     categories.value = result
     stats.totalCategories = result.length
   } catch (error) {
@@ -500,7 +501,7 @@ async function loadCategories() {
 
 async function loadTags() {
   try {
-    const result = await knowledgeTagApi.list({ tenantId: 1 })
+    const result = await knowledgeTagApi.list({ tenantId: auth.selectedTenantId! })
     tags.value = Array.isArray(result) ? result : (result as any).records || []
   } catch (error) {
     console.error(error)
@@ -528,6 +529,15 @@ async function loadData() {
     loading.value = false
   }
 }
+
+watch(
+  () => auth.selectedTenantId,
+  async () => {
+    await loadCategories()
+    await loadTags()
+    await loadData()
+  }
+)
 
 onMounted(async () => {
   await loadCategories()

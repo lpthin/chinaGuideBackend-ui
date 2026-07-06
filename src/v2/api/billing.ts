@@ -25,6 +25,10 @@ export const invoiceApi = {
   get: (id: number) =>
     http.get<Invoice>(`/billing/invoices/${id}`),
 
+  // 获取账单详情（含明细项）
+  getDetail: (id: number) =>
+    http.get<{ invoice: any; items: any[] }>(`/billing/invoices/${id}/detail`),
+
   // 创建账单
   create: (data: Partial<Invoice>) =>
     http.post<Invoice>('/billing/invoices', data),
@@ -45,6 +49,10 @@ export const invoiceApi = {
   updateStatus: (id: number, status: InvoiceStatus) =>
     http.patch(`/billing/invoices/${id}/status`, { status }),
 
+  // 支付账单
+  pay: (id: number, data?: { paymentMethod?: string }) =>
+    http.post(`/billing/invoices/${id}/pay`, data),
+
   // 发送账单
   send: (id: number, email?: string) =>
     http.post(`/billing/invoices/${id}/send`, { email }),
@@ -58,6 +66,13 @@ export const invoiceApi = {
   // 获取账单PDF
   getPdf: (id: number) =>
     http.get(`/billing/invoices/${id}/pdf`, {
+      responseType: 'blob',
+    }),
+
+  // 导出发票列表
+  export: (params: { tenantId: number; status?: string; paymentStatus?: string; startDate?: string; endDate?: string }) =>
+    http.get('/billing/invoices/export', {
+      params,
       responseType: 'blob',
     }),
 }
@@ -137,6 +152,10 @@ export const balanceApi = {
 
 // 消费统计 API
 export const statsApi = {
+  // 获取消费总览
+  overview: (tenantId: number) =>
+    http.get<any>('/billing/stats/overview', { params: { tenantId } }),
+
   // 获取消费统计
   getStats: (tenantId: number, periodType?: string, startDate?: string, endDate?: string) =>
     http.get<ConsumptionStats>('/billing/stats', {
@@ -154,6 +173,13 @@ export const statsApi = {
     http.get<{ productType: string; productName: string; amount: number; percentage: number }[]>(
       '/billing/stats/breakdown',
       { params: { tenantId, startDate, endDate } }
+    ),
+
+  // 获取月度消费对比
+  getMonthlyCompare: (tenantId: number, months: number = 6) =>
+    http.get<{ months: string[]; currentYear: number[]; lastYear: number[] }>(
+      '/billing/stats/monthly-compare',
+      { params: { tenantId, months } }
     ),
 }
 
@@ -231,4 +257,91 @@ export const paymentMethodApi = {
   // 查询支付状态
   queryStatus: (orderId: string) =>
     http.get<{ status: string; paidAt?: string; transactionId?: string }>(`/billing/payment-methods/status/${orderId}`),
+}
+
+// 订单 API
+export const orderApi = {
+  // 获取订单列表
+  list: (params: { tenantId: number; status?: string; keyword?: string; page?: number; size?: number; startDate?: string; endDate?: string }) =>
+    http.get<PageResult<any>>('/billing/orders', { params }),
+
+  // 获取订单详情
+  get: (id: number) =>
+    http.get<any>(`/billing/orders/${id}`),
+
+  // 创建订单
+  create: (data: any) =>
+    http.post<any>('/billing/orders', data),
+
+  // 取消订单
+  cancel: (id: number) =>
+    http.post(`/billing/orders/${id}/cancel`),
+
+  // 支付订单
+  pay: (id: number, paymentMethod: string) =>
+    http.post(`/billing/orders/${id}/pay`, { paymentMethod }),
+
+  // 退款
+  refund: (id: number, amount: number, reason?: string) =>
+    http.post(`/billing/orders/${id}/refund`, { amount, reason }),
+
+  // 导出订单
+  export: (params: { tenantId: number; status?: string; startDate?: string; endDate?: string }) =>
+    http.get('/billing/orders/export', {
+      params,
+      responseType: 'blob',
+    }),
+}
+
+// 钱包 API
+export const walletApi = {
+  // 获取钱包信息
+  getInfo: (tenantId: number) =>
+    http.get<any>('/billing/wallet/info', { params: { tenantId } }),
+
+  // 获取交易记录
+  getTransactions: (params: { tenantId: number; type?: string; startDate?: string; endDate?: string; keyword?: string; page?: number; size?: number }) =>
+    http.get<PageResult<any>>('/billing/wallet/transactions', { params }),
+
+  // 充值
+  recharge: (tenantId: number, amount: number, paymentMethod: string) =>
+    http.post<any>('/billing/wallet/recharge', { tenantId, amount, paymentMethod }),
+
+  // 导出交易记录
+  exportTransactions: (params: any) =>
+    http.get('/billing/wallet/transactions/export', { params, responseType: 'blob' }),
+}
+
+// 客户管理 API
+export const customerApi = {
+  // 获取客户列表
+  list: (params: { tenantId: number; status?: string; keyword?: string; page?: number; size?: number }) =>
+    http.get<PageResult<any>>('/billing/customers', { params }),
+
+  // 获取客户详情
+  get: (id: number) =>
+    http.get<any>(`/billing/customers/${id}`),
+
+  // 创建客户
+  create: (data: any) =>
+    http.post<any>('/billing/customers', data),
+
+  // 更新客户
+  update: (id: number, data: any) =>
+    http.put<any>(`/billing/customers/${id}`, data),
+
+  // 删除客户
+  delete: (id: number) =>
+    http.delete(`/billing/customers/${id}`),
+
+  // 启用/禁用客户
+  toggleStatus: (id: number, status: string) =>
+    http.patch(`/billing/customers/${id}/status`, { status }),
+}
+
+// 热门服务 API
+export const topServicesApi = {
+  // 获取热门服务列表
+  getTopServices: (tenantId: number) =>
+    http.get<any[]>('/billing/top-services', { params: { tenantId } }),
 }

@@ -1,18 +1,13 @@
 <template>
   <div class="company-info-page">
-    <div class="header-wrapper">
-      <div class="tenant-select-wrapper">
-        <TenantSelect v-model:modelValue="selectedTenantId" @change="handleTenantChange" />
-      </div>
-      <a-page-header title="企业信息" sub-title="维护企业基础信息和画像，供行业热词收集、关键词蒸馏和内容生成使用。">
-        <template #extra>
-          <a-space>
-            <a-button @click="handleReset">重置</a-button>
-            <a-button type="primary" :loading="saving" @click="handleSave">保存修改</a-button>
-          </a-space>
-        </template>
-      </a-page-header>
-    </div>
+    <a-page-header title="企业信息" sub-title="维护企业基础信息和画像，供行业热词收集、关键词蒸馏和内容生成使用。">
+      <template #extra>
+        <a-space>
+          <a-button @click="handleReset">重置</a-button>
+          <a-button type="primary" :loading="saving" @click="handleSave">保存修改</a-button>
+        </a-space>
+      </template>
+    </a-page-header>
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">
@@ -415,7 +410,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PlusOutlined,
@@ -427,12 +422,11 @@ import {
 } from '@ant-design/icons-vue'
 import { companyInfoApi } from '@/v2/api/portal'
 import type { CompanyInfo, CompanyInfoForm } from '@/v2/types/portal'
-import type { Tenant } from '@/v2/types/workspace'
-import TenantSelect from '@/v2/components/TenantSelect.vue'
+import { useAuthStore } from '../../stores/auth'
 
+const auth = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
-const selectedTenantId = ref<number | undefined>()
 
 const logoFileList = ref<any[]>([])
 const faviconFileList = ref<any[]>([])
@@ -686,19 +680,8 @@ function handleFaviconChange(info: any) {
   }
 }
 
-function handleTenantChange(tenant: Tenant | null) {
-  if (tenant) {
-    selectedTenantId.value = tenant.id
-    loadCompanyInfo()
-  }
-}
-
 onMounted(() => {
-  const storedTenantId = localStorage.getItem('geocms_tenant_id')
-  if (storedTenantId) {
-    selectedTenantId.value = Number(storedTenantId)
-    loadCompanyInfo()
-  }
+  loadCompanyInfo()
 })
 </script>
 
@@ -706,17 +689,6 @@ onMounted(() => {
 .company-info-page {
   width: 100%;
   padding: 0;
-}
-
-.header-wrapper {
-  padding: 16px 24px 0;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
-
-  .tenant-select-wrapper {
-    width: 200px;
-    margin-bottom: 12px;
-  }
 }
 
 .content-wrapper {

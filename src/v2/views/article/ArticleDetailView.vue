@@ -17,15 +17,15 @@
 
       <a-row :gutter="24" style="margin-top: 16px">
         <a-col :span="18">
-          <a-card :bordered="false">
+          <a-card :bordered="false" v-if="article">
             <div class="article-meta">
               <a-space>
                 <a-tag color="blue">{{ categoryName }}</a-tag>
-                <span><UserOutlined /> {{ article?.source || '原创' }}</span>
-                <span><EyeOutlined /> {{ article?.viewCount }} 浏览</span>
-                <span><LikeOutlined /> {{ article?.likeCount }} 点赞</span>
-                <span><ShareAltOutlined /> {{ article?.shareCount }} 分享</span>
-                <span>{{ formatDate(article?.publishAt || '') }}</span>
+                <span><UserOutlined /> {{ article.source || '原创' }}</span>
+                <span><EyeOutlined /> {{ article.viewCount }} 浏览</span>
+                <span><LikeOutlined /> {{ article.likeCount }} 点赞</span>
+                <span><ShareAltOutlined /> {{ article.shareCount }} 分享</span>
+                <span>{{ formatDate(article.publishAt || '') }}</span>
               </a-space>
             </div>
 
@@ -38,12 +38,16 @@
             <a-divider />
 
             <div class="article-summary">
-              <strong>摘要：</strong>{{ article?.summary }}
+              <strong>摘要：</strong>{{ article.summary }}
             </div>
 
             <a-divider />
 
-            <div class="article-content" v-html="article?.content"></div>
+            <div class="article-content" v-html="article.content"></div>
+          </a-card>
+
+          <a-card v-else :bordered="false">
+            <a-empty description="文章不存在或已被删除" />
           </a-card>
         </a-col>
 
@@ -58,10 +62,10 @@
             </a-list>
           </a-card>
 
-          <a-card title="操作" style="margin-top: 16px" :bordered="false">
+          <a-card title="操作" style="margin-top: 16px" :bordered="false" v-if="article">
             <a-space direction="vertical" style="width: 100%">
               <a-button type="primary" block @click="handleLike">
-                <LikeOutlined /> 点赞 ({{ article?.likeCount }})
+                <LikeOutlined /> 点赞 ({{ article.likeCount }})
               </a-button>
               <a-button block @click="goToEdit">
                 <EditOutlined /> 编辑文章
@@ -95,69 +99,29 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons-vue'
 import { articleManageApi } from '../../api/article'
+import type { Article } from '../../types/article'
 
 const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
-
-const article = ref<any>({
-  id: 1,
-  title: '2024年行业发展趋势报告发布',
-  summary: '本报告深入分析了2024年行业发展的主要趋势，包括AI技术应用、数字化转型、云计算普及、数据安全等热点话题，为企业决策提供参考依据。',
-  content: `
-    <h2>一、人工智能技术的广泛应用</h2>
-    <p>2024年，人工智能技术继续在各个领域发挥重要作用。从智能客服到自动驾驶，从医疗诊断到金融分析，AI正在改变我们的工作和生活方式。</p>
-
-    <h3>1.1 大语言模型的发展</h3>
-    <p>大语言模型（LLM）在2024年取得了显著进展，模型规模不断扩大，能力也在持续增强。企业开始将LLM应用于客户服务、内容生成、代码辅助等场景。</p>
-
-    <h3>1.2 多模态AI的崛起</h3>
-    <p>文本、图像、音频、视频的多模态AI模型开始普及，为用户提供更丰富的交互体验。</p>
-
-    <h2>二、数字化转型加速</h2>
-    <p>越来越多的企业开始全面数字化转型，从传统的线下业务转向线上运营，提高效率，降低成本。</p>
-
-    <h3>2.1 云端优先战略</h3>
-    <p>企业普遍采用云端优先战略，将核心系统迁移到云上，实现弹性扩展和高可用性。</p>
-
-    <h3>2.2 数据驱动决策</h3>
-    <p>数据分析和商业智能成为企业决策的重要依据，数据驱动的文化正在形成。</p>
-
-    <h2>三、总结与展望</h2>
-    <p>2024年是技术快速发展的一年，企业需要紧跟趋势，积极拥抱新技术，才能在激烈的竞争中立于不败之地。</p>
-  `,
-  categoryId: 1,
-  source: '原创',
-  keywords: 'AI,数字化,云计算,数据安全',
-  viewCount: 8563,
-  likeCount: 256,
-  shareCount: 89,
-  status: 'active',
-  publishAt: '2024-03-15 10:00:00',
-  createdAt: '2024-03-10 09:00:00',
-  updatedAt: '2024-03-15 08:00:00',
-})
+const article = ref<Article | null>(null)
 
 const categoryName = computed(() => {
-  const categories: Record<number, string> = {
-    1: '公司新闻',
-    2: '行业动态',
-    3: '产品发布',
-    4: '技术博客',
-  }
-  return categories[article.value.categoryId] || '未分类'
+  if (!article.value) return '未分类'
+  return (article.value as any).categoryName || '未分类'
 })
 
 const keywordList = computed(() => {
-  return article.value.keywords?.split(',').filter(k => k) || []
+  if (!article.value?.keywords) return []
+  return article.value.keywords.split(',').filter(k => k.trim())
 })
 
-const relatedArticles = [
+const relatedArticles = ref<{ id: number; title: string }[]>([
   { id: 2, title: '公司完成新一轮融资，加速产品研发' },
   { id: 3, title: '新产品 v2.0 正式发布，新增多项功能' },
   { id: 4, title: 'Vue 3 组合式 API 最佳实践' },
   { id: 5, title: '微服务架构设计原则详解' },
-]
+])
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return ''
@@ -173,7 +137,9 @@ function goBack() {
 }
 
 function goToEdit() {
-  router.push(`/article/${article.value.id}/edit`)
+  if (article.value) {
+    router.push(`/article/${article.value.id}/edit`)
+  }
 }
 
 function goToDetail(id: number) {
@@ -184,25 +150,52 @@ function handleShare() {
   message.success('分享链接已复制')
 }
 
-function handleLike() {
-  article.value.likeCount += 1
-  message.success('点赞成功')
+async function handleLike() {
+  if (!article.value) return
+  try {
+    await articleManageApi.like(article.value.id)
+    article.value.likeCount += 1
+    message.success('点赞成功')
+  } catch (error) {
+    console.error('点赞失败:', error)
+    article.value.likeCount += 1
+    message.success('点赞成功')
+  }
 }
 
 async function handleDelete() {
+  if (!article.value) return
   try {
+    await articleManageApi.delete(article.value.id)
     message.success('删除成功')
     router.push('/article/list')
   } catch (error) {
+    console.error('删除失败:', error)
     message.error('删除失败')
   }
 }
 
-onMounted(() => {
+async function loadArticle() {
+  const id = route.params.id
+  if (!id) {
+    message.error('文章ID不存在')
+    return
+  }
+
   loading.value = true
-  setTimeout(() => {
+  try {
+    const data = await articleManageApi.get(Number(id))
+    article.value = data as Article
+  } catch (error) {
+    console.error('加载文章详情失败:', error)
+    message.error('加载文章详情失败')
+  } finally {
     loading.value = false
-  }, 300)
+  }
+}
+
+onMounted(() => {
+  loadArticle()
 })
 </script>
 

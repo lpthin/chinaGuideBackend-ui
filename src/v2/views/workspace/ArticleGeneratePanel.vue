@@ -1151,19 +1151,6 @@ async function generateArticle() {
     initialText = '正在分析主题...'
   }
   progressText.value = initialText
-  
-  const progressInterval = setInterval(() => {
-    if (generateProgress.value < 90) {
-      generateProgress.value += Math.random() * 15
-      if (generateProgress.value < 30) {
-        progressText.value = initialText
-      } else if (generateProgress.value < 60) {
-        progressText.value = '正在检索知识库...'
-      } else {
-        progressText.value = '正在生成文章内容...'
-      }
-    }
-  }, 500)
 
   try {
     let params: any = {
@@ -1189,11 +1176,12 @@ async function generateArticle() {
       params.template = selectedCaseTemplate.value
       params.highlights = highlightOptions.value
       message.info('案例驱动生成功能开发中...')
+      generating.value = false
+      return
     } else if (activeTab.value === 'document') {
       if (!selectedDocument.value) {
         message.warning('请先选择一个文档')
         generating.value = false
-        clearInterval(progressInterval)
         return
       }
       params.type = 'document'
@@ -1203,11 +1191,12 @@ async function generateArticle() {
       params.style = documentArticleStyle.value
       params.tone = documentArticleTone.value
       message.info('文档驱动生成功能开发中...')
+      generating.value = false
+      return
     } else if (activeTab.value === 'custom') {
       if (!customTopic.value.trim()) {
         message.warning('请输入文章主题')
         generating.value = false
-        clearInterval(progressInterval)
         return
       }
       params.type = 'custom'
@@ -1219,6 +1208,8 @@ async function generateArticle() {
       params.style = customArticleStyle.value
       params.tone = customArticleTone.value
       message.info('自定义主题生成功能开发中...')
+      generating.value = false
+      return
     }
     
     generateProgress.value = 100
@@ -1230,11 +1221,8 @@ async function generateArticle() {
     message.error('生成失败')
     console.error(error)
   } finally {
-    clearInterval(progressInterval)
-    setTimeout(() => {
-      generating.value = false
-      generateProgress.value = 0
-    }, 500)
+    generating.value = false
+    generateProgress.value = 0
   }
 }
 

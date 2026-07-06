@@ -357,8 +357,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, type Ref } from 'vue'
-import { message } from 'ant-design-vue'
+import { ref, reactive, onMounted, computed, watch, type Ref } from 'vue'
+import { message, Modal } from 'ant-design-vue'
 import type { FormInstance } from 'ant-design-vue'
 import {
   ShopOutlined,
@@ -374,6 +374,10 @@ import {
 } from '@ant-design/icons-vue'
 import { GeoStoreStatus, StoreType } from '../../types/geo'
 import type { GeoStore, GeoStoreQuery, GeoStoreForm, GeoRegion } from '../../types/geo'
+import { geoStoreApi, geoRegionApi } from '../../api/geo'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const tableLoading = ref(false)
@@ -556,19 +560,24 @@ function onFormCityChange() {
   }
 }
 
-function loadCities(provinceId: number, target: Ref<GeoRegion[]>) {
-  target.value = [
-    { id: 101, parentId: provinceId, level: 2, name: '市辖区', code: '', fullName: '', pinyin: '', lng: 0, lat: 0, sortOrder: 1, status: 'active' },
-  ]
+async function loadCities(provinceId: number, target: Ref<GeoRegion[]>) {
+  try {
+    const res = await geoRegionApi.cities(provinceId)
+    target.value = res
+  } catch (error) {
+    message.error('加载城市列表失败')
+    console.error(error)
+  }
 }
 
-function loadDistricts(cityId: number, target: Ref<GeoRegion[]>) {
-  target.value = [
-    { id: 201, parentId: cityId, level: 3, name: '东城区', code: '', fullName: '', pinyin: '', lng: 0, lat: 0, sortOrder: 1, status: 'active' },
-    { id: 202, parentId: cityId, level: 3, name: '西城区', code: '', fullName: '', pinyin: '', lng: 0, lat: 0, sortOrder: 2, status: 'active' },
-    { id: 203, parentId: cityId, level: 3, name: '朝阳区', code: '', fullName: '', pinyin: '', lng: 0, lat: 0, sortOrder: 3, status: 'active' },
-    { id: 204, parentId: cityId, level: 3, name: '海淀区', code: '', fullName: '', pinyin: '', lng: 0, lat: 0, sortOrder: 4, status: 'active' },
-  ]
+async function loadDistricts(cityId: number, target: Ref<GeoRegion[]>) {
+  try {
+    const res = await geoRegionApi.districts(cityId)
+    target.value = res
+  } catch (error) {
+    message.error('加载区县列表失败')
+    console.error(error)
+  }
 }
 
 function handleAdd() {
@@ -613,24 +622,37 @@ function handleEdit(record: GeoStore) {
   modalVisible.value = true
 }
 
-function handleToggleStatus(record: GeoStore, status: GeoStoreStatus) {
-  const item = storeList.value.find(s => s.id === record.id)
-  if (item) {
-    const oldStatus = item.status
-    item.status = status
-    updateStats()
+async function handleToggleStatus(record: GeoStore, status: GeoStoreStatus) {
+  try {
+    await geoStoreApi.update(record.id, { ...record, status })
     message.success(`已${getStatusName(status)}: ${record.name}`)
+    loadStores()
+    loadStatistics()
+  } catch (error) {
+    message.error('状态更新失败')
+    console.error(error)
   }
 }
 
 function handleDelete(record: GeoStore) {
-  const index = storeList.value.findIndex(s => s.id === record.id)
-  if (index > -1) {
-    storeList.value.splice(index, 1)
-    pagination.total -= 1
-    updateStats()
-    message.success('删除成功')
-  }
+  Modal.confirm({
+    title: '确认删除',
+    content: `确定要删除门店「${record.name}」吗？`,
+    okText: '删除',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        await geoStoreApi.delete(record.id)
+        message.success('删除成功')
+        loadStores()
+        loadStatistics()
+      } catch (error) {
+        message.error('删除失败')
+        console.error(error)
+      }
+    },
+  })
 }
 
 function handleBatchDelete() {
@@ -638,16 +660,25 @@ function handleBatchDelete() {
     message.warning('请选择要删除的门店')
     return
   }
-  selectedRowKeys.value.forEach(id => {
-    const index = storeList.value.findIndex(s => s.id === id)
-    if (index > -1) {
-      storeList.value.splice(index, 1)
-    }
+  Modal.confirm({
+    title: '批量删除',
+    content: `确定要删除选中的 ${selectedRowKeys.value.length} 个门店吗？`,
+    okText: '删除',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        await geoStoreApi.batchDelete(selectedRowKeys.value)
+        message.success(`已删除 ${selectedRowKeys.value.length} 个门店`)
+        selectedRowKeys.value = []
+        loadStores()
+        loadStatistics()
+      } catch (error) {
+        message.error('批量删除失败')
+        console.error(error)
+      }
+    },
   })
-  pagination.total -= selectedRowKeys.value.length
-  updateStats()
-  message.success(`已删除 ${selectedRowKeys.value.length} 个门店`)
-  selectedRowKeys.value = []
 }
 
 function exportData() {
@@ -658,14 +689,21 @@ async function handleSubmit() {
   try {
     await formRef.value?.validate()
     modalLoading.value = true
-    setTimeout(() => {
-      modalLoading.value = false
-      modalVisible.value = false
-      message.success(isEdit.value ? '更新成功' : '创建成功')
-      loadStores()
-    }, 500)
-  } catch {
-    message.error('请填写完整信息')
+    if (isEdit.value && formData.id) {
+      await geoStoreApi.update(formData.id, formData)
+      message.success('更新成功')
+    } else {
+      await geoStoreApi.create(formData)
+      message.success('创建成功')
+    }
+    modalVisible.value = false
+    loadStores()
+    loadStatistics()
+  } catch (error) {
+    message.error(isEdit.value ? '更新失败' : '创建失败')
+    console.error(error)
+  } finally {
+    modalLoading.value = false
   }
 }
 
@@ -697,125 +735,70 @@ function resetForm() {
   formDistrictList.value = []
 }
 
-function updateStats() {
-  stats.totalStores = storeList.value.length
-  stats.openStores = storeList.value.filter(s => s.status === GeoStoreStatus.OPEN).length
-  stats.closedStores = storeList.value.filter(s => s.status === GeoStoreStatus.CLOSED).length
-  stats.maintenanceStores = storeList.value.filter(s => s.status === GeoStoreStatus.MAINTENANCE).length
+async function loadStatistics() {
+  try {
+    const res = await geoStoreApi.statistics()
+    stats.totalStores = res.totalStores
+    stats.openStores = res.openStores
+    stats.closedStores = res.closedStores
+    stats.maintenanceStores = res.maintenanceStores
+  } catch (error) {
+    message.error('加载统计数据失败')
+    console.error(error)
+  }
 }
 
-function loadProvinces() {
-  provinceList.value = [
-    { id: 1, parentId: null, level: 1, name: '北京市', code: '110000', fullName: '北京市', pinyin: 'beijing', lng: 116.4074, lat: 39.9042, sortOrder: 1, status: 'active' },
-    { id: 2, parentId: null, level: 1, name: '上海市', code: '310000', fullName: '上海市', pinyin: 'shanghai', lng: 121.4737, lat: 31.2304, sortOrder: 2, status: 'active' },
-    { id: 3, parentId: null, level: 1, name: '广东省', code: '440000', fullName: '广东省', pinyin: 'guangdong', lng: 113.2644, lat: 23.1291, sortOrder: 3, status: 'active' },
-  ]
+async function loadProvinces() {
+  try {
+    const res = await geoRegionApi.provinces()
+    provinceList.value = res
+  } catch (error) {
+    message.error('加载省份列表失败')
+    console.error(error)
+  }
 }
 
 async function loadStores() {
   tableLoading.value = true
   try {
-    const mockData = generateMockStores()
-    let filtered = mockData
-    
-    if (queryParams.provinceId) {
-      filtered = filtered.filter(s => s.provinceId === queryParams.provinceId)
+    const params = {
+      ...queryParams,
+      tenantId: authStore.selectedTenantId || authStore.tenantId,
     }
-    if (queryParams.cityId) {
-      filtered = filtered.filter(s => s.cityId === queryParams.cityId)
-    }
-    if (queryParams.districtId) {
-      filtered = filtered.filter(s => s.districtId === queryParams.districtId)
-    }
-    if (queryParams.status) {
-      filtered = filtered.filter(s => s.status === queryParams.status)
-    }
-    if (queryParams.type) {
-      filtered = filtered.filter(s => s.type === queryParams.type)
-    }
-    if (queryParams.keyword) {
-      const kw = queryParams.keyword.toLowerCase()
-      filtered = filtered.filter(s => 
-        s.name.toLowerCase().includes(kw) || 
-        s.address.toLowerCase().includes(kw) ||
-        s.fullAddress.toLowerCase().includes(kw)
-      )
-    }
-    
-    pagination.total = filtered.length
-    const start = (pagination.current - 1) * pagination.pageSize
-    const end = start + pagination.pageSize
-    storeList.value = filtered.slice(start, end)
-    updateStats()
+    const res = await geoStoreApi.list(params)
+    storeList.value = res.records
+    pagination.total = res.total
+    pagination.current = res.page
+    pagination.pageSize = res.size
   } catch (error) {
+    message.error('加载门店列表失败')
     console.error(error)
   } finally {
     tableLoading.value = false
   }
 }
 
-function generateMockStores(): GeoStore[] {
-  const stores: GeoStore[] = []
-  const names = ['国贸旗舰店', '中关村店', '朝阳大悦城店', '三里屯店', '王府井店', '西单店', '望京店', '五道口店', '通州万达店', '亦庄店']
-  const types = [StoreType.DIRECT, StoreType.FRANCHISE, StoreType.BRANCH]
-  const statuses = [GeoStoreStatus.OPEN, GeoStoreStatus.OPEN, GeoStoreStatus.OPEN, GeoStoreStatus.CLOSED, GeoStoreStatus.MAINTENANCE]
-  const addresses = [
-    '建国门外大街1号',
-    '中关村大街1号',
-    '朝阳北路101号',
-    '三里屯路19号',
-    '王府井大街138号',
-    '西单北大街110号',
-    '望京街9号',
-    '成府路28号',
-    '新华西街58号',
-    '荣华中路8号',
-  ]
-  const managers = ['张三', '李四', '王五', '赵六', '钱七', '孙八', '周九', '吴十', '郑十一', '王十二']
-  const phones = ['13800138001', '13800138002', '13800138003', '13800138004', '13800138005', '13800138006', '13800138007', '13800138008', '13800138009', '13800138010']
-
-  for (let i = 0; i < 25; i++) {
-    stores.push({
-      id: i + 1,
-      name: names[i % names.length] + (i >= names.length ? ` (${Math.floor(i / names.length) + 1})` : ''),
-      storeNo: `STORE${String(i + 1).padStart(4, '0')}`,
-      type: types[i % types.length],
-      address: addresses[i % addresses.length],
-      provinceId: 1,
-      cityId: 101,
-      districtId: 201 + (i % 4),
-      provinceName: '北京市',
-      cityName: '北京市',
-      districtName: ['东城区', '西城区', '朝阳区', '海淀区'][i % 4],
-      fullAddress: `北京市北京市${['东城区', '西城区', '朝阳区', '海淀区'][i % 4]}${addresses[i % addresses.length]}`,
-      lng: 116.4 + (i * 0.01),
-      lat: 39.9 + (i * 0.01),
-      phone: phones[i % phones.length],
-      email: `store${i + 1}@example.com`,
-      businessHours: '周一至周日 09:00-22:00',
-      coverImage: '',
-      images: '',
-      description: `这是${names[i % names.length]}的详细描述，提供优质的产品和服务。`,
-      tags: '优质服务,品牌授权,新品上市',
-      tagList: ['优质服务', '品牌授权', '新品上市'],
-      sortOrder: i + 1,
-      status: statuses[i % statuses.length],
-      managerName: managers[i % managers.length],
-      managerPhone: phones[i % phones.length],
-      createdAt: new Date(Date.now() - i * 86400000).toISOString().slice(0, 19).replace('T', ' '),
-      updatedAt: new Date(Date.now() - i * 43200000).toISOString().slice(0, 19).replace('T', ' '),
-    })
+async function loadData() {
+  loading.value = true
+  try {
+    await Promise.all([
+      loadProvinces(),
+      loadStores(),
+      loadStatistics(),
+    ])
+  } catch (error) {
+    console.error(error)
+  } finally {
+    loading.value = false
   }
-  return stores
 }
 
-onMounted(() => {
-  loading.value = true
-  loadProvinces()
-  loadStores()
-  setTimeout(() => {
-    loading.value = false
-  }, 300)
+onMounted(async () => {
+  await loadData()
+})
+
+watch(() => authStore.selectedTenantId, () => {
+  loadData()
 })
 </script>
 

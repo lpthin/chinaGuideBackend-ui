@@ -297,7 +297,7 @@ import {
   ApiOutlined,
   EyeOutlined,
 } from '@ant-design/icons-vue'
-import { embeddingConfigApi, vectorDbApi } from '../../api/ai-model'
+import { embeddingConfigApi, vectorDbApi, aiGenerateApi } from '../../api/ai-model'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -363,28 +363,33 @@ const vectorDatabases = ref([
   { id: 2, name: 'PGVector-业务库', type: 'PGVector', host: '192.168.1.101:5432', isDefault: false },
 ])
 
-function runPreview() {
+async function runPreview() {
   if (!previewText.value.trim()) {
     message.warning('请先输入示例文本')
     return
   }
 
   previewLoading.value = true
-  setTimeout(() => {
-    const text = previewText.value
-    const chunkSize = Math.floor(chunkForm.chunkSize / 2)
-    const chunks = []
-    for (let i = 0; i < text.length; i += chunkSize - chunkForm.chunkOverlap) {
-      const chunk = text.slice(i, i + chunkSize)
-      chunks.push({
-        text: chunk,
-        tokens: Math.ceil(chunk.length / 1.5),
-      })
-    }
-    previewResults.value = chunks
+  try {
+    const chunks = await aiGenerateApi.chunkPreview({
+      content: previewText.value,
+      chunkSize: chunkForm.chunkSize,
+      overlap: chunkForm.chunkOverlap,
+    })
+
+    previewResults.value = chunks.map((chunk: any) => ({
+      text: chunk.text,
+      tokens: chunk.tokens,
+      size: chunk.size,
+    }))
     activePreviewKey.value = [0]
+    message.success('分块预览完成')
+  } catch (error: any) {
+    console.error('Chunk preview failed:', error)
+    message.error(error?.message || '分块预览失败，请重试')
+  } finally {
     previewLoading.value = false
-  }, 800)
+  }
 }
 
 async function handleSave() {

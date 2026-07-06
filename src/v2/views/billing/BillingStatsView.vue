@@ -96,7 +96,7 @@
       <a-row :gutter="16">
         <a-col :span="12">
           <a-card title="服务用量排行" :bordered="false">
-            <a-list :data-source="topServices" :split="false">
+            <a-list :data-source="topServicesData" :split="false">
               <template #renderItem="{ item, index }">
                 <a-list-item>
                   <div class="service-item">
@@ -110,7 +110,7 @@
                       <div class="progress-bar">
                         <div
                           class="progress-inner"
-                          :style="{ width: `${(item.amount / topServices[0].amount) * 100}%` }"
+                          :style="{ width: `${topServicesData[0] ? (item.amount / topServicesData[0].amount) * 100 : 0}%` }"
                         ></div>
                       </div>
                     </div>
@@ -132,6 +132,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import {
   BarChartOutlined,
@@ -141,6 +142,10 @@ import {
   ArrowUpOutlined,
   ArrowDownOutlined,
 } from '@ant-design/icons-vue'
+import { topServicesApi, statsApi } from '../../api/billing'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const trendPeriod = ref('30')
@@ -154,42 +159,27 @@ let breakdownChart: echarts.ECharts | null = null
 let compareChart: echarts.ECharts | null = null
 
 const statsData = reactive({
-  totalAmount: 15680.50,
-  growthRate: 12.5,
-  lastMonthAmount: 13930.20,
-  lastMonthInvoices: 8,
-  averageDailyAmount: 522.68,
-  projectedMonthAmount: 16173.08,
-  pendingInvoices: 2,
-  pendingAmount: 2340.00,
+  totalAmount: 0,
+  growthRate: 0,
+  lastMonthAmount: 0,
+  lastMonthInvoices: 0,
+  averageDailyAmount: 0,
+  projectedMonthAmount: 0,
+  pendingInvoices: 0,
+  pendingAmount: 0,
 })
 
-const topServices = ref([
-  { name: 'GPT-4 API', usage: 280, unit: '万 tokens', amount: 8400 },
-  { name: '企业版订阅', usage: 1, unit: '月', amount: 3360.50 },
-  { name: 'Claude 3 API', usage: 120, unit: '万 tokens', amount: 1920 },
-  { name: 'CDN流量', usage: 8.5, unit: 'TB', amount: 1190 },
-  { name: '对象存储', usage: 680, unit: 'GB', amount: 810 },
-])
+const topServicesData = ref<any[]>([])
 
 const trendData = ref<{ date: string; amount: number }[]>([])
 
-function generateTrendData(days: number) {
-  const data: { date: string; amount: number }[] = []
-  const now = new Date()
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(date.getDate() - i)
-    const dateStr = `${date.getMonth() + 1}/${date.getDate()}`
-    const baseAmount = 400 + Math.random() * 300
-    const weekdayFactor = date.getDay() === 0 || date.getDay() === 6 ? 0.7 : 1
-    data.push({
-      date: dateStr,
-      amount: Math.round(baseAmount * weekdayFactor * 100) / 100,
-    })
-  }
-  trendData.value = data
-}
+const breakdownData = ref<{ productType: string; productName: string; amount: number; percentage: number }[]>([])
+
+const monthlyCompareData = ref<{ months: string[]; currentYear: number[]; lastYear: number[] }>({
+  months: [],
+  currentYear: [],
+  lastYear: [],
+})
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -198,7 +188,9 @@ function formatAmount(amount: number): string {
 function initTrendChart() {
   if (!trendChartRef.value) return
 
-  trendChart = echarts.init(trendChartRef.value)
+  if (!trendChart) {
+    trendChart = echarts.init(trendChartRef.value)
+  }
 
   const option: echarts.EChartsOption = {
     tooltip: {
@@ -257,15 +249,25 @@ function initTrendChart() {
   trendChart.setOption(option)
 }
 
+const BREAKDOWN_COLORS = ['#1890ff', '#52c41a', '#fa8c16', '#722ed1', '#13c2c2', '#eb2f96', '#faad14', '#8c8c8c']
+
 function initBreakdownChart() {
   if (!breakdownChartRef.value) return
 
-  breakdownChart = echarts.init(breakdownChartRef.value)
+  if (!breakdownChart) {
+    breakdownChart = echarts.init(breakdownChartRef.value)
+  }
+
+  const pieData = breakdownData.value.map((item, index) => ({
+    value: item.amount,
+    name: item.productName,
+    itemStyle: { color: BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length] },
+  }))
 
   const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: ¥{c} ({d}%)',
+      formatter: (params: any) => `${params.name}: ¥${formatAmount(params.value)} (${params.percent}%)`,
     },
     legend: {
       orient: 'vertical',
@@ -298,13 +300,7 @@ function initBreakdownChart() {
         labelLine: {
           show: false,
         },
-        data: [
-          { value: 8400, name: 'AI模型', itemStyle: { color: '#1890ff' } },
-          { value: 3360.50, name: '订阅服务', itemStyle: { color: '#52c41a' } },
-          { value: 1920, name: 'CDN流量', itemStyle: { color: '#fa8c16' } },
-          { value: 1190, name: '对象存储', itemStyle: { color: '#722ed1' } },
-          { value: 810, name: '其他服务', itemStyle: { color: '#8c8c8c' } },
-        ],
+        data: pieData,
       },
     ],
   }
@@ -315,17 +311,24 @@ function initBreakdownChart() {
 function initCompareChart() {
   if (!compareChartRef.value) return
 
-  compareChart = echarts.init(compareChartRef.value)
+  if (!compareChart) {
+    compareChart = echarts.init(compareChartRef.value)
+  }
 
-  const months = ['10月', '11月', '12月', '1月', '2月', '3月']
-  const currentYearData = [12500, 13800, 14200, 13500, 13930.20, 15680.50]
-  const lastYearData = [9800, 10500, 11200, 10800, 11500, 12100]
+  const { months, currentYear, lastYear } = monthlyCompareData.value
 
   const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'axis',
       axisPointer: {
         type: 'shadow',
+      },
+      formatter: (params: any) => {
+        let result = params[0].name + '<br/>'
+        params.forEach((item: any) => {
+          result += `${item.marker} ${item.seriesName}: ¥${formatAmount(item.value)}<br/>`
+        })
+        return result
       },
     },
     legend: {
@@ -358,7 +361,7 @@ function initCompareChart() {
       {
         name: '今年',
         type: 'bar',
-        data: currentYearData,
+        data: currentYear,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: '#1890ff' },
@@ -370,7 +373,7 @@ function initCompareChart() {
       {
         name: '去年',
         type: 'bar',
-        data: lastYearData,
+        data: lastYear,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: '#d9d9d9' },
@@ -391,21 +394,121 @@ function handleResize() {
   compareChart?.resize()
 }
 
-watch(trendPeriod, (newVal) => {
-  generateTrendData(parseInt(newVal))
-  initTrendChart()
+watch(trendPeriod, () => {
+  loadTrendData()
 })
 
-onMounted(() => {
-  loading.value = true
-  setTimeout(() => {
-    generateTrendData(30)
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    loadAllData()
+  }
+)
+
+async function loadTrendData() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  if (!tenantId) return
+
+  try {
+    const days = parseInt(trendPeriod.value)
+    const res = await statsApi.getTrend(tenantId, days)
+    trendData.value = res || []
     initTrendChart()
+  } catch (error) {
+    console.error('Failed to load trend data:', error)
+    message.error('加载消费趋势数据失败')
+  }
+}
+
+async function loadBreakdownData() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  if (!tenantId) return
+
+  try {
+    const res = await statsApi.getBreakdown(tenantId)
+    breakdownData.value = res || []
     initBreakdownChart()
+  } catch (error) {
+    console.error('Failed to load breakdown data:', error)
+    message.error('加载消费构成数据失败')
+  }
+}
+
+async function loadMonthlyCompareData() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  if (!tenantId) return
+
+  try {
+    const res = await statsApi.getMonthlyCompare(tenantId, 6)
+    if (res) {
+      monthlyCompareData.value = res
+    }
     initCompareChart()
-    window.addEventListener('resize', handleResize)
+  } catch (error) {
+    console.error('Failed to load monthly compare data:', error)
+    message.error('加载月度对比数据失败')
+  }
+}
+
+async function loadBillingStats() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  if (!tenantId) return
+
+  try {
+    const statsRes = await statsApi.getStats(tenantId)
+
+    if (statsRes) {
+      statsData.totalAmount = statsRes.thisMonthExpense || 0
+      statsData.growthRate = statsRes.monthOverMonthGrowth || 0
+      statsData.lastMonthAmount = statsRes.lastMonthExpense || 0
+      statsData.pendingAmount = 0
+      statsData.averageDailyAmount = statsData.totalAmount / new Date().getDate()
+      statsData.projectedMonthAmount = statsData.totalAmount * (30 / new Date().getDate())
+    }
+  } catch (error) {
+    console.error('Failed to load billing stats:', error)
+    message.error('加载计费统计数据失败')
+  }
+}
+
+async function loadTopServices() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  if (!tenantId) return
+
+  try {
+    const res = await topServicesApi.getTopServices(tenantId)
+    topServicesData.value = (res || []).map((item: any) => ({
+      ...item,
+      usage: 0,
+      unit: '次',
+    }))
+  } catch (error) {
+    console.error('Failed to load top services:', error)
+    message.error('加载Top服务数据失败')
+  }
+}
+
+async function loadAllData() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  if (!tenantId) return
+
+  loading.value = true
+  try {
+    await Promise.all([
+      loadBillingStats(),
+      loadTopServices(),
+      loadTrendData(),
+      loadBreakdownData(),
+      loadMonthlyCompareData(),
+    ])
+  } finally {
     loading.value = false
-  }, 500)
+  }
+}
+
+onMounted(() => {
+  loadAllData()
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {

@@ -28,7 +28,7 @@
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'name'">
-              <a-tag :color="record.color">{{ record.name }}</a-tag>
+              <span class="tag-name-text">{{ record.name }}</span>
             </template>
             <template v-if="column.key === 'useCount'">
               <a-badge :count="record.useCount" />
@@ -246,6 +246,12 @@ onMounted(() => {
 <style scoped lang="less">
 .knowledge-tag-page {
   width: 100%;
+}
+
+.tag-name-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
 }
 
 .color-radio-group {

@@ -1,5 +1,56 @@
 // 运营管理模块类型定义
 
+// 运营统计相关类型
+export interface OperationStats {
+  totalArticles: number
+  totalViews: number
+  totalUsers: number
+  totalLikes: number
+}
+
+export interface TrafficTrendItem {
+  date: string
+  views: number
+  articles: number
+}
+
+export interface CategoryDistributionItem {
+  categoryId: number
+  categoryName: string
+  count: number
+}
+
+export interface UserStats {
+  totalUsers: number
+  activeUsers: number
+  newUsers: number
+}
+
+export interface UserGrowthItem {
+  month: string
+  newUsers: number
+  activeUsers: number
+}
+
+export interface UserActivityItem {
+  level: number
+  levelKey: string
+  description: string
+  count: number
+}
+
+export interface TrafficSourceItem {
+  source: string
+  sourceKey: string
+  count: number
+}
+
+export interface DeviceDistributionItem {
+  device: string
+  deviceKey: string
+  count: number
+}
+
 // 客户案例
 export interface CustomerCase {
   id: number

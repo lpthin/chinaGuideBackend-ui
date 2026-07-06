@@ -124,9 +124,9 @@
     >
       <a-tree
         v-model:checkedKeys="checkedPermissionKeys"
-        :data="permissionTree"
+        :tree-data="permissionTree"
         checkable
-        :expand-default="true"
+        :default-expand-all="true"
         :field-names="{ children: 'children', title: 'name', key: 'id' }"
       />
     </a-modal>
@@ -134,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PlusOutlined,
@@ -142,7 +142,11 @@ import {
   SafetyOutlined,
   DeleteOutlined,
 } from '@ant-design/icons-vue'
-import type { Role, Permission } from '../../types'
+import { adminApi } from '../../api/workspace'
+import { useAuthStore } from '../../stores/auth'
+import type { Role } from '../../types'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const searchKeyword = ref('')
@@ -151,107 +155,14 @@ const permissionModalVisible = ref(false)
 const formRef = ref()
 const currentRoleId = ref<number | null>(null)
 
-const roles = ref<Role[]>([
-  {
-    id: 1,
-    tenantId: 1,
-    name: '超级管理员',
-    code: 'super_admin',
-    description: '系统最高权限，可访问所有功能',
-    status: 'active',
-    sort: 1,
-    createdAt: '2024-01-01 00:00:00',
-    updatedAt: '2024-01-01 00:00:00',
-    permissions: [],
-    permissionNames: ['用户管理', '角色管理', '权限管理', '内容管理', '系统配置'],
-  },
-  {
-    id: 2,
-    tenantId: 1,
-    name: '内容管理员',
-    code: 'content_admin',
-    description: '负责内容的发布、审核、管理',
-    status: 'active',
-    sort: 2,
-    createdAt: '2024-01-01 00:00:00',
-    updatedAt: '2024-01-01 00:00:00',
-    permissions: [],
-    permissionNames: ['文章管理', '分类管理', '媒体库', '评论管理'],
-  },
-  {
-    id: 3,
-    tenantId: 1,
-    name: '普通用户',
-    code: 'user',
-    description: '基础浏览权限',
-    status: 'active',
-    sort: 3,
-    createdAt: '2024-01-01 00:00:00',
-    updatedAt: '2024-01-01 00:00:00',
-    permissions: [],
-    permissionNames: ['文章浏览', '个人中心'],
-  },
-])
-
-const permissionTree = ref<Permission[]>([
-  {
-    id: 1,
-    tenantId: 1,
-    name: '用户管理',
-    code: 'user',
-    type: 'menu',
-    status: 'active',
-    sort: 1,
-    createdAt: '',
-    updatedAt: '',
-    children: [
-      { id: 11, tenantId: 1, name: '查看用户', code: 'user:view', type: 'button', status: 'active', sort: 1, createdAt: '', updatedAt: '' },
-      { id: 12, tenantId: 1, name: '创建用户', code: 'user:create', type: 'button', status: 'active', sort: 2, createdAt: '', updatedAt: '' },
-      { id: 13, tenantId: 1, name: '编辑用户', code: 'user:edit', type: 'button', status: 'active', sort: 3, createdAt: '', updatedAt: '' },
-      { id: 14, tenantId: 1, name: '删除用户', code: 'user:delete', type: 'button', status: 'active', sort: 4, createdAt: '', updatedAt: '' },
-    ],
-  },
-  {
-    id: 2,
-    tenantId: 1,
-    name: '角色管理',
-    code: 'role',
-    type: 'menu',
-    status: 'active',
-    sort: 2,
-    createdAt: '',
-    updatedAt: '',
-    children: [
-      { id: 21, tenantId: 1, name: '查看角色', code: 'role:view', type: 'button', status: 'active', sort: 1, createdAt: '', updatedAt: '' },
-      { id: 22, tenantId: 1, name: '创建角色', code: 'role:create', type: 'button', status: 'active', sort: 2, createdAt: '', updatedAt: '' },
-      { id: 23, tenantId: 1, name: '编辑角色', code: 'role:edit', type: 'button', status: 'active', sort: 3, createdAt: '', updatedAt: '' },
-      { id: 24, tenantId: 1, name: '删除角色', code: 'role:delete', type: 'button', status: 'active', sort: 4, createdAt: '', updatedAt: '' },
-    ],
-  },
-  {
-    id: 3,
-    tenantId: 1,
-    name: '内容管理',
-    code: 'content',
-    type: 'menu',
-    status: 'active',
-    sort: 3,
-    createdAt: '',
-    updatedAt: '',
-    children: [
-      { id: 31, tenantId: 1, name: '文章管理', code: 'content:article', type: 'menu', status: 'active', sort: 1, createdAt: '', updatedAt: '' },
-      { id: 32, tenantId: 1, name: '分类管理', code: 'content:category', type: 'menu', status: 'active', sort: 2, createdAt: '', updatedAt: '' },
-      { id: 33, tenantId: 1, name: '媒体库', code: 'content:media', type: 'menu', status: 'active', sort: 3, createdAt: '', updatedAt: '' },
-    ],
-  },
-])
-
-const checkedPermissionKeys = ref<number[]>([])
+const roles = ref<Role[]>([])
+const permissionTree = ref<any[]>([])
+const checkedPermissionKeys = ref<(string | number)[]>([])
 
 const pagination = reactive({
   current: 1,
   pageSize: 10,
-  total: roles.value.length,
+  total: 0,
   showSizeChanger: true,
   showQuickJumper: true,
   showTotal: (total: number) => `共 ${total} 条`,
@@ -329,11 +240,39 @@ const columns = [
   },
 ]
 
-function loadRoles() {
+async function loadRoles() {
   loading.value = true
-  setTimeout(() => {
+  try {
+    const result = await adminApi.roles.list({
+      page: pagination.current,
+      size: pagination.pageSize,
+      keyword: searchKeyword.value || undefined,
+    })
+    roles.value = result.records || []
+    pagination.total = result.total || 0
+  } catch (error: any) {
+    message.error(error.message || '加载角色列表失败')
+  } finally {
     loading.value = false
-  }, 500)
+  }
+}
+
+async function loadPermissionTree() {
+  try {
+    const result = await adminApi.permissions.tree()
+    permissionTree.value = result || []
+  } catch (error: any) {
+    message.error(error.message || '加载权限树失败')
+  }
+}
+
+async function loadRolePermissions(roleId: number) {
+  try {
+    const permissionIds = await adminApi.roles.getPermissions(roleId)
+    checkedPermissionKeys.value = permissionIds || []
+  } catch (error: any) {
+    message.error(error.message || '加载角色权限失败')
+  }
 }
 
 function handleTableChange(pag: any) {
@@ -362,12 +301,37 @@ function handleEdit(record: Role) {
   modalVisible.value = true
 }
 
-function handleSubmit() {
-  formRef.value?.validate().then(() => {
-    message.success(formState.id ? '更新成功' : '创建成功')
+async function handleSubmit() {
+  try {
+    await formRef.value?.validate()
+    
+    if (formState.id) {
+      await adminApi.roles.update(formState.id, {
+        name: formState.name,
+        code: formState.code,
+        description: formState.description,
+        sort: formState.sort,
+        status: formState.status,
+      })
+      message.success('更新成功')
+    } else {
+      await adminApi.roles.create({
+        name: formState.name,
+        code: formState.code,
+        description: formState.description,
+        sort: formState.sort,
+        status: formState.status,
+      })
+      message.success('创建成功')
+    }
+    
     modalVisible.value = false
     loadRoles()
-  })
+  } catch (error: any) {
+    if (error.message && error.message !== '校验失败') {
+      message.error(error.message || '操作失败')
+    }
+  }
 }
 
 function handleModalCancel() {
@@ -375,32 +339,55 @@ function handleModalCancel() {
   modalVisible.value = false
 }
 
-function handleAssignPermissions(record: Role) {
+async function handleAssignPermissions(record: Role) {
   currentRoleId.value = record.id
-  checkedPermissionKeys.value = record.permissions?.map(p => p.id) || []
+  await loadRolePermissions(record.id)
   permissionModalVisible.value = true
 }
 
-function handlePermissionSubmit() {
-  message.success('权限分配成功')
-  permissionModalVisible.value = false
-  loadRoles()
+async function handlePermissionSubmit() {
+  if (!currentRoleId.value) return
+  
+  try {
+    const permIds = checkedPermissionKeys.value
+      .filter(k => typeof k === 'number')
+      .map(k => k as number)
+    
+    await adminApi.roles.assignPermissions(currentRoleId.value, permIds)
+    message.success('权限分配成功')
+    permissionModalVisible.value = false
+    loadRoles()
+  } catch (error: any) {
+    message.error(error.message || '权限分配失败')
+  }
 }
 
-function handleDelete(record: Role) {
-  if (record.code === 'super_admin') {
+async function handleDelete(record: Role) {
+  if (record.code === 'super_admin' || record.id === 1) {
     message.error('超级管理员角色不能删除')
     return
   }
-  const index = roles.value.findIndex(r => r.id === record.id)
-  if (index > -1) {
-    roles.value.splice(index, 1)
+  
+  try {
+    await adminApi.roles.delete(record.id)
     message.success('删除成功')
+    loadRoles()
+  } catch (error: any) {
+    message.error(error.message || '删除失败')
   }
 }
 
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    pagination.current = 1
+    loadRoles()
+  }
+)
+
 onMounted(() => {
   loadRoles()
+  loadPermissionTree()
 })
 </script>
 

@@ -551,7 +551,9 @@ import {
   UnorderedListOutlined,
 } from '@ant-design/icons-vue'
 import { reviewApi, articleApi } from '../../api'
+import { useAuthStore } from '../../stores/auth'
 
+const authStore = useAuthStore()
 const loading = ref(false)
 const showRejectModal = ref(false)
 const showBatchRejectModal = ref(false)
@@ -580,12 +582,7 @@ const mockTrendData = {
   avgTime: [12, 15, 10, 14, 11, 8, 9]
 }
 
-const mockRejectData = [
-  { name: '文章质量不达标', value: 45 },
-  { name: '包含敏感内容', value: 25 },
-  { name: '结构逻辑混乱', value: 18 },
-  { name: '主题相关性不足', value: 12 }
-]
+const rejectData = ref<{ name: string; value: number }[]>([])
 
 const opinionTemplates = [
   '内容质量优秀，审核通过',
@@ -728,17 +725,37 @@ function batchSendBack() {
   message.info(`批量退回 ${selectedRows.value.length} 篇文章`)
 }
 
+async function loadReviewStats() {
+  try {
+    const res = await reviewApi.getReviewStats(authStore.selectedTenantId) as any
+    if (res) {
+      if (res.rejectDistribution) {
+        rejectData.value = res.rejectDistribution
+        updateRejectChartData()
+      }
+      if (typeof res.pendingCount === 'number') {
+        stats.pendingCount = res.pendingCount
+      }
+      if (typeof res.approvedCount === 'number' && typeof res.rejectedCount === 'number') {
+        const total = res.approvedCount + res.rejectedCount
+        stats.passRate = total > 0 ? Math.round((res.approvedCount / total) * 100) : 0
+      }
+    }
+  } catch (error) {
+    message.error('审核统计数据加载失败')
+    console.error(error)
+  }
+}
+
 async function loadData() {
   loading.value = true
   try {
     const articlesRes = await reviewApi.pendingList({}) as any
     const records = articlesRes?.records || articlesRes || []
     articles.value = records
-    stats.pendingCount = articlesRes?.total || records.length
-    stats.todayReviewed = 0
-    stats.passRate = 0
-    stats.avgTime = 0
+    await loadReviewStats()
   } catch (error) {
+    message.error('数据加载失败')
     console.error(error)
   } finally {
     loading.value = false
@@ -914,6 +931,11 @@ const initRejectChart = () => {
   if (!rejectChartRef.value) return
   
   rejectChart = echarts.init(rejectChartRef.value)
+  updateRejectChartData()
+}
+
+const updateRejectChartData = () => {
+  if (!rejectChart) return
   
   const option: echarts.EChartsOption = {
     tooltip: {
@@ -953,10 +975,10 @@ const initRejectChart = () => {
         labelLine: {
           show: false
         },
-        data: mockRejectData.map((item, index) => ({
+        data: rejectData.value.map((item, index) => ({
           ...item,
           itemStyle: {
-            color: ['#ff4d4f', '#fa8c16', '#faad14', '#fadb14'][index]
+            color: ['#ff4d4f', '#fa8c16', '#faad14', '#fadb14', '#a0d911', '#36cfc9'][index % 6]
           }
         }))
       }
@@ -1002,6 +1024,10 @@ watch(statsPanelKey, (val) => {
   if (val && (val === '1' || (Array.isArray(val) && val.includes('1')))) {
     initCharts()
   }
+})
+
+watch(() => authStore.selectedTenantId, () => {
+  loadData()
 })
 
 onUnmounted(() => {

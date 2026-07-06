@@ -67,3 +67,11 @@ export const geoStoreApi = {
   statistics: () =>
     http.get<GeoStoreStats>('/geo/stores/statistics')
 }
+
+export const geoLocationApi = {
+  getByIp: (ip?: string) =>
+    http.get<{ province: string; city: string; district: string; lng: number; lat: number; isp: string }>('/geo/location/ip', { params: { ip } }),
+
+  getCurrent: () =>
+    http.get<{ province: string; city: string; district: string; lng: number; lat: number; isp: string }>('/geo/location/current'),
+}

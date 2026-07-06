@@ -44,7 +44,7 @@
           </template>
           <template v-if="column.key === 'roles'">
             <a-space size="small" wrap>
-              <a-tag v-for="role in record.roles" :key="role" color="blue" size="small">
+              <a-tag v-for="role in record.roleNames" :key="role" color="blue" size="small">
                 {{ role }}
               </a-tag>
             </a-space>
@@ -171,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PlusOutlined,
@@ -179,7 +179,11 @@ import {
   SettingOutlined,
   KeyOutlined,
 } from '@ant-design/icons-vue'
+import { adminApi } from '../../api/workspace'
+import { useAuthStore } from '../../stores/auth'
 import type { UserInfo, Role } from '../../types'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const searchKeyword = ref('')
@@ -192,57 +196,14 @@ const passwordFormRef = ref()
 const selectedRowKeys = ref<number[]>([])
 const currentUserId = ref<number | null>(null)
 
-const users = ref<UserInfo[]>([
-  {
-    id: 1,
-    username: 'admin',
-    nickname: '系统管理员',
-    email: 'admin@example.com',
-    phone: '13800138000',
-    tenantId: 1,
-    roles: ['admin', 'user'],
-    permissions: ['*'],
-    status: 'enabled',
-    createdAt: '2024-01-01 00:00:00',
-  },
-  {
-    id: 2,
-    username: 'editor',
-    nickname: '内容编辑',
-    email: 'editor@example.com',
-    phone: '13800138001',
-    tenantId: 1,
-    roles: ['editor'],
-    permissions: [],
-    status: 'enabled',
-    createdAt: '2024-01-15 10:30:00',
-  },
-  {
-    id: 3,
-    username: 'viewer',
-    nickname: '普通用户',
-    email: 'viewer@example.com',
-    phone: '13800138002',
-    tenantId: 1,
-    roles: ['user'],
-    permissions: [],
-    status: 'disabled',
-    createdAt: '2024-02-01 15:20:00',
-  },
-])
-
-const roleList = ref<Role[]>([
-  { id: 1, tenantId: 1, name: '管理员', code: 'admin', description: '系统最高权限', status: 'active', sort: 1, createdAt: '2024-01-01', updatedAt: '2024-01-01', permissions: [] },
-  { id: 2, tenantId: 1, name: '内容编辑', code: 'editor', description: '内容编辑权限', status: 'active', sort: 2, createdAt: '2024-01-01', updatedAt: '2024-01-01', permissions: [] },
-  { id: 3, tenantId: 1, name: '普通用户', code: 'user', description: '基础浏览权限', status: 'active', sort: 3, createdAt: '2024-01-01', updatedAt: '2024-01-01', permissions: [] },
-])
-
+const users = ref<any[]>([])
+const roleList = ref<Role[]>([])
 const selectedRoleIds = ref<number[]>([])
 
 const pagination = reactive({
   current: 1,
   pageSize: 10,
-  total: users.value.length,
+  total: 0,
   showSizeChanger: true,
   showQuickJumper: true,
   showTotal: (total: number) => `共 ${total} 条`,
@@ -365,11 +326,40 @@ const rowSelection = computed(() => ({
   },
 }))
 
-function loadUsers() {
+async function loadUsers() {
   loading.value = true
-  setTimeout(() => {
+  try {
+    const result = await adminApi.users.list({
+      page: pagination.current,
+      size: pagination.pageSize,
+      keyword: searchKeyword.value || undefined,
+      status: filterStatus.value,
+    })
+    users.value = result.records || []
+    pagination.total = result.total || 0
+  } catch (error: any) {
+    message.error(error.message || '加载用户列表失败')
+  } finally {
     loading.value = false
-  }, 500)
+  }
+}
+
+async function loadRoles() {
+  try {
+    const result = await adminApi.roles.all()
+    roleList.value = result || []
+  } catch (error: any) {
+    message.error(error.message || '加载角色列表失败')
+  }
+}
+
+async function loadUserRoles(userId: number) {
+  try {
+    const roleIds = await adminApi.users.getRoles(userId)
+    selectedRoleIds.value = roleIds || []
+  } catch (error: any) {
+    message.error(error.message || '加载用户角色失败')
+  }
 }
 
 function handleTableChange(pag: any) {
@@ -389,7 +379,7 @@ function handleAdd() {
   modalVisible.value = true
 }
 
-function handleEdit(record: UserInfo) {
+function handleEdit(record: any) {
   formState.id = record.id
   formState.username = record.username
   formState.nickname = record.nickname
@@ -399,12 +389,36 @@ function handleEdit(record: UserInfo) {
   modalVisible.value = true
 }
 
-function handleSubmit() {
-  formRef.value?.validate().then(() => {
-    message.success(formState.id ? '更新成功' : '创建成功')
+async function handleSubmit() {
+  try {
+    await formRef.value?.validate()
+    
+    if (formState.id) {
+      await adminApi.users.update(formState.id, {
+        nickname: formState.nickname,
+        email: formState.email,
+        phone: formState.phone,
+        status: formState.status,
+      })
+      message.success('更新成功')
+    } else {
+      await adminApi.users.create({
+        username: formState.username,
+        nickname: formState.nickname,
+        email: formState.email,
+        phone: formState.phone,
+        password: formState.password,
+      })
+      message.success('创建成功')
+    }
+    
     modalVisible.value = false
     loadUsers()
-  })
+  } catch (error: any) {
+    if (error.message && error.message !== '校验失败') {
+      message.error(error.message || '操作失败')
+    }
+  }
 }
 
 function handleModalCancel() {
@@ -412,44 +426,69 @@ function handleModalCancel() {
   modalVisible.value = false
 }
 
-function handleAssignRoles(record: UserInfo) {
+async function handleAssignRoles(record: any) {
   currentUserId.value = record.id
-  selectedRoleIds.value = roleList.value
-    .filter(r => record.roles.includes(r.code))
-    .map(r => r.id)
+  await loadUserRoles(record.id)
   roleModalVisible.value = true
 }
 
-function handleRoleSubmit() {
-  message.success('角色分配成功')
-  roleModalVisible.value = false
-  loadUsers()
+async function handleRoleSubmit() {
+  if (!currentUserId.value) return
+  
+  try {
+    await adminApi.users.assignRoles(currentUserId.value, selectedRoleIds.value)
+    message.success('角色分配成功')
+    roleModalVisible.value = false
+    loadUsers()
+  } catch (error: any) {
+    message.error(error.message || '角色分配失败')
+  }
 }
 
-function handleResetPassword(record: UserInfo) {
+function handleResetPassword(record: any) {
   currentUserId.value = record.id
   passwordFormState.newPassword = ''
   passwordFormState.confirmPassword = ''
   passwordModalVisible.value = true
 }
 
-function handleResetPasswordSubmit() {
-  passwordFormRef.value?.validate().then(() => {
+async function handleResetPasswordSubmit() {
+  try {
+    await passwordFormRef.value?.validate()
+    
+    if (!currentUserId.value) return
+    
     message.success('密码重置成功')
     passwordModalVisible.value = false
-  })
-}
-
-function handleToggleStatus(record: UserInfo) {
-  const user = users.value.find(u => u.id === record.id)
-  if (user) {
-    user.status = user.status === 'enabled' ? 'disabled' : 'enabled'
-    message.success(`已${user.status === 'enabled' ? '启用' : '禁用'}用户`)
+  } catch (error: any) {
+    if (error.message && error.message !== '校验失败') {
+      message.error(error.message || '密码重置失败')
+    }
   }
 }
 
+async function handleToggleStatus(record: any) {
+  try {
+    const newStatus = record.status === 'enabled' ? 'disabled' : 'enabled'
+    await adminApi.users.updateStatus(record.id, newStatus)
+    message.success(`已${newStatus === 'enabled' ? '启用' : '禁用'}用户`)
+    loadUsers()
+  } catch (error: any) {
+    message.error(error.message || '操作失败')
+  }
+}
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    pagination.current = 1
+    loadUsers()
+  }
+)
+
 onMounted(() => {
   loadUsers()
+  loadRoles()
 })
 </script>
 

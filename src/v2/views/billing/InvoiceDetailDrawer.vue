@@ -36,7 +36,7 @@
         <a-divider orientation="left">账单明细</a-divider>
         <a-table
           :columns="itemColumns"
-          :data-source="invoice.items || mockItems"
+          :data-source="invoice.items || []"
           :pagination="false"
           :row-key="record => record.id"
           size="small"
@@ -90,10 +90,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { InvoiceStatus, PaymentMethod, Currency, ProductType } from '../../types/billing'
-import type { Invoice } from '../../types/billing'
+import type { Invoice, InvoiceItem } from '../../types/billing'
+import { invoiceApi } from '../../api/billing'
+import { useAuthStore } from '../../stores/auth'
 
 const props = defineProps<{
   open: boolean
@@ -104,16 +106,9 @@ const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
 }>()
 
+const authStore = useAuthStore()
 const loading = ref(false)
 const invoice = ref<Invoice | null>(null)
-
-const mockItems = [
-  { id: 1, productType: ProductType.AI_MODEL, productName: 'GPT-4 API调用', description: '100万 tokens', quantity: 1, unitPrice: 1200, amount: 1200, currency: Currency.CNY },
-  { id: 2, productType: ProductType.AI_MODEL, productName: 'Claude 3 API调用', description: '50万 tokens', quantity: 1, unitPrice: 800, amount: 800, currency: Currency.CNY },
-  { id: 3, productType: ProductType.STORAGE, productName: '对象存储服务', description: '100GB/月', quantity: 1, unitPrice: 120, amount: 120, currency: Currency.CNY },
-  { id: 4, productType: ProductType.BANDWIDTH, productName: 'CDN流量', description: '1TB流量', quantity: 1, unitPrice: 200, amount: 200, currency: Currency.CNY },
-  { id: 5, productType: ProductType.SUBSCRIPTION, productName: '企业版订阅', description: '月度订阅费用', quantity: 1, unitPrice: 3360.50, amount: 3360.50, currency: Currency.CNY },
-]
 
 const itemColumns = [
   { title: '产品类型', dataIndex: 'productType', key: 'productType', width: 120 },
@@ -130,33 +125,120 @@ watch(() => [props.open, props.invoiceId], ([newOpen, newInvoiceId]) => {
   }
 })
 
-function loadInvoiceDetail(id: number) {
+function mapPaymentStatus(paymentStatus?: string): InvoiceStatus {
+  if (!paymentStatus) return InvoiceStatus.PENDING
+  const statusMap: Record<string, InvoiceStatus> = {
+    UNPAID: InvoiceStatus.PENDING,
+    PAID: InvoiceStatus.PAID,
+  }
+  return statusMap[paymentStatus.toUpperCase()] || InvoiceStatus.PENDING
+}
+
+function mapPaymentMethod(method?: string): PaymentMethod | undefined {
+  if (!method) return undefined
+  const methodMap: Record<string, PaymentMethod> = {
+    ALIPAY: PaymentMethod.ALIPAY,
+    WECHAT: PaymentMethod.WECHAT,
+    BANK_TRANSFER: PaymentMethod.BANK_TRANSFER,
+    CREDIT_CARD: PaymentMethod.CREDIT_CARD,
+    BALANCE: PaymentMethod.BALANCE,
+    alipay: PaymentMethod.ALIPAY,
+    wechat: PaymentMethod.WECHAT,
+    bank_transfer: PaymentMethod.BANK_TRANSFER,
+    credit_card: PaymentMethod.CREDIT_CARD,
+    balance: PaymentMethod.BALANCE,
+  }
+  return methodMap[method]
+}
+
+function mapProductType(type?: string): ProductType {
+  if (!type) return ProductType.SUBSCRIPTION
+  const typeMap: Record<string, ProductType> = {
+    SERVICE: ProductType.SUBSCRIPTION,
+    USAGE: ProductType.API_CALL,
+    AI_MODEL: ProductType.AI_MODEL,
+    STORAGE: ProductType.STORAGE,
+    BANDWIDTH: ProductType.BANDWIDTH,
+    SUBSCRIPTION: ProductType.SUBSCRIPTION,
+  }
+  return typeMap[type.toUpperCase()] || ProductType.SUBSCRIPTION
+}
+
+function formatDateTime(val: any): string {
+  if (!val) return ''
+  if (typeof val === 'string') return val
+  if (val instanceof Date) return val.toISOString().replace('T', ' ').substring(0, 19)
+  return String(val)
+}
+
+function formatDate(val: any): string {
+  if (!val) return ''
+  if (typeof val === 'string') return val.length >= 10 ? val.substring(0, 10) : val
+  if (val instanceof Date) return val.toISOString().substring(0, 10)
+  return String(val)
+}
+
+function adaptItems(items: any[], invoiceId: number): InvoiceItem[] {
+  if (!items || !items.length) return []
+  return items.map((item: any, index: number) => ({
+    id: item.id ?? index + 1,
+    invoiceId,
+    productType: mapProductType(item.type || item.productType),
+    productName: item.name || item.productName || '',
+    description: item.description || '',
+    quantity: item.quantity || 0,
+    unitPrice: item.unitPrice ? Number(item.unitPrice) : 0,
+    amount: item.amount ? Number(item.amount) : 0,
+    currency: Currency.CNY,
+  }))
+}
+
+function adaptInvoice(invoiceData: any, items: any[]): Invoice {
+  const id = Number(invoiceData.id)
+  const amount = invoiceData.totalAmount !== undefined ? Number(invoiceData.totalAmount) : Number(invoiceData.amount) || 0
+  const paidAmount = invoiceData.paidAmount !== undefined ? Number(invoiceData.paidAmount) : undefined
+  const status = mapPaymentStatus(invoiceData.paymentStatus || invoiceData.status)
+  const billingDate = formatDate(invoiceData.billingDate)
+  const billingStartDate = invoiceData.billingStartDate ? formatDate(invoiceData.billingStartDate) : billingDate
+  const billingEndDate = invoiceData.billingEndDate ? formatDate(invoiceData.billingEndDate) : billingDate
+
+  return {
+    id,
+    tenantId: Number(invoiceData.tenantId) || 0,
+    invoiceNo: invoiceData.invoiceNo || '',
+    title: invoiceData.title || '',
+    amount,
+    discountAmount: invoiceData.discountAmount ? Number(invoiceData.discountAmount) : 0,
+    currency: Currency.CNY,
+    status,
+    billingCycle: invoiceData.billingCycle as any,
+    billingStartDate,
+    billingEndDate,
+    dueDate: formatDate(invoiceData.dueDate),
+    paidAt: paidAmount ? formatDateTime(invoiceData.paidAt) : undefined,
+    paidAmount,
+    paymentMethod: mapPaymentMethod(invoiceData.paymentMethod),
+    paymentTransactionId: invoiceData.paymentTransactionId,
+    remark: invoiceData.remark,
+    invoiceUrl: invoiceData.pdfUrl || invoiceData.invoiceUrl,
+    createdAt: formatDateTime(invoiceData.createdAt),
+    updatedAt: formatDateTime(invoiceData.updatedAt),
+    items: adaptItems(items, id),
+  }
+}
+
+async function loadInvoiceDetail(id: number) {
   loading.value = true
-  setTimeout(() => {
-    const mockInvoice: Invoice = {
-      id,
-      tenantId: 1,
-      invoiceNo: 'INV2024030001',
-      title: '3月份月度账单',
-      amount: 5680.50,
-      discountAmount: 0,
-      currency: Currency.CNY,
-      status: InvoiceStatus.PAID,
-      billingCycle: 'monthly',
-      billingStartDate: '2024-03-01',
-      billingEndDate: '2024-03-31',
-      dueDate: '2024-04-15',
-      paidAt: '2024-03-15 10:30:00',
-      paidAmount: 5680.50,
-      paymentMethod: PaymentMethod.ALIPAY,
-      paymentTransactionId: 'TXN202403151030001',
-      createdAt: '2024-03-01 00:00:00',
-      updatedAt: '2024-03-15 10:30:00',
-      items: mockItems,
-    }
-    invoice.value = mockInvoice
+  try {
+    const res = await invoiceApi.getDetail(id)
+    invoice.value = adaptInvoice(res.invoice, res.items || [])
+  } catch (error) {
+    message.error('账单详情加载失败')
+    console.error(error)
+    invoice.value = null
+  } finally {
     loading.value = false
-  }, 500)
+  }
 }
 
 function handleClose() {

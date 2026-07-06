@@ -9,7 +9,7 @@
       <a-form layout="inline" :model="filterForm" class="filter-form">
         <a-form-item label="操作类型">
           <a-select
-            v-model:value="filterForm.actionType"
+            v-model:value="filterForm.action"
             placeholder="请选择操作类型"
             style="width: 150px"
             allowClear
@@ -44,7 +44,7 @@
         </a-form-item>
         <a-form-item label="操作人">
           <a-input
-            v-model:value="filterForm.operator"
+            v-model:value="filterForm.username"
             placeholder="请输入操作人"
             style="width: 150px"
           />
@@ -53,11 +53,12 @@
           <a-range-picker
             v-model:value="filterForm.dateRange"
             style="width: 280px"
+            value-format="YYYY-MM-DD"
           />
         </a-form-item>
         <a-form-item>
           <a-space>
-            <a-button type="primary" @click="handleSearch">
+            <a-button type="primary" :loading="loading" @click="handleSearch">
               <template #icon><SearchOutlined /></template>
               搜索
             </a-button>
@@ -123,21 +124,16 @@
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'actionType'">
-            <a-tag :color="getActionTypeColor(record.actionType)">
-              {{ getActionTypeName(record.actionType) }}
+          <template v-if="column.key === 'action'">
+            <a-tag :color="getActionColor(record.action)">
+              {{ getActionName(record.action) }}
             </a-tag>
           </template>
           <template v-if="column.key === 'module'">
             {{ getModuleName(record.module) }}
           </template>
-          <template v-if="column.key === 'status'">
-            <a-tag :color="record.status === 'success' ? 'success' : 'error'">
-              {{ record.status === 'success' ? '成功' : '失败' }}
-            </a-tag>
-          </template>
-          <template v-if="column.key === 'ipAddress'">
-            <a-typography-text copyable>{{ record.ipAddress }}</a-typography-text>
+          <template v-if="column.key === 'ip'">
+            <a-typography-text copyable>{{ record.ip }}</a-typography-text>
           </template>
           <template v-if="column.key === 'actions'">
             <a-button type="link" size="small" @click="viewDetail(record)">
@@ -157,43 +153,27 @@
     >
       <a-descriptions v-if="currentLog" :column="1" bordered>
         <a-descriptions-item label="操作类型">
-          <a-tag :color="getActionTypeColor(currentLog.actionType)">
-            {{ getActionTypeName(currentLog.actionType) }}
+          <a-tag :color="getActionColor(currentLog.action)">
+            {{ getActionName(currentLog.action) }}
           </a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="操作模块">
           {{ getModuleName(currentLog.module) }}
         </a-descriptions-item>
-        <a-descriptions-item label="操作描述">{{ currentLog.action }}</a-descriptions-item>
-        <a-descriptions-item label="操作人">{{ currentLog.operator }}</a-descriptions-item>
-        <a-descriptions-item label="操作角色">{{ currentLog.role }}</a-descriptions-item>
-        <a-descriptions-item label="操作状态">
-          <a-tag :color="currentLog.status === 'success' ? 'success' : 'error'">
-            {{ currentLog.status === 'success' ? '成功' : '失败' }}
-          </a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item label="IP地址">{{ currentLog.ipAddress }}</a-descriptions-item>
-        <a-descriptions-item label="地理位置">{{ currentLog.location }}</a-descriptions-item>
+        <a-descriptions-item label="操作详情">{{ currentLog.detail || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="操作人">{{ currentLog.username }}</a-descriptions-item>
+        <a-descriptions-item label="用户ID">{{ currentLog.userId }}</a-descriptions-item>
+        <a-descriptions-item label="租户ID">{{ currentLog.tenantId }}</a-descriptions-item>
+        <a-descriptions-item label="IP地址">{{ currentLog.ip }}</a-descriptions-item>
         <a-descriptions-item label="浏览器/设备">{{ currentLog.userAgent }}</a-descriptions-item>
         <a-descriptions-item label="操作时间">{{ currentLog.createdAt }}</a-descriptions-item>
-        <a-descriptions-item label="请求方法">{{ currentLog.requestMethod }}</a-descriptions-item>
-        <a-descriptions-item label="请求路径">{{ currentLog.requestUrl }}</a-descriptions-item>
-        <a-descriptions-item v-if="currentLog.params" label="请求参数">
-          <pre class="json-display">{{ formatJson(currentLog.params) }}</pre>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="currentLog.result" label="返回结果">
-          <pre class="json-display">{{ formatJson(currentLog.result) }}</pre>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="currentLog.errorMessage" label="错误信息">
-          <p class="error-message">{{ currentLog.errorMessage }}</p>
-        </a-descriptions-item>
       </a-descriptions>
     </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   SearchOutlined,
@@ -205,223 +185,53 @@ import {
   LockOutlined
 } from '@ant-design/icons-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
+import { adminApi } from '../../api/workspace'
+import { useAuthStore } from '../../stores/auth'
+import type { AuditLog, AuditLogStats } from '../../types/workspace'
 
-interface LogItem {
-  id: number
-  actionType: string
-  module: string
-  action: string
-  operator: string
-  role: string
-  status: string
-  ipAddress: string
-  location: string
-  userAgent: string
-  createdAt: string
-  requestMethod: string
-  requestUrl: string
-  params?: string
-  result?: string
-  errorMessage?: string
-}
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const detailDrawerVisible = ref(false)
-const currentLog = ref<LogItem | null>(null)
+const currentLog = ref<AuditLog | null>(null)
+const logList = ref<AuditLog[]>([])
 
 const filterForm = reactive({
-  actionType: undefined as string | undefined,
+  action: undefined as string | undefined,
   module: undefined as string | undefined,
-  operator: '',
-  dateRange: [] as any[]
+  username: '',
+  dateRange: [] as string[]
 })
 
-const stats = reactive({
-  todayTotal: 128,
-  loginCount: 45,
-  errorCount: 3,
-  sensitiveCount: 12
+const stats = reactive<AuditLogStats>({
+  total: 0,
+  todayTotal: 0,
+  loginCount: 0,
+  errorCount: 0,
+  sensitiveCount: 0
 })
 
 const pagination = reactive<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
-  total: 100,
+  total: 0,
   showSizeChanger: true,
   showQuickJumper: true,
   showTotal: (total) => `共 ${total} 条`
 })
 
-const logList = ref<LogItem[]>([
-  {
-    id: 1,
-    actionType: 'login',
-    module: 'user',
-    action: '用户登录',
-    operator: '张三',
-    role: '管理员',
-    status: 'success',
-    ipAddress: '192.168.1.100',
-    location: '北京市朝阳区',
-    userAgent: 'Chrome 120.0 / Windows 10',
-    createdAt: '2024-01-15 09:30:25',
-    requestMethod: 'POST',
-    requestUrl: '/api/auth/login'
-  },
-  {
-    id: 2,
-    actionType: 'create',
-    module: 'article',
-    action: '创建文章',
-    operator: '李四',
-    role: '内容编辑',
-    status: 'success',
-    ipAddress: '192.168.1.101',
-    location: '上海市浦东新区',
-    userAgent: 'Firefox 121.0 / Mac OS X',
-    createdAt: '2024-01-15 10:15:33',
-    requestMethod: 'POST',
-    requestUrl: '/api/articles',
-    params: '{"title":"AI技术发展趋势","content":"..."}'
-  },
-  {
-    id: 3,
-    actionType: 'update',
-    module: 'user',
-    action: '更新用户信息',
-    operator: '王五',
-    role: '用户',
-    status: 'success',
-    ipAddress: '192.168.1.102',
-    location: '广州市天河区',
-    userAgent: 'Safari 17.0 / iOS 17',
-    createdAt: '2024-01-15 11:20:45',
-    requestMethod: 'PUT',
-    requestUrl: '/api/users/123'
-  },
-  {
-    id: 4,
-    actionType: 'delete',
-    module: 'knowledge',
-    action: '删除知识卡片',
-    operator: '张三',
-    role: '管理员',
-    status: 'success',
-    ipAddress: '192.168.1.100',
-    location: '北京市朝阳区',
-    userAgent: 'Chrome 120.0 / Windows 10',
-    createdAt: '2024-01-15 14:30:00',
-    requestMethod: 'DELETE',
-    requestUrl: '/api/knowledge/cards/456'
-  },
-  {
-    id: 5,
-    actionType: 'login',
-    module: 'user',
-    action: '用户登录失败',
-    operator: 'anonymous',
-    role: '匿名',
-    status: 'failed',
-    ipAddress: '10.0.0.1',
-    location: '未知',
-    userAgent: 'Unknown',
-    createdAt: '2024-01-15 15:00:12',
-    requestMethod: 'POST',
-    requestUrl: '/api/auth/login',
-    errorMessage: '用户名或密码错误'
-  },
-  {
-    id: 6,
-    actionType: 'export',
-    module: 'article',
-    action: '导出文章列表',
-    operator: '李四',
-    role: '内容编辑',
-    status: 'success',
-    ipAddress: '192.168.1.101',
-    location: '上海市浦东新区',
-    userAgent: 'Firefox 121.0 / Mac OS X',
-    createdAt: '2024-01-15 15:30:45',
-    requestMethod: 'GET',
-    requestUrl: '/api/articles/export'
-  },
-  {
-    id: 7,
-    actionType: 'approve',
-    module: 'workflow',
-    action: '审批文章发布',
-    operator: '张三',
-    role: '管理员',
-    status: 'success',
-    ipAddress: '192.168.1.100',
-    location: '北京市朝阳区',
-    userAgent: 'Chrome 120.0 / Windows 10',
-    createdAt: '2024-01-15 16:00:00',
-    requestMethod: 'POST',
-    requestUrl: '/api/workflow/approve/789'
-  },
-  {
-    id: 8,
-    actionType: 'update',
-    module: 'system',
-    action: '修改系统设置',
-    operator: '张三',
-    role: '管理员',
-    status: 'success',
-    ipAddress: '192.168.1.100',
-    location: '北京市朝阳区',
-    userAgent: 'Chrome 120.0 / Windows 10',
-    createdAt: '2024-01-15 16:30:22',
-    requestMethod: 'PUT',
-    requestUrl: '/api/system/settings'
-  },
-  {
-    id: 9,
-    actionType: 'logout',
-    module: 'user',
-    action: '用户登出',
-    operator: '王五',
-    role: '用户',
-    status: 'success',
-    ipAddress: '192.168.1.102',
-    location: '广州市天河区',
-    userAgent: 'Safari 17.0 / iOS 17',
-    createdAt: '2024-01-15 17:00:00',
-    requestMethod: 'POST',
-    requestUrl: '/api/auth/logout'
-  },
-  {
-    id: 10,
-    actionType: 'login',
-    module: 'user',
-    action: '用户登录',
-    operator: '李四',
-    role: '内容编辑',
-    status: 'success',
-    ipAddress: '192.168.1.101',
-    location: '上海市浦东新区',
-    userAgent: 'Firefox 121.0 / Mac OS X',
-    createdAt: '2024-01-15 17:30:00',
-    requestMethod: 'POST',
-    requestUrl: '/api/auth/login'
-  }
-])
-
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
-  { title: '操作类型', key: 'actionType', width: 100 },
-  { title: '操作模块', key: 'module', width: 120 },
-  { title: '操作描述', dataIndex: 'action', key: 'action', ellipsis: true },
-  { title: '操作人', dataIndex: 'operator', key: 'operator', width: 100 },
-  { title: '角色', dataIndex: 'role', key: 'role', width: 100 },
-  { title: '状态', key: 'status', width: 80 },
-  { title: 'IP地址', key: 'ipAddress', width: 140 },
-  { title: '地理位置', dataIndex: 'location', key: 'location', width: 150 },
+  { title: '操作类型', key: 'action', width: 100 },
+  { title: '操作模块', key: 'module', dataIndex: 'module', width: 120 },
+  { title: '操作详情', dataIndex: 'detail', key: 'detail', ellipsis: true },
+  { title: '操作人', dataIndex: 'username', key: 'username', width: 120 },
+  { title: 'IP地址', key: 'ip', dataIndex: 'ip', width: 140 },
   { title: '操作时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 100 }
 ]
 
-const actionTypeMap: Record<string, { name: string; color: string }> = {
+const actionMap: Record<string, { name: string; color: string }> = {
   login: { name: '登录', color: 'blue' },
   logout: { name: '登出', color: 'default' },
   create: { name: '创建', color: 'green' },
@@ -444,60 +254,129 @@ const moduleMap: Record<string, string> = {
   workflow: '工作流'
 }
 
-const getActionTypeColor = (type: string) => {
-  return actionTypeMap[type]?.color || 'default'
+const getActionColor = (action: string) => {
+  return actionMap[action]?.color || 'default'
 }
 
-const getActionTypeName = (type: string) => {
-  return actionTypeMap[type]?.name || type
+const getActionName = (action: string) => {
+  return actionMap[action]?.name || action
 }
 
 const getModuleName = (module: string) => {
   return moduleMap[module] || module
 }
 
-const formatJson = (jsonStr: string) => {
+const fetchLogs = async () => {
+  loading.value = true
   try {
-    return JSON.stringify(JSON.parse(jsonStr), null, 2)
-  } catch {
-    return jsonStr
+    const params: any = {
+      page: pagination.current,
+      size: pagination.pageSize
+    }
+
+    if (authStore.selectedTenantId) {
+      params.tenantId = authStore.selectedTenantId
+    }
+
+    if (filterForm.action) {
+      params.action = filterForm.action
+    }
+    if (filterForm.module) {
+      params.module = filterForm.module
+    }
+    if (filterForm.username) {
+      params.username = filterForm.username
+    }
+    if (filterForm.dateRange && filterForm.dateRange.length === 2) {
+      params.startDate = filterForm.dateRange[0]
+      params.endDate = filterForm.dateRange[1]
+    }
+
+    const result = await adminApi.auditLogs.list(params) as any
+    logList.value = result.records || []
+    pagination.total = result.total || 0
+  } catch (error: any) {
+    message.error(error.message || '获取审计日志失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const fetchStats = async () => {
+  try {
+    const result = await adminApi.auditLogs.getStats(authStore.selectedTenantId || undefined) as any
+    Object.assign(stats, result)
+  } catch (error: any) {
+    console.error('获取统计数据失败:', error)
   }
 }
 
 const handleSearch = () => {
-  loading.value = true
-  setTimeout(() => {
-    message.success('搜索完成')
-    loading.value = false
-  }, 500)
+  pagination.current = 1
+  fetchLogs()
 }
 
 const handleReset = () => {
-  filterForm.actionType = undefined
+  filterForm.action = undefined
   filterForm.module = undefined
-  filterForm.operator = ''
+  filterForm.username = ''
   filterForm.dateRange = []
   pagination.current = 1
-  handleSearch()
+  fetchLogs()
 }
 
 const handleExport = () => {
-  message.info('正在导出日志...')
-  setTimeout(() => {
-    message.success('日志导出成功')
-  }, 1000)
+  try {
+    const params: any = {}
+
+    if (authStore.selectedTenantId) {
+      params.tenantId = authStore.selectedTenantId
+    }
+    if (filterForm.action) {
+      params.action = filterForm.action
+    }
+    if (filterForm.module) {
+      params.module = filterForm.module
+    }
+    if (filterForm.username) {
+      params.username = filterForm.username
+    }
+    if (filterForm.dateRange && filterForm.dateRange.length === 2) {
+      params.startDate = filterForm.dateRange[0]
+      params.endDate = filterForm.dateRange[1]
+    }
+
+    adminApi.auditLogs.export(params)
+    message.success('导出任务已开始，请稍候...')
+  } catch (error: any) {
+    message.error(error.message || '导出失败')
+  }
 }
 
 const handleTableChange = (pag: TablePaginationConfig) => {
   pagination.current = pag.current
   pagination.pageSize = pag.pageSize
-  handleSearch()
+  fetchLogs()
 }
 
-const viewDetail = (record: LogItem) => {
+const viewDetail = (record: AuditLog) => {
   currentLog.value = record
   detailDrawerVisible.value = true
 }
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    pagination.current = 1
+    fetchLogs()
+    fetchStats()
+  }
+)
+
+onMounted(() => {
+  fetchLogs()
+  fetchStats()
+})
 </script>
 
 <style scoped lang="less">
@@ -515,28 +394,6 @@ const viewDetail = (record: LogItem) => {
     padding: 16px;
     background: #fafafa;
     border-radius: 8px;
-  }
-
-  .json-display {
-    margin: 0;
-    padding: 12px;
-    background: #f5f5f5;
-    border-radius: 4px;
-    font-size: 12px;
-    font-family: 'Monaco', 'Consolas', monospace;
-    max-height: 300px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
-
-  .error-message {
-    margin: 0;
-    padding: 12px;
-    background: #fff2f0;
-    border: 1px solid #ffccc7;
-    border-radius: 4px;
-    color: #ff4d4f;
   }
 }
 

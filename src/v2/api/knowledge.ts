@@ -240,7 +240,24 @@ export const knowledgeDocumentApi = {
 
   // 获取文档关联的卡片列表
   getCards: (id: number) =>
-    http.get<KnowledgeCard[]>(`/knowledge/documents/${id}/cards`)
+    http.get<KnowledgeCard[]>(`/knowledge/documents/${id}/cards`),
+
+  // 生成知识卡片
+  generateCards: (id: number) =>
+    http.post<{ taskId: string; status: string }>(`/knowledge/documents/${id}/generate-cards`),
+
+  // 获取卡片生成状态
+  getCardsGenerationStatus: (id: number, taskId: string) =>
+    http.get<{
+      taskId: string
+      status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+      progress: number
+      total?: number
+      completed?: number
+      message?: string
+      error?: string
+      cards?: KnowledgeCard[]
+    }>(`/knowledge/documents/${id}/generate-cards/status`, { params: { taskId } })
 }
 
 // 向量搜索 API

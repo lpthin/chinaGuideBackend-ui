@@ -64,7 +64,7 @@
             <template #icon><DollarOutlined /></template>
             充值
           </a-button>
-          <a-button size="large" @click="handleExport">
+          <a-button size="large" :loading="exportLoading" @click="handleExport">
             <template #icon><ExportOutlined /></template>
             导出明细
           </a-button>
@@ -80,7 +80,7 @@
               style="width: 120px"
               placeholder="类型"
               allowClear
-              @change="loadTransactions"
+              @change="loadTransactionList"
             >
               <a-select-option value="recharge">充值</a-select-option>
               <a-select-option value="charge">消费</a-select-option>
@@ -96,14 +96,14 @@
               placeholder="搜索描述"
               style="width: 200px"
               enter-button
-              @search="loadTransactions"
+              @search="loadTransactionList"
             />
           </a-space>
         </template>
 
         <a-table
           :columns="columns"
-          :data-source="transactionList"
+          :data-source="transactionListData"
           :pagination="paginationConfig"
           :loading="tableLoading"
           :row-key="record => record.id"
@@ -135,6 +135,7 @@
       v-model:open="rechargeModalVisible"
       title="账户充值"
       width="480px"
+      :confirm-loading="rechargeLoading"
       @ok="handleConfirmRecharge"
     >
       <a-form :model="rechargeForm" layout="vertical">
@@ -172,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   WalletOutlined,
@@ -182,6 +183,10 @@ import {
   CreditCardOutlined,
   FileTextOutlined,
 } from '@ant-design/icons-vue'
+import { walletApi } from '../../api/billing'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const tableLoading = ref(false)
@@ -189,10 +194,10 @@ const rechargeModalVisible = ref(false)
 const dateRange = ref<[string, string] | undefined>()
 
 const walletInfo = reactive({
-  balance: 15680.50,
-  totalRecharge: 50000.00,
-  creditLimit: 20000.00,
-  frozenBalance: 0.00,
+  balance: 0,
+  totalRecharge: 0,
+  creditLimit: 0,
+  frozenBalance: 0,
 })
 
 const queryParams = reactive({
@@ -212,7 +217,7 @@ const paginationConfig = reactive({
   onChange: (page: number, pageSize: number) => {
     paginationConfig.current = page
     paginationConfig.pageSize = pageSize
-    loadTransactions()
+    loadTransactionList()
   },
 })
 
@@ -225,16 +230,7 @@ const columns = [
   { title: '时间', key: 'createdAt', width: 180 },
 ]
 
-const transactionList = ref([
-  { id: 1, transactionNo: 'TXN2024030001', type: 'recharge', amount: 1000.00, balanceAfter: 15680.50, description: '支付宝充值', remark: '', createdAt: '2024-03-15 10:30:00' },
-  { id: 2, transactionNo: 'TXN2024030002', type: 'charge', amount: 128.50, balanceAfter: 14680.50, description: 'AI模型调用费用', remark: '', createdAt: '2024-03-14 15:20:00' },
-  { id: 3, transactionNo: 'TXN2024030003', type: 'charge', amount: 256.00, balanceAfter: 14809.00, description: 'API调用费用', remark: '', createdAt: '2024-03-13 09:15:00' },
-  { id: 4, transactionNo: 'TXN2024030004', type: 'recharge', amount: 5000.00, balanceAfter: 15065.00, description: '银行转账充值', remark: '企业转账', createdAt: '2024-03-10 14:00:00' },
-  { id: 5, transactionNo: 'TXN2024030005', type: 'refund', amount: 500.00, balanceAfter: 10065.00, description: '退款-订单取消', remark: '', createdAt: '2024-03-08 11:30:00' },
-  { id: 6, transactionNo: 'TXN2024030006', type: 'charge', amount: 68.00, balanceAfter: 9565.00, description: '存储空间费用', remark: '', createdAt: '2024-03-05 16:45:00' },
-])
-
-paginationConfig.total = transactionList.value.length
+const transactionListData = ref<any[]>([])
 
 const rechargeForm = reactive({
   amount: 100,
@@ -281,15 +277,61 @@ function handleDateChange(dates: [string, string] | undefined) {
     queryParams.startDate = undefined
     queryParams.endDate = undefined
   }
-  loadTransactions()
+  loadTransactionList()
 }
 
-function loadTransactions() {
-  tableLoading.value = true
-  setTimeout(() => {
-    tableLoading.value = false
-  }, 500)
+async function loadWalletInfo() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  loading.value = true
+  try {
+    const res = await walletApi.getInfo(tenantId)
+    if (res) {
+      walletInfo.balance = res.balance || 0
+      walletInfo.totalRecharge = res.totalRecharge || 0
+      walletInfo.creditLimit = res.creditLimit || 0
+      walletInfo.frozenBalance = res.frozenBalance || 0
+    }
+  } catch (error) {
+    message.error('加载钱包信息失败')
+    console.error(error)
+  } finally {
+    loading.value = false
+  }
 }
+
+async function loadTransactionList() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  tableLoading.value = true
+  try {
+    const params: any = {
+      tenantId,
+      page: paginationConfig.current,
+      size: paginationConfig.pageSize,
+    }
+    if (queryParams.type) params.type = queryParams.type
+    if (queryParams.keyword) params.keyword = queryParams.keyword
+    if (queryParams.startDate) params.startDate = queryParams.startDate
+    if (queryParams.endDate) params.endDate = queryParams.endDate
+
+    const res = await walletApi.getTransactions(params)
+    transactionListData.value = res.records || []
+    paginationConfig.total = res.total || 0
+  } catch (error) {
+    console.error('Failed to load transactions:', error)
+    message.error('加载交易记录失败')
+    transactionListData.value = []
+  } finally {
+    tableLoading.value = false
+  }
+}
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    loadWalletInfo()
+    loadTransactionList()
+  }
+)
 
 function showRechargeModal() {
   rechargeForm.amount = 100
@@ -298,27 +340,62 @@ function showRechargeModal() {
   rechargeModalVisible.value = true
 }
 
-function handleConfirmRecharge() {
+const rechargeLoading = ref(false)
+
+async function handleConfirmRecharge() {
   if (!rechargeForm.amount || rechargeForm.amount <= 0) {
     message.error('请输入正确的充值金额')
     return
   }
-  message.success(`充值请求已提交，金额：¥${formatAmount(rechargeForm.amount)}`)
-  rechargeModalVisible.value = false
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  rechargeLoading.value = true
+  try {
+    await walletApi.recharge(tenantId, rechargeForm.amount, rechargeForm.paymentMethod)
+    message.success('充值请求已提交')
+    rechargeModalVisible.value = false
+    await loadWalletInfo()
+    await loadTransactionList()
+  } catch (error) {
+    message.error('充值失败')
+    console.error(error)
+  } finally {
+    rechargeLoading.value = false
+  }
 }
 
-function handleExport() {
-  message.success('正在导出消费明细...')
-  setTimeout(() => {
+const exportLoading = ref(false)
+
+async function handleExport() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  exportLoading.value = true
+  try {
+    const params: any = { tenantId }
+    if (queryParams.type) params.type = queryParams.type
+    if (queryParams.keyword) params.keyword = queryParams.keyword
+    if (queryParams.startDate) params.startDate = queryParams.startDate
+    if (queryParams.endDate) params.endDate = queryParams.endDate
+
+    const res = await walletApi.exportTransactions(params)
+    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `交易记录_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
     message.success('导出成功')
-  }, 1000)
+  } catch (error) {
+    message.error('导出失败')
+    console.error(error)
+  } finally {
+    exportLoading.value = false
+  }
 }
 
-onMounted(() => {
-  loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 300)
+onMounted(async () => {
+  await loadWalletInfo()
+  await loadTransactionList()
 })
 </script>
 

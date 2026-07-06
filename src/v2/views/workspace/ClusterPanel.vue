@@ -485,9 +485,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, reactive, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import * as echarts from 'echarts'
+import { useAuthStore } from '../../stores/auth'
 import {
   ApartmentOutlined,
   BulbOutlined,
@@ -520,6 +521,12 @@ import {
 import { clusterApi, suggestionApi } from '../../api'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 
+const authStore = useAuthStore()
+
+watch(() => authStore.selectedTenantId, () => {
+  loadData()
+})
+
 const loading = ref(false)
 const distilling = ref(false)
 const generating = ref(false)
@@ -538,29 +545,99 @@ const heatmapChartRef = ref<HTMLElement>()
 let radarChart: echarts.ECharts | null = null
 let heatmapChart: echarts.ECharts | null = null
 
-const mockRadarData = {
-  indicators: [
-    { name: '聚类质量', max: 100 },
-    { name: '关键词多样性', max: 100 },
-    { name: '建议相关性', max: 100 },
-    { name: '语义一致性', max: 100 },
-    { name: '覆盖范围', max: 100 },
-    { name: '时效性', max: 100 }
-  ],
-  values: [85, 78, 92, 88, 75, 82]
-}
+// 基于真实聚类数据计算雷达图指标
+const radarData = computed(() => {
+  const list = clusters.value as any[]
+  if (list.length === 0) {
+    return {
+      indicators: [
+        { name: '聚类质量', max: 100 },
+        { name: '关键词多样性', max: 100 },
+        { name: '建议相关性', max: 100 },
+        { name: '语义一致性', max: 100 },
+        { name: '覆盖范围', max: 100 },
+        { name: '时效性', max: 100 }
+      ],
+      values: [0, 0, 0, 0, 0, 0]
+    }
+  }
 
-const mockHeatmapData = {
-  xAxis: ['聚类1', '聚类2', '聚类3', '聚类4', '聚类5'],
-  yAxis: ['周一', '周二', '周三', '周四', '周五'],
-  data: [
-    [0, 0, 10], [0, 1, 15], [0, 2, 20], [0, 3, 25], [0, 4, 30],
-    [1, 0, 12], [1, 1, 18], [1, 2, 22], [1, 3, 28], [1, 4, 32],
-    [2, 0, 8], [2, 1, 13], [2, 2, 19], [2, 3, 23], [2, 4, 27],
-    [3, 0, 14], [3, 1, 17], [3, 2, 21], [3, 3, 26], [3, 4, 31],
-    [4, 0, 9], [4, 1, 16], [4, 2, 24], [4, 3, 29], [4, 4, 33]
-  ]
-}
+  // 聚类质量: 平均优先级分数
+  const avgPriority = list.reduce((sum: number, c: any) => sum + (c.priority || 0), 0) / list.length
+
+  // 关键词多样性: 平均每个聚类的关键词数量 (归一化到100, 假设10个词=100)
+  const avgKeywords = list.reduce((sum: number, c: any) => {
+    const kwCount = c.keywords?.length || c.sourceKeywordIds ? 1 : 0
+    return sum + Math.min(kwCount || 5, 10)
+  }, 0) / list.length
+  const keywordDiversity = Math.round((avgKeywords / 10) * 100)
+
+  // 建议相关性: 有建议的聚类占比
+  const clustersWithSuggCount = Object.keys(suggestionsMap.value).length
+  const suggestionRelevance = list.length > 0 ? Math.round((clustersWithSuggCount / list.length) * 100) : 0
+
+  // 语义一致性: 有搜索意图的聚类占比
+  const withIntent = list.filter((c: any) => c.searchIntent && c.searchIntent.trim().length > 0).length
+  const semanticConsistency = list.length > 0 ? Math.round((withIntent / list.length) * 100) : 0
+
+  // 覆盖范围: 有文章方向的聚类占比
+  const withDirection = list.filter((c: any) => c.articleDirection && c.articleDirection.trim().length > 0).length
+  const coverage = list.length > 0 ? Math.round((withDirection / list.length) * 100) : 0
+
+  // 时效性: 最近7天内创建的聚类占比
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const recent = list.filter((c: any) => {
+    if (!c.createdAt) return false
+    return new Date(c.createdAt) >= sevenDaysAgo
+  }).length
+  const timeliness = list.length > 0 ? Math.round((recent / list.length) * 100) : 0
+
+  return {
+    indicators: [
+      { name: '聚类质量', max: 100 },
+      { name: '关键词多样性', max: 100 },
+      { name: '建议相关性', max: 100 },
+      { name: '语义一致性', max: 100 },
+      { name: '覆盖范围', max: 100 },
+      { name: '时效性', max: 100 }
+    ],
+    values: [Math.round(avgPriority), keywordDiversity, suggestionRelevance, semanticConsistency, coverage, timeliness]
+  }
+})
+
+// 基于真实聚类数据计算热力图
+const heatmapData = computed(() => {
+  const list = clusters.value as any[]
+
+  if (list.length === 0) {
+    return { xAxis: [], yAxis: [], data: [] }
+  }
+
+  // X轴: 取前5个聚类名称
+  const topClusters = list.slice(0, 5).map((c: any) => c.name?.length > 4 ? c.name.slice(0, 4) + '..' : (c.name || '未知'))
+
+  // Y轴: 按优先级分段 (高/中/低) + 有建议/无建议
+  const yAxis = ['高优先级', '中优先级', '低优先级']
+
+  const data: number[][] = []
+  for (let x = 0; x < topClusters.length; x++) {
+    const cluster = list[x]
+    const priority = cluster.priority || 0
+    const suggestionCount = (suggestionsMap.value[cluster.id!] || []).length
+
+    // 高优先级行
+    data.push([x, 0, priority >= 80 ? suggestionCount + 1 : 0])
+    // 中优先级行
+    data.push([x, 1, priority >= 60 && priority < 80 ? suggestionCount + 1 : 0])
+    // 低优先级行
+    data.push([x, 2, priority < 60 ? suggestionCount + 1 : 0])
+  }
+
+  const maxVal = Math.max(...data.map(d => d[2]), 1)
+
+  return { xAxis: topClusters, yAxis, data, max: maxVal }
+})
 
 const stats = reactive({
   totalClusters: 0,
@@ -568,48 +645,51 @@ const stats = reactive({
 })
 
 // Stat items configuration
-const statItems = computed(() => [
-  {
-    key: 'total',
-    value: stats.totalClusters,
-    label: '聚类总数',
-    unit: '',
-    icon: ApartmentOutlined,
-    color: 'blue',
-    trend: 5,
-    path: '/cluster'
-  },
-  {
-    key: 'top',
-    value: topKeywords.value.length,
-    label: '今日精选关键词',
-    unit: '',
-    icon: TrophyOutlined,
-    color: 'gold',
-    trend: 0,
-    path: '/keywords'
-  },
-  {
-    key: 'suggestions',
-    value: stats.hasSuggestions,
-    label: '已生成内容建议',
-    unit: '',
-    icon: BulbOutlined,
-    color: 'green',
-    trend: 12,
-    path: '/suggestions'
-  },
-  {
-    key: 'pending',
-    value: stats.totalClusters - stats.hasSuggestions,
-    label: '待蒸馏聚类数',
-    unit: '',
-    icon: ClockCircleOutlined,
-    color: 'orange',
-    trend: -8,
-    path: '/pending'
-  }
-])
+const statItems = computed(() => {
+  const pendingCount = stats.totalClusters - stats.hasSuggestions
+  return [
+    {
+      key: 'total',
+      value: stats.totalClusters,
+      label: '聚类总数',
+      unit: '',
+      icon: ApartmentOutlined,
+      color: 'blue',
+      trend: 0,
+      path: '/cluster'
+    },
+    {
+      key: 'top',
+      value: topKeywords.value.length,
+      label: '今日精选关键词',
+      unit: '',
+      icon: TrophyOutlined,
+      color: 'gold',
+      trend: 0,
+      path: '/keywords'
+    },
+    {
+      key: 'suggestions',
+      value: stats.hasSuggestions,
+      label: '已生成内容建议',
+      unit: '',
+      icon: BulbOutlined,
+      color: 'green',
+      trend: 0,
+      path: '/suggestions'
+    },
+    {
+      key: 'pending',
+      value: pendingCount,
+      label: '待蒸馏聚类数',
+      unit: '',
+      icon: ClockCircleOutlined,
+      color: 'orange',
+      trend: 0,
+      path: '/pending'
+    }
+  ]
+})
 
 const clusters = ref<KeywordCluster[]>([])
 const suggestionsMap = ref<Record<number, KeywordContentSuggestion[]>>({})
@@ -631,9 +711,9 @@ const topKeywords = computed(() => {
     name: c.name,
     priority: c.priority || 0,
     tags: c.keywords?.slice(0, 5) || [],
-    synonyms: ['同义词1', '同义词2'],
-    related: ['相关词1', '相关词2', '相关词3'],
-    longTail: ['长尾词1', '长尾词2', '长尾词3', '长尾词4'],
+    synonyms: c.synonyms || [],
+    related: c.relatedWords || [],
+    longTail: c.longTailKeywords || [],
   }))
 })
 
@@ -706,8 +786,8 @@ async function loadData() {
   loading.value = true
   try {
     const [clustersRes, suggestionsRes] = await Promise.all([
-      clusterApi.list({}),
-      suggestionApi.list({}),
+      clusterApi.list({ tenantId: authStore.selectedTenantId }),
+      suggestionApi.list({ tenantId: authStore.selectedTenantId }),
     ])
     const clustersData = clustersRes.records
     const suggestionsData = suggestionsRes.records
@@ -724,6 +804,10 @@ async function loadData() {
     suggestionsMap.value = map
     stats.hasSuggestions = Object.keys(map).length
   } catch (error) {
+    clusters.value = []
+    suggestionsMap.value = {}
+    stats.totalClusters = 0
+    stats.hasSuggestions = 0
     message.error('加载数据失败')
     console.error(error)
   } finally {
@@ -738,30 +822,17 @@ async function distillAll() {
   totalDistillSteps.value = clusters.value.length || 10
 
   try {
-    await clusterApi.distill()
-
-    let step = 0
-    const interval = setInterval(() => {
-      step++
-      currentDistillStep.value = step
-      distillProgress.value = Math.min(Math.round((step / totalDistillSteps.value) * 100), 90)
-      if (step >= totalDistillSteps.value) {
-        clearInterval(interval)
-        distillProgress.value = 100
-      }
-    }, 200)
-
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    const res = await clusterApi.distill({ tenantId: authStore.selectedTenantId })
+    distillProgress.value = 100
+    currentDistillStep.value = totalDistillSteps.value
     message.success('蒸馏完成！')
     await loadData()
   } catch (error) {
     message.error('蒸馏失败')
     console.error(error)
   } finally {
-    setTimeout(() => {
-      distilling.value = false
-      distillProgress.value = 0
-    }, 500)
+    distilling.value = false
+    distillProgress.value = 0
   }
 }
 
@@ -769,7 +840,7 @@ async function generateAllSuggestions() {
   generating.value = true
   try {
     for (const cluster of clusters.value) {
-      await clusterApi.generateSuggestions(cluster.id)
+      await clusterApi.generateSuggestions(cluster.id, { tenantId: authStore.selectedTenantId })
     }
     message.success('内容建议生成完成！')
     await loadData()
@@ -783,7 +854,7 @@ async function generateAllSuggestions() {
 
 async function generateSuggestions(cluster: KeywordCluster) {
   try {
-    await clusterApi.generateSuggestions(cluster.id)
+    await clusterApi.generateSuggestions(cluster.id, { tenantId: authStore.selectedTenantId })
     message.success('内容建议生成完成！')
     await loadData()
   } catch (error) {
@@ -832,6 +903,8 @@ const initRadarChart = () => {
 
   radarChart = echarts.init(radarChartRef.value)
 
+  const d = radarData.value
+
   const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'item',
@@ -840,7 +913,7 @@ const initRadarChart = () => {
       textStyle: { color: '#333' }
     },
     radar: {
-      indicator: mockRadarData.indicators,
+      indicator: d.indicators,
       shape: 'polygon',
       splitNumber: 5,
       axisName: {
@@ -869,7 +942,7 @@ const initRadarChart = () => {
         type: 'radar',
         data: [
           {
-            value: mockRadarData.values,
+            value: d.values,
             name: '质量评分',
             areaStyle: {
               color: 'rgba(114, 46, 209, 0.2)'
@@ -895,11 +968,25 @@ const initHeatmapChart = () => {
 
   heatmapChart = echarts.init(heatmapChartRef.value)
 
+  const d = heatmapData.value
+
+  if (d.xAxis.length === 0) {
+    heatmapChart.setOption({
+      title: {
+        text: '暂无数据',
+        left: 'center',
+        top: 'center',
+        textStyle: { color: '#999', fontSize: 14 }
+      }
+    })
+    return
+  }
+
   const option: echarts.EChartsOption = {
     tooltip: {
       position: 'top',
       formatter: (params: any) => {
-        return `${mockHeatmapData.xAxis[params.data[0]]} - ${mockHeatmapData.yAxis[params.data[1]]}: ${params.data[2]}`
+        return `${d.xAxis[params.data[0]]} - ${d.yAxis[params.data[1]]}: ${params.data[2]}`
       },
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
       borderColor: '#f0f0f0',
@@ -913,7 +1000,7 @@ const initHeatmapChart = () => {
     },
     xAxis: {
       type: 'category',
-      data: mockHeatmapData.xAxis,
+      data: d.xAxis,
       splitArea: {
         show: true
       },
@@ -924,7 +1011,7 @@ const initHeatmapChart = () => {
     },
     yAxis: {
       type: 'category',
-      data: mockHeatmapData.yAxis,
+      data: d.yAxis,
       splitArea: {
         show: true
       },
@@ -935,7 +1022,7 @@ const initHeatmapChart = () => {
     },
     visualMap: {
       min: 0,
-      max: 40,
+      max: d.max,
       calculable: true,
       orient: 'horizontal',
       left: 'center',
@@ -950,7 +1037,7 @@ const initHeatmapChart = () => {
     series: [
       {
         type: 'heatmap',
-        data: mockHeatmapData.data,
+        data: d.data,
         label: {
           show: true,
           fontSize: 11,
@@ -973,6 +1060,35 @@ const handleResize = () => {
   radarChart?.resize()
   heatmapChart?.resize()
 }
+
+// 数据变化时更新图表
+watch([radarData, heatmapData], () => {
+  if (radarChart) {
+    const d = radarData.value
+    radarChart.setOption({
+      radar: { indicator: d.indicators },
+      series: [{ data: [{ value: d.values }] }]
+    })
+  }
+  if (heatmapChart) {
+    const d = heatmapData.value
+    if (d.xAxis.length === 0) {
+      heatmapChart.setOption({
+        title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 14 } },
+        xAxis: { data: [] },
+        yAxis: { data: [] },
+        series: [{ data: [] }]
+      })
+    } else {
+      heatmapChart.setOption({
+        xAxis: { data: d.xAxis },
+        yAxis: { data: d.yAxis },
+        visualMap: { max: d.max },
+        series: [{ data: d.data }]
+      })
+    }
+  }
+}, { deep: true })
 
 onMounted(() => {
   loadData()

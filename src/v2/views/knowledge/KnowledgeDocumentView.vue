@@ -1,64 +1,54 @@
 <template>
   <div class="media-panel-page">
-    <!-- 项目列表视图 -->
-    <template v-if="!currentProject">
+    <!-- 分类列表视图 -->
+    <template v-if="!currentCategoryId">
       <div class="panel-header">
         <div>
-          <h2>资料库</h2>
-          <p class="subtitle">上传和管理图片、视频、文档等企业资料</p>
+          <h2>知识库文档</h2>
+          <p class="subtitle">上传和管理知识文档，支持解析和向量化</p>
         </div>
-        <a-button type="primary" @click="showNewProjectModal = true">
+        <a-button type="primary" @click="showNewCategoryModal = true">
           <template #icon><PlusOutlined /></template>
-          新建项目
+          新建分类
         </a-button>
       </div>
 
-      <a-spin :spinning="mediaLoading">
+      <a-spin :spinning="loading">
         <a-row :gutter="16">
-          <a-col :span="6" v-for="project in projects" :key="project.name">
-            <a-card class="project-card" hoverable @click="enterProject(project.name)">
+          <a-col :span="6" v-for="category in categories" :key="category.id">
+            <a-card class="project-card" hoverable @click="enterCategory(category.id)">
               <div class="project-cover">
-                <img
-                  v-if="project.coverUrl && !failedImageIds.has(`cover-${project.name}`)"
-                  :src="project.coverUrl"
-                  alt="cover"
-                  @error="onImageError(`cover-${project.name}`)"
-                />
-                <div v-else class="cover-placeholder">
+                <div class="cover-placeholder">
                   <FolderOpenOutlined />
                 </div>
               </div>
-              <a-card-meta :title="project.displayName || project.name">
+              <a-card-meta :title="category.name">
                 <template #description>
-                  {{ project.count }} 个文件 · {{ formatFileSize(project.totalSize) }}
-                  <br />
-                  <span style="font-size: 12px; color: #999">
-                    {{ project.imageCount }} 图片 · {{ project.videoCount }} 视频
-                  </span>
+                  {{ category.description || '暂无描述' }}
                 </template>
               </a-card-meta>
             </a-card>
           </a-col>
-          <a-col :span="24" v-if="projects.length === 0 && !mediaLoading">
-            <a-empty description="暂无项目，点击新建项目创建" />
+          <a-col :span="24" v-if="categories.length === 0 && !loading">
+            <a-empty description="暂无分类，点击新建分类创建" />
           </a-col>
         </a-row>
       </a-spin>
 
-      <a-modal v-model:open="showNewProjectModal" title="新建项目" @ok="createProject">
-        <a-input v-model:value="newProjectName" placeholder="请输入项目名称" @pressEnter="createProject" />
+      <a-modal v-model:open="showNewCategoryModal" title="新建分类" @ok="createCategory">
+        <a-input v-model:value="newCategoryName" placeholder="请输入分类名称" @pressEnter="createCategory" />
       </a-modal>
     </template>
 
-    <!-- 项目详情视图 -->
+    <!-- 分类详情视图 -->
     <template v-else>
       <div class="panel-header">
         <a-space>
-          <a-button @click="backToProjects">
+          <a-button @click="backToCategories">
             <template #icon><ArrowLeftOutlined /></template>
             返回
           </a-button>
-          <h3 style="margin: 0">{{ currentProject === 'uncategorized' ? '未分类' : currentProject }}</h3>
+          <h3 style="margin: 0">{{ getCategoryName(currentCategoryId) }}</h3>
         </a-space>
         <a-space>
           <a-radio-group v-model:value="viewMode" size="small">
@@ -79,7 +69,7 @@
         </a-space>
       </div>
 
-      <a-card :loading="mediaLoading">
+      <a-card :loading="loading">
         <template #extra>
           <a-space>
             <a-select
@@ -87,13 +77,13 @@
               placeholder="按标签筛选"
               style="width: 160px"
               allow-clear
-              @change="loadFiles"
+              @change="loadDocuments"
             >
               <a-select-option v-for="tag in tags" :key="tag.name" :value="tag.name">
                 <a-tag :color="tag.color" style="margin-right: 0">{{ tag.name }}</a-tag>
               </a-select-option>
             </a-select>
-            <a-input-search v-model:value="searchText" placeholder="搜索文件" style="width: 200px" @search="loadFiles" />
+            <a-input-search v-model:value="searchText" placeholder="搜索文件" style="width: 200px" @search="loadDocuments" />
             <template v-if="selectedIds.length > 0">
               <a-button size="small" @click="showBatchCategoryModal">
                 设置分类
@@ -116,15 +106,15 @@
                 <div class="media-preview" @click="toggleSelect(file.id)">
                   <a-checkbox :checked="selectedIds.includes(file.id)" class="media-checkbox" />
                   <img
-                    v-if="isImage(file.mimeType) && !failedImageIds.has(file.id)"
-                    :src="`/api/v2/workspace/media/${file.id}/file`"
-                    :alt="file.originalName"
+                    v-if="isImageFile(file) && !failedImageIds.has(file.id)"
+                    :src="`/api/v2/knowledge/documents/${file.id}/file`"
+                    :alt="file.originalName || file.fileName"
                     @error="onImageError(file.id)"
                   />
-                  <div v-else-if="isImage(file.mimeType)" class="file-placeholder image-placeholder">
+                  <div v-else-if="isImageFile(file)" class="file-placeholder image-placeholder">
                     <PictureOutlined />
                   </div>
-                  <div v-else-if="isVideo(file.mimeType)" class="file-placeholder video-placeholder">
+                  <div v-else-if="isVideoFile(file)" class="file-placeholder video-placeholder">
                     <VideoCameraOutlined />
                   </div>
                   <div v-else class="file-placeholder document-placeholder">
@@ -134,7 +124,7 @@
               </template>
               <a-card-meta>
                 <template #title>
-                  <a-typography-paragraph :ellipsis="{ rows: 1 }" :content="file.originalName" style="margin: 0; font-size: 13px" />
+                  <a-typography-paragraph :ellipsis="{ rows: 1 }" :content="file.originalName || file.fileName" style="margin: 0; font-size: 13px" />
                 </template>
                 <template #description>
                   <span style="font-size: 12px">{{ formatFileSize(file.fileSize) }}</span>
@@ -156,11 +146,6 @@
                       向量: {{ getVectorStatusText(file.vectorStatus) }}
                     </a-tag>
                   </div>
-                  <div v-if="file.ocrStatus" class="status-tags">
-                    <a-tag :color="getOcrStatusColor(file.ocrStatus)" size="small">
-                      OCR: {{ getOcrStatusText(file.ocrStatus) }}
-                    </a-tag>
-                  </div>
                 </template>
               </a-card-meta>
               <template #actions>
@@ -172,7 +157,7 @@
               </template>
             </a-card>
           </a-col>
-          <a-col :span="24" v-if="filteredFiles.length === 0 && !mediaLoading">
+          <a-col :span="24" v-if="filteredFiles.length === 0 && !loading">
             <a-empty description="暂无文件" />
           </a-col>
         </a-row>
@@ -182,18 +167,19 @@
           v-else
           :columns="mediaColumns"
           :data-source="filteredFiles"
-          :pagination="{ pageSize: 20 }"
-          :loading="mediaLoading"
+          :pagination="pagination"
+          :loading="loading"
           row-key="id"
           :row-selection="{ selectedRowKeys: selectedIds, onChange: (keys: any) => selectedIds = keys }"
+          @change="handleTableChange"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'name'">
               <a-space>
-                <FileImageOutlined v-if="isImage(record.mimeType)" />
-                <VideoCameraOutlined v-else-if="isVideo(record.mimeType)" />
+                <FileImageOutlined v-if="isImageFile(record)" />
+                <VideoCameraOutlined v-else-if="isVideoFile(record)" />
                 <FileTextOutlined v-else />
-                <span>{{ record.originalName }}</span>
+                <span>{{ record.originalName || record.fileName }}</span>
               </a-space>
             </template>
             <template v-if="column.key === 'tags'">
@@ -241,9 +227,9 @@
       </a-card>
     </template>
 
-    <!-- 媒体预览弹窗 -->
+    <!-- 文档预览弹窗 -->
     <a-modal
-      v-model:open="mediaPreviewVisible"
+      v-model:open="docPreviewVisible"
       :footer="null"
       :width="previewModalWidth"
       :body-style="{ padding: 0 }"
@@ -278,11 +264,20 @@
                 下一个
                 <template #icon><RightOutlined /></template>
               </a-button>
+              <a-button 
+                type="primary" 
+                @click="startGenerateCards" 
+                :loading="cardGenerating"
+                :disabled="cardGenerationStatus === 'PROCESSING'"
+              >
+                <template #icon><FileSearchOutlined /></template>
+                {{ cardGenerationStatus === 'PROCESSING' ? '生成中...' : '生成知识卡片' }}
+              </a-button>
               <a-button type="primary" @click="downloadCurrentDoc">
                 <template #icon><DownloadOutlined /></template>
                 下载
               </a-button>
-              <a-button @click="mediaPreviewVisible = false">
+              <a-button @click="closePreviewModal">
                 关闭
               </a-button>
             </a-space>
@@ -394,6 +389,79 @@
               </div>
             </div>
           </template>
+
+          <!-- 卡片生成区域 -->
+          <div 
+            v-if="cardGenerationStatus || generatedCards.length > 0" 
+            class="card-generation-section"
+          >
+            <div class="section-header">
+              <h4>
+                <FileSearchOutlined />
+                知识卡片生成
+              </h4>
+              <a-tag :color="getCardGenerationStatusColor(cardGenerationStatus)">
+                {{ getCardGenerationStatusText(cardGenerationStatus) }}
+              </a-tag>
+            </div>
+
+            <!-- 生成状态和进度 -->
+            <div v-if="cardGenerationStatus && cardGenerationStatus !== 'COMPLETED'" class="status-info">
+              <a-progress 
+                v-if="cardGenerationStatus === 'PROCESSING'" 
+                :percent="cardGenerationProgress" 
+                status="active"
+                style="margin-bottom: 12px"
+              />
+              <div v-if="cardGenerationMessage" class="status-item">
+                <span class="status-text">{{ cardGenerationMessage }}</span>
+              </div>
+              <div v-if="cardGenerationError" class="status-item">
+                <ExclamationCircleOutlined class="status-icon-error" />
+                <span class="status-text" style="color: #ff4d4f">{{ cardGenerationError }}</span>
+              </div>
+            </div>
+
+            <!-- 生成完成的卡片列表 -->
+            <div v-if="generatedCards.length > 0">
+              <a-alert 
+                v-if="cardGenerationStatus === 'COMPLETED'"
+                message="卡片生成成功"
+                :description="`已成功从文档中提取并生成 ${generatedCards.length} 张知识卡片`"
+                type="success"
+                show-icon
+                style="margin-bottom: 16px"
+              />
+              <div class="generated-cards-grid">
+                <a-card 
+                  v-for="card in generatedCards" 
+                  :key="card.id"
+                  size="small"
+                  class="generated-card-item"
+                  @click="goToCardDetail(card.id)"
+                >
+                  <template #title>
+                    <a-typography-paragraph :ellipsis="{ rows: 1 }" style="margin: 0; font-weight: 500">
+                      {{ card.title }}
+                    </a-typography-paragraph>
+                  </template>
+                  <a-typography-paragraph :ellipsis="{ rows: 2 }" style="margin: 0; font-size: 13px; color: #595959">
+                    {{ card.content }}
+                  </a-typography-paragraph>
+                  <div v-if="card.tags" style="margin-top: 8px">
+                    <a-tag 
+                      v-for="tag in card.tags.split(',').filter((t: string) => t).slice(0, 3)" 
+                      :key="tag"
+                      size="small"
+                      color="blue"
+                    >
+                      {{ tag }}
+                    </a-tag>
+                  </div>
+                </a-card>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </a-modal>
@@ -459,7 +527,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   PlusOutlined,
@@ -476,31 +544,36 @@ import {
   ReloadOutlined,
   LeftOutlined,
   RightOutlined,
+  FileSearchOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons-vue'
-import { mediaApi } from '../../api/workspace'
 import { knowledgeDocumentApi, knowledgeCategoryApi, knowledgeTagApi, knowledgeCardApi } from '../../api/knowledge'
-import type { KnowledgeCategory, KnowledgeTag, KnowledgeCard } from '../../types/knowledge'
+import type { KnowledgeCategory, KnowledgeTag, KnowledgeCard, KnowledgeDocument } from '../../types/knowledge'
 import { formatTime as formatAbsoluteTime } from '@/utils/format'
+import { useAuthStore } from '../../stores/auth'
 
-// ==================== 媒体库相关状态 ====================
-const mediaLoading = ref(false)
+// ==================== 知识库文档相关状态 ====================
+const auth = useAuthStore()
+const loading = ref(false)
 const uploading = ref(false)
-const projects = ref<any[]>([])
-const mediaFiles = ref<any[]>([])
-const currentProject = ref<string | null>(null)
+const categories = ref<KnowledgeCategory[]>([])
+const documents = ref<KnowledgeDocument[]>([])
+const currentCategoryId = ref<number | null>(null)
 const viewMode = ref('grid')
 const searchText = ref('')
 const selectedIds = ref<number[]>([])
-const showNewProjectModal = ref(false)
-const newProjectName = ref('')
-const mediaPreviewVisible = ref(false)
+const showNewCategoryModal = ref(false)
+const newCategoryName = ref('')
+const docPreviewVisible = ref(false)
+const previewDocData = ref<any | null>(null)
 const previewMediaData = ref<any | null>(null)
+const previewIndex = ref(-1)
 const savingCategory = ref(false)
 const editingCategoryId = ref<number | null>(null)
 const batchCategoryModalVisible = ref(false)
 const batchCategoryId = ref<number | null>(null)
 const batchSaving = ref(false)
-const categories = ref<KnowledgeCategory[]>([])
 const tags = ref<KnowledgeTag[]>([])
 const selectedTag = ref<string>('')
 const batchTagModalVisible = ref(false)
@@ -509,10 +582,23 @@ const batchTagSaving = ref(false)
 const editingTags = ref<string[]>([])
 const relatedCards = ref<KnowledgeCard[]>([])
 const relatedCardsLoading = ref(false)
+const pagination = ref({
+  page: 1,
+  size: 20,
+  total: 0
+})
+
+// 卡片生成相关状态
+const cardGenerating = ref(false)
+const cardGenerationTaskId = ref<string | null>(null)
+const cardGenerationStatus = ref<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null>(null)
+const cardGenerationProgress = ref(0)
+const cardGenerationMessage = ref('')
+const cardGenerationError = ref('')
+const generatedCards = ref<KnowledgeCard[]>([])
+let cardGenerationPollingTimer: ReturnType<typeof setInterval> | null = null
 
 const previewLoading = ref(false)
-const previewDocData = ref<any | null>(null)
-const previewIndex = ref(-1)
 
 // 记录加载失败的图片 key，用于触发占位图标渲染
 const failedImageIds = ref<Set<string | number>>(new Set())
@@ -534,12 +620,14 @@ const mediaColumns = [
 ]
 
 const filteredFiles = computed(() => {
-  let result = mediaFiles.value
+  const result = documents.value as any[]
   if (searchText.value) {
-    result = result.filter((f: any) => f.originalName?.includes(searchText.value))
+    return result.filter((f: any) => 
+      (f.originalName || f.fileName || '').includes(searchText.value)
+    )
   }
   if (selectedTag.value) {
-    result = result.filter((f: any) => {
+    return result.filter((f: any) => {
       const fileTags = f.tags ? f.tags.split(',') : []
       return fileTags.includes(selectedTag.value)
     })
@@ -558,8 +646,9 @@ const currentPreviewType = computed(() => {
   if (previewDocData.value?.previewType) {
     return previewDocData.value.previewType
   }
-  if (previewMediaData.value) {
-    const fileName = previewMediaData.value.originalName || ''
+  const docData = previewDocData.value || previewMediaData.value
+  if (docData) {
+    const fileName = docData.originalName || docData.fileName || ''
     const ext = fileName.split('.').pop()?.toLowerCase() || ''
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext)) return 'image'
     if (ext === 'pdf') return 'pdf'
@@ -572,73 +661,97 @@ const currentPreviewType = computed(() => {
 const hasPrevDoc = computed(() => previewIndex.value > 0)
 const hasNextDoc = computed(() => previewIndex.value >= 0 && previewIndex.value < filteredFiles.value.length - 1)
 
-// ==================== 媒体库相关方法 ====================
-async function loadProjects() {
-  mediaLoading.value = true
+// ==================== 知识库文档相关方法 ====================
+async function loadCategories() {
+  loading.value = true
   try {
-    const res: any = await mediaApi.projects()
-    const data = Array.isArray(res) ? res : (res?.data || [])
-    projects.value = Array.isArray(data) ? data : []
+    const result = await knowledgeCategoryApi.all(auth.selectedTenantId!) as any
+    categories.value = result
   } catch (e) {
-    console.error('加载项目失败:', e)
-    message.error('加载项目失败')
-    projects.value = []
+    console.error('加载分类失败:', e)
+    message.error('加载分类失败')
+    categories.value = []
   } finally {
-    mediaLoading.value = false
+    loading.value = false
   }
 }
 
-async function loadFiles() {
-  if (!currentProject.value) return
-  mediaLoading.value = true
+async function loadDocuments() {
+  if (!currentCategoryId.value) return
+  loading.value = true
   try {
-    const res: any = await mediaApi.list({ category: currentProject.value })
-    const data = Array.isArray(res) ? res : (res?.data?.records || res?.data || res?.records || [])
-    mediaFiles.value = Array.isArray(data) ? data : []
+    const params: any = {
+      tenantId: auth.selectedTenantId!,
+      categoryId: currentCategoryId.value,
+      page: pagination.value.page,
+      size: pagination.value.size
+    }
+    if (searchText.value) {
+      params.keyword = searchText.value
+    }
+    if (selectedTag.value) {
+      params.tag = selectedTag.value
+    }
+    const result = await knowledgeDocumentApi.list(params) as any
+    documents.value = result.records
+    pagination.value.total = result.total
   } catch (e) {
-    console.error('加载文件失败:', e)
-    message.error('加载文件失败')
-    mediaFiles.value = []
+    console.error('加载文档列表失败:', e)
+    message.error('加载文档列表失败')
+    documents.value = []
+    pagination.value.total = 0
   } finally {
-    mediaLoading.value = false
+    loading.value = false
   }
 }
 
-function enterProject(name: string) {
-  currentProject.value = name
+function enterCategory(categoryId: number) {
+  currentCategoryId.value = categoryId
   selectedIds.value = []
-  loadFiles()
+  pagination.value.page = 1
+  loadDocuments()
 }
 
-function backToProjects() {
-  currentProject.value = null
-  mediaFiles.value = []
+function backToCategories() {
+  currentCategoryId.value = null
+  documents.value = []
   selectedIds.value = []
-  loadProjects()
+  loadCategories()
 }
 
-function createProject() {
-  const name = newProjectName.value.trim()
+async function createCategory() {
+  const name = newCategoryName.value.trim()
   if (!name) {
-    message.warning('请输入项目名称')
+    message.warning('请输入分类名称')
     return
   }
-  showNewProjectModal.value = false
-  newProjectName.value = ''
-  currentProject.value = name
-  mediaFiles.value = []
-  message.success(`项目「${name}」已创建，请上传文件`)
+  showNewCategoryModal.value = false
+  newCategoryName.value = ''
+  try {
+    await knowledgeCategoryApi.create({
+      tenantId: auth.selectedTenantId!,
+      name,
+      icon: 'folder',
+      description: ''
+    })
+    message.success(`分类「${name}」已创建`)
+    await loadCategories()
+  } catch (e) {
+    console.error('创建分类失败:', e)
+    message.error('创建分类失败')
+  }
 }
 
 async function handleBatchUpload(file: File): Promise<boolean> {
-  if (!currentProject.value) return false
+  if (!currentCategoryId.value) return false
 
   uploading.value = true
   try {
-    await mediaApi.upload(file, currentProject.value)
+    const formData = new FormData()
+    formData.append('file', file)
+    await knowledgeDocumentApi.upload(auth.selectedTenantId!, formData)
     message.success(`${file.name} 上传成功`)
-    await loadFiles()
-    startOcrPolling()
+    await loadDocuments()
   } catch (e) {
     console.error('上传失败:', e)
     message.error(`${file.name} 上传失败`)
@@ -646,37 +759,6 @@ async function handleBatchUpload(file: File): Promise<boolean> {
     uploading.value = false
   }
   return false
-}
-
-let ocrPollingTimer: ReturnType<typeof setInterval> | null = null
-let ocrPollingCount = 0
-const OCR_POLLING_MAX = 60 // 60 次 × 5 秒 = 5 分钟
-
-function startOcrPolling() {
-  if (ocrPollingTimer) clearInterval(ocrPollingTimer)
-  ocrPollingCount = 0
-  ocrPollingTimer = setInterval(async () => {
-    ocrPollingCount++
-    if (ocrPollingCount >= OCR_POLLING_MAX) {
-      if (ocrPollingTimer) {
-        clearInterval(ocrPollingTimer)
-        ocrPollingTimer = null
-      }
-      message.warning('OCR 分析超时（超过 5 分钟），请稍后刷新页面查看结果')
-      return
-    }
-    const hasAnalyzing = mediaFiles.value.some(
-      f => f.mimeType?.startsWith('image/') && f.ocrStatus === 'ANALYZING'
-    )
-    if (!hasAnalyzing) {
-      if (ocrPollingTimer) {
-        clearInterval(ocrPollingTimer)
-        ocrPollingTimer = null
-      }
-      return
-    }
-    await loadFiles()
-  }, 5000)
 }
 
 function toggleSelect(id: number) {
@@ -690,16 +772,16 @@ function toggleSelect(id: number) {
 
 function downloadMediaFile(file: any) {
   const link = document.createElement('a')
-  link.href = `/api/v2/workspace/media/${file.id}/file`
-  link.download = file.originalName
+  link.href = `/api/v2/knowledge/documents/${file.id}/file`
+  link.download = file.originalName || file.fileName
   link.click()
 }
 
 async function deleteMediaFile(id: number) {
   try {
-    await mediaApi.delete(id)
+    await knowledgeDocumentApi.delete(id)
     message.success('删除成功')
-    await loadFiles()
+    await loadDocuments()
   } catch (e) {
     console.error('删除失败:', e)
     message.error('删除失败')
@@ -719,7 +801,7 @@ async function batchDelete() {
         await knowledgeDocumentApi.batchDelete(selectedIds.value)
         message.success(`已删除 ${selectedIds.value.length} 个文档`)
         selectedIds.value = []
-        await loadFiles()
+        await loadDocuments()
       } catch (e) {
         console.error('批量删除失败:', e)
         message.error('批量删除失败')
@@ -728,24 +810,14 @@ async function batchDelete() {
   })
 }
 
-// ==================== 分类相关方法 ====================
-async function loadCategories() {
-  try {
-    const result = await knowledgeCategoryApi.all(1)
-    categories.value = result
-  } catch (e) {
-    console.error('加载分类失败:', e)
-    categories.value = []
-  }
-}
-
 // ==================== 标签相关方法 ====================
 async function loadTags() {
   try {
-    const result = await knowledgeTagApi.list({ tenantId: 1 })
+    const result = await knowledgeTagApi.list({ tenantId: auth.selectedTenantId! }) as any
     tags.value = Array.isArray(result) ? result : (result as any).records || []
   } catch (e) {
     console.error('加载标签失败:', e)
+    message.error('加载标签失败')
     tags.value = []
   }
 }
@@ -763,7 +835,7 @@ function previewMediaFile(file: any) {
   const idx = filteredFiles.value.findIndex((f: any) => f.id === file.id)
   previewIndex.value = idx
   
-  mediaPreviewVisible.value = true
+  docPreviewVisible.value = true
   loadPreviewData(file.id)
   loadRelatedCards(file.id)
 }
@@ -821,7 +893,7 @@ function downloadCurrentDoc() {
 function getMediaFileUrl(file: any) {
   if (!file) return ''
   if (file.id) {
-    return `/api/v2/workspace/media/${file.id}/file`
+    return `/api/v2/knowledge/documents/${file.id}/file`
   }
   return ''
 }
@@ -835,7 +907,7 @@ async function loadRelatedCards(docId: number) {
   if (!docId) return
   relatedCardsLoading.value = true
   try {
-    const cards = await knowledgeDocumentApi.getCards(docId)
+    const cards = await knowledgeDocumentApi.getCards(docId) as any
     relatedCards.value = cards
   } catch (e) {
     console.error('加载关联卡片失败:', e)
@@ -846,8 +918,121 @@ async function loadRelatedCards(docId: number) {
 }
 
 function goToCardDetail(cardId: number) {
-  mediaPreviewVisible.value = false
+  docPreviewVisible.value = false
   window.open(`/knowledge/card/${cardId}`, '_blank')
+}
+
+// 开始生成知识卡片
+async function startGenerateCards() {
+  const docId = previewDocData.value?.id || previewMediaData.value?.id
+  if (!docId) {
+    message.error('无法获取文档ID')
+    return
+  }
+
+  // 重置状态
+  cardGenerating.value = true
+  cardGenerationStatus.value = 'PENDING'
+  cardGenerationProgress.value = 0
+  cardGenerationMessage.value = '正在准备生成卡片...'
+  cardGenerationError.value = ''
+  generatedCards.value = []
+
+  try {
+    const result = await knowledgeDocumentApi.generateCards(docId) as any
+    cardGenerationTaskId.value = result.taskId
+    cardGenerationStatus.value = 'PROCESSING'
+    cardGenerationMessage.value = '正在分析文档内容并提取知识卡片...'
+    
+    // 开始轮询状态
+    startCardGenerationPolling(docId, result.taskId)
+  } catch (e: any) {
+    console.error('触发卡片生成失败:', e)
+    cardGenerating.value = false
+    cardGenerationStatus.value = 'FAILED'
+    cardGenerationError.value = e.response?.data?.message || e.message || '触发卡片生成失败'
+    message.error('触发卡片生成失败')
+  }
+}
+
+// 开始轮询卡片生成状态
+function startCardGenerationPolling(docId: number, taskId: string) {
+  if (cardGenerationPollingTimer) {
+    clearInterval(cardGenerationPollingTimer)
+  }
+
+  cardGenerationPollingTimer = setInterval(async () => {
+    try {
+      const result = await knowledgeDocumentApi.getCardsGenerationStatus(docId, taskId) as any
+      cardGenerationStatus.value = result.status
+      cardGenerationProgress.value = result.progress || 0
+      cardGenerationMessage.value = result.message || ''
+      
+      if (result.status === 'COMPLETED') {
+        // 生成完成
+        cardGenerating.value = false
+        generatedCards.value = result.cards || []
+        stopCardGenerationPolling()
+        message.success(`成功生成 ${generatedCards.value.length} 张知识卡片`)
+      } else if (result.status === 'FAILED') {
+        // 生成失败
+        cardGenerating.value = false
+        cardGenerationError.value = result.error || '卡片生成失败'
+        stopCardGenerationPolling()
+        message.error('卡片生成失败')
+      }
+    } catch (e: any) {
+      console.error('获取卡片生成状态失败:', e)
+    }
+  }, 2000) // 每2秒轮询一次
+}
+
+// 停止轮询卡片生成状态
+function stopCardGenerationPolling() {
+  if (cardGenerationPollingTimer) {
+    clearInterval(cardGenerationPollingTimer)
+    cardGenerationPollingTimer = null
+  }
+}
+
+// 获取卡片生成状态颜色
+function getCardGenerationStatusColor(status: string | null): string {
+  const map: Record<string, string> = {
+    PENDING: 'default',
+    PROCESSING: 'processing',
+    COMPLETED: 'success',
+    FAILED: 'error'
+  }
+  return map[status || ''] || 'default'
+}
+
+// 获取卡片生成状态文本
+function getCardGenerationStatusText(status: string | null): string {
+  const map: Record<string, string> = {
+    PENDING: '待处理',
+    PROCESSING: '生成中',
+    COMPLETED: '已完成',
+    FAILED: '失败'
+  }
+  return map[status || ''] || '未知状态'
+}
+
+// 重置卡片生成状态（关闭预览弹窗时调用）
+function resetCardGenerationState() {
+  stopCardGenerationPolling()
+  cardGenerating.value = false
+  cardGenerationTaskId.value = null
+  cardGenerationStatus.value = null
+  cardGenerationProgress.value = 0
+  cardGenerationMessage.value = ''
+  cardGenerationError.value = ''
+  generatedCards.value = []
+}
+
+// 关闭预览弹窗
+function closePreviewModal() {
+  resetCardGenerationState()
+  docPreviewVisible.value = false
 }
 
 async function saveDocumentInfo() {
@@ -863,8 +1048,8 @@ async function saveDocumentInfo() {
       previewMediaData.value.categoryId = editingCategoryId.value
       previewMediaData.value.tags = editingTags.value.join(',')
     }
-    mediaPreviewVisible.value = false
-    await loadFiles()
+    docPreviewVisible.value = false
+    await loadDocuments()
   } catch (e) {
     console.error('保存失败:', e)
     message.error('保存失败')
@@ -890,7 +1075,7 @@ async function handleBatchSetTags() {
     await knowledgeDocumentApi.batchSetTags(selectedIds.value, batchTagValue.value.join(','))
     message.success(`已批量设置 ${selectedIds.value.length} 个文档的标签`)
     batchTagModalVisible.value = false
-    await loadFiles()
+    await loadDocuments()
   } catch (e) {
     console.error('批量设置标签失败:', e)
     message.error('批量设置标签失败')
@@ -907,7 +1092,7 @@ async function handleBatchSetCategory() {
     message.success(`已批量设置 ${selectedIds.value.length} 个文档的分类`)
     batchCategoryModalVisible.value = false
     selectedIds.value = []
-    await loadFiles()
+    await loadDocuments()
   } catch (e) {
     console.error('批量设置分类失败:', e)
     message.error('批量设置分类失败')
@@ -930,8 +1115,32 @@ function isImage(mimeType: string): boolean {
   return mimeType?.startsWith('image/') ?? false
 }
 
+function isImageFile(file: any): boolean {
+  const fileName = file?.originalName || file?.fileName || ''
+  const ext = fileName.split('.').pop()?.toLowerCase() || ''
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext)
+}
+
 function isVideo(mimeType: string): boolean {
   return mimeType?.startsWith('video/') ?? false
+}
+
+function isVideoFile(file: any): boolean {
+  const fileName = file?.originalName || file?.fileName || ''
+  const ext = fileName.split('.').pop()?.toLowerCase() || ''
+  return ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext)
+}
+
+function getCategoryName(categoryId: number | null): string {
+  if (!categoryId) return '-'
+  const category = categories.value.find(c => c.id === categoryId)
+  return category?.name || '-'
+}
+
+function handleTableChange(pagination: any) {
+  pagination.value.page = pagination.current
+  pagination.value.size = pagination.pageSize
+  loadDocuments()
 }
 
 function isDocument(fileName: string): boolean {
@@ -1005,10 +1214,20 @@ function getOcrStatusText(status: string): string {
   return map[status] || status
 }
 
-onMounted(() => {
-  loadProjects()
-  loadCategories()
-  loadTags()
+watch(
+  () => auth.selectedTenantId,
+  async () => {
+    currentCategoryId.value = null
+    documents.value = []
+    selectedIds.value = []
+    await loadCategories()
+    await loadTags()
+  }
+)
+
+onMounted(async () => {
+  await loadCategories()
+  await loadTags()
 })
 </script>
 
@@ -1397,5 +1616,69 @@ onMounted(() => {
 }
 .ocr-text {
   color: #333;
+}
+
+.card-generation-section {
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+
+    h4 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #262626;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  }
+
+  .status-info {
+    margin-bottom: 16px;
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+
+      .status-icon-success {
+        color: #52c41a;
+        font-size: 16px;
+      }
+
+      .status-icon-error {
+        color: #ff4d4f;
+        font-size: 16px;
+      }
+
+      .status-text {
+        font-size: 14px;
+        color: #595959;
+      }
+    }
+  }
+
+  .generated-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+
+    .generated-card-item {
+      cursor: pointer;
+      transition: all 0.3s;
+
+      &:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        transform: translateY(-1px);
+      }
+    }
+  }
 }
 </style>
