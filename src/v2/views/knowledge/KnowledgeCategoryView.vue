@@ -256,6 +256,10 @@ import {
 import { knowledgeCategoryApi } from '../../api/knowledge'
 import type { KnowledgeCategoryStats } from '../../api/knowledge'
 import type { KnowledgeCategory, KnowledgeCategoryForm } from '../../types/knowledge'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const loading = ref(false)
 const saving = ref(false)
@@ -277,7 +281,7 @@ const categoryStats = ref<KnowledgeCategoryStats[]>([])
 const currentCategory = ref<KnowledgeCategory | null>(null)
 
 const modalForm = reactive<KnowledgeCategoryForm>({
-  tenantId: 1,
+  tenantId: getTenantId(),
   name: '',
   parentId: null,
   icon: 'folder',

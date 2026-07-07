@@ -277,6 +277,10 @@ import {
 } from '@ant-design/icons-vue'
 import { modelConfigApi, usageApi } from '../../api/ai-model'
 import type { ModelConfig } from '../../types/ai-model'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const loading = ref(false)
 const saving = ref(false)
@@ -516,7 +520,7 @@ async function handleSaveConfig() {
       await modelConfigApi.update(editingConfig.value.id, payload as any)
       message.success('更新成功')
     } else {
-      await modelConfigApi.create(1, payload as any)
+      await modelConfigApi.create(getTenantId(), payload as any)
       message.success('创建成功')
     }
     showAddModal.value = false
@@ -532,7 +536,7 @@ async function handleSaveConfig() {
 async function loadData() {
   loading.value = true
   try {
-    const result = await modelConfigApi.list({ tenantId: 1 })
+    const result = await modelConfigApi.list({ tenantId: getTenantId() })
     const list = result.records || (Array.isArray(result) ? result : [])
     configs.value = list.map((item: any) => ({
       ...item,
@@ -540,73 +544,9 @@ async function loadData() {
       baseUrl: item.apiEndpoint || item.baseUrl || '',
     }))
   } catch (error) {
-    console.error(error)
-    // Mock data
-    configs.value = [
-      {
-        id: 1,
-        modelId: 101,
-        name: '通义千问-文章生成',
-        tenantId: 1,
-        provider: 'dashscope',
-        modelName: 'qwen-max',
-        modelType: 'chat',
-        isSystemDefault: true,
-        apiKey: 'sk-xxx',
-        isActive: true,
-        priority: 1,
-        temperature: 0.7,
-        maxTokens: 2000,
-        topP: 0.9,
-        enableRetry: true,
-        maxRetryTimes: 3,
-        retryDelay: 1000,
-        createdAt: '2024-03-15 10:00:00',
-        updatedAt: '2024-03-15 10:00:00',
-      } as any,
-      {
-        id: 2,
-        modelId: 201,
-        name: '通义千问-向量化',
-        tenantId: 1,
-        provider: 'dashscope',
-        modelName: 'text-embedding-v2',
-        modelType: 'embedding',
-        isSystemDefault: true,
-        apiKey: 'sk-xxx',
-        isActive: true,
-        priority: 1,
-        temperature: 0.7,
-        maxTokens: 2000,
-        topP: 0.9,
-        enableRetry: true,
-        maxRetryTimes: 3,
-        retryDelay: 1000,
-        createdAt: '2024-03-15 10:30:00',
-        updatedAt: '2024-03-15 10:30:00',
-      } as any,
-      {
-        id: 3,
-        modelId: 301,
-        name: 'OpenAI-GPT4',
-        tenantId: 1,
-        provider: 'openai',
-        modelName: 'gpt-4-turbo',
-        modelType: 'chat',
-        isSystemDefault: false,
-        apiKey: 'sk-xxx',
-        isActive: false,
-        priority: 2,
-        temperature: 0.7,
-        maxTokens: 4096,
-        topP: 0.9,
-        enableRetry: true,
-        maxRetryTimes: 5,
-        retryDelay: 1000,
-        createdAt: '2024-03-14 09:00:00',
-        updatedAt: '2024-03-14 09:00:00',
-      } as any,
-    ]
+    console.error('加载模型配置失败:', error)
+    message.error('加载模型配置失败')
+    configs.value = []
   } finally {
     loading.value = false
   }
@@ -614,7 +554,7 @@ async function loadData() {
 
 async function loadTodayUsage() {
   try {
-    const result = await usageApi.today(1)
+    const result = await usageApi.today(getTenantId())
     Object.assign(todayUsage, result)
   } catch (error) {
     console.error(error)

@@ -15,6 +15,14 @@
       <div class="header-right">
         <a-space>
           <TenantSwitcher v-if="auth.isSuperAdmin" />
+          <a-button
+            v-if="auth.isSuperAdmin"
+            type="primary"
+            size="small"
+            @click="handleReturnToAdmin"
+          >
+            返回管理员端
+          </a-button>
           <a-tooltip title="统计面板">
             <a-button type="text" @click="openDashboard">
               <BarChartOutlined />
@@ -25,16 +33,21 @@
             ← 返回旧版
           </a>
           <a-dropdown>
-            <a-button type="text">
-              <UserOutlined />
-              <span>管理员</span>
+            <a-button type="text" class="user-dropdown-btn">
+              <a-avatar
+                :size="28"
+                :src="auth.user?.avatar"
+                :icon="!auth.user?.avatar ? h(UserOutlined) : undefined"
+                class="header-avatar"
+              />
+              <span class="username-text">{{ auth.nickname || auth.username || '管理员' }}</span>
               <DownOutlined />
             </a-button>
             <template #overlay>
-              <a-menu>
+              <a-menu @click="handleUserMenuClick">
                 <a-menu-item key="profile">个人中心</a-menu-item>
                 <a-menu-divider />
-                <a-menu-item key="logout" @click="handleLogout">退出登录</a-menu-item>
+                <a-menu-item key="logout">退出登录</a-menu-item>
               </a-menu>
             </template>
           </a-dropdown>
@@ -153,7 +166,7 @@
           </a-sub-menu>
 
           <!-- 计费系统 -->
-          <a-sub-menu key="billing">
+          <a-sub-menu key="billing" v-if="auth.isSuperAdmin">
             <template #icon><AccountBookOutlined /></template>
             <template #title>计费系统</template>
             <a-menu-item key="billing/manage">
@@ -170,7 +183,7 @@
           <a-sub-menu key="portal">
             <template #icon><GlobalOutlined /></template>
             <template #title>门户网站</template>
-            <a-menu-item key="portal/templates">
+            <a-menu-item key="portal/templates" v-if="auth.isSuperAdmin">
               <template #icon><LayoutOutlined /></template>
               模板管理
             </a-menu-item>
@@ -263,10 +276,10 @@
           </a-sub-menu>
 
           <!-- 系统管理 -->
-          <a-sub-menu key="system">
+          <a-sub-menu key="system" v-if="auth.isSuperAdmin">
             <template #icon><SettingOutlined /></template>
             <template #title>系统管理</template>
-            <a-menu-item key="sites" v-if="auth.user?.isAdmin || auth.isAdmin">
+            <a-menu-item key="sites">
               <template #icon><GlobalOutlined /></template>
               站点管理
             </a-menu-item>
@@ -297,6 +310,24 @@
             <a-menu-item key="audit-log">
               <template #icon><AuditOutlined /></template>
               审计日志
+            </a-menu-item>
+          </a-sub-menu>
+
+          <!-- 报警管理 -->
+          <a-sub-menu key="alert" v-if="auth.isSuperAdmin">
+            <template #icon><BellOutlined /></template>
+            <template #title>报警管理</template>
+            <a-menu-item key="alert/rules">
+              <template #icon><AlertOutlined /></template>
+              报警规则
+            </a-menu-item>
+            <a-menu-item key="alert/records">
+              <template #icon><NotificationOutlined /></template>
+              报警记录
+            </a-menu-item>
+            <a-menu-item key="alert/channels">
+              <template #icon><SettingOutlined /></template>
+              通知渠道
             </a-menu-item>
           </a-sub-menu>
         </a-menu>
@@ -352,7 +383,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, provide, inject, watch } from 'vue'
+import { ref, computed, onMounted, provide, inject, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import TenantSwitcher from '../../components/TenantSwitcher.vue'
@@ -401,7 +432,10 @@ import {
   DatabaseOutlined,
   PieChartOutlined,
   FileSearchOutlined,
-  AuditOutlined
+  AuditOutlined,
+  BellOutlined,
+  AlertOutlined,
+  NotificationOutlined
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 
@@ -410,7 +444,7 @@ const route = useRoute()
 const auth = useAuthStore()
 
 const collapsed = ref(false)
-const openKeys = ref<string[]>(['content', 'articleManage', 'knowledge', 'system'])
+const openKeys = ref<string[]>(['content', 'articleManage', 'knowledge', 'system', 'alert'])
 
 const refreshCallback = ref<(() => void) | null>(null)
 const startTaskCallback = ref<(() => void) | null>(null)
@@ -462,12 +496,15 @@ const menuLabels: Record<string, string> = {
   permissions: '权限管理',
   users: '用户管理',
   settings: '系统设置',
-  'audit-log': '审计日志'
+  'audit-log': '审计日志',
+  'alert/rules': '报警规则',
+  'alert/records': '报警记录',
+  'alert/channels': '通知渠道'
 }
 
 const getMenuKey = () => {
   const pathParts = route.path.replace('/v2/workspace/', '').split('/')
-  if (pathParts.length >= 2 && ['knowledge', 'case', 'billing', 'portal', 'geo', 'ai', 'operation'].includes(pathParts[0])) {
+  if (pathParts.length >= 2 && ['knowledge', 'case', 'billing', 'portal', 'geo', 'ai', 'operation', 'alert'].includes(pathParts[0])) {
     return pathParts.join('/')
   }
   return pathParts[0] || 'dashboard'
@@ -526,6 +563,9 @@ const currentParentMenu = computed(() => {
     users: '系统管理',
     settings: '系统管理',
     'audit-log': '系统管理',
+    'alert/rules': '报警管理',
+    'alert/records': '报警管理',
+    'alert/channels': '报警管理',
   }
   return parentMap[key]
 })
@@ -602,6 +642,19 @@ const handleImport = () => {
   if (importCallback.value) {
     importCallback.value()
   }
+}
+
+const handleUserMenuClick = ({ key }: { key: string }) => {
+  if (key === 'profile') {
+    router.push('/v2/workspace/user/profile')
+  } else if (key === 'logout') {
+    handleLogout()
+  }
+}
+
+const handleReturnToAdmin = () => {
+  auth.switchTenant(null)
+  message.success('已切换到管理员视角')
 }
 
 const handleLogout = () => {
@@ -804,5 +857,30 @@ onMounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* 用户下拉按钮 */
+.user-dropdown-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  height: auto;
+}
+
+.user-dropdown-btn :deep(.ant-btn-icon) {
+  margin-inline-end: 0 !important;
+}
+
+.header-avatar {
+  flex-shrink: 0;
+  border: 1px solid #e8e8e8;
+}
+
+.username-text {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

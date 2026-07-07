@@ -96,7 +96,12 @@
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'image'">
-                <img v-if="record.imageUrl" :src="record.imageUrl" class="banner-thumbnail" />
+                <img 
+                  v-if="record.imageUrl" 
+                  :src="record.imageUrl" 
+                  class="banner-thumbnail" 
+                  @error="handleImageError"
+                />
               </template>
               <template v-if="column.key === 'title'">
                 <div class="banner-title">{{ record.title }}</div>
@@ -259,6 +264,11 @@ function getStatusText(status: string): string {
 function handlePreview(record: Banner) {
   previewBanner.value = record
   previewVisible.value = true
+}
+
+function handleImageError(event: Event) {
+  const target = event.target as HTMLImageElement
+  target.style.display = 'none'
 }
 
 function showAddModal() {

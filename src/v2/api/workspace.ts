@@ -20,17 +20,24 @@ import type {
   AuditLogQuery,
   AuditLogStats,
   SystemSettings,
+  AlertRule,
+  AlertRuleQuery,
+  AlertRecord,
+  AlertRecordQuery,
+  AlertRecordStats,
+  AlertChannelConfig,
+  AlertChannelQuery,
 } from '../types/workspace'
 
 // ==================== 仪表盘 API ====================
 export const dashboardApi = {
   // 获取统计数据
-  getStats: () =>
-    http.get<DashboardStats>('/workspace/dashboard/stats'),
+  getStats: (tenantId?: number) =>
+    http.get<DashboardStats>('/workspace/dashboard/stats', tenantId !== undefined ? { params: { tenantId } } : {}),
 
   // 获取图表数据
-  getCharts: () =>
-    http.get<any>('/workspace/dashboard/charts'),
+  getCharts: (tenantId?: number) =>
+    http.get<any>('/workspace/dashboard/charts', tenantId !== undefined ? { params: { tenantId } } : {}),
 
   // 获取最近文章
   getRecentArticles: () =>
@@ -435,7 +442,48 @@ export const adminApi = {
   // 管理后台仪表盘
   dashboard: () =>
     http.get<any>('/admin/dashboard'),
+
+  // 报警管理
+  alert: {
+    rules: {
+      list: (params: AlertRuleQuery) =>
+        http.get<PageResult<AlertRule>>('/admin/alert/rules', { params }),
+      get: (id: number) =>
+        http.get<AlertRule>(`/admin/alert/rules/${id}`),
+      create: (data: Partial<AlertRule>) =>
+        http.post<AlertRule>('/admin/alert/rules', data),
+      update: (id: number, data: Partial<AlertRule>) =>
+        http.put<AlertRule>(`/admin/alert/rules/${id}`, data),
+      delete: (id: number) =>
+        http.delete<void>(`/admin/alert/rules/${id}`),
+    },
+    records: {
+      list: (params: AlertRecordQuery) =>
+        http.get<PageResult<AlertRecord>>('/admin/alert/records', { params }),
+      get: (id: number) =>
+        http.get<AlertRecord>(`/admin/alert/records/${id}`),
+      updateStatus: (id: number, status: string) =>
+        http.put<AlertRecord>(`/admin/alert/records/${id}/status`, { status }),
+      getStats: (tenantId?: number) =>
+        http.get<AlertRecordStats>('/admin/alert/records/stats', tenantId ? { params: { tenantId } } : {}),
+    },
+    channels: {
+      list: (params: AlertChannelQuery) =>
+        http.get<PageResult<AlertChannelConfig>>('/admin/alert/channels', { params }),
+      get: (id: number) =>
+        http.get<AlertChannelConfig>(`/admin/alert/channels/${id}`),
+      create: (data: Partial<AlertChannelConfig>) =>
+        http.post<AlertChannelConfig>('/admin/alert/channels', data),
+      update: (id: number, data: Partial<AlertChannelConfig>) =>
+        http.put<AlertChannelConfig>(`/admin/alert/channels/${id}`, data),
+      delete: (id: number) =>
+        http.delete<void>(`/admin/alert/channels/${id}`),
+    }
+  },
 }
+
+// ==================== 报警管理 API ====================
+export const alertApi = adminApi.alert
 
 // ==================== 站点管理 API ====================
 export const siteApi = adminApi.sites
@@ -476,4 +524,5 @@ export default {
   site: siteApi,
   systemPrompt: systemPromptApi,
   category: categoryApi,
+  alert: alertApi,
 }

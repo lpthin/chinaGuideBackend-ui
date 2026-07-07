@@ -333,10 +333,10 @@
                   </a-tag>
                 </template>
                 <template v-if="column.key === 'tokens'">
-                  <div class="tokens-badge">{{ record.tokens.toLocaleString() }}</div>
+                  <div class="tokens-badge">{{ record.tokens ? record.tokens.toLocaleString() : '-' }}</div>
                 </template>
                 <template v-if="column.key === 'cost'">
-                  <span class="cost-value">¥{{ record.cost.toFixed(4) }}</span>
+                  <span class="cost-value">¥{{ record.cost ? record.cost.toFixed(4) : '-' }}</span>
                 </template>
                 <template v-if="column.key === 'duration'">
                   {{ record.duration }}ms

@@ -406,6 +406,10 @@ import type {
   ArticleTemplateVariable,
   ArticleTemplateCategory,
 } from '../../types/ai-model'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const loading = ref(false)
 const modalVisible = ref(false)
@@ -424,7 +428,7 @@ const filterCategory = ref<ArticleTemplateCategory | undefined>()
 const templateList = ref<ArticleTemplate[]>([
   {
     id: 1,
-    tenantId: 1,
+    tenantId: getTenantId(),
     name: '产品推广文案',
     category: 'marketing' as ArticleTemplateCategory,
     description: '用于新产品发布的营销推广文案模板',
@@ -442,7 +446,7 @@ const templateList = ref<ArticleTemplate[]>([
   },
   {
     id: 2,
-    tenantId: 1,
+    tenantId: getTenantId(),
     name: '新闻资讯模板',
     category: 'news' as ArticleTemplateCategory,
     description: '企业新闻和资讯发布的标准模板',
@@ -462,7 +466,7 @@ const templateList = ref<ArticleTemplate[]>([
   },
   {
     id: 3,
-    tenantId: 1,
+    tenantId: getTenantId(),
     name: '品牌故事模板',
     category: 'brand' as ArticleTemplateCategory,
     description: '讲述品牌发展历程和理念的模板',
@@ -688,7 +692,7 @@ const handleGenerate = async () => {
     const result = await aiGenerateApi.generateArticle({
       prompt,
       templateId: selectedTemplate.value?.id,
-      tenantId: 1,
+      tenantId: getTenantId(),
     })
 
     generatedContent.value = result.content
@@ -723,7 +727,7 @@ const downloadContent = () => {
 
 onMounted(async () => {
   try {
-    const models = await modelConfigApi.list({ tenantId: 1, isActive: true })
+    const models = await modelConfigApi.list({ tenantId: getTenantId(), isActive: true })
   } catch (error) {
     console.error('Failed to load models:', error)
   }

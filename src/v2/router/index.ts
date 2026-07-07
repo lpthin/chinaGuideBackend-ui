@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import type { RouteComponent } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { message } from 'ant-design-vue'
 
 // 🔐 主布局
 const WorkspaceView = () => import('../views/workspace/WorkspaceView.vue')
@@ -96,6 +97,9 @@ const SystemSettingsView = () => import('../views/workspace/SystemSettingsView.v
 const AuditLogView = () => import('../views/workspace/AuditLogView.vue')
 const SitesView = () => import('../views/workspace/SitesView.vue')
 const TenantPanel = () => import('../views/workspace/TenantPanel.vue')
+const AlertRuleManageView = () => import('../views/workspace/AlertRuleManageView.vue')
+const AlertRecordView = () => import('../views/workspace/AlertRecordView.vue')
+const AlertChannelView = () => import('../views/workspace/AlertChannelView.vue')
 
 const routes: RouteRecordRaw[] = [
   // 🌐 门户网站前台页面
@@ -306,13 +310,13 @@ const routes: RouteRecordRaw[] = [
         path: 'billing/manage',
         name: 'v2-workspace-billing-manage',
         component: BillingView,
-        meta: { title: '账单管理', icon: 'account-book', breadcrumb: ['首页', '计费系统', '账单管理'] }
+        meta: { title: '账单管理', icon: 'account-book', breadcrumb: ['首页', '计费系统', '账单管理'], requiresSuperAdmin: true }
       },
       {
         path: 'billing/stats',
         name: 'v2-workspace-billing-stats',
         component: BillingStatsView,
-        meta: { title: '消费统计', icon: 'chart', breadcrumb: ['首页', '计费系统', '消费统计'] }
+        meta: { title: '消费统计', icon: 'chart', breadcrumb: ['首页', '计费系统', '消费统计'], requiresSuperAdmin: true }
       },
 
       // ===== 🏢 门户网站 =====
@@ -320,7 +324,7 @@ const routes: RouteRecordRaw[] = [
         path: 'portal/templates',
         name: 'v2-workspace-portal-templates',
         component: PortalTemplateView,
-        meta: { title: '模板管理', icon: 'template', breadcrumb: ['首页', '门户网站', '模板管理'] }
+        meta: { title: '模板管理', icon: 'template', breadcrumb: ['首页', '门户网站', '模板管理'], requiresSuperAdmin: true }
       },
       {
         path: 'portal/banners',
@@ -442,49 +446,69 @@ const routes: RouteRecordRaw[] = [
         path: 'sites',
         name: 'v2-workspace-sites',
         component: SitesView,
-        meta: { title: '站点管理', icon: 'global', breadcrumb: ['首页', '系统管理', '站点管理'] }
+        meta: { title: '站点管理', icon: 'global', breadcrumb: ['首页', '系统管理', '站点管理'], requiresSuperAdmin: true }
       },
       {
         path: 'tenant',
         name: 'v2-workspace-tenant',
         component: TenantPanel,
-        meta: { title: '租户管理', icon: 'team', breadcrumb: ['首页', '系统管理', '租户管理'] }
+        meta: { title: '租户管理', icon: 'team', breadcrumb: ['首页', '系统管理', '租户管理'], requiresSuperAdmin: true }
       },
       {
         path: 'system-prompt',
         name: 'v2-workspace-system-prompt',
         component: SystemPromptPanel,
-        meta: { title: 'Prompt管理', icon: 'prompt', breadcrumb: ['首页', '系统配置', 'Prompt管理'] }
+        meta: { title: 'Prompt管理', icon: 'prompt', breadcrumb: ['首页', '系统配置', 'Prompt管理'], requiresSuperAdmin: true }
       },
       {
         path: 'roles',
         name: 'v2-workspace-roles',
         component: RolesPanel,
-        meta: { title: '角色管理', icon: 'role', breadcrumb: ['首页', '系统管理', '角色管理'] }
+        meta: { title: '角色管理', icon: 'role', breadcrumb: ['首页', '系统管理', '角色管理'], requiresSuperAdmin: true }
       },
       {
         path: 'permissions',
         name: 'v2-workspace-permissions',
         component: PermissionsPanel,
-        meta: { title: '权限管理', icon: 'permission', breadcrumb: ['首页', '系统管理', '权限管理'] }
+        meta: { title: '权限管理', icon: 'permission', breadcrumb: ['首页', '系统管理', '权限管理'], requiresSuperAdmin: true }
       },
       {
         path: 'users',
         name: 'v2-workspace-users',
         component: UsersPanel,
-        meta: { title: '用户管理', icon: 'user', breadcrumb: ['首页', '系统管理', '用户管理'] }
+        meta: { title: '用户管理', icon: 'user', breadcrumb: ['首页', '系统管理', '用户管理'], requiresSuperAdmin: true }
       },
       {
         path: 'settings',
         name: 'v2-workspace-settings',
         component: SystemSettingsView,
-        meta: { title: '系统设置', icon: 'setting', breadcrumb: ['首页', '系统管理', '系统设置'] }
+        meta: { title: '系统设置', icon: 'setting', breadcrumb: ['首页', '系统管理', '系统设置'], requiresSuperAdmin: true }
       },
       {
         path: 'audit-log',
         name: 'v2-workspace-audit-log',
         component: AuditLogView,
-        meta: { title: '审计日志', icon: 'audit', breadcrumb: ['首页', '系统管理', '审计日志'] }
+        meta: { title: '审计日志', icon: 'audit', breadcrumb: ['首页', '系统管理', '审计日志'], requiresSuperAdmin: true }
+      },
+
+      // ===== 🔔 报警管理 =====
+      {
+        path: 'alert/rules',
+        name: 'v2-workspace-alert-rules',
+        component: AlertRuleManageView,
+        meta: { title: '报警规则', icon: 'alert', breadcrumb: ['首页', '报警管理', '报警规则'], requiresSuperAdmin: true }
+      },
+      {
+        path: 'alert/records',
+        name: 'v2-workspace-alert-records',
+        component: AlertRecordView,
+        meta: { title: '报警记录', icon: 'notification', breadcrumb: ['首页', '报警管理', '报警记录'], requiresSuperAdmin: true }
+      },
+      {
+        path: 'alert/channels',
+        name: 'v2-workspace-alert-channels',
+        component: AlertChannelView,
+        meta: { title: '通知渠道', icon: 'setting', breadcrumb: ['首页', '报警管理', '通知渠道'], requiresSuperAdmin: true }
       }
     ]
   }
@@ -504,15 +528,19 @@ router.beforeEach((to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth !== false)
 
   if (requiresAuth && !authStore.isLoggedIn) {
-    // 需要登录但未登录，跳转到登录页
     next({
       name: 'v2-login',
       query: { redirect: to.fullPath }
     })
   } else if (to.name === 'v2-login' && authStore.isLoggedIn) {
-    // 已登录用户访问登录页，跳转到首页
     next({ name: 'v2-workspace-dashboard' })
   } else {
+    const requiresSuperAdmin = to.matched.some(record => record.meta.requiresSuperAdmin === true)
+    if (requiresSuperAdmin && !authStore.isSuperAdmin) {
+      message.error('无权限访问该页面')
+      next({ name: 'v2-workspace-dashboard' })
+      return
+    }
     next()
   }
 })

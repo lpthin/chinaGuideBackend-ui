@@ -185,6 +185,10 @@ import {
 } from '@ant-design/icons-vue'
 import { knowledgeCardApi, knowledgeCategoryApi, knowledgeTagApi, knowledgeDocumentApi } from '../../api/knowledge'
 import type { KnowledgeCategory, KnowledgeCardForm, KnowledgeTag, KnowledgeDocument } from '../../types/knowledge'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const router = useRouter()
 const route = useRoute()
@@ -203,7 +207,7 @@ const isEdit = computed(() => !!route.params.id)
 const cardId = computed(() => Number(route.params.id))
 
 const formData = reactive<KnowledgeCardForm>({
-  tenantId: 1,
+  tenantId: getTenantId(),
   categoryId: null as any,
   title: '',
   summary: '',
@@ -236,7 +240,7 @@ async function handleDocumentSearch(keyword: string) {
     docSearching.value = true
     try {
       const result = await knowledgeDocumentApi.list({
-        tenantId: 1,
+        tenantId: getTenantId(),
         keyword: keyword.trim(),
         page: 1,
         size: 20,
@@ -308,17 +312,18 @@ async function handleSave() {
 
 async function loadCategories() {
   try {
-    const result = await knowledgeCategoryApi.all(1)
+    const result = await knowledgeCategoryApi.all(getTenantId())
     categories.value = result
   } catch (error) {
-    console.error(error)
-    categories.value = generateMockCategories()
+    console.error('加载分类失败:', error)
+    message.error('加载分类失败')
+    categories.value = []
   }
 }
 
 async function loadTags() {
   try {
-    const result = await knowledgeTagApi.list({ tenantId: 1 })
+    const result = await knowledgeTagApi.list({ tenantId: getTenantId() })
     tags.value = Array.isArray(result) ? result : (result as any).records || []
   } catch (error) {
     console.error(error)
@@ -352,15 +357,6 @@ async function loadCard() {
   } finally {
     loading.value = false
   }
-}
-
-function generateMockCategories(): KnowledgeCategory[] {
-  return [
-    { id: 1, tenantId: 1, parentId: null, name: '开发指南', icon: 'book', description: '', sort: 1, status: 'active', createdAt: '', updatedAt: '' },
-    { id: 2, tenantId: 1, parentId: 1, name: '前端开发', icon: 'folder', description: '', sort: 1, status: 'active', createdAt: '', updatedAt: '' },
-    { id: 3, tenantId: 1, parentId: 1, name: '后端开发', icon: 'folder', description: '', sort: 2, status: 'active', createdAt: '', updatedAt: '' },
-    { id: 4, tenantId: 1, parentId: null, name: '运维部署', icon: 'star', description: '', sort: 2, status: 'active', createdAt: '', updatedAt: '' },
-  ]
 }
 
 onMounted(async () => {

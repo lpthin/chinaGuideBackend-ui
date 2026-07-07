@@ -164,8 +164,8 @@ export const usageApi = {
     http.get<any[]>('/ai/usage/statistics', { params }),
 
   // 获取性能指标
-  getPerformance: () =>
-    http.get<any>('/ai/usage/performance', { params: { tenantId: 1, startDate: '', endDate: '' } }),
+  getPerformance: (tenantId: number) =>
+    http.get<any>('/ai/usage/performance', { params: { tenantId, startDate: '', endDate: '' } }),
 
   // 获取调用日志
   getUsageRecords: (params: { page?: number; pageSize?: number }) =>

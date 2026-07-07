@@ -299,7 +299,7 @@ const consumptionStats = reactive({
 })
 
 const queryParams = reactive({
-  tenantId: 1,
+  tenantId: getTenantId(),
   status: undefined as InvoiceStatus | undefined,
   keyword: '',
   startDate: undefined as string | undefined,

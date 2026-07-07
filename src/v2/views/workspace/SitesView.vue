@@ -191,8 +191,7 @@ async function save() {
 }
 
 onMounted(() => {
-  // 非管理员无权限访问
-  if (!auth.user?.isAdmin && !auth.isAdmin) {
+  if (!auth.isSuperAdmin) {
     message.error('无权限访问站点管理')
     router.push('/v2/workspace/dashboard')
     return

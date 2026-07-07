@@ -333,6 +333,10 @@ import {
 } from '@ant-design/icons-vue'
 import { imageLibraryApi } from '../../api/article'
 import type { ImageLibrary } from '../../types/article'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const loading = ref(false)
 const uploading = ref(false)
@@ -354,7 +358,7 @@ const stats = reactive({
 })
 
 const queryParams = reactive({
-  tenantId: 1,
+  tenantId: getTenantId(),
   category: undefined as string | undefined,
   fileType: undefined as string | undefined,
   keyword: '',

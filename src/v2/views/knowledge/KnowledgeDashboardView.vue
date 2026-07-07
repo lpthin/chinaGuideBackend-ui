@@ -205,8 +205,7 @@ import { useAuthStore } from '../../stores/auth'
 const router = useRouter()
 const auth = useAuthStore()
 
-// 租户ID常量（与同模块其他页面一致）
-const TENANT_ID = 1
+const getTenantId = () => auth.selectedTenantId || 1
 
 const dateRange = ref<[Dayjs, Dayjs] | undefined>()
 const trendChartRef = ref<HTMLDivElement>()
@@ -283,7 +282,7 @@ const qaHistory = ref<QAItem[]>([])
 // 加载统计数据
 const loadStats = async () => {
   try {
-    const res: any = await knowledgeStatsApi.getStats(TENANT_ID)
+    const res: any = await knowledgeStatsApi.getStats(getTenantId())
     const result: StatsData | null = res?.data ?? res ?? null
     if (!result) {
       stats.value = null
@@ -310,7 +309,7 @@ const loadStats = async () => {
 // 加载增长趋势数据
 const loadTrend = async () => {
   try {
-    const res: any = await knowledgeStatsApi.getTrend(TENANT_ID, 7)
+    const res: any = await knowledgeStatsApi.getTrend(getTenantId(), 7)
     const result: TrendItem[] | null = res?.data ?? res ?? null
     const list = Array.isArray(result) ? result : []
     trendData.value = list
@@ -334,7 +333,7 @@ const loadTrend = async () => {
 // 加载分类数据
 const loadCategories = async () => {
   try {
-    const res: any = await knowledgeCategoryApi.stats(TENANT_ID)
+    const res: any = await knowledgeCategoryApi.stats(getTenantId())
     const result: KnowledgeCategoryStats[] | null = res?.data ?? res ?? null
     const list = Array.isArray(result) ? result : []
     categories.value = list.filter(item => (item.totalCount || 0) > 0).map(item => ({
@@ -365,7 +364,7 @@ const loadCategories = async () => {
 const loadActivities = async () => {
   try {
     const res: any = await knowledgeDocumentApi.list({
-      tenantId: TENANT_ID,
+      tenantId: getTenantId(),
       page: 1,
       size: 5
     } as any)
@@ -596,7 +595,7 @@ const askQuestion = () => {
 
   const currentIndex = qaHistory.value.length - 1
 
-  stopStream = smartQAApi.streamQA(TENANT_ID, question, 5, {
+  stopStream = smartQAApi.streamQA(getTenantId(), question, 5, {
     onMessage: (content: string) => {
       if (qaHistory.value[currentIndex]) {
         qaHistory.value[currentIndex].answer += content

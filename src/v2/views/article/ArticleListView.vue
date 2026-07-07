@@ -179,6 +179,10 @@ import {
 } from '@ant-design/icons-vue'
 import { articleManageApi, articleCategoryApi } from '../../api/article'
 import type { Article, ArticleCategory } from '../../types/article'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const router = useRouter()
 const loading = ref(false)
@@ -193,7 +197,7 @@ const stats = reactive({
 })
 
 const queryParams = reactive({
-  tenantId: 1,
+  tenantId: getTenantId(),
   categoryId: null as number | null,
   status: undefined as string | undefined,
   keyword: '',
@@ -314,11 +318,12 @@ async function batchPublish() {
 
 async function loadCategories() {
   try {
-    const result = await articleCategoryApi.all(1)
+    const result = await articleCategoryApi.all(getTenantId())
     categories.value = result
   } catch (error) {
-    console.error(error)
-    categories.value = generateMockCategories()
+    console.error('加载分类失败:', error)
+    message.error('加载分类失败')
+    categories.value = []
   }
 }
 
@@ -337,77 +342,16 @@ async function loadData() {
     stats.totalLikes = result.records.reduce((sum, c) => sum + c.likeCount, 0)
     stats.totalShares = result.records.reduce((sum, c) => sum + c.shareCount, 0)
   } catch (error) {
-    console.error(error)
-    const mockData = generateMockArticles()
-    const start = (pagination.page - 1) * pagination.size
-    const end = start + pagination.size
-    articleList.value = mockData.slice(start, end)
-    pagination.total = mockData.length
-    stats.totalViews = mockData.reduce((sum, c) => sum + c.viewCount, 0)
-    stats.totalLikes = mockData.reduce((sum, c) => sum + c.likeCount, 0)
-    stats.totalShares = mockData.reduce((sum, c) => sum + c.shareCount, 0)
+    console.error('加载文章列表失败:', error)
+    message.error('加载文章列表失败')
+    articleList.value = []
+    pagination.total = 0
+    stats.totalViews = 0
+    stats.totalLikes = 0
+    stats.totalShares = 0
   } finally {
     loading.value = false
   }
-}
-
-function generateMockCategories(): ArticleCategory[] {
-  return [
-    { id: 1, tenantId: 1, parentId: null, name: '公司新闻', icon: 'news', description: '', sort: 1, status: 'active', createdAt: '', updatedAt: '' },
-    { id: 2, tenantId: 1, parentId: 1, name: '行业动态', icon: 'folder', description: '', sort: 1, status: 'active', createdAt: '', updatedAt: '' },
-    { id: 3, tenantId: 1, parentId: 1, name: '产品发布', icon: 'folder', description: '', sort: 2, status: 'active', createdAt: '', updatedAt: '' },
-    { id: 4, tenantId: 1, parentId: null, name: '技术博客', icon: 'book', description: '', sort: 2, status: 'active', createdAt: '', updatedAt: '' },
-  ]
-}
-
-function generateMockArticles(): Article[] {
-  const titles = [
-    '公司完成新一轮融资，加速产品研发',
-    '2024年行业发展趋势报告发布',
-    '新产品 v2.0 正式发布，新增多项功能',
-    'Vue 3 组合式 API 最佳实践',
-    'TypeScript 5.0 新特性详解',
-    '微服务架构设计原则',
-    'Docker 容器化部署指南',
-    'React 服务端渲染最佳实践',
-    'Node.js 性能优化技巧',
-    'Kubernetes 集群管理实战',
-    '前端工程化完整方案',
-    '数据库优化实战指南',
-    'API 设计最佳实践',
-    '自动化测试完整教程',
-    'Git 工作流规范详解',
-  ]
-  const summaries = [
-    '公司近期完成了由知名投资机构领投的新一轮融资，将用于加速产品研发和市场拓展',
-    '本报告深入分析了2024年行业发展的主要趋势，包括AI技术应用、数字化转型等热点话题',
-    '经过数月的紧张开发，新产品 v2.0 版本正式发布，本次更新包含了多项重大功能改进',
-    '本文详细介绍了Vue 3组合式API的使用方法和最佳实践，帮助开发者更好地应用在项目中',
-  ]
-  const keywords = ['融资,发展,产品', 'Vue,TypeScript,前端', 'React,Node.js,后端', 'Docker,K8s,DevOps', 'Git,测试,工程化']
-  const sources = ['原创', '转载', '翻译', '投稿']
-  const statuses = ['active', 'draft', 'disabled']
-
-  return titles.map((title, index) => ({
-    id: index + 1,
-    tenantId: 1,
-    categoryId: (index % 4) + 1,
-    templateId: null,
-    title,
-    summary: summaries[index % summaries.length],
-    content: '',
-    coverImage: '',
-    keywords: keywords[index % keywords.length],
-    source: sources[index % sources.length],
-    viewCount: Math.floor(Math.random() * 10000),
-    likeCount: Math.floor(Math.random() * 500),
-    shareCount: Math.floor(Math.random() * 200),
-    sort: index,
-    status: statuses[index % statuses.length],
-    publishAt: new Date(Date.now() - index * 86400000).toISOString().slice(0, 19).replace('T', ' '),
-    createdAt: new Date(Date.now() - index * 86400000).toISOString().slice(0, 19).replace('T', ' '),
-    updatedAt: new Date(Date.now() - index * 86400000 / 2).toISOString().slice(0, 19).replace('T', ' '),
-  }))
 }
 
 onMounted(async () => {

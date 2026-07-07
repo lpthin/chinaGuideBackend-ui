@@ -297,7 +297,7 @@ const statItems = computed(() => [
   { 
     key: 'articles', 
     icon: FileTextOutlined, 
-    value: stats.value?.articles || 0, 
+    value: stats.value?.totalArticles || 0, 
     label: '文章总数', 
     trend: 12.5, 
     color: 'blue',
@@ -307,7 +307,7 @@ const statItems = computed(() => [
   { 
     key: 'keywords', 
     icon: TagsOutlined, 
-    value: stats.value?.keywords || 0, 
+    value: stats.value?.totalKeywords || 0, 
     label: '关键词数量', 
     trend: 8.3, 
     color: 'purple',
@@ -317,7 +317,7 @@ const statItems = computed(() => [
   { 
     key: 'views', 
     icon: EyeOutlined, 
-    value: stats.value?.pageViews || 0, 
+    value: stats.value?.totalViews || 0, 
     label: '总浏览量', 
     trend: -2.1, 
     color: 'green',
@@ -327,7 +327,7 @@ const statItems = computed(() => [
   { 
     key: 'pending', 
     icon: ClockCircleOutlined, 
-    value: stats.value?.pendingReviews || 0, 
+    value: stats.value?.pendingReview || 0, 
     label: '待审核', 
     trend: 5.7, 
     color: 'orange',
@@ -336,14 +336,18 @@ const statItems = computed(() => [
   },
 ])
 
-const pendingTasks = computed(() => stats.value?.pendingReviews || 0)
-const todayNew = computed(() => 12)
-const monthTotal = computed(() => stats.value?.articles || 0)
+const pendingTasks = computed(() => stats.value?.pendingReview || 0)
+const todayNew = computed(() => stats.value?.todayCount || 0)
+const monthTotal = computed(() => stats.value?.totalArticles || 0)
+
+function getTenantId(): number {
+  return auth.selectedTenantId || auth.tenantId || 1
+}
 
 const loadChartData = async () => {
   chartLoading.value = true
   try {
-    const data = await dashboardApi.getCharts()
+    const data = await dashboardApi.getCharts(getTenantId())
     chartData.value = data
   } catch (error) {
     console.error('获取图表数据失败:', error)
@@ -565,7 +569,7 @@ const fetchDashboardData = async () => {
   loading.value = true
   try {
     const [statsData, articlesData] = await Promise.all([
-      dashboardApi.getStats(),
+      dashboardApi.getStats(getTenantId()),
       dashboardApi.getRecentArticles(),
       loadChartData()
     ])
@@ -578,7 +582,7 @@ const fetchDashboardData = async () => {
       keywords: 1250,
       pageViews: 45678,
       pendingReviews: 23
-    }
+    } as any
     recentArticles.value = [
       { id: 1, title: '2024年AI行业发展趋势分析', createdAt: '2024-01-15 10:30:00', status: 'published' },
       { id: 2, title: '如何使用ChatGPT提高工作效率', createdAt: '2024-01-14 15:20:00', status: 'approved' },
@@ -600,7 +604,7 @@ const fetchDashboardData = async () => {
 watch(
   () => auth.selectedTenantId,
   () => {
-    loadChartData()
+    fetchDashboardData()
   }
 )
 

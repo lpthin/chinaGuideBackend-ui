@@ -92,6 +92,10 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { knowledgeTagApi } from '../../api/knowledge'
 import type { KnowledgeTag, KnowledgeTagForm } from '../../types/knowledge'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const loading = ref(false)
 const saving = ref(false)
@@ -101,7 +105,7 @@ const tagList = ref<KnowledgeTag[]>([])
 const editingTag = ref<KnowledgeTag | null>(null)
 
 const formData = reactive<KnowledgeTagForm>({
-  tenantId: 1,
+  tenantId: getTenantId(),
   name: '',
   color: 'blue',
 })
@@ -217,7 +221,7 @@ async function loadData() {
   try {
     // 后端过滤：仅传 keyword（API 支持），不传 page/size 以获取完整结果集
     const result = await knowledgeTagApi.list({
-      tenantId: 1,
+      tenantId: getTenantId(),
       keyword: searchKeyword.value,
     })
     const list = Array.isArray(result) ? result : (result as any).records || []

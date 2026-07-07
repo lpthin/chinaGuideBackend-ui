@@ -12,7 +12,7 @@ import ArticlesPanel from '@/v2/views/workspace/ArticlesPanel.vue'
 import MediaPanel from '@/v2/views/workspace/MediaPanel.vue'
 import CategoriesPanel from '@/v2/views/workspace/CategoriesPanel.vue'
 import SystemPromptPanel from '@/v2/views/workspace/SystemPromptPanel.vue'
-import SitesView from '@/v2/views/workspace/SitesView.vue'
+const SitesView = () => import('@/v2/views/workspace/SitesView.vue')
 import RolesPanel from '@/v2/views/workspace/RolesPanel.vue'
 import PermissionsPanel from '@/v2/views/workspace/PermissionsPanel.vue'
 import UsersPanel from '@/v2/views/workspace/UsersPanel.vue'

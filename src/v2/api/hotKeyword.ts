@@ -43,27 +43,102 @@ export interface CollectConfig {
   topN: number
 }
 
+interface RawHotKeyword {
+  id: number
+  tenantId: number
+  keyword: string
+  category: string
+  source: string
+  heatScore: number
+  searchVolume: number
+  trend: number
+  relatedKeywords: string | null
+  platforms: string
+  collectDate: string
+  isSelected: number
+  isDeleted: number
+  createTime: string
+}
+
+function convertHotKeyword(raw: RawHotKeyword, index: number = 0): HotKeyword {
+  let trend: 'up' | 'down' | 'stable' = 'stable'
+  let trendValue = 0
+  
+  if (raw.trend != null) {
+    if (raw.trend > 0) {
+      trend = 'up'
+      trendValue = raw.trend
+    } else if (raw.trend < 0) {
+      trend = 'down'
+      trendValue = Math.abs(raw.trend)
+    }
+  }
+
+  let relatedKeywords: string[] = []
+  if (raw.relatedKeywords) {
+    if (Array.isArray(raw.relatedKeywords)) {
+      relatedKeywords = raw.relatedKeywords
+    } else {
+      try {
+        relatedKeywords = JSON.parse(raw.relatedKeywords)
+      } catch {
+        relatedKeywords = raw.relatedKeywords.split(',').map(s => s.trim()).filter(Boolean)
+      }
+    }
+  }
+
+  return {
+    id: raw.id,
+    keyword: raw.keyword,
+    score: Math.round(raw.heatScore * 100) / 100,
+    source: raw.source,
+    category: raw.category,
+    trend,
+    trendValue,
+    relatedKeywords,
+    isSelected: raw.isSelected === 1,
+    rank: index + 1,
+    createdAt: raw.createTime,
+    updatedAt: raw.collectDate,
+  }
+}
+
 export const hotKeywordApi = {
-  list: (params: HotKeywordQuery) =>
-    http.get<PageResult<HotKeyword>>('/hot-keywords', { params }),
+  list: async (params: HotKeywordQuery & { tenantId?: number }) => {
+    const res = await http.get<{ records: RawHotKeyword[]; total: number; page: number; size: number }>('/hot-keywords', { params })
+    return {
+      records: res.records.map((item, index) => convertHotKeyword(item, (params.page! - 1) * (params.size || 10) + index)),
+      total: res.total,
+    } as PageResult<HotKeyword>
+  },
 
-  dailyTop: () =>
-    http.get<HotKeyword[]>('/hot-keywords/daily-top'),
+  dailyTop: async () => {
+    const res = await http.get<RawHotKeyword[]>('/hot-keywords/daily-top')
+    return res.map((item, index) => convertHotKeyword(item, index))
+  },
 
-  collect: (data: { sources: string[] }) =>
-    http.post<{ count: number }>('/hot-keywords/collect', data),
+  collect: async (data: { sources: string[] }) => {
+    const res = await http.post<{ collected: number; tenantId: number }>('/hot-keywords/collect', data)
+    return { count: res.collected }
+  },
 
-  autoSelect: () =>
-    http.post<HotKeyword[]>('/hot-keywords/auto-select'),
+  autoSelect: async () => {
+    const res = await http.post<RawHotKeyword[]>('/hot-keywords/auto-select')
+    return res.map((item, index) => convertHotKeyword(item, index))
+  },
 
-  select: (id: number, selected: boolean) =>
-    http.put<HotKeyword>(`/hot-keywords/${id}/select`, { selected }),
+  select: async (id: number, selected: boolean) => {
+    const res = await http.post<RawHotKeyword>(`/hot-keywords/${id}/select`, { selected })
+    return convertHotKeyword(res)
+  },
 
-  stats: () =>
-    http.get<HotKeywordStats>('/hot-keywords/stats'),
+  stats: (tenantId?: number) =>
+    http.get<HotKeywordStats>('/hot-keywords/stats', tenantId !== undefined ? { params: { tenantId } } : {}),
 
-  sources: () =>
-    http.get<{ value: string; label: string }[]>('/hot-keywords/sources'),
+  sources: async () => {
+    const res = await http.get<{ code: string; name: string }[]>('/hot-keywords/sources')
+    return res.map(item => ({ value: item.code, label: item.name }))
+  },
 
   delete: (id: number) =>
     http.delete(`/hot-keywords/${id}`),

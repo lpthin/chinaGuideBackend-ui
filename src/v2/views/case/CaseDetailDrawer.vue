@@ -241,7 +241,7 @@ const hotTags = ref<string[]>([])
 const categories = ref<CaseCategory[]>([])
 
 const formState = reactive({
-  tenantId: 1,
+  tenantId: getTenantId(),
   categoryId: 1,
   title: '',
   summary: '',

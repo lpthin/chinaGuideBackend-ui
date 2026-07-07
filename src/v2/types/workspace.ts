@@ -249,3 +249,92 @@ export interface WorkflowSettings {
   autoPublishEnabled?: boolean
   publishTime?: string
 }
+
+// 报警规则
+export interface AlertRule {
+  id: number
+  tenantId: number
+  name: string
+  triggerType: 'api_error' | 'exception' | 'custom'
+  triggerCondition: Record<string, any>
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  channels: string[]
+  receivers: string[]
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// 报警规则查询参数
+export interface AlertRuleQuery {
+  page?: number
+  size?: number
+  tenantId?: number
+  name?: string
+  triggerType?: string
+  severity?: string
+  isActive?: boolean
+}
+
+// 报警记录
+export interface AlertRecord {
+  id: number
+  tenantId: number
+  ruleId: number
+  title: string
+  content: string
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  status: 'pending' | 'processing' | 'resolved' | 'ignored'
+  traceId?: string
+  requestPath?: string
+  userId?: number
+  metadata?: Record<string, any>
+  triggeredAt: string
+  resolvedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// 报警记录查询参数
+export interface AlertRecordQuery {
+  page?: number
+  size?: number
+  tenantId?: number
+  severity?: string
+  status?: string
+  ruleId?: number
+  startDate?: string
+  endDate?: string
+}
+
+// 报警记录统计
+export interface AlertRecordStats {
+  total: number
+  todayCount: number
+  pendingCount: number
+  processingCount: number
+  lowCount: number
+  mediumCount: number
+  highCount: number
+  criticalCount: number
+}
+
+// 通知渠道配置
+export interface AlertChannelConfig {
+  id: number
+  tenantId: number
+  channelType: 'webhook' | 'sms' | 'email'
+  name: string
+  config: Record<string, any>
+  isDefault: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// 通知渠道查询参数
+export interface AlertChannelQuery {
+  page?: number
+  size?: number
+  tenantId?: number
+  channelType?: string
+}

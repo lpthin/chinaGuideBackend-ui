@@ -190,4 +190,13 @@ export const profileApi = {
   // 获取登录日志
   getLoginLogs: (params?: { page?: number; size?: number }) =>
     http.get<any>('/user/login-logs', { params }),
+
+  // 上传头像
+  uploadAvatar: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return http.post<any>('/media/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
 }

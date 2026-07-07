@@ -48,7 +48,7 @@ export const useAuthStore = defineStore('v2-auth', () => {
 
   // Getters
   const isLoggedIn = computed(() => !!accessToken.value)
-  const isSuperAdmin = computed(() => roles.value.includes('super_admin') || roles.value.includes('admin'))
+  const isSuperAdmin = computed(() => user.value?.username === 'admin')
   const username = computed(() => user.value?.username || '')
   const nickname = computed(() => user.value?.nickname || '')
   const avatar = computed(() => user.value?.avatar || '')
@@ -101,6 +101,12 @@ export const useAuthStore = defineStore('v2-auth', () => {
     user.value = response
     localStorage.setItem(USER_KEY, JSON.stringify(response))
     return response
+  }
+
+  function updateUserInfo(updates: Partial<UserInfo>): void {
+    if (!user.value) return
+    user.value = { ...user.value, ...updates }
+    localStorage.setItem(USER_KEY, JSON.stringify(user.value))
   }
 
   async function refreshAccessToken(): Promise<string> {
@@ -161,6 +167,7 @@ export const useAuthStore = defineStore('v2-auth', () => {
     login,
     logout,
     fetchCurrentUser,
+    updateUserInfo,
     refreshAccessToken,
     hasPermission,
     hasAnyPermission,
@@ -169,3 +176,6 @@ export const useAuthStore = defineStore('v2-auth', () => {
     switchTenant,
   }
 })
+
+// 别名导出，兼容旧代码中的 useV2AuthStore 引用
+export const useV2AuthStore = useAuthStore

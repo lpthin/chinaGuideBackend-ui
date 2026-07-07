@@ -304,6 +304,10 @@ import {
 } from '@ant-design/icons-vue'
 import { vectorDbApi } from '../../api/ai-model'
 import type { VectorDatabaseConfig } from '../../types/ai-model'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const loading = ref(false)
 const saving = ref(false)
@@ -507,7 +511,7 @@ async function handleSaveDb() {
       await vectorDbApi.update(editingDb.value.id, dbForm as any)
       message.success('更新成功')
     } else {
-      await vectorDbApi.create(1, dbForm as any)
+      await vectorDbApi.create(getTenantId(), dbForm as any)
       message.success('创建成功')
     }
     showAddModal.value = false
@@ -523,72 +527,12 @@ async function handleSaveDb() {
 async function loadData() {
   loading.value = true
   try {
-    const result = await vectorDbApi.list(1)
+    const result = await vectorDbApi.list(getTenantId())
     dbConfigs.value = result
   } catch (error) {
-    console.error(error)
-    // Mock data
-    dbConfigs.value = [
-      {
-        id: 1,
-        tenantId: 1,
-        type: 'milvus',
-        name: 'Milvus-主知识库',
-        host: '192.168.1.100',
-        port: 19530,
-        collection: 'knowledge_base',
-        dimension: 1024,
-        metricType: 'cosine',
-        indexType: 'HNSW',
-        nlist: 1024,
-        efConstruction: 256,
-        efSearch: 128,
-        isSystemDefault: true,
-        isActive: true,
-        createdAt: '2024-03-15 10:00:00',
-        updatedAt: '2024-03-15 10:00:00',
-      } as any,
-      {
-        id: 2,
-        tenantId: 1,
-        type: 'pgvector',
-        name: 'PGVector-业务库',
-        host: '192.168.1.101',
-        port: 5432,
-        database: 'vector_db',
-        schema: 'public',
-        collection: 'documents',
-        dimension: 1536,
-        metricType: 'cosine',
-        indexType: 'HNSW',
-        nlist: 2048,
-        efConstruction: 256,
-        efSearch: 128,
-        isSystemDefault: false,
-        isActive: true,
-        createdAt: '2024-03-14 09:00:00',
-        updatedAt: '2024-03-14 09:00:00',
-      } as any,
-      {
-        id: 3,
-        tenantId: 1,
-        type: 'chroma',
-        name: 'Chroma-测试环境',
-        host: 'localhost',
-        port: 8000,
-        collection: 'test_docs',
-        dimension: 768,
-        metricType: 'cosine',
-        indexType: 'HNSW',
-        nlist: 512,
-        efConstruction: 128,
-        efSearch: 64,
-        isSystemDefault: false,
-        isActive: false,
-        createdAt: '2024-03-13 14:00:00',
-        updatedAt: '2024-03-13 14:00:00',
-      } as any,
-    ]
+    console.error('加载向量数据库配置失败:', error)
+    message.error('加载向量数据库配置失败')
+    dbConfigs.value = []
   } finally {
     loading.value = false
   }

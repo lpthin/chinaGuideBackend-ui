@@ -249,6 +249,10 @@ import {
 } from '@ant-design/icons-vue'
 import { articleCategoryApi } from '../../api/article'
 import type { ArticleCategory, ArticleCategoryForm } from '../../types/article'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const loading = ref(false)
 const saving = ref(false)
@@ -269,7 +273,7 @@ const categories = ref<ArticleCategory[]>([])
 const currentCategory = ref<ArticleCategory | null>(null)
 
 const modalForm = reactive<ArticleCategoryForm>({
-  tenantId: 1,
+  tenantId: getTenantId(),
   name: '',
   parentId: null,
   icon: 'folder',
@@ -468,7 +472,7 @@ function resetForm() {
 async function loadData() {
   loading.value = true
   try {
-    const result = await articleCategoryApi.all(1)
+    const result = await articleCategoryApi.all(getTenantId())
     categories.value = result
     stats.totalCategories = result.length
     stats.totalArticles = result.reduce((sum, c) => sum + 0, 0)
@@ -479,17 +483,14 @@ async function loadData() {
       currentCategory.value = { ...result[0] }
     }
   } catch (error) {
-    console.error(error)
-    const mockData = generateMockData()
-    categories.value = mockData
-    stats.totalCategories = mockData.length
-    stats.totalArticles = mockData.reduce((sum, c) => sum + 0, 0)
+    console.error('加载分类失败:', error)
+    message.error('加载分类失败')
+    categories.value = []
+    stats.totalCategories = 0
+    stats.totalArticles = 0
     stats.totalViews = 0
-    stats.maxLevel = getMaxLevel(mockData)
-    if (mockData.length && !selectedKeys.value.length) {
-      selectedKeys.value = [String(mockData[0].id)]
-      currentCategory.value = { ...mockData[0] }
-    }
+    stats.maxLevel = 0
+    currentCategory.value = null
   } finally {
     loading.value = false
   }
@@ -508,83 +509,6 @@ function getMaxLevel(list: ArticleCategory[]): number {
     max = Math.max(max, level)
   })
   return max
-}
-
-function generateMockData(): ArticleCategory[] {
-  return [
-    {
-      id: 1,
-      tenantId: 1,
-      parentId: null,
-      name: '公司新闻',
-      icon: 'news',
-      description: '公司内部新闻和公告',
-      sort: 1,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-    {
-      id: 2,
-      tenantId: 1,
-      parentId: 1,
-      name: '行业动态',
-      icon: 'folder',
-      description: '行业最新动态和趋势分析',
-      sort: 1,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-    {
-      id: 3,
-      tenantId: 1,
-      parentId: 1,
-      name: '产品发布',
-      icon: 'folder',
-      description: '新产品发布和功能更新',
-      sort: 2,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-    {
-      id: 4,
-      tenantId: 1,
-      parentId: null,
-      name: '技术博客',
-      icon: 'book',
-      description: '技术分享和开发经验',
-      sort: 2,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-    {
-      id: 5,
-      tenantId: 1,
-      parentId: 4,
-      name: '前端技术',
-      icon: 'file',
-      description: '前端技术相关文章',
-      sort: 1,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-    {
-      id: 6,
-      tenantId: 1,
-      parentId: 4,
-      name: '后端技术',
-      icon: 'file',
-      description: '后端技术相关文章',
-      sort: 2,
-      status: 'active',
-      createdAt: '2024-01-01 10:00:00',
-      updatedAt: '2024-01-01 10:00:00',
-    },
-  ]
 }
 
 onMounted(() => {

@@ -368,7 +368,9 @@ import {
   type HotKeywordStats,
   type CollectConfig,
 } from '../../api/hotKeyword'
+import { useV2AuthStore } from '../../stores/auth'
 
+const auth = useV2AuthStore()
 const loading = ref(false)
 const collecting = ref(false)
 const autoSelecting = ref(false)
@@ -537,9 +539,13 @@ function getTrendIcon(trend: string) {
   return MinusOutlined
 }
 
+function getTenantId(): number {
+  return auth.selectedTenantId || auth.tenantId || 1
+}
+
 async function loadStats() {
   try {
-    const data = await hotKeywordApi.stats()
+    const data = await hotKeywordApi.stats(getTenantId())
     Object.assign(stats, data)
   } catch (e) {
     console.error('加载统计数据失败', e)
@@ -555,6 +561,7 @@ async function loadKeywords() {
       source: queryParams.source || undefined,
       keyword: queryParams.keyword || undefined,
       category: queryParams.category || undefined,
+      tenantId: getTenantId(),
     })
     keywordList.value = data.records
     paginationConfig.total = data.total
