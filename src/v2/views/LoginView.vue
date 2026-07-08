@@ -166,7 +166,8 @@ async function handleLogin() {
       throw new Error('登录失败：未获取到有效token')
     }
 
-    const userInfo = {
+    // 用 login 响应构造基础 userInfo（作为 fallback）
+    const baseUserInfo = {
       id: resp?.userId || 0,
       username: resp?.username || formState.username,
       nickname: resp?.nickname || '',
@@ -175,27 +176,50 @@ async function handleLogin() {
       avatar: '',
       tenantId: resp?.tenantId || 1,
       tenantName: resp?.tenantCode || '',
-      roles: ['admin'],
-      permissions: ['*'],
+      roles: resp?.roles || [],
+      permissions: resp?.permissions || [],
       status: 'enabled' as const,
       createdAt: new Date().toISOString(),
     }
 
-    // 存储到localStorage（与auth store使用的key一致）
-    localStorage.setItem('v2_access_token', accessToken)
-    localStorage.setItem('v2_refresh_token', '')
-    localStorage.setItem('v2_user_info', JSON.stringify(userInfo))
-
-    // 同步更新 geocms 旧版key（兼容v1代码）
-    localStorage.setItem('geocms_token', accessToken)
-    localStorage.setItem('geocms_user', JSON.stringify(userInfo))
-    localStorage.setItem('geocms_tenant_id', String(userInfo.tenantId))
-    localStorage.setItem('geocms_tenant_code', userInfo.tenantName)
-
-    // 更新Pinia store
+    // 先保存 token，再调用 /me 接口拉取真实用户信息（含 avatar/roles/permissions）
     authStore.accessToken = accessToken
     authStore.refreshToken = ''
-    authStore.user = userInfo as any
+    authStore.user = baseUserInfo as any
+    localStorage.setItem('v2_access_token', accessToken)
+    localStorage.setItem('v2_refresh_token', '')
+    localStorage.setItem('v2_user_info', JSON.stringify(baseUserInfo))
+
+    // 同步更新 geocms 旧版 key（兼容 v1 代码）
+    localStorage.setItem('geocms_token', accessToken)
+    localStorage.setItem('geocms_user', JSON.stringify(baseUserInfo))
+    localStorage.setItem('geocms_tenant_id', String(baseUserInfo.tenantId))
+    localStorage.setItem('geocms_tenant_code', baseUserInfo.tenantName)
+
+    // 拉取真实用户信息（含 avatar/email/phone/roles/permissions）
+    let userInfo: any = baseUserInfo
+    try {
+      const me = await authStore.fetchCurrentUser()
+      if (me) {
+        userInfo = {
+          ...baseUserInfo,
+          ...me,
+          tenantName: (me as any).tenantName || baseUserInfo.tenantName,
+        }
+        // 持久化到 localStorage，确保刷新后头像仍生效
+        localStorage.setItem('v2_user_info', JSON.stringify(userInfo))
+        localStorage.setItem('geocms_user', JSON.stringify(userInfo))
+        // 同步 tenantId/tenantCode（避免从 token 解出的租户与真实租户不一致）
+        if (userInfo.tenantId) {
+          localStorage.setItem('geocms_tenant_id', String(userInfo.tenantId))
+        }
+        if (userInfo.tenantCode) {
+          localStorage.setItem('geocms_tenant_code', userInfo.tenantCode)
+        }
+      }
+    } catch (e) {
+      console.warn('获取当前用户信息失败，使用基础信息:', e)
+    }
 
     message.success('登录成功！')
     router.push('/v2/workspace/dashboard')

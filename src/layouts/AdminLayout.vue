@@ -97,6 +97,9 @@ function logout() {
           <router-link to="/v2" style="margin-right: 8px; color: #1890ff; font-weight: 500; text-decoration: none;">
             ✨ 新版工作台
           </router-link>
+          <el-button size="small" type="primary" plain @click="$router.push('/')">
+            查看前端
+          </el-button>
           <span class="username">{{ auth.user?.username || '管理员' }}</span>
           <el-button size="small" @click="logout">退出</el-button>
         </div>

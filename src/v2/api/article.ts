@@ -1,5 +1,6 @@
 // 文章系统模块 API
 import http from './http'
+import type { AxiosProgressEvent } from 'axios'
 import type {
   ArticleCategory,
   Article,
@@ -135,7 +136,7 @@ export const imageLibraryApi = {
   upload: (formData: FormData, onProgress?: (progress: number) => void) =>
     http.post<ImageLibrary>('/media/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (progressEvent) => {
+      onUploadProgress: (progressEvent: AxiosProgressEvent) => {
         if (onProgress && progressEvent.total) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
           onProgress(progress)
@@ -147,7 +148,7 @@ export const imageLibraryApi = {
   uploadBatch: (formData: FormData, onProgress?: (progress: number) => void) =>
     http.post<ImageLibrary[]>('/media/upload-batch', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (progressEvent) => {
+      onUploadProgress: (progressEvent: AxiosProgressEvent) => {
         if (onProgress && progressEvent.total) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
           onProgress(progress)

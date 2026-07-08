@@ -30,7 +30,7 @@
           </a-tooltip>
           <a-divider type="vertical" />
           <a @click="router.push('/')" style="margin-right: 12px; color: #1890ff; font-weight: 500; cursor: pointer;">
-            ← 返回旧版
+            查看前端
           </a>
           <a-dropdown>
             <a-button type="text" class="user-dropdown-btn">
@@ -232,7 +232,7 @@
           </a-sub-menu>
 
           <!-- AI配置 -->
-          <a-sub-menu key="ai">
+          <a-sub-menu key="ai" v-if="auth.isSuperAdmin">
             <template #icon><RobotOutlined /></template>
             <template #title>AI配置</template>
             <a-menu-item key="ai/models">
@@ -692,6 +692,13 @@ onMounted(() => {
     startTaskCallback.value = null
     importCallback.value = null
   })
+
+  // 拉取一次最新的当前用户信息，确保头像/角色是最新的
+  if (auth.accessToken) {
+    auth.fetchCurrentUser().catch((e) => {
+      console.warn('刷新当前用户信息失败:', e)
+    })
+  }
 })
 </script>
 

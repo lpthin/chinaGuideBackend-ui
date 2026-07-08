@@ -48,7 +48,8 @@ const fetchTenants = async () => {
 }
 
 const handleChange = (value: number) => {
-  authStore.switchTenant(value)
+  const tenant = tenants.value.find((t) => t.id === value)
+  authStore.switchTenant(value, tenant?.code || null)
 }
 
 watch(

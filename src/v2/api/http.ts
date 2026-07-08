@@ -38,10 +38,20 @@ function handleUnauthorized() {
   }, 1000)
 }
 
+interface HttpClient {
+  get<T = any>(url: string, config?: any): Promise<T>
+  post<T = any>(url: string, data?: any, config?: any): Promise<T>
+  put<T = any>(url: string, data?: any, config?: any): Promise<T>
+  patch<T = any>(url: string, data?: any, config?: any): Promise<T>
+  delete<T = any>(url: string, config?: any): Promise<T>
+  interceptors: AxiosInstance['interceptors']
+  defaults: AxiosInstance['defaults']
+}
+
 const http = axios.create({
   baseURL: '/api/v2',
   timeout: 30000
-})
+}) as unknown as HttpClient
 
 http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -53,17 +63,25 @@ http.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
-    const tenantId = v2Auth.selectedTenantId !== null
-      ? v2Auth.selectedTenantId
-      : v2Auth.tenantId !== null
+    const tenantCode = localStorage.getItem('geocms_tenant_code')
+    if (v2Auth.isSuperAdmin) {
+      if (v2Auth.selectedTenantId !== null) {
+        config.headers['X-Tenant-Id'] = String(v2Auth.selectedTenantId)
+        const code = v2Auth.selectedTenantCode || tenantCode
+        if (code) {
+          config.headers['X-Tenant-Code'] = code
+        }
+      }
+    } else {
+      const tenantId = v2Auth.tenantId !== null
         ? v2Auth.tenantId
         : localStorage.getItem('geocms_tenant_id')
-    const tenantCode = localStorage.getItem('geocms_tenant_code')
-    if (tenantId) {
-      config.headers['X-Tenant-Id'] = String(tenantId)
-    }
-    if (tenantCode) {
-      config.headers['X-Tenant-Code'] = tenantCode
+      if (tenantId) {
+        config.headers['X-Tenant-Id'] = String(tenantId)
+      }
+      if (tenantCode) {
+        config.headers['X-Tenant-Code'] = tenantCode
+      }
     }
 
     return config

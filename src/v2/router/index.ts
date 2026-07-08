@@ -386,31 +386,31 @@ const routes: RouteRecordRaw[] = [
         path: 'ai/models',
         name: 'v2-workspace-ai-models',
         component: ModelConfigView,
-        meta: { title: '大模型配置', icon: 'robot', breadcrumb: ['首页', 'AI配置', '大模型'] }
+        meta: { title: '大模型配置', icon: 'robot', breadcrumb: ['首页', 'AI配置', '大模型'], requiresSuperAdmin: true }
       },
       {
         path: 'ai/vector-db',
         name: 'v2-workspace-ai-vector-db',
         component: VectorDbView,
-        meta: { title: '向量数据库', icon: 'database', breadcrumb: ['首页', 'AI配置', '向量数据库'] }
+        meta: { title: '向量数据库', icon: 'database', breadcrumb: ['首页', 'AI配置', '向量数据库'], requiresSuperAdmin: true }
       },
       {
         path: 'ai/embedding',
         name: 'v2-workspace-ai-embedding',
         component: EmbeddingConfigView,
-        meta: { title: '向量化配置', icon: 'api', breadcrumb: ['首页', 'AI配置', '向量化配置'] }
+        meta: { title: '向量化配置', icon: 'api', breadcrumb: ['首页', 'AI配置', '向量化配置'], requiresSuperAdmin: true }
       },
       {
         path: 'ai/usage',
         name: 'v2-workspace-ai-usage',
         component: ModelUsageView,
-        meta: { title: '用量监控', icon: 'chart', breadcrumb: ['首页', 'AI配置', '用量监控'] }
+        meta: { title: '用量监控', icon: 'chart', breadcrumb: ['首页', 'AI配置', '用量监控'], requiresSuperAdmin: true }
       },
       {
         path: 'ai/article-templates',
         name: 'v2-workspace-ai-article-templates',
         component: ArticleTemplateView,
-        meta: { title: '软文模板', icon: 'article', breadcrumb: ['首页', 'AI配置', '软文模板'] }
+        meta: { title: '软文模板', icon: 'article', breadcrumb: ['首页', 'AI配置', '软文模板'], requiresSuperAdmin: true }
       },
 
       // ===== 📊 运营管理 =====

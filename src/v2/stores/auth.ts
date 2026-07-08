@@ -9,6 +9,7 @@ const TOKEN_KEY = 'v2_access_token'
 const REFRESH_TOKEN_KEY = 'v2_refresh_token'
 const USER_KEY = 'v2_user_info'
 const SELECTED_TENANT_ID_KEY = 'v2_selected_tenant_id'
+const SELECTED_TENANT_CODE_KEY = 'v2_selected_tenant_code'
 
 function getStoredToken(): string {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -38,17 +39,24 @@ function getStoredSelectedTenantId(): number | null {
   }
 }
 
+function getStoredSelectedTenantCode(): string | null {
+  return localStorage.getItem(SELECTED_TENANT_CODE_KEY)
+}
+
+const SUPER_ADMIN_ROLE = 'SUPER_ADMIN'
+
 export const useAuthStore = defineStore('v2-auth', () => {
   // State
   const accessToken = ref<string>(getStoredToken())
   const refreshToken = ref<string>(getStoredRefreshToken())
   const user = ref<UserInfo | null>(getStoredUser())
   const selectedTenantId = ref<number | null>(getStoredSelectedTenantId())
+  const selectedTenantCode = ref<string | null>(getStoredSelectedTenantCode())
   const loading = ref(false)
 
   // Getters
   const isLoggedIn = computed(() => !!accessToken.value)
-  const isSuperAdmin = computed(() => user.value?.username === 'admin')
+  const isSuperAdmin = computed(() => roles.value.includes(SUPER_ADMIN_ROLE))
   const username = computed(() => user.value?.username || '')
   const nickname = computed(() => user.value?.nickname || '')
   const avatar = computed(() => user.value?.avatar || '')
@@ -89,10 +97,12 @@ export const useAuthStore = defineStore('v2-auth', () => {
       refreshToken.value = ''
       user.value = null
       selectedTenantId.value = null
+      selectedTenantCode.value = null
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(REFRESH_TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
       localStorage.removeItem(SELECTED_TENANT_ID_KEY)
+      localStorage.removeItem(SELECTED_TENANT_CODE_KEY)
     }
   }
 
@@ -136,12 +146,24 @@ export const useAuthStore = defineStore('v2-auth', () => {
     return roleCodes.some(code => roles.value.includes(code))
   }
 
-  function switchTenant(tenantId: number | null): void {
+  function switchTenant(tenantId: number | null, tenantCode?: string | null): void {
     selectedTenantId.value = tenantId
     if (tenantId !== null) {
       localStorage.setItem(SELECTED_TENANT_ID_KEY, String(tenantId))
     } else {
       localStorage.removeItem(SELECTED_TENANT_ID_KEY)
+    }
+
+    if (tenantId === null) {
+      selectedTenantCode.value = null
+      localStorage.removeItem(SELECTED_TENANT_CODE_KEY)
+    } else if (tenantCode !== undefined) {
+      selectedTenantCode.value = tenantCode
+      if (tenantCode !== null) {
+        localStorage.setItem(SELECTED_TENANT_CODE_KEY, tenantCode)
+      } else {
+        localStorage.removeItem(SELECTED_TENANT_CODE_KEY)
+      }
     }
   }
 
@@ -151,6 +173,7 @@ export const useAuthStore = defineStore('v2-auth', () => {
     refreshToken,
     user,
     selectedTenantId,
+    selectedTenantCode,
     loading,
     
     // Getters

@@ -120,9 +120,52 @@
                 <template #icon><StarOutlined /></template>
                 自动精选TOP3
               </a-button>
+              <a-button size="small" @click="showLogDrawer = true" class="action-btn-default">
+                <template #icon><FileTextOutlined /></template>
+                采集日志
+              </a-button>
             </a-space>
           </div>
         </div>
+
+        <!-- 右侧采集进度浮窗 -->
+        <transition name="slide-fade">
+          <div v-if="collecting" class="collection-progress-float">
+            <div class="progress-float-card">
+              <div class="progress-float-header">
+                <span class="pulse-dot"></span>
+                <span class="progress-float-title">正在采集热词</span>
+              </div>
+              <div class="progress-float-body">
+                <div class="progress-circle-large">
+                  <svg viewBox="0 0 120 120">
+                    <defs>
+                      <linearGradient id="largeProgressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#6366f1" />
+                        <stop offset="100%" stop-color="#a855f7" />
+                      </linearGradient>
+                    </defs>
+                    <circle class="large-progress-bg" cx="60" cy="60" r="52" fill="none" stroke="#e2e8f0" stroke-width="8"/>
+                    <circle class="large-progress-fill" cx="60" cy="60" r="52" fill="none" stroke="url(#largeProgressGradient)" stroke-width="8" stroke-linecap="round" :stroke-dasharray="`${(collectProgress / 100) * 326.73} 326.73`"/>
+                  </svg>
+                  <div class="progress-circle-info">
+                    <span class="progress-percent">{{ Math.round(collectProgress) }}%</span>
+                    <span class="progress-status">{{ collectProgress >= 100 ? '完成' : '采集中' }}</span>
+                  </div>
+                </div>
+                <div v-if="Object.keys(sourceStats).length > 0" class="progress-source-list">
+                  <div v-for="(count, source) in sourceStats" :key="source" class="progress-source-item">
+                    <span class="progress-source-name">{{ getSourceLabel(source) }}</span>
+                    <span class="progress-source-count">{{ count }} 个</span>
+                  </div>
+                </div>
+                <div v-else class="progress-source-empty">
+                  <span>正在连接数据源...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </transition>
 
         <div class="card-body">
           <div v-show="activeTab === 'list'">
@@ -173,6 +216,9 @@
                     <component :is="getTrendIcon(record.trend)" />
                     {{ record.trendValue > 0 ? '+' : '' }}{{ record.trendValue }}%
                   </span>
+                </template>
+                <template v-if="column.key === 'collectDate'">
+                  <span class="collect-date-text">{{ formatDate(record.collectDate) }}</span>
                 </template>
                 <template v-if="column.key === 'actions'">
                   <a-space size="small">
@@ -269,10 +315,8 @@
                   <a-col :span="12">
                     <a-form-item label="采集数据源">
                       <a-checkbox-group v-model:value="collectConfig.sources" class="checkbox-group">
-                        <a-checkbox value="baidu">百度热搜</a-checkbox>
-                        <a-checkbox value="weibo">微博热搜</a-checkbox>
-                        <a-checkbox value="zhihu">知乎热榜</a-checkbox>
-                        <a-checkbox value="news">新闻头条</a-checkbox>
+                        <a-checkbox value="baidu_suggest">百度建议</a-checkbox>
+                        <a-checkbox value="product_expand">产品扩展</a-checkbox>
                       </a-checkbox-group>
                     </a-form-item>
                   </a-col>
@@ -339,11 +383,102 @@
         </div>
       </div>
     </a-spin>
+
+    <a-drawer
+      title="采集日志"
+      :open="showLogDrawer"
+      :width="560"
+      @close="showLogDrawer = false"
+      class="collection-log-drawer"
+    >
+      <div class="log-content">
+        <div class="log-header">
+          <a-space>
+            <a-button type="primary" size="small" @click="loadCollectionJobs">
+              <template #icon><ReloadOutlined /></template>
+              刷新
+            </a-button>
+          </a-space>
+        </div>
+        <div class="log-list">
+          <div v-if="collectionJobs.length === 0" class="log-empty">
+            <FileTextOutlined class="empty-icon" />
+            <span>暂无采集记录</span>
+          </div>
+          <div v-for="job in collectionJobs" :key="job.id" class="log-item">
+            <div class="log-item-header">
+              <span class="log-batch-no">批次号: {{ job.batchNo }}</span>
+              <a-tag :color="job.status === 'success' ? 'green' : 'red'" class="log-status">
+                {{ job.status === 'success' ? '成功' : '失败' }}
+              </a-tag>
+            </div>
+            <div class="log-item-body">
+              <div class="log-row">
+                <span class="log-label">采集类型</span>
+                <span class="log-value">
+                  <a-tag :color="job.collectType === 'auto' ? 'orange' : 'blue'" class="type-tag">
+                    {{ job.collectType === 'auto' ? '自动采集' : '手动采集' }}
+                  </a-tag>
+                </span>
+              </div>
+              <div class="log-row">
+                <span class="log-label">任务开始</span>
+                <span class="log-value">{{ formatDateTime(job.startedAt) }}</span>
+              </div>
+              <div class="log-row">
+                <span class="log-label">任务结束</span>
+                <span class="log-value">{{ formatDateTime(job.finishedAt) }}</span>
+              </div>
+              <div class="log-row">
+                <span class="log-label">任务耗时</span>
+                <span class="log-value">{{ formatDuration(job.startedAt, job.finishedAt) }}</span>
+              </div>
+              <div class="log-row">
+                <span class="log-label">数据源</span>
+                <span class="log-value">
+                  <a-tag
+                    v-for="source in job.sourceCodes.split(',')"
+                    :key="source"
+                    color="blue"
+                    class="source-tag-sm"
+                  >
+                    {{ getSourceLabel(source) }}
+                  </a-tag>
+                </span>
+              </div>
+              <div class="log-row">
+                <span class="log-label">平台统计</span>
+                <span class="log-value">
+                  <div v-if="parsePlatformStats(job.platformStats)" class="platform-stats">
+                    <div v-for="(count, source) in parsePlatformStats(job.platformStats)" :key="source" class="platform-stat-item">
+                      <span class="stat-source">{{ getSourceLabel(source) }}</span>
+                      <span class="stat-count">{{ count }}个</span>
+                    </div>
+                  </div>
+                  <span v-else class="text-gray-400">-</span>
+                </span>
+              </div>
+              <div class="log-row">
+                <span class="log-label">采集统计</span>
+                <span class="log-value">
+                  候选 <span class="highlight">{{ job.candidateCount }}</span> 个，
+                  保存 <span class="highlight">{{ job.savedCount }}</span> 个
+                </span>
+              </div>
+              <div v-if="job.message" class="log-row">
+                <span class="log-label">备注</span>
+                <span class="log-value">{{ job.message }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted, type ComponentPublicInstance } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   FireOutlined,
@@ -360,6 +495,7 @@ import {
   ReloadOutlined,
   CheckOutlined,
   RollbackOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons-vue'
 import * as echarts from 'echarts'
 import {
@@ -367,6 +503,7 @@ import {
   type HotKeyword,
   type HotKeywordStats,
   type CollectConfig,
+  type CollectionJob,
 } from '../../api/hotKeyword'
 import { useV2AuthStore } from '../../stores/auth'
 
@@ -376,6 +513,15 @@ const collecting = ref(false)
 const autoSelecting = ref(false)
 const activeTab = ref('list')
 const chartRefs = ref<(HTMLElement | null)[]>([])
+const showLogDrawer = ref(false)
+watch(showLogDrawer, (open) => {
+  if (open) {
+    loadCollectionJobs()
+  }
+})
+const collectProgress = ref(0)
+const sourceStats = reactive<Record<string, number>>({})
+const collectionJobs = ref<CollectionJob[]>([])
 let miniCharts: (echarts.ECharts | null)[] = []
 
 const stats = reactive<HotKeywordStats>({
@@ -429,7 +575,7 @@ const rowSelection = {
 }
 
 const collectConfig = reactive<CollectConfig>({
-  sources: ['baidu', 'weibo'],
+  sources: ['baidu_suggest', 'product_expand'],
   categories: [],
   frequency: 'hourly',
   autoSelect: true,
@@ -443,6 +589,7 @@ const columns = [
   { title: '来源', key: 'source', width: 120 },
   { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
   { title: '趋势', key: 'trend', width: 120 },
+  { title: '采集时间', key: 'collectDate', width: 160 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 180 },
 ]
 
@@ -497,8 +644,17 @@ function getTrendArrow(type: string) {
   }
 }
 
-function setChartRef(el: HTMLElement | null, index: number) {
-  chartRefs.value[index] = el
+function setChartRef(el: HTMLElement | Element | ComponentPublicInstance | null, index: number) {
+  if (el instanceof HTMLElement) {
+    chartRefs.value[index] = el
+  } else if (el instanceof Element) {
+    chartRefs.value[index] = el as HTMLElement
+  } else if (el !== null) {
+    const $el = (el as ComponentPublicInstance).$el
+    chartRefs.value[index] = $el instanceof HTMLElement ? $el : null
+  } else {
+    chartRefs.value[index] = null
+  }
 }
 
 function getRankClass(rank: number): string {
@@ -519,6 +675,9 @@ function getSourceColor(source: string): string {
     weibo: 'red',
     zhihu: 'geekblue',
     news: 'gold',
+    site_profile: 'purple',
+    product_expand: 'cyan',
+    baidu_suggest: 'blue',
   }
   return map[source] || 'default'
 }
@@ -529,6 +688,9 @@ function getSourceLabel(source: string): string {
     weibo: '微博热搜',
     zhihu: '知乎热榜',
     news: '新闻头条',
+    site_profile: '站点资料',
+    product_expand: '产品扩展',
+    baidu_suggest: '百度建议',
   }
   return map[source] || source
 }
@@ -645,15 +807,52 @@ function generateTrendData(baseScore: number): number[] {
 
 async function handleCollect() {
   collecting.value = true
+  collectProgress.value = 0
+  Object.keys(sourceStats).forEach(key => delete sourceStats[key])
+  
+  const sources = collectConfig.sources
+  const totalSources = sources.length || 1
+  let currentSource = 0
+  let completed = false
+  
+  const progressInterval = setInterval(() => {
+    if (completed) return
+    currentSource = Math.min(currentSource + 1, totalSources)
+    if (collectProgress.value < 90) {
+      collectProgress.value = Math.min(90, (currentSource / totalSources) * 100)
+    }
+  }, 400)
+
   try {
-    const result = await hotKeywordApi.collect({ sources: collectConfig.sources })
+    const result = await hotKeywordApi.collect({ sources })
+    
+    if (result.sourceStats) {
+      Object.assign(sourceStats, result.sourceStats)
+    }
+    
+    completed = true
+    collectProgress.value = 100
+    clearInterval(progressInterval)
+    
+    setTimeout(() => {
+      collecting.value = false
+      collectProgress.value = 0
+      Object.keys(sourceStats).forEach(key => delete sourceStats[key])
+    }, 1500)
+    
     message.success(`采集成功，新增 ${result.count} 个热词`)
     loadKeywords()
     loadStats()
   } catch (e) {
+    completed = true
+    clearInterval(progressInterval)
+    collectProgress.value = 100
+    setTimeout(() => {
+      collecting.value = false
+      collectProgress.value = 0
+      Object.keys(sourceStats).forEach(key => delete sourceStats[key])
+    }, 1500)
     message.error('采集失败')
-  } finally {
-    collecting.value = false
   }
 }
 
@@ -723,6 +922,79 @@ function resetConfig() {
   collectConfig.topN = 3
 }
 
+async function loadCollectionJobs() {
+  try {
+    const jobs = await hotKeywordApi.collectionJobs(getTenantId())
+    collectionJobs.value = jobs
+  } catch (e) {
+    console.error('加载采集日志失败', e)
+    message.error('加载采集日志失败')
+  }
+}
+
+function formatDate(dateStr: string): string {
+  if (!dateStr) return '-'
+  try {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+    
+    if (days === 0) {
+      return '今天'
+    } else if (days === 1) {
+      return '昨天'
+    } else if (days < 7) {
+      return `${days}天前`
+    } else {
+      return `${date.getMonth() + 1}/${date.getDate()}`
+    }
+  } catch {
+    return dateStr.slice(0, 10)
+  }
+}
+
+function formatDateTime(dateStr: string): string {
+  if (!dateStr) return '-'
+  try {
+    const date = new Date(dateStr)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  } catch {
+    return dateStr
+  }
+}
+
+function formatDuration(startStr: string, endStr: string): string {
+  if (!startStr || !endStr) return '-'
+  try {
+    const start = new Date(startStr)
+    const end = new Date(endStr)
+    const diff = end.getTime() - start.getTime()
+    const seconds = Math.floor(diff / 1000)
+    const minutes = Math.floor(seconds / 60)
+    const hours = Math.floor(minutes / 60)
+    
+    if (hours > 0) {
+      return `${hours}小时${minutes % 60}分钟${seconds % 60}秒`
+    } else if (minutes > 0) {
+      return `${minutes}分钟${seconds % 60}秒`
+    } else {
+      return `${seconds}秒`
+    }
+  } catch {
+    return '-'
+  }
+}
+
+function parsePlatformStats(statsStr: string): Record<string, number> | null {
+  if (!statsStr) return null
+  try {
+    return JSON.parse(statsStr)
+  } catch {
+    return null
+  }
+}
+
 function loadData() {
   loadStats()
   loadKeywords()
@@ -748,6 +1020,7 @@ onUnmounted(() => {
 @indigo-100: #e0e7ff;
 @indigo-500: #6366f1;
 @indigo-600: #4f46e5;
+@indigo-700: #4338ca;
 @purple-50: #faf5ff;
 @purple-100: #f3e8ff;
 @purple-500: #a855f7;
@@ -1604,5 +1877,314 @@ onUnmounted(() => {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.collection-progress-float {
+  position: fixed;
+  right: 24px;
+  top: 88px;
+  z-index: 100;
+  width: 220px;
+}
+
+.progress-float-card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px -12px rgba(99, 102, 241, 0.25), 0 8px 24px -8px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  overflow: hidden;
+  animation: floatIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.progress-float-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, @indigo-50 0%, @purple-50 100%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: @indigo-500;
+  box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+  animation: pulse 1.5s infinite;
+}
+
+.progress-float-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: @indigo-700;
+}
+
+.progress-float-body {
+  padding: 20px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.progress-circle-large {
+  position: relative;
+  width: 120px;
+  height: 120px;
+
+  svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .large-progress-fill {
+    transition: stroke-dasharray 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+.progress-circle-info {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.progress-percent {
+  font-size: 28px;
+  font-weight: 700;
+  color: @indigo-600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.progress-status {
+  font-size: 12px;
+  color: @slate-500;
+  font-weight: 500;
+}
+
+.progress-source-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-source-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: @slate-50;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.progress-source-name {
+  color: @slate-600;
+  font-weight: 500;
+}
+
+.progress-source-count {
+  color: @indigo-600;
+  font-weight: 600;
+}
+
+.progress-source-empty {
+  font-size: 13px;
+  color: @slate-400;
+  padding: 8px 0;
+}
+
+.slide-fade-enter-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-fade-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+@keyframes floatIn {
+  from {
+    opacity: 0;
+    transform: translateX(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
+
+.collect-date-text {
+  font-size: 13px;
+  color: @slate-500;
+}
+
+.collection-log-drawer {
+  :deep(.ant-drawer-content) {
+    border-radius: 16px 0 0 16px;
+  }
+
+  :deep(.ant-drawer-header) {
+    border-bottom: none;
+    padding: 20px 24px;
+  }
+
+  :deep(.ant-drawer-title) {
+    font-size: 18px;
+    font-weight: 600;
+    color: @slate-900;
+  }
+}
+
+.log-content {
+  height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+}
+
+.log-header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid @slate-100;
+}
+
+.log-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 16px;
+}
+
+.log-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  color: @slate-400;
+
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+}
+
+.log-item {
+  padding: 16px;
+  background: @slate-50;
+  border-radius: 12px;
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.log-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.log-batch-no {
+  font-size: 13px;
+  font-weight: 500;
+  color: @slate-700;
+  font-family: monospace;
+}
+
+.log-status {
+  font-size: 12px;
+}
+
+.log-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.log-row {
+  display: flex;
+  gap: 12px;
+}
+
+.log-label {
+  font-size: 12px;
+  color: @slate-400;
+  min-width: 60px;
+}
+
+.log-value {
+  font-size: 13px;
+  color: @slate-700;
+  flex: 1;
+
+  .highlight {
+    font-weight: 600;
+    color: @indigo-600;
+  }
+}
+
+.source-tag-sm {
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+.type-tag {
+  font-size: 12px;
+}
+
+.platform-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.platform-stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 4px;
+}
+
+.stat-source {
+  font-size: 12px;
+  color: @slate-600;
+}
+
+.stat-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: @indigo-600;
 }
 </style>

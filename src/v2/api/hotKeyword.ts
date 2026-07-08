@@ -14,6 +14,7 @@ export interface HotKeyword {
   rank: number
   createdAt: string
   updatedAt: string
+  collectDate: string
 }
 
 export interface HotKeywordStats {
@@ -41,6 +42,27 @@ export interface CollectConfig {
   frequency: string
   autoSelect: boolean
   topN: number
+}
+
+export interface CollectionJob {
+  id: number
+  tenantId: number
+  siteId: number
+  batchNo: string
+  sourceCodes: string
+  candidateCount: number
+  savedCount: number
+  status: string
+  message: string
+  collectType: string
+  startedAt: string
+  finishedAt: string
+  platformStats: string
+  createdAt: string
+}
+
+export interface PlatformStats {
+  [source: string]: number
 }
 
 interface RawHotKeyword {
@@ -87,10 +109,12 @@ function convertHotKeyword(raw: RawHotKeyword, index: number = 0): HotKeyword {
     }
   }
 
+  const heatScore = raw.heatScore != null && !isNaN(raw.heatScore) ? raw.heatScore : 0
+
   return {
     id: raw.id,
     keyword: raw.keyword,
-    score: Math.round(raw.heatScore * 100) / 100,
+    score: Math.round(heatScore * 100) / 100,
     source: raw.source,
     category: raw.category,
     trend,
@@ -100,6 +124,7 @@ function convertHotKeyword(raw: RawHotKeyword, index: number = 0): HotKeyword {
     rank: index + 1,
     createdAt: raw.createTime,
     updatedAt: raw.collectDate,
+    collectDate: raw.collectDate,
   }
 }
 
@@ -118,8 +143,8 @@ export const hotKeywordApi = {
   },
 
   collect: async (data: { sources: string[] }) => {
-    const res = await http.post<{ collected: number; tenantId: number }>('/hot-keywords/collect', data)
-    return { count: res.collected }
+    const res = await http.post<{ collected: number; tenantId: number; sourceStats: Record<string, number> }>('/hot-keywords/collect', data)
+    return { count: res.collected, sourceStats: res.sourceStats || {} }
   },
 
   autoSelect: async () => {
@@ -154,6 +179,9 @@ export const hotKeywordApi = {
 
   categories: () =>
     http.get<{ value: string; label: string }[]>('/hot-keywords/categories'),
+
+  collectionJobs: (tenantId?: number) =>
+    http.get<CollectionJob[]>('/hot-keywords/collection-jobs', tenantId !== undefined ? { params: { tenantId } } : {}),
 }
 
 export default hotKeywordApi
