@@ -187,7 +187,7 @@ import {
   VideoCameraOutlined,
 } from '@ant-design/icons-vue'
 import { mediaApi } from '../../api'
-import { formatTime } from '@/utils/format'
+import { formatTime } from '@/v2/utils/format'
 
 interface MediaFile {
   id: number
@@ -250,7 +250,7 @@ async function loadProjects() {
   loading.value = true
   try {
     const res = await mediaApi.projects()
-    projects.value = res?.data || res || []
+    projects.value = res || []
   } catch (e) {
     console.error('加载项目失败:', e)
     message.error('加载项目失败')
@@ -264,9 +264,7 @@ async function loadFiles() {
   loading.value = true
   try {
     const res = await mediaApi.list({ category: currentProject.value })
-    // http拦截器返回body.data，对于list接口res已是数组
-    const data = Array.isArray(res) ? res : (res?.data?.records || res?.data || res?.records || [])
-    files.value = Array.isArray(data) ? data : []
+    files.value = res.records || []
   } catch (e) {
     console.error('加载文件失败:', e)
     message.error('加载文件失败')

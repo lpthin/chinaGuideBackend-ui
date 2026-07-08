@@ -5,7 +5,7 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { siteApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
-import { useSiteStore } from '@/stores/site'
+import { useSiteStore } from '@/v2/stores/site'
 import type { Site } from '../../types'
 
 const router = useRouter()
@@ -151,7 +151,8 @@ function resetForm(site?: Site) {
 async function load() {
   loading.value = true
   try {
-    sites.value = await siteApi.list()
+    const res = await siteApi.list({})
+    sites.value = res.records || []
   } catch (e) {
     message.error('加载站点列表失败')
   } finally {
@@ -251,7 +252,7 @@ onMounted(() => {
       </a-table-column>
       <a-table-column title="操作" width="100" fixed="right" align="center">
         <template #default="{ record }">
-          <a-button v-if="record.id" type="link" size="small" @click="resetForm(record); modalVisible.value = true">
+          <a-button v-if="record.id" type="link" size="small" @click="resetForm(record); modalVisible = true">
             编辑
           </a-button>
           <span v-else>-</span>

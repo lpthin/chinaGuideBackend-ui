@@ -550,7 +550,7 @@ import {
 } from '@ant-design/icons-vue'
 import { knowledgeDocumentApi, knowledgeCategoryApi, knowledgeTagApi, knowledgeCardApi } from '../../api/knowledge'
 import type { KnowledgeCategory, KnowledgeTag, KnowledgeCard, KnowledgeDocument } from '../../types/knowledge'
-import { formatTime as formatAbsoluteTime } from '@/utils/format'
+import { formatTime as formatAbsoluteTime } from '@/v2/utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 // ==================== 知识库文档相关状态 ====================

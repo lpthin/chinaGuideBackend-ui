@@ -242,7 +242,7 @@ import {
   DeleteOutlined,
   ReloadOutlined,
 } from '@ant-design/icons-vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/v2/stores/auth'
 import type { GeoRegion, GeoRegionForm, GeoRegionQuery } from '../../types/geo'
 import { geoRegionApi } from '../../api/geo'
 

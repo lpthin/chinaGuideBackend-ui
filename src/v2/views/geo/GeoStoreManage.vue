@@ -375,7 +375,7 @@ import {
 import { GeoStoreStatus, StoreType } from '../../types/geo'
 import type { GeoStore, GeoStoreQuery, GeoStoreForm, GeoRegion } from '../../types/geo'
 import { geoStoreApi, geoRegionApi } from '../../api/geo'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/v2/stores/auth'
 
 const authStore = useAuthStore()
 

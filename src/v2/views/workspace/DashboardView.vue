@@ -258,7 +258,7 @@ import {
 import { dashboardApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import type { DashboardStats, Article } from '../../types'
-import { formatTime } from '@/utils/format'
+import { formatTime } from '@/v2/utils/format'
 
 const router = useRouter()
 const auth = useAuthStore()

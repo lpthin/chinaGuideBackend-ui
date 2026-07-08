@@ -68,3 +68,50 @@ export interface TreeNode extends BaseEntity {
   sort?: number
   children?: TreeNode[]
 }
+
+// 站点信息（供热词采集、内容生成使用）
+export interface Site {
+  id?: number
+  code: string
+  name: string
+  domain: string
+  description: string
+  brandName: string
+  industry: string
+  subIndustry: string
+  targetRegions: string
+  targetAudience: string
+  businessModel: string
+  coreProducts: string
+  competitorDomains: string
+  seedKeywords: string
+  excludedKeywords: string
+  searchLocales: string
+  siteType: string
+  defaultLocale: string
+  enabledLocales: string
+  frontendProjectPath: string
+  publishMode: string
+  themeCode: string
+  status: string
+}
+
+// 仪表盘统计数据
+export interface DashboardStats {
+  totalArticles: number
+  totalKeywords: number
+  totalViews: number
+  pendingReview: number
+  todayCount: number
+}
+
+// Prompt 模板
+export interface PromptTemplate {
+  id?: number
+  name: string
+  purpose: string
+  version: string
+  templateText: string
+  enabled: boolean
+  isSystem: boolean
+}

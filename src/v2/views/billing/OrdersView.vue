@@ -46,7 +46,7 @@
           <a-card class="stat-card" hoverable>
             <div class="stat-content">
               <div class="stat-icon" style="background: linear-gradient(135deg, #722ed1 0%, #b37feb 100%)">
-                <RefundOutlined />
+                <RollbackOutlined />
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ orderStats.refunded }}</div>

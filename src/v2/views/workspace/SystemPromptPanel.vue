@@ -98,8 +98,8 @@ const form = ref<PromptTemplate>({
 const fetchTemplates = async () => {
   loading.value = true
   try {
-    const res = await systemPromptApi.list()
-    templates.value = res?.data?.records || res?.records || res?.data || []
+    const res = await systemPromptApi.list({})
+    templates.value = res.records || []
   } catch (e) {
     console.error('fetchTemplates error:', e)
     message.error('获取模板列表失败')

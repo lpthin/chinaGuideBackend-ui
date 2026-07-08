@@ -387,7 +387,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/v2/stores/auth'
 import {
   FileTextOutlined,
   SettingOutlined,

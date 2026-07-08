@@ -169,7 +169,13 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, h } from 'vue'
 import { message } from 'ant-design-vue'
-import type { UploadRequestOption } from 'ant-design-vue'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface UploadRequestOption {
+  file: File
+  onSuccess?: (response: any) => void
+  onError?: (error: any) => void
+  onProgress?: (event: { percent: number }) => void
+}
 import { profileApi } from '../../api/auth'
 import { useAuthStore } from '../../stores/auth'
 import {
