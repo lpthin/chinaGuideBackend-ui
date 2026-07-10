@@ -191,8 +191,8 @@ import { formatTime } from '@/v2/utils/format'
 
 interface MediaFile {
   id: number
-  originalName: string
-  mimeType: string
+  originalName?: string
+  mimeType?: string
   fileSize: number
   createdAt: string
   category: string
@@ -234,7 +234,7 @@ const filteredFiles = computed(() => {
   return files.value.filter(f => f.originalName?.includes(searchText.value))
 })
 
-function isImage(mimeType: string): boolean {
+function isImage(mimeType?: string): boolean {
   return mimeType?.startsWith('image/') ?? false
 }
 
@@ -333,7 +333,7 @@ function previewFile(file: MediaFile) {
 function downloadFile(file: MediaFile) {
   const link = document.createElement('a')
   link.href = `/api/v2/workspace/media/${file.id}/file`
-  link.download = file.originalName
+  link.download = file.originalName || `media_${file.id}`
   link.click()
 }
 

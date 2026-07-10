@@ -36,6 +36,10 @@ export interface KeywordCluster {
   avgSearchVolume: number
   avgCompetition: number
   status: 'active' | 'inactive'
+  priority?: number
+  searchIntent?: string
+  articleDirection?: string
+  keywords?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -64,6 +68,14 @@ export interface GeneratedContent {
   status: 'draft' | 'reviewing' | 'published'
   createdAt: string
   createdBy: string
+  source?: string
+  author?: string
+  isTop?: boolean
+  isRecommend?: boolean
+  tags?: string[]
+  seoTitle?: string
+  seoDescription?: string
+  seoKeywords?: string
 }
 
 // 审核项目
@@ -107,6 +119,8 @@ export interface Media {
   ocrStatus?: string      // OCR分析状态: ANALYZING/COMPLETED/FAILED
   ocrText?: string        // OCR提取的文字
   aiDescription?: string  // AI生成的图片描述
+  originalName?: string   // 原始文件名
+  mimeType?: string       // MIME类型
   createdAt: string
   updatedAt: string
 }

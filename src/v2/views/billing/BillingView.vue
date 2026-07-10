@@ -95,9 +95,8 @@
                 到账 ¥{{ pkg.totalAmount }}
               </div>
               <a-button
-                type="primary"
-                block
                 :type="pkg.isRecommended ? 'primary' : 'default'"
+                block
                 @click="handleRechargePackage(pkg.id)"
               >
                 立即购买
@@ -142,7 +141,7 @@
           :columns="invoiceColumns"
           :data-source="invoiceList"
           :pagination="pagination"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
           :loading="tableLoading"
         >
           <template #bodyCell="{ column, record }">
@@ -201,8 +200,8 @@
             v-model:value="rechargeForm.amount"
             :min="1"
             :max="100000"
-            :formatter="value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')"
-            :parser="value => value.replace(/\¥\s?|(,*)/g, '')"
+            :formatter="(value: number) => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')"
+            :parser="(value: string) => value.replace(/\¥\s?|(,*)/g, '')"
             style="width: 100%"
             placeholder="请输入充值金额"
           />
@@ -229,8 +228,8 @@
             v-model:value="withdrawForm.amount"
             :min="1"
             :max="accountBalance.availableBalance"
-            :formatter="value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')"
-            :parser="value => value.replace(/\¥\s?|(,*)/g, '')"
+            :formatter="(value: number) => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')"
+            :parser="(value: string) => value.replace(/\¥\s?|(,*)/g, '')"
             style="width: 100%"
             placeholder="请输入提现金额"
           />
@@ -262,7 +261,7 @@ import {
 } from '@ant-design/icons-vue'
 import { InvoiceStatus, PaymentMethod, Currency } from '../../types/billing'
 import type { Invoice, RechargePackage } from '../../types/billing'
-import { walletApi, packageApi, statsApi, invoiceApi } from '../../api/billing'
+import { walletApi, packageApi, statsApi, invoiceApi, balanceApi } from '../../api/billing'
 import { useAuthStore } from '../../stores/auth'
 import InvoiceDetailDrawer from './InvoiceDetailDrawer.vue'
 
@@ -496,8 +495,28 @@ function handleDateChange(dates: [string, string] | undefined) {
   loadInvoices()
 }
 
-function handleExport() {
-  message.info('导出功能开发中')
+async function handleExport() {
+  const tenantId = getTenantId()
+  try {
+    const params: any = { tenantId }
+    if (queryParams.status) params.status = queryParams.status
+    if (queryParams.startDate) params.startDate = queryParams.startDate
+    if (queryParams.endDate) params.endDate = queryParams.endDate
+    
+    const res = await invoiceApi.export(params)
+    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `账单导出_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success('导出成功')
+  } catch (error: any) {
+    console.error('导出失败:', error)
+    message.error(error.message || '导出失败')
+  }
 }
 
 function showRechargeModal() {
@@ -533,9 +552,34 @@ async function handleConfirmRecharge() {
   }
 }
 
-function handleConfirmWithdraw() {
-  message.info('提现功能开发中')
-  withdrawModalVisible.value = false
+async function handleConfirmWithdraw() {
+  if (!withdrawForm.amount || withdrawForm.amount <= 0) {
+    message.warning('请输入提现金额')
+    return
+  }
+  if (!withdrawForm.accountId) {
+    message.warning('请选择提现账户')
+    return
+  }
+  if (withdrawForm.amount > accountBalance.availableBalance) {
+    message.warning('提现金额不能超过可用余额')
+    return
+  }
+  
+  const tenantId = getTenantId()
+  try {
+    const accountInfo = {
+      accountId: withdrawForm.accountId,
+      accountType: withdrawForm.accountId === '1' ? 'bank' : 'alipay',
+    }
+    await balanceApi.withdraw(tenantId, withdrawForm.amount, accountInfo)
+    message.success('提现申请已提交，预计1-3个工作日到账')
+    withdrawModalVisible.value = false
+    await loadWalletInfo()
+  } catch (error: any) {
+    console.error('提现失败:', error)
+    message.error(error.message || '提现失败')
+  }
 }
 
 function handleRechargePackage(packageId: number) {

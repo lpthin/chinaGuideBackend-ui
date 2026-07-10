@@ -48,8 +48,13 @@ export const modelApi = {
 // 模型配置 API
 export const modelConfigApi = {
   // 获取配置列表
-  list: (params: { tenantId: number; isActive?: boolean }) =>
-    http.get<ModelConfig[]>('/ai/model-configs', { params }),
+  list: (params: { tenantId?: number; isActive?: boolean; page?: number; size?: number }) =>
+    http.get<{
+      records: ModelConfig[]
+      total: number
+      page: number
+      size: number
+    }>('/ai/model-configs', { params }),
 
   // 获取配置详情
   get: (id: number) =>

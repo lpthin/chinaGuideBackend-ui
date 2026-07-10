@@ -625,19 +625,19 @@ const askQuestion = () => {
 }
 
 const goToUpload = () => {
-  router.push('/v2/workspace/knowledge/documents?action=upload')
+  router.push('/workspace/knowledge/documents?action=upload')
 }
 
 const goToDocuments = () => {
-  router.push('/v2/workspace/knowledge/documents')
+  router.push('/workspace/knowledge/documents')
 }
 
 const goToGraph = () => {
-  router.push('/v2/workspace/knowledge/graph')
+  router.push('/workspace/knowledge/graph')
 }
 
 const goToCards = () => {
-  router.push('/v2/workspace/knowledge/cards')
+  router.push('/workspace/knowledge/cards')
 }
 
 const handleResize = () => {

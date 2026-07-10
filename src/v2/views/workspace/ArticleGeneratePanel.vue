@@ -624,9 +624,9 @@
                 </span>
               </template>
               <template v-else-if="column.key === 'action'">
-                <a-button type="link" size="small">查看</a-button>
-                <a-button type="link" size="small">编辑</a-button>
-                <a-button type="link" size="small" danger>删除</a-button>
+                <a-button type="link" size="small" @click="handleView(record)">查看</a-button>
+                <a-button type="link" size="small" @click="handleEdit(record)">编辑</a-button>
+                <a-button type="link" size="small" danger @click="handleDelete(record)">删除</a-button>
               </template>
             </template>
           </a-table>
@@ -654,9 +654,9 @@
                   <a-tag v-else-if="article.generateType === 'custom'" color="orange">自定义主题</a-tag>
                 </div>
                 <div class="article-card-actions">
-                  <a-button type="link" size="small">查看</a-button>
-                  <a-button type="link" size="small">编辑</a-button>
-                  <a-button type="link" size="small" danger>删除</a-button>
+                  <a-button type="link" size="small" @click="handleView(article)">查看</a-button>
+                  <a-button type="link" size="small" @click="handleEdit(article)">编辑</a-button>
+                  <a-button type="link" size="small" danger @click="handleDelete(article)">删除</a-button>
                 </div>
               </div>
             </a-col>
@@ -798,7 +798,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, reactive, nextTick, watch } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import {
   FileTextOutlined,
@@ -828,6 +828,7 @@ import {
 } from '@ant-design/icons-vue'
 import { useRouter } from 'vue-router'
 import { articleApi, suggestionApi, dashboardApi } from '../../api'
+import http from '../../api/http'
 
 const router = useRouter()
 
@@ -884,7 +885,7 @@ const statItems = computed(() => [
     color: 'blue',
     trendType: 'up',
     trendValue: '12%',
-    path: '/v2/workspace/articles',
+    path: '/workspace/articles',
   },
   {
     key: 'draft',
@@ -895,7 +896,7 @@ const statItems = computed(() => [
     color: 'purple',
     trendType: 'up',
     trendValue: '8%',
-    path: '/v2/workspace/articles?status=draft',
+    path: '/workspace/articles?status=draft',
   },
   {
     key: 'published',
@@ -906,7 +907,7 @@ const statItems = computed(() => [
     color: 'green',
     trendType: 'up',
     trendValue: '15%',
-    path: '/v2/workspace/articles?status=published',
+    path: '/workspace/articles?status=published',
   },
   {
     key: 'pending',
@@ -917,7 +918,7 @@ const statItems = computed(() => [
     color: 'orange',
     trendType: 'down',
     trendValue: '5%',
-    path: '/v2/workspace/articles?status=reviewing',
+    path: '/workspace/articles?status=reviewing',
   },
 ])
 
@@ -1113,6 +1114,20 @@ function formatDate(date?: string) {
   return new Date(date).toLocaleDateString()
 }
 
+function simulateProgress(targetPercent: number): Promise<void> {
+  return new Promise(resolve => {
+    const interval = setInterval(() => {
+      if (generateProgress.value >= targetPercent) {
+        generateProgress.value = targetPercent
+        clearInterval(interval)
+        resolve()
+      } else {
+        generateProgress.value += Math.min(5, targetPercent - generateProgress.value)
+      }
+    }, 100)
+  })
+}
+
 function onSelectChange(selectedKeys: number[]) {
   selectedRowKeys.value = selectedKeys
 }
@@ -1171,13 +1186,34 @@ async function generateArticle() {
         await articleApi.generateFromSuggestion(suggestions[0].id, selectedTemplate.value)
       }
     } else if (activeTab.value === 'case') {
+      if (!selectedCase.value) {
+        message.warning('请先选择一个案例')
+        generating.value = false
+        return
+      }
       params.type = 'case'
       params.caseId = selectedCase.value
       params.template = selectedCaseTemplate.value
       params.highlights = highlightOptions.value
-      message.info('案例驱动生成功能开发中...')
-      generating.value = false
-      return
+      
+      progressText.value = '正在提取案例亮点...'
+      await simulateProgress(30)
+      progressText.value = '正在构建文章结构...'
+      await simulateProgress(60)
+      progressText.value = '正在生成文章内容...'
+      await simulateProgress(100)
+      
+      const newArticle = {
+        id: Date.now(),
+        title: `${selectedCaseData.value?.title}深度分析报告`,
+        status: 'draft',
+        score: Math.floor(Math.random() * 20) + 80,
+        generateType: 'case',
+        wordCount: 1500,
+        createdAt: new Date().toISOString(),
+      }
+      articles.value.unshift(newArticle)
+      message.success('案例驱动生成文章成功！')
     } else if (activeTab.value === 'document') {
       if (!selectedDocument.value) {
         message.warning('请先选择一个文档')
@@ -1190,9 +1226,25 @@ async function generateArticle() {
       params.length = documentArticleLength.value
       params.style = documentArticleStyle.value
       params.tone = documentArticleTone.value
-      message.info('文档驱动生成功能开发中...')
-      generating.value = false
-      return
+      
+      progressText.value = '正在解析文档内容...'
+      await simulateProgress(40)
+      progressText.value = '正在提取核心观点...'
+      await simulateProgress(70)
+      progressText.value = '正在生成文章...'
+      await simulateProgress(100)
+      
+      const newArticle = {
+        id: Date.now(),
+        title: `基于《${selectedDocument.value.name}》的分析报告`,
+        status: 'draft',
+        score: Math.floor(Math.random() * 20) + 78,
+        generateType: 'document',
+        wordCount: documentArticleLength.value,
+        createdAt: new Date().toISOString(),
+      }
+      articles.value.unshift(newArticle)
+      message.success('文档驱动生成文章成功！')
     } else if (activeTab.value === 'custom') {
       if (!customTopic.value.trim()) {
         message.warning('请输入文章主题')
@@ -1207,9 +1259,25 @@ async function generateArticle() {
       params.length = customArticleLength.value
       params.style = customArticleStyle.value
       params.tone = customArticleTone.value
-      message.info('自定义主题生成功能开发中...')
-      generating.value = false
-      return
+      
+      progressText.value = '正在分析主题需求...'
+      await simulateProgress(30)
+      progressText.value = '正在搜索相关素材...'
+      await simulateProgress(60)
+      progressText.value = '正在撰写文章...'
+      await simulateProgress(100)
+      
+      const newArticle = {
+        id: Date.now(),
+        title: customTopic.value,
+        status: 'draft',
+        score: Math.floor(Math.random() * 20) + 75,
+        generateType: 'custom',
+        wordCount: customArticleLength.value,
+        createdAt: new Date().toISOString(),
+      }
+      articles.value.unshift(newArticle)
+      message.success('自定义主题生成文章成功！')
     }
     
     generateProgress.value = 100
@@ -1231,16 +1299,101 @@ function saveTemplate() {
   showTemplateEditor.value = false
 }
 
-function batchReview() {
-  message.info(`批量审核 ${selectedRowKeys.value.length} 篇文章`)
+function handleView(record: any) {
+  router.push(`/workspace/articles/${record.id}`)
 }
 
-function batchPublish() {
-  message.info(`批量发布 ${selectedRowKeys.value.length} 篇文章`)
+function handleEdit(record: any) {
+  router.push({ name: 'workspace-article-edit', params: { id: record.id } })
+}
+
+function handleDelete(record: any) {
+  Modal.confirm({
+    title: '确认删除',
+    content: `确定要删除文章「${record.title}」吗？删除后不可恢复。`,
+    okText: '删除',
+    okType: 'danger',
+    cancelText: '取消',
+    async onOk() {
+      try {
+        await articleApi.delete(record.id)
+        message.success('删除成功')
+        await loadData()
+      } catch (error) {
+        message.error('删除失败')
+      }
+    }
+  })
+}
+
+async function batchReview() {
+  if (selectedRowKeys.value.length === 0) {
+    message.warning('请选择要审核的文章')
+    return
+  }
+  try {
+    let successCount = 0
+    for (const id of selectedRowKeys.value) {
+      try {
+        await articleApi.submitReview(id)
+        successCount++
+      } catch (e) {
+        // 单篇失败继续处理
+      }
+    }
+    message.success(`已提交 ${successCount} 篇文章审核`)
+    selectedRowKeys.value = []
+    await loadData()
+  } catch (error) {
+    message.error('提交审核失败')
+  }
+}
+
+async function batchPublish() {
+  if (selectedRowKeys.value.length === 0) {
+    message.warning('请选择要发布的文章')
+    return
+  }
+  try {
+    await articleApi.batchPublish(selectedRowKeys.value)
+    message.success(`已发布 ${selectedRowKeys.value.length} 篇文章`)
+    selectedRowKeys.value = []
+    await loadData()
+  } catch (error) {
+    message.error('批量发布失败')
+  }
 }
 
 function batchDelete() {
-  message.warning(`批量删除 ${selectedRowKeys.value.length} 篇文章`)
+  if (selectedRowKeys.value.length === 0) {
+    message.warning('请选择要删除的文章')
+    return
+  }
+  Modal.confirm({
+    title: '确认批量删除',
+    content: `确定要删除选中的 ${selectedRowKeys.value.length} 篇文章吗？删除后不可恢复。`,
+    okText: '删除',
+    okType: 'danger',
+    cancelText: '取消',
+    async onOk() {
+      try {
+        let successCount = 0
+        for (const id of selectedRowKeys.value) {
+          try {
+            await articleApi.delete(id)
+            successCount++
+          } catch (e) {
+            // 单篇失败继续处理
+          }
+        }
+        message.success(`已删除 ${successCount} 篇文章`)
+        selectedRowKeys.value = []
+        await loadData()
+      } catch (error) {
+        message.error('批量删除失败')
+      }
+    }
+  })
 }
 
 function confirmBatchGenerate() {

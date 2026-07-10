@@ -38,7 +38,7 @@
           :columns="itemColumns"
           :data-source="invoice.items || []"
           :pagination="false"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
           size="small"
         >
           <template #bodyCell="{ column, record }">
@@ -120,7 +120,7 @@ const itemColumns = [
 ]
 
 watch(() => [props.open, props.invoiceId], ([newOpen, newInvoiceId]) => {
-  if (newOpen && newInvoiceId) {
+  if (newOpen && newInvoiceId !== null && typeof newInvoiceId === 'number') {
     loadInvoiceDetail(newInvoiceId)
   }
 })

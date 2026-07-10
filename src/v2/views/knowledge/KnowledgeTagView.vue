@@ -22,7 +22,7 @@
           :columns="columns"
           :data-source="pagedList"
           :pagination="paginationConfig"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
           :loading="loading"
           :locale="{ emptyText: '暂无标签' }"
         >

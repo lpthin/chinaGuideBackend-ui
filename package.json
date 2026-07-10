@@ -19,6 +19,7 @@
     "axios": "latest",
     "echarts": "^6.1.0",
     "element-plus": "latest",
+    "marked": "^18.0.6",
     "pinia": "latest",
     "vform3-builds": "^3.0.10",
     "vue": "latest",

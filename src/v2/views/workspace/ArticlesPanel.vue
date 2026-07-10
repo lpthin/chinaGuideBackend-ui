@@ -558,6 +558,31 @@
         </a-col>
       </a-row>
 
+      <!-- 文章预览弹窗 -->
+      <a-modal
+        v-model:open="showArticlePreview"
+        :title="previewArticle?.title || '文章预览'"
+        width="80%"
+        :footer="null"
+        :destroy-on-close="true"
+      >
+        <div class="article-preview" v-if="previewArticle">
+          <a-descriptions :column="2" bordered size="small" style="margin-bottom: 16px">
+            <a-descriptions-item label="状态">
+              <a-tag :color="getStatusColor(previewArticle.status)">{{ getStatusText(previewArticle.status) }}</a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item label="栏目">{{ previewArticle.categoryName || '未分类' }}</a-descriptions-item>
+            <a-descriptions-item label="作者">{{ previewArticle.authorName || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="浏览量">{{ previewArticle.views || 0 }}</a-descriptions-item>
+            <a-descriptions-item label="创建时间">{{ previewArticle.createdAt }}</a-descriptions-item>
+            <a-descriptions-item label="更新时间">{{ previewArticle.updatedAt }}</a-descriptions-item>
+          </a-descriptions>
+          <div v-if="previewArticle.summary" style="margin-bottom: 12px; color: #666; font-style: italic;">{{ previewArticle.summary }}</div>
+          <a-divider />
+          <div class="preview-content" v-html="previewHtml"></div>
+        </div>
+      </a-modal>
+
       <!-- 文章编辑器弹窗 -->
       <a-modal
         v-model:open="showArticleEditor"
@@ -660,7 +685,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, h, watch } from 'vue'
-import { message, Modal, Empty } from 'ant-design-vue'
+import { message, Modal, Empty, Form as AForm, FormItem as AFormItem, TreeSelect as ATreeSelect, Select as ASelect, Space as ASpace, Button as AButton } from 'ant-design-vue'
+import { marked } from 'marked'
+import http from '../../api/http'
 import {
   FileTextOutlined,
   CheckCircleOutlined,
@@ -704,7 +731,10 @@ const auth = useAuthStore()
 
 const loading = ref(false)
 const showArticleEditor = ref(false)
+const showArticlePreview = ref(false)
 const editingArticle = ref<any>(null)
+const previewArticle = ref<any>(null)
+const previewHtml = ref('')
 const viewMode = ref<'list' | 'card' | 'thumbnail'>('list')
 const showAdvancedFilter = ref(false)
 const searchType = ref('all')
@@ -717,9 +747,9 @@ const stats = reactive({
 })
 
 const filterForm = reactive({
-  categoryId: null as number | null,
+  categoryId: undefined as number | undefined,
   status: '',
-  authorId: null as number | null,
+  authorId: undefined as number | undefined,
   dateRange: [] as any[],
   tags: [] as string[],
   keyword: '',
@@ -753,10 +783,10 @@ const articleForm = reactive({
   subtitle: '',
   summary: '',
   content: '',
-  categoryId: null as number | null,
+  categoryId: undefined as number | undefined,
   coverImage: '',
   tags: [] as string[],
-  authorId: null as number | null,
+  authorId: undefined as number | undefined,
   publishTime: null as any,
   sortOrder: 0,
   isTop: false,
@@ -899,9 +929,9 @@ function setQuickStatus(status: string) {
 }
 
 function resetFilter() {
-  filterForm.categoryId = null
+  filterForm.categoryId = undefined
   filterForm.status = ''
-  filterForm.authorId = null
+  filterForm.authorId = undefined
   filterForm.dateRange = []
   filterForm.tags = []
   filterForm.keyword = ''
@@ -937,47 +967,102 @@ function handleTableChange(pagination: any) {
 }
 
 function viewArticle(article: any) {
-  message.info(`预览文章: ${article.title}`)
+  previewArticle.value = article
+  let content = article.contentMd || article.content || ''
+  content = content.replace(/\\n/g, '\n')
+  content = content.replace(/\\r/g, '\r')
+  content = content.replace(/\\\\/g, '\\')
+  previewHtml.value = marked(content) as string
+  showArticlePreview.value = true
 }
 
-function editArticle(article: any) {
-  editingArticle.value = article
-  Object.assign(articleForm, article)
-  showArticleEditor.value = true
+async function editArticle(article: any) {
+  loading.value = true
+  try {
+    const detail = await articleManageApi.get(article.id)
+    editingArticle.value = detail
+    Object.assign(articleForm, {
+      id: detail.id,
+      title: detail.title,
+      subtitle: detail.subtitle || '',
+      summary: detail.summary || '',
+      content: detail.contentMd || detail.content || '',
+      categoryId: detail.categoryId,
+      coverImage: detail.coverImage || '',
+      tags: detail.tags || [],
+      authorId: detail.authorId,
+      publishTime: null,
+      sortOrder: detail.sortOrder || 0,
+      isTop: !!detail.isTop,
+      isRecommend: !!detail.isRecommend,
+    })
+    showArticleEditor.value = true
+  } catch (error) {
+    message.error('加载文章详情失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 function copyArticle(article: any) {
   Modal.confirm({
     title: '确认复制',
     content: `确定要复制文章"${article.title}"吗？`,
-    onOk: () => {
-      message.success('复制成功')
-      loadData()
+    onOk: async () => {
+      try {
+        const { id, ...rest } = article
+        await articleManageApi.create({
+          ...rest,
+          title: `${article.title} (副本)`,
+          status: 'draft'
+        } as any)
+        message.success('复制成功')
+        loadData()
+      } catch {
+        message.error('复制失败')
+      }
     },
   })
 }
 
-function publishArticle(article: any) {
-  message.success('发布成功')
+async function publishArticle(article: any) {
+  try {
+    await articleManageApi.publish(article.id)
+    message.success('发布成功')
+    article.status = 'published'
+  } catch {
+    message.error('发布失败')
+  }
 }
 
-function offlineArticle(article: any) {
+async function offlineArticle(article: any) {
   Modal.confirm({
     title: '确认下架',
     content: `确定要下架文章"${article.title}"吗？`,
-    onOk: () => {
-      message.success('已下架')
-      loadData()
+    onOk: async () => {
+      try {
+        await articleManageApi.update(article.id, { status: 'offline' } as any)
+        message.success('已下架')
+        loadData()
+      } catch {
+        message.error('下架失败')
+      }
     },
   })
 }
 
 function setTop(article: any) {
-  message.info('已设置置顶')
+  articleManageApi.update(article.id, { isTop: !article.isTop } as any).then(() => {
+    message.success(!article.isTop ? '已设置置顶' : '已取消置顶')
+    article.isTop = !article.isTop
+  }).catch(() => message.error('操作失败'))
 }
 
 function setRecommend(article: any) {
-  message.info('已设置推荐')
+  articleManageApi.update(article.id, { isRecommend: !article.isRecommend } as any).then(() => {
+    message.success(!article.isRecommend ? '已设置推荐' : '已取消推荐')
+    article.isRecommend = !article.isRecommend
+  }).catch(() => message.error('操作失败'))
 }
 
 function deleteArticle(article: any) {
@@ -985,30 +1070,156 @@ function deleteArticle(article: any) {
     title: '确认删除',
     content: `确定要删除文章"${article.title}"吗？删除后无法恢复。`,
     okType: 'danger',
-    onOk: () => {
-      message.success('删除成功')
-      loadData()
+    onOk: async () => {
+      try {
+        await articleManageApi.delete(article.id)
+        message.success('删除成功')
+        loadData()
+      } catch {
+        message.error('删除失败')
+      }
     },
   })
 }
 
 function batchPublish() {
-  message.success(`批量发布 ${selectedRowKeys.value.length} 篇文章成功`)
-  selectedRowKeys.value = []
-  selectedRows.value = []
+  Modal.confirm({
+    title: '确认批量发布',
+    content: `确定要发布选中的 ${selectedRowKeys.value.length} 篇文章吗？`,
+    onOk: async () => {
+      try {
+        for (const id of selectedRowKeys.value) {
+          await articleManageApi.publish(id)
+        }
+        message.success(`批量发布 ${selectedRowKeys.value.length} 篇文章成功`)
+        selectedRowKeys.value = []
+        selectedRows.value = []
+        loadData()
+      } catch {
+        message.error('批量发布失败')
+      }
+    },
+  })
 }
 
 function batchMove() {
-  message.info('批量移动栏目功能')
+  Modal.confirm({
+    title: '批量移动栏目',
+    content: `确定要将选中的 ${selectedRowKeys.value.length} 篇文章移动到指定栏目吗？`,
+    okText: '选择栏目',
+    onOk: () => {
+      Modal.info({
+        title: '批量移动',
+        content: () => {
+          const targetCategoryId = ref<number | null>(null)
+          return h('div', null, [
+            h(AForm, null, {
+              default: () => h(AFormItem, { label: '目标栏目' }, {
+                default: () => h(ATreeSelect, {
+                  'v-model:value': targetCategoryId,
+                  'tree-data': categoryTreeData.value,
+                  placeholder: '请选择栏目',
+                  style: { width: '100%' },
+                  'tree-default-expand-all': true,
+                })
+              })
+            }),
+            h(ASpace, { style: { marginTop: '16px', float: 'right' } }, [
+              h(AButton, { onClick: () => Modal.destroyAll() }, '取消'),
+              h(AButton, { type: 'primary', onClick: async () => {
+                if (!targetCategoryId.value) {
+                  message.error('请选择目标栏目')
+                  return
+                }
+                try {
+                  for (const id of selectedRowKeys.value) {
+                    await articleManageApi.update(id, { categoryId: targetCategoryId.value } as any)
+                  }
+                  message.success(`批量移动 ${selectedRowKeys.value.length} 篇文章成功`)
+                  selectedRowKeys.value = []
+                  selectedRows.value = []
+                  loadData()
+                  Modal.destroyAll()
+                } catch {
+                  message.error('批量移动失败')
+                }
+              }}, '确定移动')
+            ])
+          ])
+        },
+        footer: null,
+      })
+    },
+  })
 }
 
 function batchSetTags() {
-  message.info('批量设置标签功能')
+  Modal.confirm({
+    title: '批量设置标签',
+    content: `确定要为选中的 ${selectedRowKeys.value.length} 篇文章设置标签吗？`,
+    okText: '设置标签',
+    onOk: () => {
+      Modal.info({
+        title: '批量设置标签',
+        content: () => {
+          const newTags = ref<string[]>([])
+          return h('div', null, [
+            h(AForm, null, {
+              default: () => h(AFormItem, { label: '标签' }, {
+                default: () => h(ASelect, {
+                  'v-model:value': newTags,
+                  mode: 'tags',
+                  placeholder: '输入标签回车添加',
+                  style: { width: '100%' },
+                })
+              })
+            }),
+            h(ASpace, { style: { marginTop: '16px', float: 'right' } }, [
+              h(AButton, { onClick: () => Modal.destroyAll() }, '取消'),
+              h(AButton, { type: 'primary', onClick: async () => {
+                if (!newTags.value.length) {
+                  message.error('请至少添加一个标签')
+                  return
+                }
+                try {
+                  for (const id of selectedRowKeys.value) {
+                    await articleManageApi.update(id, { tags: newTags.value } as any)
+                  }
+                  message.success(`批量设置标签成功`)
+                  selectedRowKeys.value = []
+                  selectedRows.value = []
+                  loadData()
+                  Modal.destroyAll()
+                } catch {
+                  message.error('批量设置标签失败')
+                }
+              }}, '确定设置')
+            ])
+          ])
+        },
+        footer: null,
+      })
+    },
+  })
 }
 
-// TODO: 待接入文章批量导出 API 后替换为真实调用
-function batchExport() {
-  message.info('批量导出功能开发中...')
+async function batchExport() {
+  try {
+    const response = await http.get('/articles/export', { 
+      params: { ids: selectedRowKeys.value.join(',') },
+      responseType: 'blob'
+    })
+    const blob = new Blob([response.data], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `articles_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
+    message.success('导出成功')
+  } catch {
+    message.error('导出失败')
+  }
 }
 
 function batchDelete() {
@@ -1016,28 +1227,67 @@ function batchDelete() {
     title: '确认删除',
     content: `确定要删除选中的 ${selectedRowKeys.value.length} 篇文章吗？删除后无法恢复。`,
     okType: 'danger',
-    onOk: () => {
-      message.success('批量删除成功')
-      selectedRowKeys.value = []
-      selectedRows.value = []
-      loadData()
+    onOk: async () => {
+      try {
+        await articleManageApi.batchDelete(selectedRowKeys.value)
+        message.success('批量删除成功')
+        selectedRowKeys.value = []
+        selectedRows.value = []
+        loadData()
+      } catch {
+        message.error('批量删除失败')
+      }
     },
   })
 }
 
-function saveDraft() {
-  message.success('草稿已保存')
-  showArticleEditor.value = false
+async function saveDraft() {
+  try {
+    const payload = { ...articleForm, status: 'draft' }
+    if (articleForm.id) {
+      await articleManageApi.update(articleForm.id, payload as any)
+    } else {
+      await articleManageApi.create(payload as any)
+    }
+    message.success('草稿已保存')
+    showArticleEditor.value = false
+    loadData()
+  } catch {
+    message.error('保存失败')
+  }
 }
 
-function submitReview() {
-  message.success('已提交审核')
-  showArticleEditor.value = false
+async function submitReview() {
+  try {
+    const payload = { ...articleForm, status: 'reviewing' }
+    if (articleForm.id) {
+      await articleManageApi.update(articleForm.id, payload as any)
+    } else {
+      await articleManageApi.create(payload as any)
+    }
+    message.success('已提交审核')
+    showArticleEditor.value = false
+    loadData()
+  } catch {
+    message.error('提交失败')
+  }
 }
 
-function publishArticleFromEditor() {
-  message.success('发布成功')
-  showArticleEditor.value = false
+async function publishArticleFromEditor() {
+  try {
+    const payload = { ...articleForm, status: 'published' }
+    if (articleForm.id) {
+      await articleManageApi.update(articleForm.id, payload as any)
+    } else {
+      const created = await articleManageApi.create(payload as any)
+      await articleManageApi.publish((created as any).id)
+    }
+    message.success('发布成功')
+    showArticleEditor.value = false
+    loadData()
+  } catch {
+    message.error('发布失败')
+  }
 }
 
 function goToDrafts() {
@@ -1785,6 +2035,26 @@ onMounted(() => {
 
 .editor-container {
   padding: 8px;
+}
+
+.preview-content {
+  line-height: 1.8;
+  font-size: 14px;
+  color: #333;
+
+  :deep(h1), :deep(h2), :deep(h3) {
+    margin-top: 16px;
+    margin-bottom: 8px;
+  }
+
+  :deep(img) {
+    max-width: 100%;
+    border-radius: 4px;
+  }
+
+  :deep(p) {
+    margin-bottom: 12px;
+  }
 }
 
 .editor-wrapper {

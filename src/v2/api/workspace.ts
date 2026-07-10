@@ -76,12 +76,16 @@ export const keywordApi = {
       trendData: { dates: string[]; counts: number[] }
       sourceDistribution: { name: string; value: number }[]
     }>('/workspace/keywords/stats'),
+
+  // 批量更新优先级
+  batchUpdatePriority: (ids: number[], priority: number) =>
+    http.post('/workspace/keywords/batch-update-priority', { ids, priority }),
 }
 
 // ==================== 聚类蒸馏 API ====================
 export const clusterApi = {
   // 获取聚类列表
-  list: (params: { page?: number; size?: number }) =>
+  list: (params: { tenantId?: number; page?: number; size?: number }) =>
     http.get<PageResult<KeywordCluster>>('/workspace/clusters', { params }),
 
   // 获取聚类详情
@@ -100,7 +104,7 @@ export const clusterApi = {
 // ==================== 内容建议 API ====================
 export const suggestionApi = {
   // 获取内容建议列表
-  list: (params: { page?: number; size?: number; status?: string }) =>
+  list: (params: { tenantId?: number; page?: number; size?: number; status?: string }) =>
     http.get<PageResult<KeywordContentSuggestion>>('/workspace/suggestions', { params }),
 
   // 获取单个建议
@@ -127,15 +131,27 @@ export const articleApi = {
 
   // 获取文章详情
   get: (id: number) =>
-    http.get<GeneratedContent>(`/api/v2/workspace/articles/${id}`),
+    http.get<GeneratedContent>(`/workspace/articles/${id}`),
 
   // 更新文章
   update: (id: number, data: any) =>
-    http.put<GeneratedContent>(`/api/v2/workspace/articles/${id}`, data),
+    http.put<GeneratedContent>(`/workspace/articles/${id}`, data),
 
   // 删除文章
   delete: (id: number) =>
-    http.delete<void>(`/api/v2/workspace/articles/${id}`),
+    http.delete<void>(`/workspace/articles/${id}`),
+
+  // 批量删除
+  batchDelete: (ids: number[]) =>
+    http.delete<void>('/workspace/articles/batch', { data: ids }),
+
+  // 提交审核
+  submitReview: (id: number) =>
+    http.post<{ articleId: number; status: string }>(`/workspace/articles/${id}/submit-review`),
+
+  // 批量发布
+  batchPublish: (articleIds: number[]) =>
+    http.post('/workspace/articles/batch-publish', { articleIds }),
 }
 
 // ==================== 内容审核 API ====================
@@ -195,6 +211,10 @@ export const publishApi = {
   // 获取发布统计详情
   getStatsDetail: (tenantId?: number) =>
     http.get<any>('/workspace/publish/stats/detail' + (tenantId ? '?tenantId=' + tenantId : '')),
+
+  // 导出发布报表
+  export: (params: { date?: string }) =>
+    http.get('/workspace/publish/export', { params, responseType: 'blob' }),
 }
 
 // ==================== 发布配置 API ====================
@@ -262,7 +282,7 @@ export const mediaApi = {
     http.get<any[]>('/workspace/media/projects'),
 
   // 获取媒体列表（可按项目筛选）
-  list: (params?: { page?: number; size?: number; type?: string; category?: string }) =>
+  list: (params?: { tenantId?: number; page?: number; size?: number; type?: string; category?: string }) =>
     http.get<PageResult<Media>>('/workspace/media', { params }),
 
   // 获取媒体详情

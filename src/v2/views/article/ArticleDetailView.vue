@@ -43,7 +43,7 @@
 
             <a-divider />
 
-            <div class="article-content" v-html="article.content"></div>
+            <div class="article-content" v-html="renderedContent"></div>
           </a-card>
 
           <a-card v-else :bordered="false">
@@ -100,6 +100,7 @@ import {
 } from '@ant-design/icons-vue'
 import { articleManageApi } from '../../api/article'
 import type { Article } from '../../types/article'
+import { marked } from 'marked'
 
 const router = useRouter()
 const route = useRoute()
@@ -114,6 +115,15 @@ const categoryName = computed(() => {
 const keywordList = computed(() => {
   if (!article.value?.keywords) return []
   return article.value.keywords.split(',').filter(k => k.trim())
+})
+
+const renderedContent = computed(() => {
+  if (!article.value?.content) return ''
+  try {
+    return marked.parse(article.value.content) as string
+  } catch {
+    return article.value.content
+  }
 })
 
 const relatedArticles = ref<{ id: number; title: string }[]>([
@@ -138,12 +148,12 @@ function goBack() {
 
 function goToEdit() {
   if (article.value) {
-    router.push(`/article/${article.value.id}/edit`)
+    router.push({ name: 'workspace-article-edit', params: { id: article.value.id } })
   }
 }
 
 function goToDetail(id: number) {
-  router.push(`/article/${id}`)
+  router.push(`/workspace/articles/${id}`)
 }
 
 function handleShare() {
@@ -168,7 +178,7 @@ async function handleDelete() {
   try {
     await articleManageApi.delete(article.value.id)
     message.success('删除成功')
-    router.push('/article/list')
+    router.push('/workspace/articles')
   } catch (error) {
     console.error('删除失败:', error)
     message.error('删除失败')

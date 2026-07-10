@@ -94,7 +94,7 @@
           :columns="columns"
           :data-source="filteredConfigs"
           :pagination="false"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'provider'">
@@ -110,8 +110,16 @@
               <a-tag :color="getPriorityColor(record.priority)">P{{ record.priority }}</a-tag>
             </template>
             <template v-if="column.key === 'isDefault'">
-              <a-badge v-if="record.isSystemDefault" status="success" text="默认" />
-              <span v-else>-</span>
+              <a-badge v-if="record.isDefault" status="success" text="默认" />
+              <a-button
+                v-else
+                type="link"
+                size="small"
+                @click="setDefaultConfig(record)"
+                :loading="settingDefaultId === record.id"
+              >
+                设为默认
+              </a-button>
             </template>
             <template v-if="column.key === 'isActive'">
               <a-switch
@@ -258,6 +266,11 @@
               <a-switch v-model:checked="configForm.isActive" />
             </a-form-item>
           </a-col>
+          <a-col :span="8">
+            <a-form-item label="设为默认">
+              <a-switch v-model:checked="configForm.isDefault" />
+            </a-form-item>
+          </a-col>
         </a-row>
       </a-form>
     </a-modal>
@@ -286,6 +299,7 @@ const loading = ref(false)
 const saving = ref(false)
 const testingId = ref<number | null>(null)
 const togglingId = ref<number | null>(null)
+const settingDefaultId = ref<number | null>(null)
 
 const showAddModal = ref(false)
 const editingConfig = ref<ModelConfig | null>(null)
@@ -335,6 +349,7 @@ const configForm = reactive({
   retryDelay: 1000,
   priority: 3,
   isActive: true,
+  isDefault: false,
 })
 
 const columns = [
@@ -438,6 +453,7 @@ function editConfig(config: ModelConfig) {
     retryDelay: (config as any).retryDelay ?? 1000,
     priority: (config as any).sortOrder ?? config.priority ?? 3,
     isActive: config.isActive,
+    isDefault: config.isDefault ?? false,
   })
   showAddModal.value = true
 }
@@ -453,6 +469,20 @@ async function toggleConfigStatus(config: ModelConfig) {
     message.error('状态切换失败')
   } finally {
     togglingId.value = null
+  }
+}
+
+async function setDefaultConfig(config: ModelConfig) {
+  settingDefaultId.value = config.id
+  try {
+    await modelConfigApi.setDefault(config.id)
+    message.success('已设为默认模型')
+    await loadData()
+  } catch (error) {
+    console.error(error)
+    message.error('设置失败')
+  } finally {
+    settingDefaultId.value = null
   }
 }
 
@@ -496,6 +526,7 @@ function formToPayload() {
     topP: configForm.topP,
     sortOrder: configForm.priority,
     isActive: configForm.isActive,
+    isDefault: configForm.isDefault,
   }
   if (configForm.apiKey) {
     payload.apiKey = configForm.apiKey
@@ -516,12 +547,18 @@ async function handleSaveConfig() {
   saving.value = true
   try {
     const payload = formToPayload()
+    let savedConfig: ModelConfig
     if (editingConfig.value) {
-      await modelConfigApi.update(editingConfig.value.id, payload as any)
+      const result = await modelConfigApi.update(editingConfig.value.id, payload as any)
+      savedConfig = result
       message.success('更新成功')
     } else {
-      await modelConfigApi.create(getTenantId(), payload as any)
+      const result = await modelConfigApi.create(getTenantId(), payload as any)
+      savedConfig = result
       message.success('创建成功')
+    }
+    if (configForm.isDefault && savedConfig && savedConfig.id) {
+      await modelConfigApi.setDefault(savedConfig.id)
     }
     showAddModal.value = false
     await loadData()
@@ -536,8 +573,8 @@ async function handleSaveConfig() {
 async function loadData() {
   loading.value = true
   try {
-    const result = await modelConfigApi.list({ tenantId: getTenantId() })
-    const list = result.records || (Array.isArray(result) ? result : [])
+    const result = await modelConfigApi.list({ tenantId: getTenantId(), page: 1, size: 100 })
+    const list = result?.records || []
     configs.value = list.map((item: any) => ({
       ...item,
       priority: item.sortOrder ?? item.priority ?? 3,

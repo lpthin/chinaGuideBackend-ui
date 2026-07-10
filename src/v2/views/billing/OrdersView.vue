@@ -91,7 +91,7 @@
           :data-source="orderListData"
           :pagination="paginationConfig"
           :loading="tableLoading"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'orderNo'">
@@ -176,7 +176,7 @@ import {
   FileTextOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  RefundOutlined,
+  RollbackOutlined,
   ExportOutlined,
 } from '@ant-design/icons-vue'
 import { orderApi } from '../../api/billing'

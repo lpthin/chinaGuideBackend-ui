@@ -168,7 +168,7 @@
           <a-table
             :data-source="imageList"
             :columns="listColumns"
-            :row-key="record => record.id"
+            :row-key="(record: any) => record.id"
             :row-selection="tableRowSelection"
             :pagination="false"
           >
@@ -216,7 +216,7 @@
             :show-size-changer="true"
             :show-quick-jumper="true"
             :page-size-options="['12', '24', '48', '96']"
-            :show-total="(total) => `共 ${total} 条`"
+            :show-total="(total: number) => `共 ${total} 条`"
             @change="handlePageChange"
           />
         </div>

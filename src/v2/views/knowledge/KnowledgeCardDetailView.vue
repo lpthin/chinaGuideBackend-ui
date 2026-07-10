@@ -201,6 +201,7 @@ async function loadRelatedCards() {
   }
   try {
     const result = await knowledgeCardApi.list({
+      tenantId: auth.selectedTenantId || auth.tenantId,
       categoryId: card.value.categoryId,
       page: 1,
       size: 5,

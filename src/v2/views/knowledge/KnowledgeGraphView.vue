@@ -352,7 +352,9 @@ import {
 import { knowledgeGraphApi, knowledgeEntityApi, knowledgeDocumentApi } from '../../api/knowledge'
 import type { ExtractionResult, ExtractedEntity, ExtractedRelation } from '../../api/knowledge'
 import type { KnowledgeDocument, KnowledgeEntity, KnowledgeRelation, KnowledgeGraphData } from '../../types/knowledge'
+import { useAuthStore } from '../../stores/auth'
 
+const authStore = useAuthStore()
 const showFilterPanel = ref(true)
 const showDetailDrawer = ref(false)
 const loading = ref(false)
@@ -384,7 +386,7 @@ const selectedRelationTypes = ref<string[]>([])
 const nodeLimit = ref(150)
 const minConfidence = ref(50)
 const searchKeyword = ref('')
-const layoutType = ref('force')
+const layoutType = ref<'force' | 'circular'>('force')
 const selectedNode = ref<any>(null)
 
 // 实体类型颜色映射
@@ -800,7 +802,7 @@ const openExtractModal = async () => {
   activeTab.value = 'entities'
   
   try {
-    const res: any = await knowledgeDocumentApi.list({ page: 1, size: 50 })
+    const res: any = await knowledgeDocumentApi.list({ tenantId: authStore.selectedTenantId || authStore.tenantId, page: 1, size: 50 })
     const data = res.data || res
     documentList.value = data.records || data || []
   } catch (e) {

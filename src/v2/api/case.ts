@@ -144,7 +144,11 @@ export const caseApi = {
 
   // 增加浏览量
   incrementView: (id: number) =>
-    http.post(`/cases/${id}/view`)
+    http.post(`/cases/${id}/view`),
+
+  // 导出案例数据
+  export: (params: { tenantId: number; categoryId?: number; status?: string; keyword?: string }) =>
+    http.get('/cases/export', { params, responseType: 'blob' })
 }
 
 // 案例附件 API

@@ -93,6 +93,39 @@
         </p>
       </div>
     </div>
+
+    <!-- 忘记密码弹窗 -->
+    <a-modal v-model:open="showForgotModal" title="忘记密码" width="480px" @ok="handleResetPassword" :confirm-loading="resetLoading">
+      <a-form :model="forgotForm" layout="vertical">
+        <a-form-item label="用户名">
+          <a-input v-model:value="forgotForm.username" placeholder="请输入用户名" />
+        </a-form-item>
+        <a-form-item label="新密码">
+          <a-input-password v-model:value="forgotForm.newPassword" placeholder="请输入新密码" />
+        </a-form-item>
+        <a-form-item label="确认密码">
+          <a-input-password v-model:value="forgotForm.confirmPassword" placeholder="请再次输入密码" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 注册弹窗 -->
+    <a-modal v-model:open="showRegisterModal" title="注册账户" width="480px" @ok="handleConfirmRegister" :confirm-loading="registerLoading">
+      <a-form :model="registerForm" layout="vertical">
+        <a-form-item label="用户名">
+          <a-input v-model:value="registerForm.username" placeholder="请输入用户名" />
+        </a-form-item>
+        <a-form-item label="邮箱">
+          <a-input v-model:value="registerForm.email" placeholder="请输入邮箱" />
+        </a-form-item>
+        <a-form-item label="密码">
+          <a-input-password v-model:value="registerForm.password" placeholder="请输入密码" />
+        </a-form-item>
+        <a-form-item label="确认密码">
+          <a-input-password v-model:value="registerForm.confirmPassword" placeholder="请再次输入密码" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -118,12 +151,29 @@ const loading = ref(false)
 const showCaptcha = ref(false)
 const captchaImage = ref('')
 const captchaKey = ref('')
+const showForgotModal = ref(false)
+const showRegisterModal = ref(false)
+const resetLoading = ref(false)
+const registerLoading = ref(false)
 
 const formState = reactive<LoginRequest>({
   username: '',
   password: '',
   rememberMe: false,
   captcha: '',
+})
+
+const forgotForm = reactive({
+  username: '',
+  newPassword: '',
+  confirmPassword: '',
+})
+
+const registerForm = reactive({
+  username: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
 })
 
 const rules = {
@@ -222,7 +272,7 @@ async function handleLogin() {
     }
 
     message.success('登录成功！')
-    router.push('/v2/workspace/dashboard')
+    router.push('/workspace/dashboard')
     loading.value = false
   } catch (error: any) {
     message.error(error.message || '登录失败，请重试')
@@ -231,11 +281,80 @@ async function handleLogin() {
 }
 
 function handleForgotPassword() {
-  message.info('忘记密码功能开发中')
+  showForgotModal.value = true
 }
 
 function handleRegister() {
-  message.info('注册功能开发中')
+  showRegisterModal.value = true
+}
+
+async function handleResetPassword() {
+  if (!forgotForm.username) {
+    message.warning('请输入用户名')
+    return
+  }
+  if (!forgotForm.newPassword) {
+    message.warning('请输入新密码')
+    return
+  }
+  if (forgotForm.newPassword !== forgotForm.confirmPassword) {
+    message.warning('两次输入的密码不一致')
+    return
+  }
+  resetLoading.value = true
+  try {
+    await authApi.resetPassword({
+      email: forgotForm.username,
+    })
+    message.success('密码重置成功')
+    showForgotModal.value = false
+    forgotForm.username = ''
+    forgotForm.newPassword = ''
+    forgotForm.confirmPassword = ''
+  } catch (error: any) {
+    message.error(error.message || '密码重置失败')
+  } finally {
+    resetLoading.value = false
+  }
+}
+
+async function handleConfirmRegister() {
+  if (!registerForm.username) {
+    message.warning('请输入用户名')
+    return
+  }
+  if (!registerForm.email) {
+    message.warning('请输入邮箱')
+    return
+  }
+  if (!registerForm.password) {
+    message.warning('请输入密码')
+    return
+  }
+  if (registerForm.password !== registerForm.confirmPassword) {
+    message.warning('两次输入的密码不一致')
+    return
+  }
+  registerLoading.value = true
+  try {
+    await authApi.register({
+      username: registerForm.username,
+      email: registerForm.email,
+      password: registerForm.password,
+      confirmPassword: registerForm.confirmPassword,
+      nickname: registerForm.username,
+    })
+    message.success('注册成功，请登录')
+    showRegisterModal.value = false
+    registerForm.username = ''
+    registerForm.email = ''
+    registerForm.password = ''
+    registerForm.confirmPassword = ''
+  } catch (error: any) {
+    message.error(error.message || '注册失败')
+  } finally {
+    registerLoading.value = false
+  }
 }
 
 onMounted(() => {

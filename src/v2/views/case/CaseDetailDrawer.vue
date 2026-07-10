@@ -372,7 +372,7 @@ function handleSave() {
 }
 
 function handlePreview(file: any) {
-  console.log('preview', file)
+  // TODO: 实现文件预览功能
 }
 </script>
 

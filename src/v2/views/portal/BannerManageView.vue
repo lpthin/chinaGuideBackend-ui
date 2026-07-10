@@ -92,7 +92,7 @@
             :columns="columns"
             :data-source="bannerList"
             :pagination="false"
-            :row-key="record => record.id"
+            :row-key="(record: any) => record.id"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'image'">
@@ -142,7 +142,7 @@
               :page-size-options="['10', '20', '50']"
               @change="loadData"
               @showSizeChange="handleSizeChange"
-              :show-total="(total) => `共 ${total} 条`"
+              :show-total="(total: number) => `共 ${total} 条`"
             />
           </div>
         </a-card>
@@ -181,7 +181,7 @@ import {
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import { bannerApi } from '../../api/portal'
-import type { Banner } from '../../types/portal'
+import type { Banner, BannerQuery } from '../../types/portal'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
@@ -293,15 +293,11 @@ async function handleDelete(id: number) {
 async function loadData() {
   loading.value = true
   try {
-    const params: Record<string, any> = {
+    const params: BannerQuery = {
+      tenantId: auth.selectedTenantId || auth.tenantId,
       page: pagination.page,
       size: pagination.size,
-    }
-    if (queryParams.status) {
-      params.status = queryParams.status
-    }
-    if (queryParams.keyword) {
-      params.keyword = queryParams.keyword
+      status: queryParams.status || undefined,
     }
     const result = await bannerApi.list(params)
     bannerList.value = result.records || []

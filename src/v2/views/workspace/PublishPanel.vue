@@ -850,9 +850,27 @@ function batchCancel() {
   })
 }
 
-// TODO: 待接入发布报表导出 API 后替换为真实调用
-function exportReport() {
-  message.info('报表导出功能开发中...')
+async function exportReport() {
+  const dateStr = dateRange.value ? dateRange.value.format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10)
+  try {
+    const params: any = {}
+    if (dateRange.value) {
+      params.date = dateStr
+    }
+    const res = await publishApi.export(params)
+    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `发布报表_${dateStr}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success('报表导出成功')
+  } catch (error: any) {
+    console.error('导出失败:', error)
+    message.error(error.message || '导出失败')
+  }
 }
 
 const initTrendChart = () => {

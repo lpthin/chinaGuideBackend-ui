@@ -88,7 +88,7 @@
             :columns="columns"
             :data-source="messageList"
             :pagination="false"
-            :row-key="record => record.id"
+            :row-key="(record: any) => record.id"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'content'">
@@ -128,7 +128,7 @@
               :page-size-options="['10', '20', '50']"
               @change="loadData"
               @showSizeChange="handleSizeChange"
-              :show-total="(total) => `共 ${total} 条`"
+              :show-total="(total: number) => `共 ${total} 条`"
             />
           </div>
         </a-card>
@@ -199,7 +199,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons-vue'
 import { guestbookApi } from '../../api/portal'
-import type { Guestbook } from '../../types/portal'
+import type { Guestbook, GuestbookQuery } from '../../types/portal'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
@@ -301,15 +301,11 @@ async function handleDelete(id: number) {
 async function loadData() {
   loading.value = true
   try {
-    const params: Record<string, any> = {
+    const params: GuestbookQuery = {
+      tenantId: auth.selectedTenantId || auth.tenantId,
       page: pagination.page,
       size: pagination.size,
-    }
-    if (queryParams.status) {
-      params.status = queryParams.status
-    }
-    if (queryParams.keyword) {
-      params.keyword = queryParams.keyword
+      status: queryParams.status || undefined,
     }
     const result = await guestbookApi.list(params)
     messageList.value = result.records || []
@@ -325,13 +321,14 @@ async function loadData() {
 
 async function loadStats() {
   try {
-    const allResult = await guestbookApi.list({ page: 1, size: 1 })
+    const tenantId = auth.selectedTenantId || auth.tenantId
+    const allResult = await guestbookApi.list({ tenantId, page: 1, size: 1 })
     stats.totalMessages = allResult.total || 0
     
-    const repliedResult = await guestbookApi.list({ page: 1, size: 1, status: 'replied' })
+    const repliedResult = await guestbookApi.list({ tenantId, page: 1, size: 1, status: 'replied' })
     stats.repliedCount = repliedResult.total || 0
     
-    const pendingResult = await guestbookApi.list({ page: 1, size: 1, status: 'pending' })
+    const pendingResult = await guestbookApi.list({ tenantId, page: 1, size: 1, status: 'pending' })
     stats.pendingCount = pendingResult.total || 0
   } catch (error) {
     console.error('加载统计数据失败:', error)

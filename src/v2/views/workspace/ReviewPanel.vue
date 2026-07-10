@@ -727,7 +727,7 @@ function batchSendBack() {
 
 async function loadReviewStats() {
   try {
-    const res = await reviewApi.getReviewStats(authStore.selectedTenantId) as any
+    const res = await reviewApi.getReviewStats(authStore.selectedTenantId || undefined) as any
     if (res) {
       if (res.rejectDistribution) {
         rejectData.value = res.rejectDistribution

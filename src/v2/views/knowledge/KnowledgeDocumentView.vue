@@ -4,12 +4,12 @@
     <template v-if="!currentCategoryId">
       <div class="panel-header">
         <div>
-          <h2>知识库文档</h2>
-          <p class="subtitle">上传和管理知识文档，支持解析和向量化</p>
+          <h2>资料库项目</h2>
+          <p class="subtitle">创建项目，上传文档和图片，自动解析向量化</p>
         </div>
         <a-button type="primary" @click="showNewCategoryModal = true">
           <template #icon><PlusOutlined /></template>
-          新建分类
+          新建项目
         </a-button>
       </div>
 
@@ -30,13 +30,13 @@
             </a-card>
           </a-col>
           <a-col :span="24" v-if="categories.length === 0 && !loading">
-            <a-empty description="暂无分类，点击新建分类创建" />
+            <a-empty description="暂无项目，点击新建项目创建" />
           </a-col>
         </a-row>
       </a-spin>
 
-      <a-modal v-model:open="showNewCategoryModal" title="新建分类" @ok="createCategory">
-        <a-input v-model:value="newCategoryName" placeholder="请输入分类名称" @pressEnter="createCategory" />
+      <a-modal v-model:open="showNewCategoryModal" title="新建项目" @ok="createCategory">
+        <a-input v-model:value="newCategoryName" placeholder="请输入项目名称" @pressEnter="createCategory" />
       </a-modal>
     </template>
 
@@ -86,7 +86,7 @@
             <a-input-search v-model:value="searchText" placeholder="搜索文件" style="width: 200px" @search="loadDocuments" />
             <template v-if="selectedIds.length > 0">
               <a-button size="small" @click="showBatchCategoryModal">
-                设置分类
+                设置项目
               </a-button>
               <a-button size="small" @click="showBatchTagModal">
                 设置标签
@@ -466,13 +466,13 @@
       </div>
     </a-modal>
 
-    <!-- 批量设置分类弹窗 -->
-    <a-modal v-model:open="batchCategoryModalVisible" title="批量设置分类" width="500px">
+    <!-- 批量设置项目弹窗 -->
+    <a-modal v-model:open="batchCategoryModalVisible" title="批量移动到项目" width="500px">
       <a-form layout="vertical">
-        <a-form-item label="选择分类">
+        <a-form-item label="选择项目">
           <a-select
             v-model:value="batchCategoryId"
-            placeholder="请选择分类"
+            placeholder="请选择项目"
             style="width: 100%"
             :allow-clear="true"
           >
@@ -482,7 +482,7 @@
           </a-select>
         </a-form-item>
         <p style="color: #8c8c8c; font-size: 12px">
-          将把选中的 {{ selectedIds.length }} 个文档移动到所选分类
+          将把选中的 {{ selectedIds.length }} 个文档移动到所选项目
         </p>
       </a-form>
       <template #footer>
@@ -669,7 +669,7 @@ async function loadCategories() {
     categories.value = result
   } catch (e) {
     console.error('加载分类失败:', e)
-    message.error('加载分类失败')
+    message.error('加载项目失败')
     categories.value = []
   } finally {
     loading.value = false
@@ -722,7 +722,7 @@ function backToCategories() {
 async function createCategory() {
   const name = newCategoryName.value.trim()
   if (!name) {
-    message.warning('请输入分类名称')
+    message.warning('请输入项目名称')
     return
   }
   showNewCategoryModal.value = false
@@ -734,11 +734,11 @@ async function createCategory() {
       icon: 'folder',
       description: ''
     })
-    message.success(`分类「${name}」已创建`)
+    message.success(`项目「${name}」已创建`)
     await loadCategories()
   } catch (e) {
     console.error('创建分类失败:', e)
-    message.error('创建分类失败')
+    message.error('创建项目失败')
   }
 }
 
@@ -1089,13 +1089,13 @@ async function handleBatchSetCategory() {
   batchSaving.value = true
   try {
     await knowledgeDocumentApi.batchSetCategory(selectedIds.value, batchCategoryId.value || null)
-    message.success(`已批量设置 ${selectedIds.value.length} 个文档的分类`)
+    message.success(`已移动 ${selectedIds.value.length} 个文档到项目`)
     batchCategoryModalVisible.value = false
     selectedIds.value = []
     await loadDocuments()
   } catch (e) {
     console.error('批量设置分类失败:', e)
-    message.error('批量设置分类失败')
+    message.error('批量移动到项目失败')
   } finally {
     batchSaving.value = false
   }

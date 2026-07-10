@@ -121,7 +121,7 @@
             :columns="columns"
             :data-source="templateList"
             :pagination="paginationConfig"
-            :row-key="record => record.id"
+            :row-key="(record: any) => record.id"
             @change="handleTableChange"
           >
             <template #bodyCell="{ column, record }">
@@ -472,7 +472,8 @@ const formData = reactive({
   content: '',
   variables: [] as TemplateVariable[],
   status: 'active',
-}) as ArticleTemplateForm & { status: string }
+  version: '',
+}) as ArticleTemplateForm & { status: string; version: string }
 
 const columns = [
   { title: '模板名称', dataIndex: 'name', key: 'name', width: 200 },

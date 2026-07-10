@@ -88,7 +88,7 @@
           :data-source="invoiceListData"
           :pagination="paginationConfig"
           :loading="loading"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'title'">
@@ -157,8 +157,8 @@
             v-model:value="applyForm.amount"
             :min="1"
             :max="1000000"
-            :formatter="value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')"
-            :parser="value => value.replace(/\¥\s?|(,*)/g, '')"
+            :formatter="(value: number) => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')"
+            :parser="(value: string) => value.replace(/\¥\s?|(,*)/g, '')"
             style="width: 100%"
             placeholder="请输入开票金额"
           />

@@ -141,7 +141,7 @@
           :data-source="caseList"
           :pagination="pagination"
           :row-selection="rowSelection"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
           :loading="tableLoading"
         >
           <template #bodyCell="{ column, record }">
@@ -478,8 +478,9 @@ function handleUnpublish(record: Case) {
 function handleArchive(record: Case) {
   const item = caseList.value.find(c => c.id === record.id)
   if (item) {
+    const wasPublished = item.status === CaseStatus.PUBLISHED
     item.status = CaseStatus.ARCHIVED
-    if (item.status === CaseStatus.PUBLISHED) {
+    if (wasPublished) {
       stats.publishedCases -= 1
     }
     message.success(`已归档：${record.title}`)
@@ -540,8 +541,28 @@ function handleBatchDelete() {
   selectedRowKeys.value = []
 }
 
-function exportData() {
-  message.info('导出功能')
+async function exportData() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  try {
+    const params: any = { tenantId }
+    if (queryParams.categoryId) params.categoryId = queryParams.categoryId
+    if (queryParams.status) params.status = queryParams.status
+    if (queryParams.keyword) params.keyword = queryParams.keyword
+
+    const res = await caseApi.export(params)
+    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `案例数据_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success('导出成功')
+  } catch (error: any) {
+    console.error('导出失败:', error)
+    message.error(error.message || '导出失败')
+  }
 }
 
 watch(

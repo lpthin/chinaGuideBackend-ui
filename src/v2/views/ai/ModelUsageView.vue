@@ -324,7 +324,7 @@
               :columns="logColumns"
               :data-source="paginatedLogs"
               :pagination="false"
-              :row-key="record => record.id"
+              :row-key="(record: any) => record.id"
             >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'status'">
@@ -352,7 +352,7 @@
                 show-size-changer
                 :page-size-options="['20', '50', '100']"
                 show-quick-jumper
-                :show-total="(total) => `共 ${total} 条`"
+                :show-total="(total: number) => `共 ${total} 条`"
               />
             </div>
           </a-card>

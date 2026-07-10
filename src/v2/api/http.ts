@@ -24,7 +24,7 @@ function handleUnauthorized() {
   localStorage.removeItem('geocms_tenant_code')
   message.warning('登录状态已失效，请重新登录')
   const redirect = window.location.pathname + window.location.search
-  const loginPath = '/v2/login'
+  const loginPath = '/login'
   if (!redirect.startsWith(loginPath)) {
     router.push({
       path: loginPath,

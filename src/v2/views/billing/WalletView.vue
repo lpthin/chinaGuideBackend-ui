@@ -106,7 +106,7 @@
           :data-source="transactionListData"
           :pagination="paginationConfig"
           :loading="tableLoading"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'type'">
@@ -144,8 +144,8 @@
             v-model:value="rechargeForm.amount"
             :min="1"
             :max="1000000"
-            :formatter="value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')"
-            :parser="value => value.replace(/\¥\s?|(,*)/g, '')"
+            :formatter="(value: number) => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')"
+            :parser="(value: string) => value.replace(/\¥\s?|(,*)/g, '')"
             style="width: 100%"
             placeholder="请输入充值金额"
             size="large"

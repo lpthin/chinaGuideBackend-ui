@@ -376,7 +376,6 @@ const initTrendChart = () => {
       borderWidth: 1,
       textStyle: { color: '#1a1f36', fontSize: 12 },
       padding: [12, 16],
-      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
       axisPointer: {
         type: 'line',
         lineStyle: { color: '#6366f1', type: 'dashed', width: 1 }
@@ -428,7 +427,6 @@ const initTrendChart = () => {
         symbolSize: 6,
         showSymbol: false,
         emphasis: {
-          showSymbol: true,
           itemStyle: { borderColor: '#fff', borderWidth: 2, shadowBlur: 10, shadowColor: 'rgba(99, 102, 241, 0.4)' }
         },
         areaStyle: {
@@ -449,7 +447,6 @@ const initTrendChart = () => {
         symbolSize: 6,
         showSymbol: false,
         emphasis: {
-          showSymbol: true,
           itemStyle: { borderColor: '#fff', borderWidth: 2, shadowBlur: 10, shadowColor: 'rgba(139, 92, 246, 0.4)' }
         },
         areaStyle: {
@@ -470,7 +467,6 @@ const initTrendChart = () => {
         symbolSize: 6,
         showSymbol: false,
         emphasis: {
-          showSymbol: true,
           itemStyle: { borderColor: '#fff', borderWidth: 2, shadowBlur: 10, shadowColor: 'rgba(16, 185, 129, 0.4)' }
         },
         areaStyle: {
@@ -503,7 +499,6 @@ const initCategoryChart = () => {
       borderWidth: 1,
       textStyle: { color: '#1a1f36', fontSize: 12 },
       padding: [12, 16],
-      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
     },
     legend: {
       orient: 'vertical',
@@ -574,7 +569,7 @@ const fetchDashboardData = async () => {
       loadChartData()
     ])
     stats.value = statsData
-    recentArticles.value = (articlesData.records || articlesData || []).slice(0, 5)
+    recentArticles.value = (articlesData || []).slice(0, 5)
   } catch (error) {
     console.error('获取仪表盘数据失败:', error)
     stats.value = {
@@ -584,11 +579,11 @@ const fetchDashboardData = async () => {
       pendingReviews: 23
     } as any
     recentArticles.value = [
-      { id: 1, title: '2024年AI行业发展趋势分析', createdAt: '2024-01-15 10:30:00', status: 'published' },
-      { id: 2, title: '如何使用ChatGPT提高工作效率', createdAt: '2024-01-14 15:20:00', status: 'approved' },
-      { id: 3, title: 'Python编程入门指南', createdAt: '2024-01-13 09:15:00', status: 'pending_human_review' },
-      { id: 4, title: '机器学习算法详解', createdAt: '2024-01-12 14:45:00', status: 'published' },
-      { id: 5, title: '前端框架对比分析', createdAt: '2024-01-11 11:30:00', status: 'rejected' }
+      { id: 1, tenantId: 1, categoryId: 1, title: '2024年AI行业发展趋势分析', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'published', publishAt: '', createdAt: '2024-01-15 10:30:00', updatedAt: '' },
+      { id: 2, tenantId: 1, categoryId: 1, title: '如何使用ChatGPT提高工作效率', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'approved', publishAt: '', createdAt: '2024-01-14 15:20:00', updatedAt: '' },
+      { id: 3, tenantId: 1, categoryId: 1, title: 'Python编程入门指南', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'pending_human_review', publishAt: '', createdAt: '2024-01-13 09:15:00', updatedAt: '' },
+      { id: 4, tenantId: 1, categoryId: 1, title: '机器学习算法详解', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'published', publishAt: '', createdAt: '2024-01-12 14:45:00', updatedAt: '' },
+      { id: 5, tenantId: 1, categoryId: 1, title: '前端框架对比分析', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'rejected', publishAt: '', createdAt: '2024-01-11 11:30:00', updatedAt: '' }
     ]
   } finally {
     loading.value = false
@@ -614,22 +609,29 @@ const refreshData = () => {
 }
 
 const getStatusColor = (status?: string) => {
-  switch (status) {
+  const s = (status || '').toLowerCase()
+  switch (s) {
     case 'approved': return 'success'
     case 'published': return 'success'
+    case 'pending_review': return 'warning'
     case 'pending_human_review': return 'warning'
+    case 'reviewing': return 'warning'
     case 'rejected': return 'error'
     default: return 'default'
   }
 }
 
 const getStatusText = (status?: string) => {
-  switch (status) {
+  const s = (status || '').toLowerCase()
+  switch (s) {
     case 'approved': return '已通过'
     case 'published': return '已发布'
+    case 'pending_review': return '待审核'
     case 'pending_human_review': return '待审核'
+    case 'reviewing': return '审核中'
     case 'rejected': return '已拒绝'
-    default: return '未定义'
+    case 'draft': return '草稿'
+    default: return status || '未定义'
   }
 }
 

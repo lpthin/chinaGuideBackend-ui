@@ -413,22 +413,64 @@ import {
 } from '@ant-design/icons-vue'
 import {
   navItems,
-  heroData,
-  services,
-  aboutData,
-  cases,
-  newsList,
   clientLogos,
-  contactInfo,
-  footerLinks,
-  companyInfo
+  footerLinks
 } from '../data/mockData'
+import {
+  getPortalData,
+  transformServiceData,
+  transformCaseData,
+  transformNewsData,
+  type ApiHeroData,
+  type ApiContactInfo,
+  type ApiCompanyInfo
+} from '../api/portalData'
 
 const router = useRouter()
 const route = useRoute()
 const isScrolled = ref(false)
 const mobileMenuVisible = ref(false)
 const currentPath = ref('/')
+const loading = ref(true)
+const error = ref<string | null>(null)
+
+// 从 API 加载的数据
+const heroData = ref<ApiHeroData>({
+  title: '',
+  subtitle: '',
+  description: '',
+  primaryButtonText: '立即咨询',
+  secondaryButtonText: '了解更多'
+})
+const services = ref<any[]>([])
+const aboutData = ref({
+  title: '关于我们',
+  subtitle: '',
+  description: '',
+  highlights: [
+    { label: '年行业经验', value: '10+' },
+    { label: '服务客户', value: '500+' },
+    { label: '成功案例', value: '1000+' },
+    { label: '专业团队', value: '200+' }
+  ],
+  imageUrl: ''
+})
+const cases = ref<any[]>([])
+const newsList = ref<any[]>([])
+const contactInfo = ref<ApiContactInfo>({
+  title: '联系我们',
+  subtitle: '期待与您的合作',
+  address: '',
+  phone: '',
+  email: '',
+  workingHours: '周一至周五 9:00 - 18:00'
+})
+const companyInfo = ref<ApiCompanyInfo>({
+  name: '',
+  slogan: '',
+  icp: '',
+  copyright: ''
+})
 
 const handleScroll = () => {
   isScrolled.value = window.scrollY > 50
@@ -452,9 +494,35 @@ const getIcon = (iconName: string) => {
   return icons[iconName] || CloudOutlined
 }
 
+const loadData = async () => {
+  try {
+    loading.value = true
+    error.value = null
+
+    const data = await getPortalData()
+
+    // 填充数据
+    heroData.value = data.heroData
+    services.value = transformServiceData(data.services)
+    aboutData.value.subtitle = data.heroData.subtitle
+    aboutData.value.description = data.heroData.description
+    aboutData.value.imageUrl = data.heroData.backgroundImage || ''
+    cases.value = transformCaseData(data.cases)
+    newsList.value = transformNewsData(data.news)
+    contactInfo.value = data.contactInfo
+    companyInfo.value = data.companyInfo
+  } catch (err) {
+    console.error('加载数据失败:', err)
+    error.value = '加载失败，请稍后重试'
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(() => {
   window.addEventListener('scroll', handleScroll)
   currentPath.value = route.path
+  loadData()
 })
 
 onUnmounted(() => {

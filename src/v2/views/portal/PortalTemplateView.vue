@@ -143,7 +143,7 @@
           :page-size-options="['8', '16', '24', '40']"
           show-size-changer
           show-quick-jumper
-          :show-total="(total) => `共 ${total} 条模板`"
+          :show-total="(total: number) => `共 ${total} 条模板`"
           @change="handlePageChange"
           @showSizeChange="handlePageSizeChange"
         />
@@ -409,7 +409,8 @@ const configForm = reactive({
 const createForm = reactive({
   name: '',
   type: 'tech' as string,
-  description: ''
+  description: '',
+  baseTemplateId: undefined as number | undefined
 })
 
 const getTypeName = (type: string) => {

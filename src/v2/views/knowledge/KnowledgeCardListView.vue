@@ -180,7 +180,7 @@
           :data-source="cardList"
           :pagination="false"
           :row-selection="rowSelection"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'title'">
@@ -190,7 +190,7 @@
               {{ getCategoryName(record.categoryId) }}
             </template>
             <template v-if="column.key === 'tags'">
-              <a-tag v-for="tag in (record.tags || '').split(',').filter(t => t)" :key="tag" size="small" :color="getTagColor(tag)">
+              <a-tag v-for="tag in (record.tags || '').split(',').filter((t: string) => t)" :key="tag" size="small" :color="getTagColor(tag)">
                 {{ tag }}
               </a-tag>
             </template>
@@ -219,7 +219,7 @@
             :page-size-options="['10', '20', '50', '100']"
             @change="loadData"
             @showSizeChange="loadData"
-            :show-total="(total) => `共 ${total} 条`"
+            :show-total="(total: number) => `共 ${total} 条`"
           />
         </div>
       </a-card>
@@ -513,6 +513,7 @@ async function loadData() {
   loading.value = true
   try {
     const params = {
+      tenantId: auth.selectedTenantId || auth.tenantId,
       ...queryParams,
       page: pagination.page,
       size: pagination.size,

@@ -81,6 +81,10 @@ export interface Invoice {
   paymentTransactionId?: string
   remark?: string
   invoiceUrl?: string
+  discountAmount?: number
+  type?: string
+  taxNumber?: string
+  email?: string
   createdAt: string
   updatedAt: string
   items?: InvoiceItem[]
@@ -162,6 +166,9 @@ export interface ConsumptionStats {
   currency: Currency
   period: string
   periodType: 'day' | 'week' | 'month' | 'year'
+  thisMonthExpense?: number
+  lastMonthExpense?: number
+  monthOverMonthGrowth?: number
   breakdown: {
     productType: ProductType
     productName: string

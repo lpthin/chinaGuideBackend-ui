@@ -26,6 +26,7 @@ export interface ArticleTemplate {
   variableList?: TemplateVariable[]
   useCount: number
   status: string
+  version?: string
   createdAt: string
   updatedAt: string
 }
@@ -47,17 +48,27 @@ export interface Article {
   categoryName?: string
   templateId?: number | null
   title: string
+  subtitle?: string
   summary: string
   content: string
+  contentMd?: string
   coverImage: string
+  featuredMediaId?: number
   keywords: string
   keywordList?: string[]
+  tags?: string[]
   source: string
+  authorId?: number
+  authorName?: string
+  views?: number
   viewCount: number
   likeCount: number
   shareCount: number
   sort: number
+  sortOrder?: number
   status: string
+  isTop?: boolean
+  isRecommend?: boolean
   publishAt: string
   createdAt: string
   updatedAt: string
@@ -134,21 +145,30 @@ export interface ArticleTemplateForm {
   contentTemplate: string
   variables?: string
   status?: string
+  version?: string
 }
 
 export interface ArticleForm {
   id?: number
-  tenantId: number
-  categoryId: number
+  tenantId?: number
+  categoryId?: number | null
   templateId?: number
   title: string
+  subtitle?: string
   summary?: string
-  content: string
+  content?: string
+  contentMd?: string
   coverImage?: string
+  featuredMediaId?: number
   keywords?: string
+  tags?: string[]
   source?: string
+  authorId?: number
   sort?: number
+  sortOrder?: number
   status?: string
+  isTop?: boolean
+  isRecommend?: boolean
 }
 
 export interface ArticlePublish {

@@ -84,7 +84,8 @@ export interface ModelConfig {
   modelId: number
   name: string
   tenantId: number
-  isSystemDefault: boolean
+  isSystemDefault?: boolean
+  isDefault?: boolean
   apiKey: string
   baseUrl?: string
   apiVersion?: string
@@ -100,6 +101,11 @@ export interface ModelConfig {
   maxRetryTimes?: number
   retryDelay?: number
   retryBackoffMultiplier?: number
+  provider?: ModelProvider | string
+  modelName?: string
+  modelType?: ModelType | string
+  apiEndpoint?: string
+  sortOrder?: number
   createdAt: string
   updatedAt: string
 }
@@ -171,6 +177,7 @@ export interface VectorDatabaseConfig {
   nlist?: number
   efConstruction?: number
   efSearch?: number
+  schema?: Record<string, any>
   createdAt: string
   updatedAt: string
 }
@@ -192,10 +199,14 @@ export interface EmbeddingConfig {
   enableRerank?: boolean
   rerankModelId?: number
   rerankModel?: AIModel
+  rerankTopN?: number
   enableCache?: boolean
   cacheTtl?: number
   enableBatch?: boolean
   batchSize?: number
+  dimension?: number
+  collection?: string
+  indexType?: string
   createdAt: string
   updatedAt: string
 }
@@ -248,12 +259,18 @@ export interface UsageQueryParams {
 // 模型配置表单
 export interface ModelConfigForm {
   name: string
-  modelId: number
+  modelId?: number
+  provider?: string
+  modelName?: string
+  modelType?: string
   apiKey: string
   baseUrl?: string
+  apiEndpoint?: string
   apiVersion?: string
   isActive: boolean
+  isDefault?: boolean
   priority: number
+  sortOrder?: number
   temperature?: number
   maxTokens?: number
   topP?: number

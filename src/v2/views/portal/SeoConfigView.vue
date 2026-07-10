@@ -94,7 +94,7 @@
             :columns="columns"
             :data-source="configList"
             :pagination="false"
-            :row-key="record => record.id"
+            :row-key="(record: any) => record.id"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'page'">
@@ -131,7 +131,7 @@
               :page-size-options="['10', '20', '50']"
               @change="loadData"
               @showSizeChange="handleSizeChange"
-              :show-total="(total) => `共 ${total} 条`"
+              :show-total="(total: number) => `共 ${total} 条`"
             />
           </div>
         </a-card>

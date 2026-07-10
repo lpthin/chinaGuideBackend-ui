@@ -53,6 +53,7 @@ export interface KnowledgeDocument {
   createdAt: string
   updatedAt: string
   cards?: KnowledgeCard[]
+  title?: string
 }
 
 // 文档分块

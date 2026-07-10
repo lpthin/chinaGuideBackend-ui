@@ -480,6 +480,63 @@
           </div>
         </div>
       </a-modal>
+
+      <a-modal v-model:open="showClusterModal" title="聚类详情" width="700px" :footer="null">
+        <div v-if="selectedCluster" class="cluster-detail">
+          <div class="detail-row">
+            <div class="detail-label">聚类名称</div>
+            <div class="detail-value">{{ selectedCluster.name }}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">优先级</div>
+            <div class="detail-value">
+              <a-tag :color="getPriorityTagColor(selectedCluster.priority)">
+                P{{ selectedCluster.priority }}
+              </a-tag>
+            </div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">搜索意图</div>
+            <div class="detail-value">{{ selectedCluster.searchIntent || '-' }}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">文章方向</div>
+            <div class="detail-value">{{ selectedCluster.articleDirection || '-' }}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">关键词列表</div>
+            <div class="detail-value">
+              <div class="kw-cloud">
+                <a-tag
+                  v-for="kw in (selectedCluster.keywords || []).slice(0, 10)"
+                  :key="kw"
+                  size="small"
+                  class="kw-tag"
+                >
+                  {{ kw }}
+                </a-tag>
+                <a-tag v-if="(selectedCluster.keywords || []).length > 10" size="small" class="more-kw-tag">
+                  +{{ (selectedCluster.keywords || []).length - 10 }}
+                </a-tag>
+              </div>
+            </div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">创建时间</div>
+            <div class="detail-value">{{ formatDate(selectedCluster.createdAt) }}</div>
+          </div>
+          <div class="detail-actions">
+            <a-button type="primary" @click="generateSuggestions(selectedCluster)">
+              <template #icon><BulbOutlined /></template>
+              生成内容建议
+            </a-button>
+            <a-button @click="generateSingleArticle(selectedCluster)">
+              <template #icon><EditOutlined /></template>
+              生成文章
+            </a-button>
+          </div>
+        </div>
+      </a-modal>
     </a-spin>
   </div>
 </template>
@@ -519,6 +576,7 @@ import {
   CrownOutlined,
 } from '@ant-design/icons-vue'
 import { clusterApi, suggestionApi } from '../../api'
+import http from '../../api/http'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 
 const authStore = useAuthStore()
@@ -771,10 +829,16 @@ function toggleSuggestions(index: number) {
   }
 }
 
-function filterClusters() {}
+function filterClusters() {
+  loadData()
+}
+
+const showClusterModal = ref(false)
+const selectedCluster = ref<KeywordCluster | null>(null)
 
 function showClusterDetail(item: any) {
-  message.info(`查看聚类详情: ${item.name}`)
+  selectedCluster.value = item
+  showClusterModal.value = true
 }
 
 function formatDate(date?: string) {
@@ -786,8 +850,8 @@ async function loadData() {
   loading.value = true
   try {
     const [clustersRes, suggestionsRes] = await Promise.all([
-      clusterApi.list({ tenantId: authStore.selectedTenantId }),
-      suggestionApi.list({ tenantId: authStore.selectedTenantId }),
+      clusterApi.list({ tenantId: authStore.selectedTenantId || undefined }),
+      suggestionApi.list({ tenantId: authStore.selectedTenantId || undefined }),
     ])
     const clustersData = clustersRes.records
     const suggestionsData = suggestionsRes.records
@@ -822,7 +886,7 @@ async function distillAll() {
   totalDistillSteps.value = clusters.value.length || 10
 
   try {
-    const res = await clusterApi.distill({ tenantId: authStore.selectedTenantId })
+    const res = await clusterApi.distill({ tenantId: authStore.selectedTenantId || undefined })
     distillProgress.value = 100
     currentDistillStep.value = totalDistillSteps.value
     message.success('蒸馏完成！')
@@ -840,7 +904,7 @@ async function generateAllSuggestions() {
   generating.value = true
   try {
     for (const cluster of clusters.value) {
-      await clusterApi.generateSuggestions(cluster.id, { tenantId: authStore.selectedTenantId })
+      await clusterApi.generateSuggestions(cluster.id, { tenantId: authStore.selectedTenantId || undefined })
     }
     message.success('内容建议生成完成！')
     await loadData()
@@ -854,7 +918,7 @@ async function generateAllSuggestions() {
 
 async function generateSuggestions(cluster: KeywordCluster) {
   try {
-    await clusterApi.generateSuggestions(cluster.id, { tenantId: authStore.selectedTenantId })
+    await clusterApi.generateSuggestions(cluster.id, { tenantId: authStore.selectedTenantId || undefined })
     message.success('内容建议生成完成！')
     await loadData()
   } catch (error) {
@@ -877,7 +941,23 @@ function showKeywordDetail(keyword: any) {
 }
 
 async function deleteCluster(cluster: KeywordCluster) {
-  message.info('删除聚类功能开发中')
+  Modal.confirm({
+    title: '确认删除聚类',
+    content: `确定要删除聚类「${cluster.name}」吗？此操作会同时删除相关的内容建议，无法恢复。`,
+    okText: '确定',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        await http.delete(`/workspace/clusters/${cluster.id}`)
+        message.success('聚类删除成功')
+        await loadData()
+      } catch (error) {
+        message.error('删除失败')
+        console.error(error)
+      }
+    },
+  })
 }
 
 async function clearAllClusters() {
@@ -888,7 +968,17 @@ async function clearAllClusters() {
     okType: 'danger',
     cancelText: '取消',
     onOk: async () => {
-      message.info('清空聚类功能开发中')
+      clearing.value = true
+      try {
+        await http.delete('/workspace/clusters/batch', { data: clusters.value.map(c => c.id) })
+        message.success('所有聚类已清空')
+        await loadData()
+      } catch (error) {
+        message.error('清空失败')
+        console.error(error)
+      } finally {
+        clearing.value = false
+      }
     },
   })
 }
@@ -2163,6 +2253,46 @@ onUnmounted(() => {
   justify-content: center;
   padding-top: 16px;
   border-top: 1px solid @gray-200;
+  gap: 10px;
+}
+
+.cluster-detail {
+  .detail-row {
+    display: flex;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid @gray-200;
+
+    &:last-of-type:not(.detail-actions) {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+  }
+
+  .detail-label {
+    width: 100px;
+    font-size: 13px;
+    font-weight: 600;
+    color: @gray-500;
+    flex-shrink: 0;
+  }
+
+  .detail-value {
+    flex: 1;
+    font-size: 13px;
+    color: @gray-900;
+  }
+
+  .kw-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .detail-actions {
+    justify-content: flex-start;
+  }
 }
 
 // Responsive

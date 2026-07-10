@@ -96,7 +96,7 @@
         :data-source="templateList"
         :loading="loading"
         :pagination="pagination"
-        :row-key="record => record.id"
+        :row-key="(record: any) => record.id"
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">

@@ -50,6 +50,7 @@ const fetchTenants = async () => {
 const handleChange = (value: number) => {
   const tenant = tenants.value.find((t) => t.id === value)
   authStore.switchTenant(value, tenant?.code || null)
+  window.location.reload()
 }
 
 watch(

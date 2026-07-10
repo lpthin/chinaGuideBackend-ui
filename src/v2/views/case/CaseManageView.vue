@@ -105,7 +105,7 @@
           :data-source="caseListData"
           :loading="tableLoading"
           :pagination="paginationConfig"
-          :row-key="record => record.id"
+          :row-key="(record: any) => record.id"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'coverImage'">
@@ -224,6 +224,7 @@ import {
 } from '@ant-design/icons-vue'
 import { caseApi, caseCategoryApi, caseStatsApi } from '../../api/case'
 import type { Case, CaseCategory, CaseForm } from '../../types/case'
+import { CaseStatus } from '../../types/case'
 import { useAuthStore } from '../../stores/auth'
 import dayjs from 'dayjs'
 
@@ -431,7 +432,7 @@ async function handlePublish(record: Case) {
     await caseApi.publish(record.id)
     const item = caseListData.value.find(c => c.id === record.id)
     if (item) {
-      item.status = 'published'
+      item.status = CaseStatus.PUBLISHED
     }
     stats.publishedCases += 1
     stats.draftCases -= 1
@@ -498,7 +499,7 @@ function handleCancel() {
 function resetForm() {
   formData.id = undefined
   formData.tenantId = authStore.selectedTenantId || authStore.tenantId
-  formData.categoryId = undefined
+  formData.categoryId = 0
   formData.title = ''
   formData.summary = ''
   formData.content = ''

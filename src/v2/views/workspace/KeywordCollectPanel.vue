@@ -472,6 +472,36 @@
         />
         <a-alert v-if="distillProgress >= 100" message="蒸馏完成！" type="success" />
       </a-modal>
+
+      <a-modal
+        v-model:open="showPriorityModal"
+        title="批量设置优先级"
+        @ok="confirmBatchPriority"
+        width="400px"
+      >
+        <a-alert
+          message="提示"
+          description="将为选中的关键词设置统一优先级，范围为 0-100，数值越高优先级越高。"
+          type="info"
+          style="margin-bottom: 16px"
+        />
+        <a-form layout="vertical">
+          <a-form-item label="优先级">
+            <a-input-number
+              v-model:value="batchPriorityValue"
+              :min="0"
+              :max="100"
+              :step="5"
+              style="width: 100%"
+            />
+            <div class="priority-hint">
+              <span class="hint-item">低(0-59)</span>
+              <span class="hint-item">中(60-79)</span>
+              <span class="hint-item">高(80-100)</span>
+            </div>
+          </a-form-item>
+        </a-form>
+      </a-modal>
     </a-spin>
   </div>
 </template>
@@ -936,7 +966,7 @@ async function handleImport() {
     const res = await keywordApi.importKeywords({ keywords: keywordsList })
     showImportModal.value = false
     importText.value = ''
-    message.success(`导入成功，共 ${res.data?.imported ?? 0} 个关键词`)
+    message.success(`导入成功，共 ${res.imported ?? 0} 个关键词`)
     fetchData()
   } catch (error) {
     console.error('导入失败:', error)
@@ -976,7 +1006,27 @@ function batchSetPriority() {
     message.warning('请先选择关键词')
     return
   }
-  message.info('批量设置优先级功能开发中...')
+  showPriorityModal.value = true
+}
+
+const showPriorityModal = ref(false)
+const batchPriorityValue = ref(80)
+
+async function confirmBatchPriority() {
+  if (batchPriorityValue.value < 0 || batchPriorityValue.value > 100) {
+    message.warning('优先级值必须在 0-100 之间')
+    return
+  }
+  try {
+    await keywordApi.batchUpdatePriority(selectedRowKeys.value, batchPriorityValue.value)
+    message.success(`成功设置 ${selectedRowKeys.value.length} 个关键词的优先级为 ${batchPriorityValue.value}`)
+    showPriorityModal.value = false
+    selectedRowKeys.value = []
+    fetchData()
+  } catch (error) {
+    console.error('批量设置优先级失败:', error)
+    message.error('批量设置优先级失败')
+  }
 }
 
 async function startDistill() {
@@ -1026,7 +1076,6 @@ const initTrendChart = () => {
       borderWidth: 1,
       textStyle: { color: '#1a1f36', fontSize: 12 },
       padding: [12, 16],
-      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
       axisPointer: {
         type: 'line',
         lineStyle: { color: '#6366f1', type: 'dashed', width: 1 }
@@ -1066,7 +1115,6 @@ const initTrendChart = () => {
         lineStyle: { color: '#6366f1', width: 2.5 },
         itemStyle: { color: '#6366f1' },
         emphasis: {
-          showSymbol: true,
           itemStyle: { borderColor: '#fff', borderWidth: 2, shadowBlur: 10, shadowColor: 'rgba(99, 102, 241, 0.4)' }
         },
         areaStyle: {
@@ -1099,8 +1147,7 @@ const initSourceChart = () => {
       borderColor: '#e8ecf4',
       borderWidth: 1,
       textStyle: { color: '#1a1f36', fontSize: 12 },
-      padding: [12, 16],
-      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
+      padding: [12, 16]
     },
     legend: {
       orient: 'vertical',
@@ -1174,7 +1221,7 @@ onMounted(() => {
 watch(
   () => auth.tenantId,
   () => {
-    refreshAll()
+    fetchData()
   }
 )
 

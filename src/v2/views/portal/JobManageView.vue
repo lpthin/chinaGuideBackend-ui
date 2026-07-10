@@ -92,7 +92,7 @@
             :columns="columns"
             :data-source="jobList"
             :pagination="false"
-            :row-key="record => record.id"
+            :row-key="(record: any) => record.id"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'salary'">
@@ -136,12 +136,83 @@
               :page-size-options="['10', '20', '50']"
               @change="loadData"
               @showSizeChange="handleSizeChange"
-              :show-total="(total) => `共 ${total} 条`"
+              :show-total="(total: number) => `共 ${total} 条`"
             />
           </div>
         </a-card>
       </a-spin>
     </div>
+
+    <a-modal v-model:open="showJobModal" :title="editingJob ? '编辑职位' : '发布职位'" width="700px" @ok="handleSaveJob" :confirm-loading="saving">
+      <a-form :model="jobForm" layout="vertical">
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="职位名称" required>
+              <a-input v-model:value="jobForm.title" placeholder="请输入职位名称" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="职位类型">
+              <a-select v-model:value="jobForm.jobType" placeholder="选择职位类型">
+                <a-select-option value="full-time">全职</a-select-option>
+                <a-select-option value="part-time">兼职</a-select-option>
+                <a-select-option value="internship">实习</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-row :gutter="16">
+          <a-col :span="8">
+            <a-form-item label="最低薪资(k)">
+              <a-input-number v-model:value="jobForm.minSalary" :min="0" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
+            <a-form-item label="最高薪资(k)">
+              <a-input-number v-model:value="jobForm.maxSalary" :min="0" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
+            <a-form-item label="工作地点">
+              <a-input v-model:value="jobForm.location" placeholder="请输入工作地点" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-row :gutter="16">
+          <a-col :span="8">
+            <a-form-item label="部门">
+              <a-input v-model:value="jobForm.department" placeholder="请输入部门" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
+            <a-form-item label="工作经验">
+              <a-select v-model:value="jobForm.experienceRequirement">
+                <a-select-option value="不限">不限</a-select-option>
+                <a-select-option value="1-3年">1-3年</a-select-option>
+                <a-select-option value="3-5年">3-5年</a-select-option>
+                <a-select-option value="5年以上">5年以上</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
+            <a-form-item label="学历要求">
+              <a-select v-model:value="jobForm.educationRequirement">
+                <a-select-option value="不限">不限</a-select-option>
+                <a-select-option value="大专">大专</a-select-option>
+                <a-select-option value="本科">本科</a-select-option>
+                <a-select-option value="硕士">硕士</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-form-item label="职位描述">
+          <a-textarea v-model:value="jobForm.description" :rows="4" placeholder="请输入职位描述" />
+        </a-form-item>
+        <a-form-item label="任职要求">
+          <a-textarea v-model:value="jobForm.requirements" :rows="4" placeholder="请输入任职要求" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -157,12 +228,28 @@ import {
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import { jobPostApi } from '../../api/portal'
-import type { JobPost } from '../../types/portal'
+import type { JobPost, JobPostQuery } from '../../types/portal'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
+const showJobModal = ref(false)
+const saving = ref(false)
+const editingJob = ref<JobPost | null>(null)
+
+const jobForm = reactive({
+  title: '',
+  jobType: 'full-time' as 'full-time' | 'part-time' | 'internship',
+  minSalary: 0,
+  maxSalary: 0,
+  location: '',
+  department: '',
+  experienceRequirement: '不限',
+  educationRequirement: '不限',
+  description: '',
+  requirements: '',
+})
 
 const stats = reactive({
   totalJobs: 0,
@@ -205,11 +292,69 @@ function formatSalary(record: JobPost): string {
 }
 
 function showAddModal() {
-  message.info('新建职位功能')
+  editingJob.value = null
+  jobForm.title = ''
+  jobForm.jobType = 'full-time'
+  jobForm.minSalary = 0
+  jobForm.maxSalary = 0
+  jobForm.location = ''
+  jobForm.department = ''
+  jobForm.experienceRequirement = '不限'
+  jobForm.educationRequirement = '不限'
+  jobForm.description = ''
+  jobForm.requirements = ''
+  showJobModal.value = true
 }
 
-function editJob(id: number) {
-  message.info(`编辑职位 ${id}`)
+async function editJob(id: number) {
+  try {
+    const job = await jobPostApi.get(id)
+    editingJob.value = job
+    jobForm.title = job.title || ''
+    jobForm.jobType = (job.jobType as 'full-time' | 'part-time' | 'internship') || 'full-time'
+    jobForm.minSalary = job.minSalary || 0
+    jobForm.maxSalary = job.maxSalary || 0
+    jobForm.location = job.location || ''
+    jobForm.department = job.department || ''
+    jobForm.experienceRequirement = job.experienceRequirement || '不限'
+    jobForm.educationRequirement = job.educationRequirement || '不限'
+    jobForm.description = job.description || ''
+    jobForm.requirements = job.requirements || ''
+    showJobModal.value = true
+  } catch (error) {
+    message.error('加载职位信息失败')
+    console.error(error)
+  }
+}
+
+async function handleSaveJob() {
+  if (!jobForm.title.trim()) {
+    message.warning('请输入职位名称')
+    return
+  }
+  saving.value = true
+  try {
+    const tenantId = auth.selectedTenantId || auth.tenantId
+    const data = {
+      ...jobForm,
+      tenantId,
+      status: 'active' as const,
+    }
+    if (editingJob.value) {
+      await jobPostApi.update(editingJob.value.id, data)
+      message.success('职位更新成功')
+    } else {
+      await jobPostApi.create(data)
+      message.success('职位发布成功')
+    }
+    showJobModal.value = false
+    await loadData()
+  } catch (error) {
+    message.error('操作失败')
+    console.error(error)
+  } finally {
+    saving.value = false
+  }
 }
 
 async function toggleStatus(record: JobPost) {
@@ -243,15 +388,12 @@ async function handleDelete(id: number) {
 async function loadData() {
   loading.value = true
   try {
-    const params: Record<string, any> = {
+    const params: JobPostQuery = {
+      tenantId: auth.selectedTenantId || auth.tenantId,
       page: pagination.page,
       size: pagination.size,
-    }
-    if (queryParams.jobType) {
-      params.jobType = queryParams.jobType
-    }
-    if (queryParams.keyword) {
-      params.keyword = queryParams.keyword
+      jobType: queryParams.jobType || undefined,
+      keyword: queryParams.keyword || undefined,
     }
     const result = await jobPostApi.list(params)
     jobList.value = result.records || []
@@ -267,10 +409,11 @@ async function loadData() {
 
 async function loadStats() {
   try {
-    const allResult = await jobPostApi.list({ page: 1, size: 1 })
+    const tenantId = auth.selectedTenantId || auth.tenantId
+    const allResult = await jobPostApi.list({ tenantId, page: 1, size: 1 })
     stats.totalJobs = allResult.total || 0
     
-    const activeResult = await jobPostApi.list({ page: 1, size: 1, status: 'active' })
+    const activeResult = await jobPostApi.list({ tenantId, page: 1, size: 1, status: 'active' })
     stats.activeJobs = activeResult.total || 0
   } catch (error) {
     console.error('加载统计数据失败:', error)

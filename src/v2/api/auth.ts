@@ -176,7 +176,7 @@ export const profileApi = {
     http.get<any>('/user/profile'),
 
   // 更新个人信息
-  updateProfile: (data: { nickname?: string; email?: string }) =>
+  updateProfile: (data: { nickname?: string; email?: string; avatar?: string }) =>
     http.put<void>('/user/profile', data),
 
   // 修改密码

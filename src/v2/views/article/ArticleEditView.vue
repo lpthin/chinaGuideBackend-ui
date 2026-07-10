@@ -287,6 +287,24 @@
     >
       <p>确定要删除这篇文章吗？删除后无法恢复。</p>
     </a-modal>
+
+    <a-modal
+      v-model:open="showLinkModal"
+      title="插入链接"
+      @ok="confirmInsertLink"
+      @cancel="showLinkModal = false"
+      ok-text="插入"
+      cancel-text="取消"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="链接地址">
+          <a-input v-model:value="linkUrl" placeholder="请输入URL" />
+        </a-form-item>
+        <a-form-item label="链接文本">
+          <a-input v-model:value="linkText" placeholder="显示的文本（可选）" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -314,6 +332,7 @@ import {
 } from '@ant-design/icons-vue'
 import { articleApi, reviewApi } from '../../api/workspace'
 import { aiGenerateApi } from '../../api/ai-model'
+import { marked } from 'marked'
 
 const router = useRouter()
 const route = useRoute()
@@ -336,6 +355,10 @@ const coverFileList = ref<any[]>([])
 const selectedTags = ref<string[]>([])
 const seoKeywords = ref<string[]>([])
 const publishDate = ref<any>(null)
+const isFullscreen = ref(false)
+const showLinkModal = ref(false)
+const linkUrl = ref('')
+const linkText = ref('')
 
 const articleForm = reactive({
   title: '',
@@ -403,15 +426,45 @@ function getCategoryName(id: number | null): string {
 }
 
 function formatText(type: string) {
-  message.info(`${type} 格式操作`)
+  const formatMap: Record<string, { prefix: string; suffix: string }> = {
+    bold: { prefix: '**', suffix: '**' },
+    italic: { prefix: '*', suffix: '*' },
+    underline: { prefix: '<u>', suffix: '</u>' },
+    h1: { prefix: '\n# ', suffix: '\n' },
+    h2: { prefix: '\n## ', suffix: '\n' },
+    h3: { prefix: '\n### ', suffix: '\n' },
+    ul: { prefix: '\n- ', suffix: '' },
+    ol: { prefix: '\n1. ', suffix: '' },
+  }
+  
+  const format = formatMap[type]
+  if (format) {
+    articleForm.content += format.prefix + (type === 'ul' || type === 'ol' ? '列表项' : '文本') + format.suffix
+  }
 }
 
 function handleInsertImage() {
-  message.info('插入图片功能')
+  Modal.info({
+    title: '插入图片',
+    content: '请先上传图片到服务器，然后复制图片URL粘贴到文章中。目前支持通过封面图片上传功能添加图片。',
+    okText: '知道了',
+  })
 }
 
 function handleInsertLink() {
-  message.info('插入链接功能')
+  showLinkModal.value = true
+}
+
+function confirmInsertLink() {
+  if (!linkUrl.value.trim()) {
+    message.warning('请输入链接地址')
+    return
+  }
+  const text = linkText.value.trim() || linkUrl.value
+  articleForm.content += `[${text}](${linkUrl.value})`
+  showLinkModal.value = false
+  linkUrl.value = ''
+  linkText.value = ''
 }
 
 function handlePreview() {
@@ -419,17 +472,28 @@ function handlePreview() {
 }
 
 function handleFullscreen() {
-  message.info('全屏编辑')
+  isFullscreen.value = !isFullscreen.value
+  if (isFullscreen.value) {
+    document.documentElement.requestFullscreen?.()
+    message.success('已进入全屏编辑模式')
+  } else {
+    document.exitFullscreen?.()
+    message.success('已退出全屏编辑模式')
+  }
 }
 
 function formatPreviewContent(content: string): string {
   if (!content) {
     return '<p style="color: #8c8c8c; text-align: center; padding: 40px;">暂无内容</p>'
   }
-  return content
-    .replace(/\n/g, '<br>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+  try {
+    return marked.parse(content) as string
+  } catch {
+    return content
+      .replace(/\n/g, '<br>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+  }
 }
 
 function beforeUpload(file: any) {
@@ -541,7 +605,7 @@ async function handlePublish() {
       await articleApi.update(articleId.value, data)
       articleForm.status = 'published'
       message.success('文章发布成功')
-      router.push('/article/list')
+      router.push('/workspace/articles')
     } else {
       message.success('文章发布成功（新建模式）')
     }
@@ -566,7 +630,7 @@ async function confirmDelete() {
     await articleApi.delete(articleId.value)
     message.success('删除成功')
     deleteVisible.value = false
-    router.push('/article/list')
+    router.push('/workspace/articles')
   } catch (error) {
     message.error('删除失败')
   }
@@ -614,7 +678,11 @@ async function loadArticleDetail() {
 
     articleForm.title = article.title || ''
     articleForm.summary = article.summary || ''
-    articleForm.content = article.content || ''
+    let content = article.content || ''
+    content = content.replace(/\\n/g, '\n')
+    content = content.replace(/\\r/g, '\r')
+    content = content.replace(/\\\\/g, '\\')
+    articleForm.content = content
     articleForm.categoryId = article.categoryId || null
     articleForm.source = article.source || '原创'
     articleForm.author = article.author || ''

@@ -29,7 +29,7 @@
             </a-button>
           </a-tooltip>
           <a-divider type="vertical" />
-          <a @click="router.push('/')" style="margin-right: 12px; color: #1890ff; font-weight: 500; cursor: pointer;">
+          <a @click="openPortalHome" style="margin-right: 12px; color: #1890ff; font-weight: 500; cursor: pointer;">
             查看前端
           </a>
           <a-dropdown>
@@ -177,6 +177,18 @@
               <template #icon><BarChartOutlined /></template>
               消费统计
             </a-menu-item>
+            <a-menu-item key="billing/wallet">
+              <template #icon><WalletOutlined /></template>
+              我的钱包
+            </a-menu-item>
+            <a-menu-item key="billing/invoices">
+              <template #icon><FileTextOutlined /></template>
+              发票管理
+            </a-menu-item>
+            <a-menu-item key="billing/orders">
+              <template #icon><ShoppingOutlined /></template>
+              订单管理
+            </a-menu-item>
           </a-sub-menu>
 
           <!-- 门户网站 -->
@@ -265,6 +277,10 @@
               <template #icon><DashboardOutlined /></template>
               运营概览
             </a-menu-item>
+            <a-menu-item key="operation/customers" v-if="auth.isSuperAdmin">
+              <template #icon><TeamOutlined /></template>
+              客户管理
+            </a-menu-item>
             <a-menu-item key="operation/cases">
               <template #icon><ProjectOutlined /></template>
               客户案例
@@ -338,7 +354,7 @@
         <!-- 面包屑导航 -->
         <div class="breadcrumb-wrapper">
           <a-breadcrumb>
-            <a-breadcrumb-item @click="router.push('/v2/workspace/dashboard')">
+            <a-breadcrumb-item @click="router.push('/workspace/dashboard')">
               <DashboardOutlined style="margin-right: 4px" />
               首页
             </a-breadcrumb-item>
@@ -435,7 +451,9 @@ import {
   AuditOutlined,
   BellOutlined,
   AlertOutlined,
-  NotificationOutlined
+  NotificationOutlined,
+  WalletOutlined,
+  ShoppingOutlined
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 
@@ -503,7 +521,7 @@ const menuLabels: Record<string, string> = {
 }
 
 const getMenuKey = () => {
-  const pathParts = route.path.replace('/v2/workspace/', '').split('/')
+  const pathParts = route.path.replace('/workspace/', '').split('/')
   if (pathParts.length >= 2 && ['knowledge', 'case', 'billing', 'portal', 'geo', 'ai', 'operation', 'alert'].includes(pathParts[0])) {
     return pathParts.join('/')
   }
@@ -590,11 +608,11 @@ const toggleCollapse = () => {
 }
 
 const goHome = () => {
-  router.push('/v2/workspace/dashboard')
+  router.push('/workspace/dashboard')
 }
 
 const handleMenuClick = ({ key }: { key: string }) => {
-  router.push(`/v2/workspace/${key}`)
+  router.push(`/workspace/${key}`)
 }
 
 const openDashboard = () => {
@@ -646,7 +664,7 @@ const handleImport = () => {
 
 const handleUserMenuClick = ({ key }: { key: string }) => {
   if (key === 'profile') {
-    router.push('/v2/workspace/user/profile')
+    router.push('/workspace/user/profile')
   } else if (key === 'logout') {
     handleLogout()
   }
@@ -657,10 +675,19 @@ const handleReturnToAdmin = () => {
   message.success('已切换到管理员视角')
 }
 
-const handleLogout = () => {
-  message.success('已退出登录')
-  // 可以跳转到登录页
-  router.push('/')
+const openPortalHome = () => {
+  window.open('/', '_blank')
+}
+
+const handleLogout = async () => {
+  try {
+    await auth.logout()
+    message.success('已退出登录')
+    router.push('/login')
+  } catch (error) {
+    console.error('退出登录失败:', error)
+    message.error('退出登录失败')
+  }
 }
 
 // 提供给子组件的方法
