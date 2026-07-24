@@ -60,6 +60,14 @@ const CompanyInfoView = () => import('../views/portal/CompanyInfoView.vue')
 const SeoConfigView = () => import('../views/portal/SeoConfigView.vue')
 const PortalTemplateView = () => import('../views/portal/PortalTemplateView.vue')
 
+// 🔍 SEO & GEO 模块
+const GeoSeoDashboardView = () => import('../views/geoseo/GeoSeoDashboardView.vue')
+const GeoSeoConfigView = () => import('../views/geoseo/GeoSeoConfigView.vue')
+const GeoSeoPageView = () => import('../views/geoseo/GeoSeoPageView.vue')
+const GeoSeoCompanyView = () => import('../views/geoseo/GeoSeoCompanyView.vue')
+const GeoSeoCompetitorView = () => import('../views/geoseo/GeoSeoCompetitorView.vue')
+const GeoSeoKeywordView = () => import('../views/geoseo/GeoSeoKeywordView.vue')
+
 // 🤖 AI 配置模块
 const ModelConfigView = () => import('../views/ai/ModelConfigView.vue')
 const VectorDbView = () => import('../views/ai/VectorDbView.vue')
@@ -375,6 +383,44 @@ const routes: RouteRecordRaw[] = [
         name: 'workspace-portal-seo',
         component: SeoConfigView,
         meta: { title: 'SEO配置', icon: 'seo', breadcrumb: ['首页', '门户网站', 'SEO配置'] }
+      },
+
+      // ===== 🔍 SEO & GEO =====
+      {
+        path: 'geoseo/dashboard',
+        name: 'workspace-geoseo-dashboard',
+        component: GeoSeoDashboardView,
+        meta: { title: '总览仪表盘', icon: 'dashboard', breadcrumb: ['首页', 'SEO & GEO', '总览仪表盘'] }
+      },
+      {
+        path: 'geoseo/config',
+        name: 'workspace-geoseo-config',
+        component: GeoSeoConfigView,
+        meta: { title: '站点配置', icon: 'setting', breadcrumb: ['首页', 'SEO & GEO', '站点配置'] }
+      },
+      {
+        path: 'geoseo/pages',
+        name: 'workspace-geoseo-pages',
+        component: GeoSeoPageView,
+        meta: { title: '页面SEO', icon: 'file-text', breadcrumb: ['首页', 'SEO & GEO', '页面SEO'] }
+      },
+      {
+        path: 'geoseo/company',
+        name: 'workspace-geoseo-company',
+        component: GeoSeoCompanyView,
+        meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', 'SEO & GEO', '企业信息'] }
+      },
+      {
+        path: 'geoseo/competitors',
+        name: 'workspace-geoseo-competitors',
+        component: GeoSeoCompetitorView,
+        meta: { title: '竞品追踪', icon: 'team', breadcrumb: ['首页', 'SEO & GEO', '竞品追踪'] }
+      },
+      {
+        path: 'geoseo/keywords',
+        name: 'workspace-geoseo-keywords',
+        component: GeoSeoKeywordView,
+        meta: { title: '关键词排名', icon: 'search', breadcrumb: ['首页', 'SEO & GEO', '关键词排名'] }
       },
 
       // ===== 🤖 AI 配置中心 =====

@@ -91,7 +91,7 @@
                   <a-checkbox :checked="selectedIds.includes(file.id)" class="media-checkbox" />
                   <img
                     v-if="isImage(file.mimeType)"
-                    :src="`/api/v2/workspace/media/${file.id}/file`"
+                    :src="getMediaFileUrl(file)"
                     :alt="file.originalName"
                   />
                   <div v-else class="video-placeholder">
@@ -161,12 +161,12 @@
       <div style="text-align: center">
         <img
           v-if="previewFileData && isImage(previewFileData.mimeType)"
-          :src="`/api/v2/workspace/media/${previewFileData.id}/file`"
+          :src="getMediaFileUrl(previewFileData)"
           style="max-width: 100%; max-height: 600px"
         />
         <video
           v-else-if="previewFileData"
-          :src="`/api/v2/workspace/media/${previewFileData.id}/file`"
+          :src="getMediaFileUrl(previewFileData)"
           controls
           style="max-width: 100%; max-height: 600px"
         />
@@ -188,6 +188,20 @@ import {
 } from '@ant-design/icons-vue'
 import { mediaApi } from '../../api'
 import { formatTime } from '@/v2/utils/format'
+import { useAuthStore } from '../../stores/auth'
+
+const auth = useAuthStore()
+
+function getFileToken(): string {
+  return auth.accessToken || localStorage.getItem('v2_access_token') || localStorage.getItem('geocms_token') || ''
+}
+
+function getMediaFileUrl(file: { id: number }): string {
+  if (!file || !file.id) return ''
+  const token = getFileToken()
+  const baseUrl = `/api/v2/workspace/media/${file.id}/file`
+  return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
+}
 
 interface MediaFile {
   id: number
@@ -332,7 +346,7 @@ function previewFile(file: MediaFile) {
 
 function downloadFile(file: MediaFile) {
   const link = document.createElement('a')
-  link.href = `/api/v2/workspace/media/${file.id}/file`
+  link.href = getMediaFileUrl(file)
   link.download = file.originalName || `media_${file.id}`
   link.click()
 }

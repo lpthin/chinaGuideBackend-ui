@@ -341,8 +341,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useHead } from '@vueuse/head'
 import {
   HeartOutlined,
   MenuOutlined,
@@ -374,12 +375,26 @@ import {
   contactInfo,
   footerLinks
 } from '../data/mockData'
+import {
+  getPortalData,
+  type ApiSeoMeta,
+  type ApiCompanyInfo
+} from '../api/portalData'
 
 const router = useRouter()
 const route = useRoute()
 const isScrolled = ref(false)
 const mobileMenuVisible = ref(false)
 const currentPath = ref('/')
+
+const seoMeta = ref<ApiSeoMeta | null>(null)
+const faviconUrl = ref<string>('')
+const companyInfo = ref<ApiCompanyInfo>({
+  name: '',
+  slogan: '',
+  icp: '',
+  copyright: ''
+})
 
 const handleScroll = () => {
   isScrolled.value = window.scrollY > 50
@@ -414,9 +429,71 @@ const getSocialIcon = (platform: string) => {
   return icons[platform] || GlobalOutlined
 }
 
+const loadData = async () => {
+  try {
+    const data = await getPortalData()
+    seoMeta.value = data.seoMeta || null
+    faviconUrl.value = data.faviconUrl || ''
+    if (data.companyInfo) {
+      companyInfo.value = data.companyInfo
+    }
+  } catch (err) {
+    console.error('加载数据失败:', err)
+  }
+}
+
+useHead({
+  title: computed(() => seoMeta.value?.seoTitle || companyInfo.value?.name || '企业门户'),
+  meta: computed(() => {
+    const seo = seoMeta.value
+    if (!seo) return []
+    return [
+      { name: 'description', content: seo.seoDescription || '' },
+      { name: 'keywords', content: seo.seoKeywords || '' },
+      { name: 'robots', content: seo.robotsMeta || 'index, follow' },
+      { property: 'og:title', content: seo.ogTitle || seo.seoTitle || '' },
+      { property: 'og:description', content: seo.ogDescription || seo.seoDescription || '' },
+      { property: 'og:image', content: seo.ogImage || '' },
+      { property: 'og:type', content: 'website' },
+      { name: 'twitter:card', content: seo.twitterCardType || 'summary_large_image' },
+      { name: 'twitter:title', content: seo.twitterTitle || seo.seoTitle || '' },
+      { name: 'twitter:description', content: seo.twitterDescription || seo.seoDescription || '' },
+      { name: 'twitter:image', content: seo.twitterImage || seo.ogImage || '' }
+    ]
+  }),
+  link: computed(() => {
+    const seo = seoMeta.value
+    const links: any[] = []
+    if (seo?.canonicalUrl) {
+      links.push({ rel: 'canonical', href: seo.canonicalUrl })
+    }
+    if (faviconUrl.value) {
+      links.push({ rel: 'icon', href: faviconUrl.value })
+    }
+    return links
+  }),
+  script: computed(() => {
+    const seo = seoMeta.value
+    const scripts: any[] = []
+    if (seo?.schemaJson) {
+      scripts.push({
+        type: 'application/ld+json',
+        children: seo.schemaJson
+      })
+    } else if (seo?.defaultSchemaJson) {
+      scripts.push({
+        type: 'application/ld+json',
+        children: seo.defaultSchemaJson
+      })
+    }
+    return scripts
+  })
+})
+
 onMounted(() => {
   window.addEventListener('scroll', handleScroll)
   currentPath.value = route.path
+  loadData()
 })
 
 onUnmounted(() => {

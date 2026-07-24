@@ -109,8 +109,9 @@ const categoryName = computed(() => {
 })
 
 const tagList = computed(() => {
+  if (card.value?.tagList && card.value.tagList.length) return card.value.tagList
   if (!card.value?.tags) return []
-  return card.value.tags.split(',').filter(t => t)
+  return typeof card.value.tags === 'string' ? card.value.tags.split(',').filter(t => t) : []
 })
 
 function formatDate(dateStr: string): string {

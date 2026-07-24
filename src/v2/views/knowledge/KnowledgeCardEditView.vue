@@ -348,7 +348,13 @@ async function loadCard() {
       sort: result.sort,
       status: result.status,
     })
-    selectedTags.value = result.tags ? result.tags.split(',').filter((t: string) => t) : []
+    if (result.tagList && result.tagList.length) {
+      selectedTags.value = result.tagList
+    } else if (result.tags && typeof result.tags === 'string') {
+      selectedTags.value = result.tags.split(',').filter((t: string) => t)
+    } else {
+      selectedTags.value = []
+    }
     if (result.documentId && result.document) {
       documentOptions.value = [result.document as any]
     }

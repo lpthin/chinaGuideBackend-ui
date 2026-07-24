@@ -180,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick, watch, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
@@ -259,10 +259,10 @@ const parseStats = reactive({
 })
 
 const statsCards = ref([
-  { key: 'documents', label: '文档总数', value: 0, color: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)', icon: FileTextOutlined },
-  { key: 'parsed', label: '已解析文档', value: 0, color: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)', icon: CheckCircleOutlined },
-  { key: 'vectorized', label: '已向量化', value: 0, color: 'linear-gradient(135deg, #722ed1 0%, #531dab 100%)', icon: DatabaseOutlined },
-  { key: 'entities', label: '知识实体', value: 0, color: 'linear-gradient(135deg, #fa8c16 0%, #d46b08 100%)', icon: ShareAltOutlined }
+  { key: 'documents', label: '文档总数', value: 0, color: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)', icon: markRaw(FileTextOutlined) },
+  { key: 'parsed', label: '已解析文档', value: 0, color: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)', icon: markRaw(CheckCircleOutlined) },
+  { key: 'vectorized', label: '已向量化', value: 0, color: 'linear-gradient(135deg, #722ed1 0%, #531dab 100%)', icon: markRaw(DatabaseOutlined) },
+  { key: 'entities', label: '知识实体', value: 0, color: 'linear-gradient(135deg, #fa8c16 0%, #d46b08 100%)', icon: markRaw(ShareAltOutlined) }
 ])
 
 const currentQuestion = ref('')

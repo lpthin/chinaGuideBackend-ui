@@ -159,8 +159,8 @@
                   </template>
                 </a-card-meta>
 
-                <div class="card-tags">
-                  <a-tag v-for="tag in (card.tags || '').split(',').filter(t => t)" :key="tag" size="small" :color="getTagColor(tag)">
+                <div class="card-tags" v-if="card.tagList && card.tagList.length">
+                  <a-tag v-for="tag in card.tagList" :key="tag" size="small" :color="getTagColor(tag)">
                     {{ tag }}
                   </a-tag>
                 </div>
@@ -190,9 +190,12 @@
               {{ getCategoryName(record.categoryId) }}
             </template>
             <template v-if="column.key === 'tags'">
-              <a-tag v-for="tag in (record.tags || '').split(',').filter((t: string) => t)" :key="tag" size="small" :color="getTagColor(tag)">
-                {{ tag }}
-              </a-tag>
+              <template v-if="record.tagList && record.tagList.length">
+                <a-tag v-for="tag in record.tagList" :key="tag" size="small" :color="getTagColor(tag)">
+                  {{ tag }}
+                </a-tag>
+              </template>
+              <span v-else>-</span>
             </template>
             <template v-if="column.key === 'status'">
               <a-tag :color="record.status === 'active' ? 'green' : 'default'">

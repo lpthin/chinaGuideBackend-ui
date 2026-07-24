@@ -1,0 +1,7 @@
+- [x] Checkpoint 1: 首页路由冲突已解决，已登录访问 `/` 跳转到工作区
+- [x] Checkpoint 2: 404 页面已创建，访问不存在的路径显示 404
+- [x] Checkpoint 3: 计费系统菜单包含钱包、发票、订单入口
+- [x] Checkpoint 4: 客户管理模块路由和菜单已添加
+- [x] Checkpoint 5: 图片库模块路由和菜单已添加
+- [x] Checkpoint 6: 生产代码中的 console.log 调试语句已清理
+- [x] Checkpoint 7: 编译通过（`npm run build` 成功）

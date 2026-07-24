@@ -41,7 +41,7 @@ export const dashboardApi = {
 
   // 获取最近文章
   getRecentArticles: () =>
-    http.get<any[]>('/workspace/articles?page=1&size=10'),
+    http.get<PageResult<any>>('/workspace/articles?page=1&size=10'),
 }
 
 // ==================== 关键词采集 API ====================
@@ -118,6 +118,78 @@ export const suggestionApi = {
 
 // ==================== 文章生成 API ====================
 export const articleApi = {
+  // 异步生成文章
+  generateAsync: (params: any) =>
+    http.post<{ taskId: number; status: string; message: string }>('/workspace/articles/generate-async', params),
+
+  // 获取生成任务状态
+  getGenerationStatus: (taskId: number) =>
+    http.get<{
+      taskId: number
+      status: string
+      progress: number
+      stage: string
+      articleId?: number
+      errorMessage?: string
+      title?: string
+      content?: string
+      summary?: string
+      wordCount?: number
+      knowledgeReferences?: string[]
+    }>(`/workspace/articles/generate/${taskId}/status`),
+
+  // SSE 流式获取生成任务进度（前端用 EventSource 接收，连接失败需降级为轮询）
+  streamGenerationStatus: (taskId: number) => {
+    return new EventSource(`/api/v2/workspace/articles/generate/${taskId}/stream`)
+  },
+
+  // 取消生成任务
+  cancelGeneration: (taskId: number) =>
+    http.post<{ taskId: number; status: string; message: string }>(`/workspace/articles/generate/${taskId}/cancel`),
+
+  // 获取最近生成历史
+  getRecentGenerations: (limit: number = 10) =>
+    http.get<any[]>(`/workspace/articles/generate/recent?limit=${limit}`),
+
+  // 批量生成文章
+  generateBatch: (paramsList: any[]) =>
+    http.post<any[]>('/workspace/articles/generate-batch', paramsList),
+
+  // 版本对比
+  compareVersions: (articleId: number, versionId1: number, versionId2: number) =>
+    http.get<{
+      articleId: number
+      version1: any
+      version2: any
+      titleChanged: boolean
+      summaryChanged: boolean
+      contentChanged: boolean
+      seoTitleChanged: boolean
+      seoDescriptionChanged: boolean
+      keywordsChanged: boolean
+      llmsSummaryChanged: boolean
+      geoCitationSummaryChanged: boolean
+    }>(`/workspace/articles/${articleId}/versions/compare`, { params: { versionId1, versionId2 } }),
+
+  // Token 消耗统计
+  getTokenStats: (days?: number, tenantId?: number) =>
+    http.get<{
+      totalTasks: number
+      completedTasks: number
+      failedTasks: number
+      totalPromptTokens: number
+      totalCompletionTokens: number
+      totalTokens: number
+      days: number
+      modelStats: Array<{
+        modelName: string
+        taskCount: number
+        promptTokens: number
+        completionTokens: number
+        totalTokens: number
+      }>
+    }>('/workspace/articles/generate/token-stats', { params: { days, tenantId } }),
+
   // 从建议生成文章
   generateFromSuggestion: (suggestionId: number, templateType?: string) =>
     http.post<{ articleId: number; title: string; status: string }>('/workspace/articles/generate', {

@@ -215,6 +215,7 @@ export interface CompanyInfo {
   targetAudience?: string
   businessModel?: string
   coreProducts?: string
+  featureProjects?: string
   competitorDomains?: string
   seedKeywords?: string
   excludedKeywords?: string
@@ -354,6 +355,7 @@ export interface CompanyInfoForm {
   targetAudience?: string
   businessModel?: string
   coreProducts?: string
+  featureProjects?: string
   competitorDomains?: string
   seedKeywords?: string
   excludedKeywords?: string

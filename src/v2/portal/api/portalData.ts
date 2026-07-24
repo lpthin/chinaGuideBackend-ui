@@ -43,8 +43,39 @@ export interface ApiContactInfo {
   address: string
   phone: string
   email: string
+  website?: string
   workingHours?: string
+  serviceHotline?: string
+  wechat?: string
+  weibo?: string
+  douyin?: string
+  linkedin?: string
+  github?: string
   mapLocation?: { lat: number; lng: number }
+}
+
+export interface ApiSeoMeta {
+  seoTitle: string
+  seoDescription: string
+  seoKeywords: string
+  canonicalUrl: string
+  robotsMeta: string
+  ogTitle: string
+  ogDescription: string
+  ogImage: string
+  twitterCardType: string
+  twitterTitle: string
+  twitterDescription: string
+  twitterImage: string
+  schemaJson: string
+  defaultSchemaJson: string
+}
+
+export interface ApiFeatureProject {
+  name: string
+  description?: string
+  image?: string
+  url?: string
 }
 
 export interface ApiCompanyInfo {
@@ -90,6 +121,10 @@ export interface PortalDataResponse {
   teamMembers?: ApiTeamMember[]
   testimonials?: ApiTestimonial[]
   faqList?: ApiFAQ[]
+  seoMeta?: ApiSeoMeta
+  faviconUrl?: string
+  coreProducts?: string
+  featureProjects?: ApiFeatureProject[]
 }
 
 // 获取门户数据的函数

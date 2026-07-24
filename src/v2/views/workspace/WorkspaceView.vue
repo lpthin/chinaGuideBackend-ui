@@ -225,21 +225,33 @@
             </a-menu-item>
           </a-sub-menu>
 
-          <!-- GEO地理 -->
-          <a-sub-menu key="geo">
-            <template #icon><EnvironmentOutlined /></template>
-            <template #title>GEO地理</template>
-            <a-menu-item key="geo/regions">
-              <template #icon><ApartmentOutlined /></template>
-              行政区划
+          <!-- SEO & GEO -->
+          <a-sub-menu key="geoseo">
+            <template #icon><SearchOutlined /></template>
+            <template #title>SEO & GEO</template>
+            <a-menu-item key="geoseo/dashboard">
+              <template #icon><DashboardOutlined /></template>
+              总览仪表盘
             </a-menu-item>
-            <a-menu-item key="geo/stores">
-              <template #icon><ShopOutlined /></template>
-              门店管理
+            <a-menu-item key="geoseo/config">
+              <template #icon><SettingOutlined /></template>
+              站点配置
             </a-menu-item>
-            <a-menu-item key="geo/nearby">
-              <template #icon><EnvironmentOutlined /></template>
-              附近门店
+            <a-menu-item key="geoseo/pages">
+              <template #icon><FileTextOutlined /></template>
+              页面SEO
+            </a-menu-item>
+            <a-menu-item key="geoseo/company">
+              <template #icon><BankOutlined /></template>
+              企业信息
+            </a-menu-item>
+            <a-menu-item key="geoseo/competitors">
+              <template #icon><TeamOutlined /></template>
+              竞品追踪
+            </a-menu-item>
+            <a-menu-item key="geoseo/keywords">
+              <template #icon><SearchOutlined /></template>
+              关键词排名
             </a-menu-item>
           </a-sub-menu>
 
@@ -442,8 +454,6 @@ import {
   FormOutlined,
   BankOutlined,
   SearchOutlined,
-  EnvironmentOutlined,
-  ShopOutlined,
   RobotOutlined,
   DatabaseOutlined,
   PieChartOutlined,
@@ -496,9 +506,12 @@ const menuLabels: Record<string, string> = {
   'portal/guestbook': '留言管理',
   'portal/company': '企业信息',
   'portal/seo': 'SEO配置',
-  'geo/regions': '行政区划',
-  'geo/stores': '门店管理',
-  'geo/nearby': '附近门店',
+  'geoseo/dashboard': '总览仪表盘',
+  'geoseo/config': '站点配置',
+  'geoseo/pages': '页面SEO',
+  'geoseo/company': '企业信息',
+  'geoseo/competitors': '竞品追踪',
+  'geoseo/keywords': '关键词排名',
   'ai/models': '大模型配置',
   'ai/vector-db': '向量数据库',
   'ai/embedding': '向量化配置',
@@ -522,7 +535,7 @@ const menuLabels: Record<string, string> = {
 
 const getMenuKey = () => {
   const pathParts = route.path.replace('/workspace/', '').split('/')
-  if (pathParts.length >= 2 && ['knowledge', 'case', 'billing', 'portal', 'geo', 'ai', 'operation', 'alert'].includes(pathParts[0])) {
+  if (pathParts.length >= 2 && ['knowledge', 'case', 'billing', 'portal', 'geoseo', 'ai', 'operation', 'alert'].includes(pathParts[0])) {
     return pathParts.join('/')
   }
   return pathParts[0] || 'dashboard'
@@ -562,9 +575,12 @@ const currentParentMenu = computed(() => {
     'portal/guestbook': '门户网站',
     'portal/company': '门户网站',
     'portal/seo': '门户网站',
-    'geo/regions': 'GEO地理',
-    'geo/stores': 'GEO地理',
-    'geo/nearby': 'GEO地理',
+    'geoseo/dashboard': 'SEO & GEO',
+    'geoseo/config': 'SEO & GEO',
+    'geoseo/pages': 'SEO & GEO',
+    'geoseo/company': 'SEO & GEO',
+    'geoseo/competitors': 'SEO & GEO',
+    'geoseo/keywords': 'SEO & GEO',
     'ai/models': 'AI配置',
     'ai/vector-db': 'AI配置',
     'ai/embedding': 'AI配置',

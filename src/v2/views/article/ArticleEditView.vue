@@ -238,6 +238,102 @@
             </a-form>
           </a-card>
 
+          <!-- GEO & SEO 设置 -->
+          <a-card :bordered="false" style="margin-top: 16px">
+            <template #title>
+              <a-space>
+                <span>GEO & SEO 设置</span>
+                <a-tag color="blue" v-if="geoForm.llmsSummary">已优化</a-tag>
+              </a-space>
+            </template>
+            <template #extra>
+              <a-tooltip title="GEO字段帮助AI搜索引擎理解和引用你的内容">
+                <QuestionCircleOutlined />
+              </a-tooltip>
+            </template>
+
+            <a-collapse :bordered="false" ghost>
+              <a-collapse-panel key="llmsSummary" header="AI搜索引擎摘要 (llmsSummary)">
+                <template #extra>
+                  <span style="color: #999; font-size: 12px">{{ (geoForm.llmsSummary || '').length }}/200</span>
+                </template>
+                <a-textarea
+                  v-model:value="geoForm.llmsSummary"
+                  placeholder="200字以内的精炼摘要，用于AI搜索引擎理解页面内容。AI生成文章时会自动填充，可手动调整优化。"
+                  :rows="4"
+                  :maxlength="200"
+                  show-count
+                />
+                <a-alert type="info" show-icon banner style="margin-top: 8px">
+                  <template #message>
+                    <span style="font-size: 12px">此摘要会出现在 /llms.txt 端点中，供 ChatGPT、Perplexity 等 AI 模型读取</span>
+                  </template>
+                </a-alert>
+              </a-collapse-panel>
+
+              <a-collapse-panel key="geoCitationSummary" header="AI引用摘要 (geoCitationSummary)">
+                <a-textarea
+                  v-model:value="geoForm.geoCitationSummary"
+                  placeholder="1-2句话的核心观点，便于AI搜索引擎直接引用。建议突出文章最核心的结论或数据。"
+                  :rows="3"
+                  :maxlength="300"
+                  show-count
+                />
+                <a-alert type="info" show-icon banner style="margin-top: 8px">
+                  <template #message>
+                    <span style="font-size: 12px">AI搜索引擎引用内容时会优先使用此摘要，确保信息准确且有吸引力</span>
+                  </template>
+                </a-alert>
+              </a-collapse-panel>
+
+              <a-collapse-panel key="schemaJson" header="Schema.org 结构化数据">
+                <a-textarea
+                  v-model:value="geoForm.schemaJson"
+                  placeholder='JSON-LD格式的Article schema，如：{"@context":"https://schema.org","@type":"Article","headline":"文章标题"...}'
+                  :rows="8"
+                  :maxlength="2000"
+                />
+                <a-space style="margin-top: 8px">
+                  <a-button size="small" @click="validateJson('schemaJson')">
+                    <template #icon><CheckCircleOutlined /></template>
+                    校验JSON
+                  </a-button>
+                  <a-button size="small" @click="formatJson('schemaJson')">
+                    格式化
+                  </a-button>
+                </a-space>
+                <a-alert type="info" show-icon banner style="margin-top: 8px">
+                  <template #message>
+                    <span style="font-size: 12px">结构化数据帮助搜索引擎理解页面内容，支持生成富文本搜索结果</span>
+                  </template>
+                </a-alert>
+              </a-collapse-panel>
+
+              <a-collapse-panel key="faqJson" header="FAQ 问答结构化数据">
+                <a-textarea
+                  v-model:value="geoForm.faqJson"
+                  placeholder='JSON-LD格式的FAQPage schema，如：{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[...]}'
+                  :rows="8"
+                  :maxlength="3000"
+                />
+                <a-space style="margin-top: 8px">
+                  <a-button size="small" @click="validateJson('faqJson')">
+                    <template #icon><CheckCircleOutlined /></template>
+                    校验JSON
+                  </a-button>
+                  <a-button size="small" @click="formatJson('faqJson')">
+                    格式化
+                  </a-button>
+                </a-space>
+                <a-alert type="info" show-icon banner style="margin-top: 8px">
+                  <template #message>
+                    <span style="font-size: 12px">FAQ结构化数据帮助AI搜索引擎直接提取问答对，增加被引用的机会</span>
+                  </template>
+                </a-alert>
+              </a-collapse-panel>
+            </a-collapse>
+          </a-card>
+
           <a-card title="操作记录" :bordered="false" style="margin-top: 16px">
             <a-timeline>
               <a-timeline-item color="blue">
@@ -329,6 +425,8 @@ import {
   DeleteOutlined,
   RocketOutlined,
   BulbOutlined,
+  QuestionCircleOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons-vue'
 import { articleApi, reviewApi } from '../../api/workspace'
 import { aiGenerateApi } from '../../api/ai-model'
@@ -375,6 +473,13 @@ const articleForm = reactive({
 const seoForm = reactive({
   title: '',
   description: '',
+})
+
+const geoForm = reactive({
+  llmsSummary: '',
+  geoCitationSummary: '',
+  schemaJson: '',
+  faqJson: '',
 })
 
 const statusText = computed(() => {
@@ -510,6 +615,32 @@ function beforeUpload(file: any) {
   return false
 }
 
+const validateJson = (field: 'schemaJson' | 'faqJson') => {
+  const value = geoForm[field]
+  if (!value || !value.trim()) {
+    message.success('JSON为空，校验通过')
+    return
+  }
+  try {
+    JSON.parse(value)
+    message.success('JSON格式正确')
+  } catch (e) {
+    message.error('JSON格式错误：' + (e as Error).message)
+  }
+}
+
+const formatJson = (field: 'schemaJson' | 'faqJson') => {
+  const value = geoForm[field]
+  if (!value || !value.trim()) return
+  try {
+    const parsed = JSON.parse(value)
+    geoForm[field] = JSON.stringify(parsed, null, 2)
+    message.success('JSON已格式化')
+  } catch (e) {
+    message.error('JSON格式错误，无法格式化')
+  }
+}
+
 function validateForm(): boolean {
   if (!articleForm.title.trim()) {
     message.error('请输入文章标题')
@@ -534,6 +665,10 @@ async function handleSaveDraft() {
       seoTitle: seoForm.title,
       seoDescription: seoForm.description,
       seoKeywords: seoKeywords.value,
+      llmsSummary: geoForm.llmsSummary,
+      geoCitationSummary: geoForm.geoCitationSummary,
+      schemaJson: geoForm.schemaJson,
+      faqJson: geoForm.faqJson,
     }
 
     if (isEdit.value) {
@@ -565,6 +700,10 @@ async function handleSubmitReview() {
       seoTitle: seoForm.title,
       seoDescription: seoForm.description,
       seoKeywords: seoKeywords.value,
+      llmsSummary: geoForm.llmsSummary,
+      geoCitationSummary: geoForm.geoCitationSummary,
+      schemaJson: geoForm.schemaJson,
+      faqJson: geoForm.faqJson,
     }
 
     if (isEdit.value) {
@@ -599,6 +738,10 @@ async function handlePublish() {
       seoTitle: seoForm.title,
       seoDescription: seoForm.description,
       seoKeywords: seoKeywords.value,
+      llmsSummary: geoForm.llmsSummary,
+      geoCitationSummary: geoForm.geoCitationSummary,
+      schemaJson: geoForm.schemaJson,
+      faqJson: geoForm.faqJson,
     }
 
     if (isEdit.value) {
@@ -700,6 +843,11 @@ async function loadArticleDetail() {
     if (article.seoKeywords && Array.isArray(article.seoKeywords)) {
       seoKeywords.value = article.seoKeywords
     }
+
+    geoForm.llmsSummary = (article as any).llmsSummary || ''
+    geoForm.geoCitationSummary = (article as any).geoCitationSummary || ''
+    geoForm.schemaJson = (article as any).schemaJson || ''
+    geoForm.faqJson = (article as any).faqJson || ''
   } catch (error) {
     message.error('加载文章详情失败')
   } finally {

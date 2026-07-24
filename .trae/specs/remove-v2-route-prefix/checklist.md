@@ -1,0 +1,7 @@
+- [x] Checkpoint 1: 路由配置文件中不再包含 `/v2/` 前缀的路由路径
+- [x] Checkpoint 2: 路由守卫中登录页判断已更新（`v2-login` → `login`）
+- [x] Checkpoint 3: HTTP 拦截器中登录重定向路径已更新（`/v2/login` → `/login`）
+- [x] Checkpoint 4: 登录页面登录成功后跳转路径已更新（`/v2/workspace/dashboard` → `/workspace/dashboard`）
+- [x] Checkpoint 5: 退出登录跳转路径已更新（`/v2/login` → `/login`）
+- [x] Checkpoint 6: 所有组件中的路由跳转引用已更新（无 `/v2/` 前缀）
+- [x] Checkpoint 7: 编译通过（`npm run build` 成功）

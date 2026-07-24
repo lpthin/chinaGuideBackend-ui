@@ -107,7 +107,7 @@
                   <a-checkbox :checked="selectedIds.includes(file.id)" class="media-checkbox" />
                   <img
                     v-if="isImageFile(file) && !failedImageIds.has(file.id)"
-                    :src="`/api/v2/knowledge/documents/${file.id}/file`"
+                    :src="getMediaFileUrl(file)"
                     :alt="file.originalName || file.fileName"
                     @error="onImageError(file.id)"
                   />
@@ -128,9 +128,9 @@
                 </template>
                 <template #description>
                   <span style="font-size: 12px">{{ formatFileSize(file.fileSize) }}</span>
-                  <div v-if="file.tags" class="doc-tags">
+                  <div v-if="file.tags && file.tags.length" class="doc-tags">
                     <a-tag
-                      v-for="tag in (file.tags || '').split(',').filter((t: string) => t)"
+                      v-for="tag in file.tags.filter((t: string) => t)"
                       :key="tag"
                       size="small"
                       :color="getTagColor(tag)"
@@ -183,9 +183,9 @@
               </a-space>
             </template>
             <template v-if="column.key === 'tags'">
-              <template v-if="record.tags">
+              <template v-if="record.tags && record.tags.length">
                 <a-tag
-                  v-for="tag in (record.tags || '').split(',').filter((t: string) => t)"
+                  v-for="tag in record.tags.filter((t: string) => t)"
                   :key="tag"
                   size="small"
                   :color="getTagColor(tag)"
@@ -448,9 +448,9 @@
                   <a-typography-paragraph :ellipsis="{ rows: 2 }" style="margin: 0; font-size: 13px; color: #595959">
                     {{ card.content }}
                   </a-typography-paragraph>
-                  <div v-if="card.tags" style="margin-top: 8px">
+                  <div v-if="card.tagList && card.tagList.length" style="margin-top: 8px">
                     <a-tag 
-                      v-for="tag in card.tags.split(',').filter((t: string) => t).slice(0, 3)" 
+                      v-for="tag in card.tagList.slice(0, 3)" 
                       :key="tag"
                       size="small"
                       color="blue"
@@ -628,7 +628,7 @@ const filteredFiles = computed(() => {
   }
   if (selectedTag.value) {
     return result.filter((f: any) => {
-      const fileTags = f.tags ? f.tags.split(',') : []
+      const fileTags = Array.isArray(f.tags) ? f.tags : (f.tags ? f.tags.split(',') : [])
       return fileTags.includes(selectedTag.value)
     })
   }
@@ -772,7 +772,7 @@ function toggleSelect(id: number) {
 
 function downloadMediaFile(file: any) {
   const link = document.createElement('a')
-  link.href = `/api/v2/knowledge/documents/${file.id}/file`
+  link.href = getMediaFileUrl(file)
   link.download = file.originalName || file.fileName
   link.click()
 }
@@ -830,7 +830,7 @@ function getTagColor(tagName: string): string {
 function previewMediaFile(file: any) {
   previewMediaData.value = file
   editingCategoryId.value = file.categoryId || null
-  editingTags.value = file.tags ? file.tags.split(',').filter((t: string) => t) : []
+  editingTags.value = Array.isArray(file.tags) ? file.tags.filter((t: string) => t) : (file.tags ? file.tags.split(',').filter((t: string) => t) : [])
   
   const idx = filteredFiles.value.findIndex((f: any) => f.id === file.id)
   previewIndex.value = idx
@@ -861,7 +861,7 @@ function prevDocument() {
     previewIndex.value = newIndex
     previewMediaData.value = file
     editingCategoryId.value = file.categoryId || null
-    editingTags.value = file.tags ? file.tags.split(',').filter((t: string) => t) : []
+    editingTags.value = Array.isArray(file.tags) ? file.tags.filter((t: string) => t) : (file.tags ? file.tags.split(',').filter((t: string) => t) : [])
     loadPreviewData(file.id)
     loadRelatedCards(file.id)
   }
@@ -875,7 +875,7 @@ function nextDocument() {
     previewIndex.value = newIndex
     previewMediaData.value = file
     editingCategoryId.value = file.categoryId || null
-    editingTags.value = file.tags ? file.tags.split(',').filter((t: string) => t) : []
+    editingTags.value = Array.isArray(file.tags) ? file.tags.filter((t: string) => t) : (file.tags ? file.tags.split(',').filter((t: string) => t) : [])
     loadPreviewData(file.id)
     loadRelatedCards(file.id)
   }
@@ -885,17 +885,22 @@ function downloadCurrentDoc() {
   const id = previewDocData.value?.id || previewMediaData.value?.id
   if (!id) return
   const link = document.createElement('a')
-  link.href = previewDocData.value?.fileDownloadUrl || `/api/v2/knowledge/documents/${id}/file`
+  const baseUrl = previewDocData.value?.fileDownloadUrl || `/api/v2/knowledge/documents/${id}/file`
+  const token = getFileToken()
+  link.href = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
   link.download = previewDocData.value?.originalName || previewMediaData.value?.originalName
   link.click()
 }
 
-function getMediaFileUrl(file: any) {
-  if (!file) return ''
-  if (file.id) {
-    return `/api/v2/knowledge/documents/${file.id}/file`
-  }
-  return ''
+function getFileToken(): string {
+  return auth.accessToken || localStorage.getItem('v2_access_token') || localStorage.getItem('geocms_token') || ''
+}
+
+function getMediaFileUrl(file: any): string {
+  if (!file || !file.id) return ''
+  const token = getFileToken()
+  const baseUrl = `/api/v2/knowledge/documents/${file.id}/file`
+  return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
 }
 
 function getFileExt(fileName: string): string {

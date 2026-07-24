@@ -763,7 +763,7 @@ const statusCounts = computed(() => ({
   }).length,
   published: articles.value.filter(a => {
     const s = a.status?.toLowerCase()
-    return s === 'published' || s === 'approved'
+    return s === 'published' || s === 'approved' || s === 'scheduled'
   }).length,
   offline: articles.value.filter(a => a.status?.toLowerCase() === 'offline').length,
   rejected: articles.value.filter(a => a.status?.toLowerCase() === 'rejected').length,
@@ -776,6 +776,9 @@ const allTags = ref<string[]>([])
 
 const selectedRowKeys = ref<number[]>([])
 const selectedRows = ref<any[]>([])
+
+const publishScheduledEnabled = ref(false)
+const publishScheduledTime = ref<any>(null)
 
 const articleForm = reactive({
   id: null as number | null,
@@ -1026,13 +1029,48 @@ function copyArticle(article: any) {
 }
 
 async function publishArticle(article: any) {
-  try {
-    await articleManageApi.publish(article.id)
-    message.success('发布成功')
-    article.status = 'published'
-  } catch {
-    message.error('发布失败')
-  }
+  Modal.confirm({
+    title: '发布文章',
+    content: () => h('div', { style: { marginBottom: '16px' } }, [
+      h('div', { style: { marginBottom: '8px' } }, `确定要发布文章"${article.title}"吗？`),
+      h('a-switch', {
+        'v-model': publishScheduledEnabled.value,
+        'checked-children': '定时发布',
+        'un-checked-children': '立即发布',
+        onChange: (checked: boolean) => {
+          publishScheduledEnabled.value = checked
+        }
+      }),
+      publishScheduledEnabled.value ? h('a-date-picker', {
+        style: { width: '100%', marginTop: '12px' },
+        showTime: true,
+        format: 'YYYY-MM-DD HH:mm',
+        placeholder: '选择发布时间',
+        value: publishScheduledTime.value,
+        onChange: (date: any) => {
+          publishScheduledTime.value = date
+        }
+      }) : null
+    ]),
+    onOk: async () => {
+      try {
+        if (publishScheduledEnabled.value && publishScheduledTime.value) {
+          await articleManageApi.publish(article.id, publishScheduledTime.value)
+          message.success('已安排定时发布')
+          article.status = 'scheduled'
+        } else {
+          await articleManageApi.publish(article.id)
+          message.success('发布成功')
+          article.status = 'published'
+        }
+        publishScheduledEnabled.value = false
+        publishScheduledTime.value = null
+        loadData()
+      } catch {
+        message.error('发布失败')
+      }
+    },
+  })
 }
 
 async function offlineArticle(article: any) {

@@ -299,6 +299,20 @@ export const aiGenerateApi = {
     >('/ai/embedding/chunk-preview', data),
 }
 
+export const adminAiStatsApi = {
+  getSummary: () =>
+    http.get<any>('/admin/ai/stats/summary'),
+
+  getTrend: (days?: number) =>
+    http.get<any[]>('/admin/ai/stats/trend', { params: { days } }),
+
+  getTenantStats: (limit?: number) =>
+    http.get<any>('/admin/ai/stats/tenant', { params: { limit } }),
+
+  getModelStats: () =>
+    http.get<any[]>('/admin/ai/stats/model'),
+}
+
 export default {
   model: modelApi,
   config: modelConfigApi,
@@ -309,4 +323,5 @@ export default {
   aiModel: aiModelApi,
   articleTemplate: articleTemplateApi,
   generate: aiGenerateApi,
+  adminAiStats: adminAiStatsApi,
 }

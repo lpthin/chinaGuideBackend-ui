@@ -520,6 +520,10 @@
                 <template #icon><AppstoreOutlined /></template>
                 批量生成
               </a-button>
+              <a-button size="large" @click="loadTokenStats" class="action-btn">
+                <template #icon><PieChartOutlined /></template>
+                Token统计
+              </a-button>
             </a-space>
           </div>
           <div class="actions-right">
@@ -541,6 +545,10 @@
               <div class="progress-text">{{ progressText }}</div>
             </div>
             <div class="progress-percent">{{ Math.floor(generateProgress) }}%</div>
+            <a-button type="text" danger @click="cancelGeneration" :loading="isCanceling" class="cancel-btn">
+              <CloseOutlined />
+              取消
+            </a-button>
           </div>
           <a-progress :percent="generateProgress" status="active" :show-info="false" />
         </div>
@@ -792,6 +800,95 @@
           </a-form-item>
         </a-form>
       </a-modal>
+
+      <!-- Token 消耗统计弹窗 -->
+      <a-modal v-model:open="showTokenStats" title="Token 消耗统计" width="720px" :footer="null">
+        <div v-if="tokenStats" class="token-stats-content">
+          <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
+            <a-col :span="6">
+              <a-card size="small">
+                <a-statistic title="总任务" :value="tokenStats.totalTasks" />
+              </a-card>
+            </a-col>
+            <a-col :span="6">
+              <a-card size="small">
+                <a-statistic title="成功" :value="tokenStats.completedTasks" :value-style="{ color: '#52c41a' }" />
+              </a-card>
+            </a-col>
+            <a-col :span="6">
+              <a-card size="small">
+                <a-statistic title="失败" :value="tokenStats.failedTasks" :value-style="{ color: '#ff4d4f' }" />
+              </a-card>
+            </a-col>
+            <a-col :span="6">
+              <a-card size="small">
+                <a-statistic title="总Token" :value="tokenStats.totalTokens" :value-style="{ color: '#1890ff' }" />
+              </a-card>
+            </a-col>
+          </a-row>
+          <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
+            <a-col :span="12">
+              <a-card size="small">
+                <a-statistic title="输入Token" :value="tokenStats.totalPromptTokens" />
+              </a-card>
+            </a-col>
+            <a-col :span="12">
+              <a-card size="small">
+                <a-statistic title="输出Token" :value="tokenStats.totalCompletionTokens" />
+              </a-card>
+            </a-col>
+          </a-row>
+          <a-table
+            v-if="tokenStats.modelStats && tokenStats.modelStats.length > 0"
+            :columns="tokenStatColumns"
+            :data-source="tokenStats.modelStats"
+            row-key="modelName"
+            size="small"
+            :pagination="false"
+          />
+          <a-empty v-else description="暂无数据" />
+        </div>
+        <a-spin v-else />
+      </a-modal>
+
+      <!-- 版本对比弹窗 -->
+      <a-modal v-model:open="showVersionCompare" title="文章版本对比" width="900px" :footer="null">
+        <div v-if="versionCompareResult" class="version-compare-content">
+          <a-alert
+            v-for="field in changedFields"
+            :key="field.key"
+            :message="`${field.label} 已变更`"
+            type="warning"
+            show-icon
+            style="margin-bottom: 8px"
+          />
+          <a-row :gutter="16">
+            <a-col :span="12">
+              <div class="version-panel">
+                <div class="version-panel__header">版本 {{ versionCompareResult.version1?.version || 'V1' }}</div>
+                <div class="version-panel__body">
+                  <p><strong>标题：</strong>{{ versionCompareResult.version1?.title || '-' }}</p>
+                  <p><strong>摘要：</strong>{{ versionCompareResult.version1?.summary || '-' }}</p>
+                  <p><strong>SEO标题：</strong>{{ versionCompareResult.version1?.seoTitle || '-' }}</p>
+                  <div class="version-content-text">{{ versionCompareResult.version1?.contentMd || '-' }}</div>
+                </div>
+              </div>
+            </a-col>
+            <a-col :span="12">
+              <div class="version-panel">
+                <div class="version-panel__header">版本 {{ versionCompareResult.version2?.version || 'V2' }}</div>
+                <div class="version-panel__body">
+                  <p><strong>标题：</strong>{{ versionCompareResult.version2?.title || '-' }}</p>
+                  <p><strong>摘要：</strong>{{ versionCompareResult.version2?.summary || '-' }}</p>
+                  <p><strong>SEO标题：</strong>{{ versionCompareResult.version2?.seoTitle || '-' }}</p>
+                  <div class="version-content-text">{{ versionCompareResult.version2?.contentMd || '-' }}</div>
+                </div>
+              </div>
+            </a-col>
+          </a-row>
+        </div>
+        <a-spin v-else />
+      </a-modal>
     </a-spin>
   </div>
 </template>
@@ -825,6 +922,7 @@ import {
   UploadOutlined,
   InboxOutlined,
   SettingOutlined,
+  CloseOutlined,
 } from '@ant-design/icons-vue'
 import { useRouter } from 'vue-router'
 import { articleApi, suggestionApi, dashboardApi } from '../../api'
@@ -852,11 +950,44 @@ const caseSearch = ref('')
 const knowledgeSearch = ref('')
 const generateProgress = ref(0)
 const progressText = ref('准备生成...')
+const currentTaskId = ref<number | null>(null)
+let pollTimer: any = null
+let sseSource: EventSource | null = null
+const isCanceling = ref(false)
 const batchCount = ref(5)
 const batchInterval = ref(3)
 const selectedRowKeys = ref<number[]>([])
 const highlightOptions = ref<string[]>(['data', 'result'])
 const analysisExpanded = ref(true)
+
+// Token 统计
+const showTokenStats = ref(false)
+const tokenStats = ref<any>(null)
+const tokenStatColumns = [
+  { title: '模型名称', dataIndex: 'modelName', key: 'modelName' },
+  { title: '任务数', dataIndex: 'taskCount', key: 'taskCount', width: 80 },
+  { title: '输入Token', dataIndex: 'promptTokens', key: 'promptTokens' },
+  { title: '输出Token', dataIndex: 'completionTokens', key: 'completionTokens' },
+  { title: '总Token', dataIndex: 'totalTokens', key: 'totalTokens' },
+]
+
+// 版本对比
+const showVersionCompare = ref(false)
+const versionCompareResult = ref<any>(null)
+const changedFields = computed(() => {
+  if (!versionCompareResult.value) return []
+  const fields = [
+    { key: 'title', label: '标题', changed: versionCompareResult.value.titleChanged },
+    { key: 'summary', label: '摘要', changed: versionCompareResult.value.summaryChanged },
+    { key: 'content', label: '正文', changed: versionCompareResult.value.contentChanged },
+    { key: 'seoTitle', label: 'SEO标题', changed: versionCompareResult.value.seoTitleChanged },
+    { key: 'seoDescription', label: 'SEO描述', changed: versionCompareResult.value.seoDescriptionChanged },
+    { key: 'keywords', label: '关键词', changed: versionCompareResult.value.keywordsChanged },
+    { key: 'llmsSummary', label: 'LLM摘要', changed: versionCompareResult.value.llmsSummaryChanged },
+    { key: 'geoCitation', label: '地理引用', changed: versionCompareResult.value.geoCitationSummaryChanged },
+  ]
+  return fields.filter(f => f.changed)
+})
 
 const trendChartRef = ref<HTMLElement>()
 const templateChartRef = ref<HTMLElement>()
@@ -1153,9 +1284,172 @@ async function loadData() {
   }
 }
 
+async function cancelGeneration() {
+  if (!currentTaskId.value) return
+  
+  isCanceling.value = true
+  try {
+    await articleApi.cancelGeneration(currentTaskId.value)
+    message.info('已取消生成任务')
+  } catch (error) {
+    console.error(error)
+  } finally {
+    isCanceling.value = false
+    clearPolling()
+    resetGenerationState()
+  }
+}
+
+function clearPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+  clearSSE()
+}
+
+function clearSSE() {
+  if (sseSource) {
+    sseSource.close()
+    sseSource = null
+  }
+}
+
+function resetGenerationState() {
+  generating.value = false
+  generateProgress.value = 0
+  progressText.value = '准备生成...'
+  currentTaskId.value = null
+}
+
+async function handleTaskComplete(res: any) {
+  clearPolling()
+  resetGenerationState()
+
+  if (res.status === 'COMPLETED') {
+    const newArticle = {
+      id: res.articleId || Date.now(),
+      title: res.title || '未命名文章',
+      status: 'draft',
+      score: Math.floor(Math.random() * 20) + 80,
+      generateType: activeTab.value,
+      wordCount: res.wordCount || 0,
+      createdAt: new Date().toISOString(),
+    }
+    articles.value.unshift(newArticle)
+    message.success('文章生成成功！')
+    await loadData()
+  } else if (res.status === 'FAILED') {
+    message.error(res.errorMessage || '生成失败')
+  } else if (res.status === 'CANCELLED') {
+    message.info('已取消生成任务')
+  } else if (res.status === 'RETRYING') {
+    message.warning('任务重试中...')
+  }
+}
+
+async function pollTaskStatus(taskId: number) {
+  pollTimer = setInterval(async () => {
+    try {
+      const res = await articleApi.getGenerationStatus(taskId)
+
+      generateProgress.value = res.progress || 0
+      progressText.value = res.stage || '处理中...'
+
+      if (['COMPLETED', 'FAILED', 'CANCELLED', 'RETRYING'].includes(res.status)) {
+        await handleTaskComplete(res)
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  }, 2000)
+}
+
+// 尝试使用 SSE 接收任务进度，失败则降级为轮询
+// 返回 true 表示 SSE 已成功处理任务，返回 false 表示需要降级到轮询
+async function trySSE(taskId: number): Promise<boolean> {
+  if (typeof EventSource === 'undefined') {
+    return false
+  }
+
+  return new Promise<boolean>((resolve) => {
+    let resolved = false
+    let fallbackTimer: any = null
+
+    try {
+      const source = articleApi.streamGenerationStatus(taskId)
+      sseSource = source
+
+      // 3 秒未收到 connected 事件，判定为连接失败，降级到轮询
+      fallbackTimer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          clearSSE()
+          resolve(false)
+        }
+      }, 3000)
+
+      source.addEventListener('connected', () => {
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer)
+          fallbackTimer = null
+        }
+      })
+
+      source.addEventListener('progress', (event: Event) => {
+        try {
+          const data = JSON.parse((event as MessageEvent).data)
+          generateProgress.value = data.progress || 0
+          progressText.value = data.stage || '处理中...'
+        } catch (e) {
+          console.error('解析 SSE progress 数据失败', e)
+        }
+      })
+
+      source.addEventListener('complete', (event: Event) => {
+        if (resolved) return
+        resolved = true
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer)
+          fallbackTimer = null
+        }
+        try {
+          const data = JSON.parse((event as MessageEvent).data)
+          handleTaskComplete(data)
+          resolve(true)
+        } catch (e) {
+          console.error('解析 SSE complete 数据失败', e)
+          clearSSE()
+          resolve(false)
+        }
+      })
+
+      source.addEventListener('error', () => {
+        if (resolved) return
+        resolved = true
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer)
+          fallbackTimer = null
+        }
+        // 连接失败或断流，降级到轮询
+        clearSSE()
+        resolve(false)
+      })
+    } catch (e) {
+      console.error('EventSource 创建失败', e)
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer)
+      }
+      clearSSE()
+      resolve(false)
+    }
+  })
+}
+
 async function generateArticle() {
   generating.value = true
   generateProgress.value = 0
+  isCanceling.value = false
 
   let initialText = '正在分析关键词...'
   if (activeTab.value === 'case') {
@@ -1175,15 +1469,15 @@ async function generateArticle() {
     if (activeTab.value === 'keyword') {
       params.type = 'keyword'
       params.keyword = selectedKeyword.value
-      params.template = selectedTemplate.value
-      params.length = articleLength.value
-      params.style = articleStyle.value
-      params.tone = articleTone.value
+      params.templateType = selectedTemplate.value
+      params.articleLength = articleLength.value
+      params.articleStyle = articleStyle.value
+      params.articleTone = articleTone.value
       
       const suggestionsRes = await suggestionApi.list({ page: 1, size: 1 })
       const suggestions = suggestionsRes.records
       if (suggestions.length > 0) {
-        await articleApi.generateFromSuggestion(suggestions[0].id, selectedTemplate.value)
+        params.suggestionId = suggestions[0].id
       }
     } else if (activeTab.value === 'case') {
       if (!selectedCase.value) {
@@ -1193,27 +1487,8 @@ async function generateArticle() {
       }
       params.type = 'case'
       params.caseId = selectedCase.value
-      params.template = selectedCaseTemplate.value
+      params.templateType = selectedCaseTemplate.value
       params.highlights = highlightOptions.value
-      
-      progressText.value = '正在提取案例亮点...'
-      await simulateProgress(30)
-      progressText.value = '正在构建文章结构...'
-      await simulateProgress(60)
-      progressText.value = '正在生成文章内容...'
-      await simulateProgress(100)
-      
-      const newArticle = {
-        id: Date.now(),
-        title: `${selectedCaseData.value?.title}深度分析报告`,
-        status: 'draft',
-        score: Math.floor(Math.random() * 20) + 80,
-        generateType: 'case',
-        wordCount: 1500,
-        createdAt: new Date().toISOString(),
-      }
-      articles.value.unshift(newArticle)
-      message.success('案例驱动生成文章成功！')
     } else if (activeTab.value === 'document') {
       if (!selectedDocument.value) {
         message.warning('请先选择一个文档')
@@ -1221,30 +1496,11 @@ async function generateArticle() {
         return
       }
       params.type = 'document'
-      params.documentId = selectedDocument.value.uid
-      params.template = selectedDocumentTemplate.value
-      params.length = documentArticleLength.value
-      params.style = documentArticleStyle.value
-      params.tone = documentArticleTone.value
-      
-      progressText.value = '正在解析文档内容...'
-      await simulateProgress(40)
-      progressText.value = '正在提取核心观点...'
-      await simulateProgress(70)
-      progressText.value = '正在生成文章...'
-      await simulateProgress(100)
-      
-      const newArticle = {
-        id: Date.now(),
-        title: `基于《${selectedDocument.value.name}》的分析报告`,
-        status: 'draft',
-        score: Math.floor(Math.random() * 20) + 78,
-        generateType: 'document',
-        wordCount: documentArticleLength.value,
-        createdAt: new Date().toISOString(),
-      }
-      articles.value.unshift(newArticle)
-      message.success('文档驱动生成文章成功！')
+      params.docContent = selectedDocument.value.name
+      params.templateType = selectedDocumentTemplate.value
+      params.articleLength = documentArticleLength.value
+      params.articleStyle = documentArticleStyle.value
+      params.articleTone = documentArticleTone.value
     } else if (activeTab.value === 'custom') {
       if (!customTopic.value.trim()) {
         message.warning('请输入文章主题')
@@ -1252,45 +1508,31 @@ async function generateArticle() {
         return
       }
       params.type = 'custom'
-      params.topic = customTopic.value
+      params.customTopic = customTopic.value
       params.keywords = customKeywords.value
       params.audience = targetAudience.value
-      params.template = selectedCustomTemplate.value
-      params.length = customArticleLength.value
-      params.style = customArticleStyle.value
-      params.tone = customArticleTone.value
-      
-      progressText.value = '正在分析主题需求...'
-      await simulateProgress(30)
-      progressText.value = '正在搜索相关素材...'
-      await simulateProgress(60)
-      progressText.value = '正在撰写文章...'
-      await simulateProgress(100)
-      
-      const newArticle = {
-        id: Date.now(),
-        title: customTopic.value,
-        status: 'draft',
-        score: Math.floor(Math.random() * 20) + 75,
-        generateType: 'custom',
-        wordCount: customArticleLength.value,
-        createdAt: new Date().toISOString(),
-      }
-      articles.value.unshift(newArticle)
-      message.success('自定义主题生成文章成功！')
+      params.templateType = selectedCustomTemplate.value
+      params.articleLength = customArticleLength.value
+      params.articleStyle = customArticleStyle.value
+      params.articleTone = customArticleTone.value
     }
     
-    generateProgress.value = 100
-    progressText.value = '生成完成！'
+    const res = await articleApi.generateAsync(params)
+    currentTaskId.value = res.taskId
+
+    generateProgress.value = 5
+    progressText.value = '任务已提交'
+
+    // 优先使用 SSE 接收进度，失败则降级为轮询
+    const sseOk = await trySSE(res.taskId)
+    if (!sseOk) {
+      pollTaskStatus(res.taskId)
+    }
     
-    message.success('文章生成成功！')
-    await loadData()
   } catch (error) {
-    message.error('生成失败')
     console.error(error)
-  } finally {
-    generating.value = false
-    generateProgress.value = 0
+    message.error('生成失败')
+    resetGenerationState()
   }
 }
 
@@ -1399,6 +1641,28 @@ function batchDelete() {
 function confirmBatchGenerate() {
   message.success(`已配置批量生成 ${batchCount.value} 篇文章`)
   showBatchConfig.value = false
+}
+
+async function loadTokenStats() {
+  showTokenStats.value = true
+  tokenStats.value = null
+  try {
+    const res = await articleApi.getTokenStats(7)
+    tokenStats.value = res
+  } catch (e) {
+    message.error('加载 Token 统计失败')
+  }
+}
+
+async function openVersionCompare(articleId: number, versionId1: number, versionId2: number) {
+  showVersionCompare.value = true
+  versionCompareResult.value = null
+  try {
+    const res = await articleApi.compareVersions(articleId, versionId1, versionId2)
+    versionCompareResult.value = res
+  } catch (e) {
+    message.error('加载版本对比失败')
+  }
 }
 
 const initTrendChart = () => {
@@ -1641,6 +1905,7 @@ onUnmounted(() => {
   trendChart?.dispose()
   templateChart?.dispose()
   qualityChart?.dispose()
+  clearPolling()
 })
 
 watch(analysisExpanded, (newVal) => {
@@ -2811,6 +3076,54 @@ watch(analysisExpanded, (newVal) => {
 @media (max-width: 640px) {
   .stat-cards {
     grid-template-columns: 1fr;
+  }
+}
+
+.token-stats-content {
+  :deep(.ant-statistic-title) {
+    font-size: 12px;
+    color: #8c8c8c;
+  }
+  :deep(.ant-statistic-content) {
+    font-size: 20px;
+  }
+}
+
+.version-compare-content {
+  .version-panel {
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+    overflow: hidden;
+
+    &__header {
+      padding: 8px 12px;
+      background: #fafafa;
+      font-weight: 600;
+      border-bottom: 1px solid #e8e8e8;
+    }
+
+    &__body {
+      padding: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+
+      p {
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+    }
+  }
+
+  .version-content-text {
+    margin-top: 8px;
+    padding: 8px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    font-size: 12px;
+    max-height: 250px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 }
 </style>

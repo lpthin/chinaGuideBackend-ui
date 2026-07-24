@@ -569,7 +569,7 @@ const fetchDashboardData = async () => {
       loadChartData()
     ])
     stats.value = statsData
-    recentArticles.value = (articlesData || []).slice(0, 5)
+    recentArticles.value = (articlesData?.records || []).slice(0, 5)
   } catch (error) {
     console.error('获取仪表盘数据失败:', error)
     stats.value = {
