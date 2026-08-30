@@ -129,16 +129,30 @@ export interface PortalDataResponse {
 
 // 获取门户数据的函数
 export async function getPortalData(): Promise<PortalDataResponse> {
-  const tenantId = localStorage.getItem('tenantId') || ''
+  // 兼容多个可能的 localStorage key 获取租户 ID
+  const tenantId =
+    localStorage.getItem('v2_selected_tenant_id') ||
+    localStorage.getItem('geocms_tenant_id') ||
+    localStorage.getItem('tenantId') ||
+    ''
+
+  if (!tenantId) {
+    throw new Error('缺少租户ID，请先登录')
+  }
 
   try {
-    const response = await axios.get<PortalDataResponse>('/api/v2/portal/data', {
+    const response = await axios.get('/api/v2/portal/data', {
       headers: {
         'X-Tenant-Id': tenantId
       }
     })
 
-    return response.data
+    // 后端返回 { success, code, message, data }，取 data 字段
+    const body = response.data
+    if (body && body.success && body.data) {
+      return body.data as PortalDataResponse
+    }
+    throw new Error(body?.message || '获取门户数据失败')
   } catch (error) {
     console.error('获取门户数据失败:', error)
     throw error
@@ -146,7 +160,8 @@ export async function getPortalData(): Promise<PortalDataResponse> {
 }
 
 // 将 API 的 Service 数据转换为前端使用的格式
-export function transformServiceData(apiServices: ApiService[]): any[] {
+export function transformServiceData(apiServices?: ApiService[]): any[] {
+  if (!apiServices) return []
   return apiServices.map(service => ({
     id: service.id,
     icon: service.icon || 'AppstoreOutlined',
@@ -157,7 +172,8 @@ export function transformServiceData(apiServices: ApiService[]): any[] {
 }
 
 // 将 API 的 Case 数据转换为前端使用的格式
-export function transformCaseData(apiCases: ApiCase[]): any[] {
+export function transformCaseData(apiCases?: ApiCase[]): any[] {
+  if (!apiCases) return []
   return apiCases.map(caseItem => ({
     id: caseItem.id,
     title: caseItem.title,
@@ -169,7 +185,8 @@ export function transformCaseData(apiCases: ApiCase[]): any[] {
 }
 
 // 将 API 的 News 数据转换为前端使用的格式
-export function transformNewsData(apiNews: ApiNews[]): any[] {
+export function transformNewsData(apiNews?: ApiNews[]): any[] {
+  if (!apiNews) return []
   return apiNews.map(news => ({
     id: news.id,
     title: news.title,
@@ -182,7 +199,8 @@ export function transformNewsData(apiNews: ApiNews[]): any[] {
 }
 
 // 将 API 的新闻数据转换为 SimpleTemplate 的作品展示格式
-export function transformArticleToWork(apiNews: ApiNews[]): any[] {
+export function transformArticleToWork(apiNews?: ApiNews[]): any[] {
+  if (!apiNews) return []
   return apiNews.map(news => ({
     id: news.id,
     title: news.title,

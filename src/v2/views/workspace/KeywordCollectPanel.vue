@@ -46,7 +46,7 @@
               <div class="stat-card__icon">
                 <component :is="item.icon" />
               </div>
-              <div class="stat-card__trend" :class="`trend-${item.trendType}`">
+              <div v-if="item.trendValue" class="stat-card__trend" :class="`trend-${item.trendType}`">
                 <span class="trend-arrow">{{ getTrendArrow(item.trendType) }}</span>
                 <span class="trend-value">{{ item.trendValue }}</span>
               </div>
@@ -643,8 +643,8 @@ const statItems = computed(() => [
     value: stats.todayCount,
     label: '今日采集关键词数',
     unit: '个',
-    trendType: 'up',
-    trendValue: '12%',
+    trendType: '',
+    trendValue: '',
     color: 'blue',
   },
   {
@@ -653,8 +653,8 @@ const statItems = computed(() => [
     value: stats.weekCount,
     label: '本周新增关键词数',
     unit: '个',
-    trendType: 'up',
-    trendValue: '8%',
+    trendType: '',
+    trendValue: '',
     color: 'purple',
   },
   {
@@ -663,8 +663,8 @@ const statItems = computed(() => [
     value: stats.pendingDistill,
     label: '待蒸馏关键词数',
     unit: '个',
-    trendType: 'down',
-    trendValue: '3%',
+    trendType: '',
+    trendValue: '',
     color: 'green',
   },
   {
@@ -673,8 +673,8 @@ const statItems = computed(() => [
     value: stats.dataSourceCount,
     label: '数据源接入数',
     unit: '个',
-    trendType: 'stable',
-    trendValue: '稳定',
+    trendType: '',
+    trendValue: '',
     color: 'orange',
   },
 ])
@@ -883,7 +883,7 @@ function handleTableChange(pagination: any) {
 async function loadKeywordStats() {
   chartLoading.value = true
   try {
-    const res = await keywordApi.getKeywordStats()
+    const res = await keywordApi.getKeywordStats(auth.selectedTenantId)
     chartData.value.trendData = res.trendData
     chartData.value.sourceDistribution = res.sourceDistribution
     initTrendChart()
@@ -900,8 +900,8 @@ async function fetchData() {
   loading.value = true
   try {
     const [statsRes, keywordRes] = await Promise.all([
-      keywordApi.getStats(),
-      keywordApi.list({}),
+      keywordApi.getStats(auth.selectedTenantId),
+      keywordApi.list({ tenantId: auth.selectedTenantId }),
     ])
     const statsData = statsRes
     const keywordData = keywordRes.records
@@ -939,7 +939,7 @@ async function startCollect() {
   try {
     const res = await keywordApi.collect({
       sourceCodes: enabledSources.map(s => s.key),
-    })
+    }, auth.selectedTenantId)
     
     collectProgress.value = 100
     currentCollectStep.value = totalCollectSteps.value
@@ -963,7 +963,7 @@ async function handleImport() {
   importing.value = true
   try {
     const keywordsList = importText.value.split('\n').map((k: string) => k.trim()).filter(Boolean)
-    const res = await keywordApi.importKeywords({ keywords: keywordsList })
+    const res = await keywordApi.importKeywords({ keywords: keywordsList }, auth.selectedTenantId)
     showImportModal.value = false
     importText.value = ''
     message.success(`导入成功，共 ${res.imported ?? 0} 个关键词`)
@@ -991,7 +991,7 @@ async function batchDelete() {
     return
   }
   try {
-    await keywordApi.batchDelete(selectedRowKeys.value)
+    await keywordApi.batchDelete(selectedRowKeys.value, auth.selectedTenantId)
     message.success(`成功删除 ${selectedRowKeys.value.length} 个关键词`)
     selectedRowKeys.value = []
     fetchData()
@@ -1018,7 +1018,7 @@ async function confirmBatchPriority() {
     return
   }
   try {
-    await keywordApi.batchUpdatePriority(selectedRowKeys.value, batchPriorityValue.value)
+    await keywordApi.batchUpdatePriority(selectedRowKeys.value, batchPriorityValue.value, auth.selectedTenantId)
     message.success(`成功设置 ${selectedRowKeys.value.length} 个关键词的优先级为 ${batchPriorityValue.value}`)
     showPriorityModal.value = false
     selectedRowKeys.value = []
@@ -1038,7 +1038,7 @@ async function startDistill() {
   showDistillProgress.value = true
   distillProgress.value = 0
   try {
-    await clusterApi.distill()
+    await clusterApi.distill({ tenantId: auth.selectedTenantId })
     distillProgress.value = 100
     message.success('蒸馏完成！')
     fetchData()

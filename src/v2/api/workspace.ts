@@ -47,39 +47,69 @@ export const dashboardApi = {
 // ==================== 关键词采集 API ====================
 export const keywordApi = {
   // 获取关键词列表
-  list: (params: { page?: number; size?: number; status?: string; keyword?: string }) =>
+  list: (params: { page?: number; size?: number; status?: string; keyword?: string; tenantId?: number }) =>
     http.get<PageResult<{ id: number; rawKeyword: string; normalizedKeyword: string; searchVolume: number; competition: number; status: string; createdAt: string }>>('/workspace/keywords', { params }),
 
   // 导入关键词
-  importKeywords: (data: { keywords: string[] }) =>
-    http.post<{ imported: number; total: number }>('/workspace/keywords/import', data),
+  importKeywords: (data: { keywords: string[] }, tenantId?: number) =>
+    http.post<{ imported: number; total: number }>('/workspace/keywords/import', data, { params: { tenantId } }),
 
   // 采集关键词
-  collect: (data: { sourceCodes: string[] }) =>
-    http.post<{ collected: number; sourcesUsed: number; message: string }>('/workspace/keywords/collect', data),
+  collect: (data: { sourceCodes: string[] }, tenantId?: number) =>
+    http.post<{ collected: number; sourcesUsed: number; message: string }>('/workspace/keywords/collect', data, { params: { tenantId } }),
 
   // 删除关键词
-  delete: (id: number) =>
-    http.delete<void>(`/api/v2/workspace/keywords/${id}`),
+  delete: (id: number, tenantId?: number) =>
+    http.delete<void>(`/api/v2/workspace/keywords/${id}`, { params: { tenantId } }),
 
   // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete<{ deleted: number }>('/workspace/keywords/batch-delete', { data: ids }),
+  batchDelete: (ids: number[], tenantId?: number) =>
+    http.delete<{ deleted: number }>('/workspace/keywords/batch-delete', { data: ids, params: { tenantId } }),
 
   // 获取关键词统计
-  getStats: () =>
-    http.get<{ total: number; pending: number; distilled: number }>('/workspace/keywords/stats'),
+  getStats: (tenantId?: number) =>
+    http.get<{ total: number; pending: number; distilled: number }>('/workspace/keywords/stats', { params: { tenantId } }),
 
   // 获取关键词图表数据（趋势图和来源分布）
-  getKeywordStats: () =>
+  getKeywordStats: (tenantId?: number) =>
     http.get<{
       trendData: { dates: string[]; counts: number[] }
       sourceDistribution: { name: string; value: number }[]
-    }>('/workspace/keywords/stats'),
+    }>('/workspace/keywords/stats', { params: { tenantId } }),
 
   // 批量更新优先级
-  batchUpdatePriority: (ids: number[], priority: number) =>
-    http.post('/workspace/keywords/batch-update-priority', { ids, priority }),
+  batchUpdatePriority: (ids: number[], priority: number, tenantId?: number) =>
+    http.post('/workspace/keywords/batch-update-priority', { ids, priority }, { params: { tenantId } }),
+
+  // 关键词库 SOT 总览：词量绝对值 / 转化漏斗分布 / 生产进度（FR-4 FR-6）
+  getLibraryStats: (tenantId?: number) =>
+    http.get<{
+      total: number
+      cat_price: number; cat_choice: number; cat_effect: number; cat_guide: number
+      cat_basic: number; cat_local: number; cat_news: number
+      stage_new: number; stage_suggested: number; stage_articled: number
+    }>('/workspace/keywords/library-stats', { params: { tenantId } }),
+
+  // 读取当前租户每周关键词扩展配置（FR-11）
+  getExpandConfig: (tenantId?: number) =>
+    http.get<{ tenantId: number; enabled: number; weekday: string; runTime: string }>(
+      '/workspace/keywords/expand-config', { params: { tenantId } }),
+
+  // 管理员修改每周扩展配置
+  updateExpandConfig: (
+    data: { enabled?: boolean | number; weekday?: string; runTime?: string },
+    tenantId?: number
+  ) =>
+    http.put<{ tenantId: number; enabled: number; weekday: string; runTime: string }>(
+      '/workspace/keywords/expand-config', data, { params: { tenantId } }),
+
+  // 管理员立即触发关键词扩展（默认 3 源白名单，可传 sourceCodes 覆盖）
+  expand: (data?: { sourceCodes?: string[] }, tenantId?: number) =>
+    http.post<{ message: string; libraryStats?: any }>('/workspace/keywords/expand', data ?? {}, { params: { tenantId } }),
+
+  // 采集任务历史（保留原接口）
+  collectionJobs: (tenantId?: number) =>
+    http.get<any[]>('/workspace/keywords/collection-jobs', { params: { tenantId } }),
 }
 
 // ==================== 聚类蒸馏 API ====================
@@ -89,12 +119,22 @@ export const clusterApi = {
     http.get<PageResult<KeywordCluster>>('/workspace/clusters', { params }),
 
   // 获取聚类详情
-  get: (id: number) =>
-    http.get<KeywordCluster>(`/api/v2/workspace/clusters/${id}`),
+  get: (id: number, params?: { tenantId?: number }) =>
+    http.get<KeywordCluster>(`/workspace/clusters/${id}`, { params }),
 
-  // 执行聚类蒸馏
-  distill: (params?: { tenantId?: number }) =>
-    http.post<{ clusterCount: number; clusters: KeywordCluster[] }>('/workspace/clusters/distill', null, { params }),
+  // 执行聚类蒸馏（默认 preview=false 直接入库；preview=true 返回预览，不落库）
+  distill: (params?: { tenantId?: number; preview?: boolean }) =>
+    http.post<{
+      clusterCount: number
+      clusters: KeywordCluster[]
+      preview?: boolean
+      distillSource?: 'ai_model' | 'rule_fallback' | 'empty'
+      usedRuleFallback?: boolean
+    }>('/workspace/clusters/distill', null, { params }),
+
+  // 两阶段蒸馏：确认 preview 中选中的聚类，落库
+  confirmDistill: (body: { clusters: KeywordCluster[] }, params?: { tenantId?: number }) =>
+    http.post<{ clusterCount: number; clusters: KeywordCluster[] }>('/workspace/clusters/confirm', body, { params }),
 
   // 生成聚类内容建议
   generateSuggestions: (clusterId: number, params?: { tenantId?: number }) =>
@@ -119,8 +159,8 @@ export const suggestionApi = {
 // ==================== 文章生成 API ====================
 export const articleApi = {
   // 异步生成文章
-  generateAsync: (params: any) =>
-    http.post<{ taskId: number; status: string; message: string }>('/workspace/articles/generate-async', params),
+  generateAsync: (params: any, query?: { tenantId?: number }) =>
+    http.post<{ taskId: number; status: string; message: string }>('/workspace/articles/generate-async', params, { params: query }),
 
   // 获取生成任务状态
   getGenerationStatus: (taskId: number) =>
@@ -148,12 +188,12 @@ export const articleApi = {
     http.post<{ taskId: number; status: string; message: string }>(`/workspace/articles/generate/${taskId}/cancel`),
 
   // 获取最近生成历史
-  getRecentGenerations: (limit: number = 10) =>
-    http.get<any[]>(`/workspace/articles/generate/recent?limit=${limit}`),
+  getRecentGenerations: (limit: number = 10, tenantId?: number) =>
+    http.get<any[]>('/workspace/articles/generate/recent', { params: { limit, tenantId } }),
 
   // 批量生成文章
-  generateBatch: (paramsList: any[]) =>
-    http.post<any[]>('/workspace/articles/generate-batch', paramsList),
+  generateBatch: (paramsList: any[], tenantId?: number) =>
+    http.post<any[]>('/workspace/articles/generate-batch', paramsList, { params: { tenantId } }),
 
   // 版本对比
   compareVersions: (articleId: number, versionId1: number, versionId2: number) =>
@@ -191,45 +231,45 @@ export const articleApi = {
     }>('/workspace/articles/generate/token-stats', { params: { days, tenantId } }),
 
   // 从建议生成文章
-  generateFromSuggestion: (suggestionId: number, templateType?: string) =>
+  generateFromSuggestion: (suggestionId: number, templateType?: string, tenantId?: number) =>
     http.post<{ articleId: number; title: string; status: string }>('/workspace/articles/generate', {
       suggestionId,
       templateType: templateType || 'default'
-    }),
+    }, { params: { tenantId } }),
 
   // 获取文章列表
-  list: (params: { page?: number; size?: number; status?: string; category?: string }) =>
+  list: (params: { page?: number; size?: number; status?: string; category?: string; tenantId?: number }) =>
     http.get<PageResult<GeneratedContent>>('/workspace/articles', { params }),
 
   // 获取文章详情
-  get: (id: number) =>
-    http.get<GeneratedContent>(`/workspace/articles/${id}`),
+  get: (id: number, tenantId?: number) =>
+    http.get<GeneratedContent>(`/workspace/articles/${id}`, { params: { tenantId } }),
 
   // 更新文章
-  update: (id: number, data: any) =>
-    http.put<GeneratedContent>(`/workspace/articles/${id}`, data),
+  update: (id: number, data: any, tenantId?: number) =>
+    http.put<GeneratedContent>(`/workspace/articles/${id}`, data, { params: { tenantId } }),
 
   // 删除文章
-  delete: (id: number) =>
-    http.delete<void>(`/workspace/articles/${id}`),
+  delete: (id: number, tenantId?: number) =>
+    http.delete<void>(`/workspace/articles/${id}`, { params: { tenantId } }),
 
   // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete<void>('/workspace/articles/batch', { data: ids }),
+  batchDelete: (ids: number[], tenantId?: number) =>
+    http.delete<void>('/workspace/articles/batch', { data: ids, params: { tenantId } }),
 
   // 提交审核
-  submitReview: (id: number) =>
-    http.post<{ articleId: number; status: string }>(`/workspace/articles/${id}/submit-review`),
+  submitReview: (id: number, tenantId?: number) =>
+    http.post<{ articleId: number; status: string }>(`/workspace/articles/${id}/submit-review`, null, { params: { tenantId } }),
 
   // 批量发布
-  batchPublish: (articleIds: number[]) =>
-    http.post('/workspace/articles/batch-publish', { articleIds }),
+  batchPublish: (articleIds: number[], tenantId?: number) =>
+    http.post('/workspace/articles/batch-publish', { articleIds }, { params: { tenantId } }),
 }
 
 // ==================== 内容审核 API ====================
 export const reviewApi = {
   // 获取待审核列表
-  pendingList: (params: { page?: number; size?: number }) =>
+  pendingList: (params: { page?: number; size?: number; tenantId?: number }) =>
     http.get<PageResult<ReviewItem>>('/workspace/reviews/pending', { params }),
 
   // 获取审核详情
@@ -237,8 +277,8 @@ export const reviewApi = {
     http.get<ReviewItem>(`/api/v2/workspace/reviews/${id}`),
 
   // 提交审核
-  submitForReview: (articleId: number) =>
-    http.post<{ articleId: number; status: string; submittedAt: string }>(`/api/v2/workspace/articles/${articleId}/submit-review`),
+  submitForReview: (articleId: number, tenantId?: number) =>
+    http.post<{ articleId: number; status: string; submittedAt: string }>(`/api/v2/workspace/articles/${articleId}/submit-review`, null, { params: { tenantId } }),
 
   // 通过审核
   approve: (articleId: number, comment?: string) =>
@@ -265,20 +305,20 @@ export const reviewApi = {
 // ==================== 发布管理 API ====================
 export const publishApi = {
   // 获取发布任务列表
-  list: (params: { page?: number; size?: number; status?: string }) =>
+  list: (params: { page?: number; size?: number; status?: string; tenantId?: number }) =>
     http.get<PageResult<PublishTask>>('/workspace/publish/jobs', { params }),
 
   // 创建发布任务
-  create: (params: { articleId: number; platform: string; scheduledTime?: string }) =>
-    http.post<{ jobId: number; articleId: number; status: string; scheduledAt: string }>('/workspace/publish/' + params.articleId, params),
+  create: (params: { articleId: number; platform: string; scheduledTime?: string; tenantId?: number }) =>
+    http.post<{ jobId: number; articleId: number; status: string; scheduledAt: string }>('/workspace/publish/' + params.articleId, params, { params: { tenantId: params.tenantId } }),
 
   // 取消发布
-  cancel: (jobId: number) =>
-    http.post<{ jobId: number; status: string }>(`/api/v2/workspace/publish/jobs/${jobId}/cancel`),
+  cancel: (jobId: number, tenantId?: number) =>
+    http.post<{ jobId: number; status: string }>(`/api/v2/workspace/publish/jobs/${jobId}/cancel`, null, { params: { tenantId } }),
 
   // 获取发布统计
-  getStats: () =>
-    http.get<{ pending: number; completed: number; failed: number }>('/workspace/publish/stats'),
+  getStats: (tenantId?: number) =>
+    http.get<{ pending: number; completed: number; failed: number }>('/workspace/publish/stats', { params: { tenantId } }),
 
   // 获取发布统计详情
   getStatsDetail: (tenantId?: number) =>
@@ -292,12 +332,12 @@ export const publishApi = {
 // ==================== 发布配置 API ====================
 export const publishConfigApi = {
   // 获取发布配置
-  get: () =>
-    http.get<any>('/publish-config'),
+  get: (tenantId?: number) =>
+    http.get<any>('/publish-config', { params: { tenantId } }),
 
   // 保存发布配置
-  update: (data: any) =>
-    http.put<any>('/publish-config', data),
+  update: (data: any, tenantId?: number) =>
+    http.put<any>('/publish-config', data, { params: { tenantId } }),
 
   // 获取平台配置列表
   listPlatforms: () =>

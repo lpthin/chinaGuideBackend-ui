@@ -37,8 +37,8 @@ const ArticleDetailView = () => import('../views/article/ArticleDetailView.vue')
 const ArticleEditView = () => import('../views/article/ArticleEditView.vue')
 const ArticleTemplateManageView = () => import('../views/article/ArticleTemplateManageView.vue')
 
-// 🔥 热词管理模块
-const HotKeywordView = () => import('../views/keyword/HotKeywordView.vue')
+// 📚 关键词库模块（原热词管理→企业关键词生产体系，统一走 keyword SOT）
+const KeywordLibraryView = () => import('../views/workspace/KeywordLibraryView.vue')
 
 // 💼 案例管理模块
 const CaseListView = () => import('../views/case/CaseListView.vue')
@@ -173,8 +173,8 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'keywords',
         name: 'workspace-keywords',
-        component: HotKeywordView,
-        meta: { title: '热词管理', icon: 'fire', breadcrumb: ['首页', '内容生产', '热词管理'] }
+        component: KeywordLibraryView,
+        meta: { title: '关键词库', icon: 'database', breadcrumb: ['首页', '内容生产', '关键词库'] }
       },
       {
         path: 'article-templates',

@@ -93,6 +93,14 @@ http.interceptors.request.use(
 
 http.interceptors.response.use(
   (response) => {
+    // 自动接收后端刷新的 token
+    const newToken = response.headers?.['x-new-token']
+    if (newToken) {
+      const v2Auth = useV2AuthStore()
+      v2Auth.accessToken = newToken
+      localStorage.setItem('v2_access_token', newToken)
+    }
+
     const body = response.data as any
     if (body && typeof body === 'object') {
       const code = body.code !== undefined && body.code !== null ? String(body.code) : null

@@ -46,7 +46,7 @@
               <div class="stat-card__icon">
                 <component :is="item.icon" />
               </div>
-              <div class="stat-card__trend" :class="`trend-${item.trendType}`">
+              <div v-if="item.trendValue" class="stat-card__trend" :class="`trend-${item.trendType}`">
                 <span class="trend-arrow">{{ getTrendArrow(item.trendType) }}</span>
                 <span class="trend-value">{{ item.trendValue }}</span>
               </div>
@@ -120,6 +120,19 @@
                 <template #icon><StarOutlined /></template>
                 自动精选TOP3
               </a-button>
+              <a-popconfirm
+                v-if="selectedRowKeys.length > 0"
+                :title="`确定要删除选中的 ${selectedRowKeys.length} 个热词吗？`"
+                ok-text="删除"
+                ok-type="danger"
+                cancel-text="取消"
+                @confirm="handleBatchDelete"
+              >
+                <a-button size="small" danger>
+                  <template #icon><DeleteOutlined /></template>
+                  批量删除 ({{ selectedRowKeys.length }})
+                </a-button>
+              </a-popconfirm>
               <a-button size="small" @click="showLogDrawer = true" class="action-btn-default">
                 <template #icon><FileTextOutlined /></template>
                 采集日志
@@ -315,8 +328,11 @@
                   <a-col :span="12">
                     <a-form-item label="采集数据源">
                       <a-checkbox-group v-model:value="collectConfig.sources" class="checkbox-group">
-                        <a-checkbox value="baidu_suggest">百度建议</a-checkbox>
-                        <a-checkbox value="product_expand">产品扩展</a-checkbox>
+                        <a-checkbox value="baidu_suggest">百度联想词</a-checkbox>
+                        <a-checkbox value="product_expand">产品词扩展</a-checkbox>
+                        <a-checkbox value="5118" disabled>5118<span class="badge-premium">付费</span></a-checkbox>
+                        <a-checkbox value="baidu_index" disabled>百度指数<span class="badge-premium">付费</span></a-checkbox>
+                        <a-checkbox value="douyin_index" disabled>抖音热榜<span class="badge-premium">付费</span></a-checkbox>
                       </a-checkbox-group>
                     </a-form-item>
                   </a-col>
@@ -324,10 +340,36 @@
                     <a-form-item label="采集频率">
                       <a-select v-model:value="collectConfig.frequency" style="width: 100%">
                         <a-select-option value="hourly">每小时</a-select-option>
-                        <a-select-option value="every3h">每3小时</a-select-option>
-                        <a-select-option value="every6h">每6小时</a-select-option>
                         <a-select-option value="daily">每天</a-select-option>
+                        <a-select-option value="weekly">每周</a-select-option>
                       </a-select>
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+                <a-row :gutter="24">
+                  <a-col :span="12">
+                    <a-form-item label="定时采集">
+                      <a-switch v-model:checked="collectConfig.enabled" />
+                      <span class="form-desc">开启后按设定频率自动采集</span>
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-form-item label="自动精选">
+                      <a-switch v-model:checked="collectConfig.autoSelect" />
+                      <span class="form-desc">开启后自动精选TOP热词</span>
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+                <a-row :gutter="24">
+                  <a-col :span="12" v-if="collectConfig.autoSelect">
+                    <a-form-item label="自动精选数量">
+                      <a-input-number
+                        v-model:value="collectConfig.topN"
+                        :min="1"
+                        :max="10"
+                        style="width: 120px"
+                      />
+                      <span class="form-desc">个</span>
                     </a-form-item>
                   </a-col>
                 </a-row>
@@ -460,9 +502,12 @@
               </div>
               <div class="log-row">
                 <span class="log-label">采集统计</span>
-                <span class="log-value">
-                  候选 <span class="highlight">{{ job.candidateCount }}</span> 个，
-                  保存 <span class="highlight">{{ job.savedCount }}</span> 个
+                <span class="log-value stat-pipeline">
+                  <span class="stat-chip chip-candidate">候选 {{ job.candidateCount ?? 0 }}</span>
+                  <span v-if="(job.filteredCount ?? 0) > 0" class="stat-chip chip-filtered">过滤 {{ job.filteredCount }}</span>
+                  <span class="stat-chip chip-saved">入库 {{ job.savedCount ?? 0 }}</span>
+                  <span class="stat-chip chip-inserted">新增 {{ job.insertedCount ?? 0 }}</span>
+                  <span v-if="(job.updatedCount ?? 0) > 0" class="stat-chip chip-updated">合并 {{ job.updatedCount }}</span>
                 </span>
               </div>
               <div v-if="job.message" class="log-row">
@@ -496,6 +541,7 @@ import {
   CheckOutlined,
   RollbackOutlined,
   FileTextOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons-vue'
 import * as echarts from 'echarts'
 import {
@@ -533,10 +579,11 @@ const stats = reactive<HotKeywordStats>({
 })
 
 const sourceOptions = ref([
-  { value: 'baidu', label: '百度热搜' },
-  { value: 'weibo', label: '微博热搜' },
-  { value: 'zhihu', label: '知乎热榜' },
-  { value: 'news', label: '新闻头条' },
+  { value: 'baidu_suggest', label: '百度联想词' },
+  { value: 'product_expand', label: '产品词扩展' },
+  { value: '5118', label: '5118（付费）', disabled: true },
+  { value: 'baidu_index', label: '百度指数（付费）', disabled: true },
+  { value: 'douyin_index', label: '抖音热榜（付费）', disabled: true },
 ])
 
 const categoryOptions = ref([
@@ -577,9 +624,10 @@ const rowSelection = {
 const collectConfig = reactive<CollectConfig>({
   sources: ['baidu_suggest', 'product_expand'],
   categories: [],
-  frequency: 'hourly',
-  autoSelect: true,
+  frequency: 'daily',
+  autoSelect: false,
   topN: 3,
+  enabled: false,
 })
 
 const columns = [
@@ -593,6 +641,19 @@ const columns = [
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 180 },
 ]
 
+const formatGrowth = (growth: number | undefined) => {
+  if (growth === undefined || growth === null) return ''
+  if (growth === 0) return '0%'
+  const sign = growth > 0 ? '+' : ''
+  return `${sign}${growth}%`
+}
+const getGrowthType = (growth: number | undefined) => {
+  if (growth === undefined || growth === null) return ''
+  if (growth > 0) return 'up'
+  if (growth < 0) return 'down'
+  return 'stable'
+}
+
 const statItems = computed(() => [
   {
     key: 'total',
@@ -600,8 +661,8 @@ const statItems = computed(() => [
     value: stats.totalCount,
     label: '总热词数',
     unit: '个',
-    trendType: 'up',
-    trendValue: '15%',
+    trendType: getGrowthType(stats.totalGrowth),
+    trendValue: formatGrowth(stats.totalGrowth),
     color: 'red',
   },
   {
@@ -610,8 +671,8 @@ const statItems = computed(() => [
     value: stats.todayNewCount,
     label: '今日新增',
     unit: '个',
-    trendType: 'up',
-    trendValue: '8%',
+    trendType: getGrowthType(stats.todayGrowth),
+    trendValue: formatGrowth(stats.todayGrowth),
     color: 'green',
   },
   {
@@ -620,8 +681,8 @@ const statItems = computed(() => [
     value: stats.topPlatform,
     label: 'TOP平台',
     unit: '',
-    trendType: 'stable',
-    trendValue: '稳定',
+    trendType: getGrowthType(stats.topPlatformGrowth),
+    trendValue: formatGrowth(stats.topPlatformGrowth),
     color: 'purple',
   },
   {
@@ -630,8 +691,8 @@ const statItems = computed(() => [
     value: stats.trendDistribution?.up || 0,
     label: '上升趋势',
     unit: '个',
-    trendType: 'up',
-    trendValue: '12%',
+    trendType: getGrowthType(stats.trendGrowth),
+    trendValue: formatGrowth(stats.trendGrowth),
     color: 'orange',
   },
 ])
@@ -809,12 +870,12 @@ async function handleCollect() {
   collecting.value = true
   collectProgress.value = 0
   Object.keys(sourceStats).forEach(key => delete sourceStats[key])
-  
+
   const sources = collectConfig.sources
   const totalSources = sources.length || 1
   let currentSource = 0
   let completed = false
-  
+
   const progressInterval = setInterval(() => {
     if (completed) return
     currentSource = Math.min(currentSource + 1, totalSources)
@@ -825,24 +886,34 @@ async function handleCollect() {
 
   try {
     const result = await hotKeywordApi.collect({ sources })
-    
+
     if (result.sourceStats) {
       Object.assign(sourceStats, result.sourceStats)
     }
-    
+
     completed = true
     collectProgress.value = 100
     clearInterval(progressInterval)
-    
+
     setTimeout(() => {
       collecting.value = false
       collectProgress.value = 0
       Object.keys(sourceStats).forEach(key => delete sourceStats[key])
     }, 1500)
-    
-    message.success(`采集成功，新增 ${result.count} 个热词`)
+
+    const cand = Number(result.candidateCount ?? 0)
+    const ins = Number(result.insertedCount ?? result.count ?? 0)
+    const up = Number(result.updatedCount ?? 0)
+    const flt = Number(result.filteredCount ?? 0)
+    const detail: string[] = []
+    detail.push(`候选词 ${cand}`)
+    if (flt > 0) detail.push(`过滤丢弃 ${flt}`)
+    detail.push(`热词新增 ${ins}`)
+    if (up > 0) detail.push(`合并更新 ${up}`)
+    message.success(`采集完成：${detail.join(' → ')}`, 6)
     loadKeywords()
     loadStats()
+    loadJobs()
   } catch (e) {
     completed = true
     clearInterval(progressInterval)
@@ -894,6 +965,19 @@ async function handleDelete(id: number) {
   }
 }
 
+async function handleBatchDelete() {
+  if (selectedRowKeys.value.length === 0) return
+  try {
+    await hotKeywordApi.batchDelete(selectedRowKeys.value)
+    message.success(`已删除 ${selectedRowKeys.value.length} 个热词`)
+    selectedRowKeys.value = []
+    loadKeywords()
+    loadStats()
+  } catch (e) {
+    message.error('批量删除失败')
+  }
+}
+
 function handleTableChange(pagination: any) {
   paginationConfig.current = pagination.current
   paginationConfig.pageSize = pagination.pageSize
@@ -908,18 +992,37 @@ function handleTabChange(key: string) {
 
 async function saveConfig() {
   try {
+    await hotKeywordApi.updateConfig(collectConfig)
     message.success('配置保存成功')
   } catch (e) {
+    console.error('保存配置失败', e)
     message.error('配置保存失败')
+  }
+}
+
+async function loadConfig() {
+  try {
+    const data = await hotKeywordApi.getConfig()
+    if (data) {
+      collectConfig.sources = data.sources || collectConfig.sources
+      collectConfig.categories = data.categories || []
+      collectConfig.frequency = data.frequency || collectConfig.frequency
+      collectConfig.autoSelect = data.autoSelect ?? collectConfig.autoSelect
+      collectConfig.topN = data.topN ?? collectConfig.topN
+      collectConfig.enabled = data.enabled ?? false
+    }
+  } catch (e) {
+    console.error('加载配置失败', e)
   }
 }
 
 function resetConfig() {
   collectConfig.sources = ['baidu', 'weibo']
   collectConfig.categories = []
-  collectConfig.frequency = 'hourly'
-  collectConfig.autoSelect = true
+  collectConfig.frequency = 'daily'
+  collectConfig.autoSelect = false
   collectConfig.topN = 3
+  collectConfig.enabled = false
 }
 
 async function loadCollectionJobs() {
@@ -933,24 +1036,14 @@ async function loadCollectionJobs() {
 }
 
 function formatDate(dateStr: string): string {
+  // 采集时间统一显示 yyyy-MM-dd HH:mm（原来的「今天/昨天/3天前」对排表时序判断不友好）
   if (!dateStr) return '-'
   try {
     const date = new Date(dateStr)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    
-    if (days === 0) {
-      return '今天'
-    } else if (days === 1) {
-      return '昨天'
-    } else if (days < 7) {
-      return `${days}天前`
-    } else {
-      return `${date.getMonth() + 1}/${date.getDate()}`
-    }
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
   } catch {
-    return dateStr.slice(0, 10)
+    return String(dateStr ?? '').slice(0, 16)
   }
 }
 
@@ -998,6 +1091,7 @@ function parsePlatformStats(statsStr: string): Record<string, number> | null {
 function loadData() {
   loadStats()
   loadKeywords()
+  loadConfig()
 }
 
 const handleResize = () => {
@@ -2186,5 +2280,47 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 600;
   color: @indigo-600;
+}
+
+.stat-pipeline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid transparent;
+}
+.stat-chip.chip-candidate {
+  background: rgba(15, 23, 42, 0.05);
+  color: @slate-700;
+  border-color: rgba(15, 23, 42, 0.1);
+}
+.stat-chip.chip-filtered {
+  background: rgba(234, 88, 12, 0.08);
+  color: #c2410c;
+  border-color: rgba(234, 88, 12, 0.25);
+}
+.stat-chip.chip-saved {
+  background: rgba(59, 130, 246, 0.08);
+  color: #1d4ed8;
+  border-color: rgba(59, 130, 246, 0.25);
+}
+.stat-chip.chip-inserted {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.stat-chip.chip-updated {
+  background: rgba(99, 102, 241, 0.1);
+  color: #4338ca;
+  border-color: rgba(99, 102, 241, 0.3);
 }
 </style>

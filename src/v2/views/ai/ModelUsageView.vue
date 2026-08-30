@@ -8,7 +8,7 @@
               <span class="filter-label">日期范围：</span>
               <a-range-picker
                 v-model:value="dateRange"
-                :ranges="dateRanges"
+                :presets="dateRanges"
                 style="width: 380px"
                 @change="handleDateChange"
               />

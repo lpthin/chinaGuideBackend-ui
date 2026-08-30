@@ -208,7 +208,6 @@ import {
   ClockCircleOutlined
 } from '@ant-design/icons-vue'
 import { knowledgeSearchApi, knowledgeCategoryApi } from '../../api/knowledge'
-import { hotKeywordApi } from '../../api/hotKeyword'
 import { useAuthStore } from '../../stores/auth'
 import type { KnowledgeSearchResultItem, KnowledgeSearchQuery } from '../../types/knowledge'
 
@@ -253,15 +252,8 @@ const loadCategories = async () => {
 }
 
 const loadHotKeywords = async () => {
-  try {
-    const res: any = await hotKeywordApi.dailyTop()
-    const data = res?.data ?? res
-    if (Array.isArray(data)) {
-      hotKeywords.value = data.map((item: any) => item.keyword).filter(Boolean)
-    }
-  } catch (error) {
-    console.error('加载热门搜索词失败:', error)
-  }
+  // 旧热词 API 已彻底拆除：热门搜索词改为空数组占位，后续若需可从关键词库 SOT 补充
+  hotKeywords.value = []
 }
 
 const loadData = async () => {

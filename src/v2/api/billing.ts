@@ -301,7 +301,7 @@ export const walletApi = {
 
   // 获取交易记录
   getTransactions: (params: { tenantId: number; type?: string; startDate?: string; endDate?: string; keyword?: string; page?: number; size?: number }) =>
-    http.get<PageResult<any>>('/billing/wallet/transactions', { params }),
+    http.get<PageResult<any>>('/billing/transactions', { params }),
 
   // 充值
   recharge: (tenantId: number, amount: number, paymentMethod: string) =>

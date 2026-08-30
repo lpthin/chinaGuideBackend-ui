@@ -272,37 +272,12 @@ async function loadQueue() {
     pagination.total = res?.total || res?.data?.total || records.length
   } catch (error) {
     console.error(error)
-    const mockData = generateMockData()
-    queueList.value = mockData
-    pagination.total = mockData.length
-    message.error('加载队列失败，显示示例数据')
+    queueList.value = []
+    pagination.total = 0
+    message.error('加载队列失败')
   } finally {
     loading.value = false
   }
-}
-
-function generateMockData() {
-  const statuses = ['PENDING', 'PENDING', 'PENDING', 'PUBLISHING', 'PUBLISHED', 'PUBLISHED', 'FAILED', 'CANCELLED']
-  const platforms = ['WordPress', '微信公众号', '知乎', '简书', 'CSDN']
-  const titles = [
-    '2024年人工智能发展趋势分析报告',
-    '前端开发最佳实践指南',
-    '深度解读：大语言模型的工作原理',
-    'React 18新特性完全指南',
-    '如何构建高性能的Web应用',
-    'Python数据分析入门教程',
-    '微服务架构设计模式',
-    'DevOps实践手册',
-  ]
-  return titles.map((title, index) => ({
-    id: index + 1,
-    title,
-    status: statuses[index % statuses.length],
-    priority: Math.floor(Math.random() * 10) + 1,
-    platform: platforms[index % platforms.length],
-    scheduledTime: `2024-06-${30 - index} ${10 + index}:00:00`,
-    publishTime: statuses[index % statuses.length] === 'PUBLISHED' ? `2024-06-${30 - index} ${10 + index}:30:00` : '-',
-  }))
 }
 
 function handleSearch() {

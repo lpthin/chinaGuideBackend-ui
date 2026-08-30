@@ -408,6 +408,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
+import { useAuthStore } from '../../stores/auth'
 import {
   BoldOutlined,
   ItalicOutlined,
@@ -429,11 +430,14 @@ import {
   CheckCircleOutlined,
 } from '@ant-design/icons-vue'
 import { articleApi, reviewApi } from '../../api/workspace'
+import { articleCategoryApi } from '../../api/article'
+import { caseTagApi } from '../../api/case'
 import { aiGenerateApi } from '../../api/ai-model'
 import { marked } from 'marked'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
 
 type ArticleStatus = 'draft' | 'reviewing' | 'approved' | 'rejected' | 'published'
 
@@ -515,18 +519,34 @@ const statusStepIndex = computed(() => {
   return map[articleForm.status] ?? 0
 })
 
-const categoryList = [
-  { id: 1, name: '公司新闻' },
-  { id: 2, name: '行业动态' },
-  { id: 3, name: '技术博客' },
-  { id: 4, name: '产品发布' },
-  { id: 5, name: '案例分享' },
-]
+const categoryList = ref<{ id: number; name: string }[]>([])
 
-const hotTags = ['AI', '人工智能', '数字化转型', '智能客服', '机器学习', 'NLP', '计算机视觉', '大数据']
+const hotTags = ref<string[]>([])
+
+async function loadCategoryList() {
+  try {
+    const tenantId = Number(localStorage.getItem('geocms_tenant_id') || localStorage.getItem('v2_selected_tenant_id') || 1)
+    const res = await articleCategoryApi.all(tenantId) as any
+    const list = Array.isArray(res) ? res : (res?.data || [])
+    categoryList.value = list.map((c: any) => ({ id: c.id, name: c.name }))
+  } catch (e) {
+    console.error('加载分类失败', e)
+  }
+}
+
+async function loadHotTags() {
+  try {
+    const tenantId = Number(localStorage.getItem('geocms_tenant_id') || localStorage.getItem('v2_selected_tenant_id') || 1)
+    const res = await caseTagApi.hot(tenantId, 10) as any
+    const list = Array.isArray(res) ? res : (res?.data || [])
+    hotTags.value = list.map((t: any) => t.name || t)
+  } catch (e) {
+    console.error('加载热门标签失败', e)
+  }
+}
 
 function getCategoryName(id: number | null): string {
-  const cat = categoryList.find(c => c.id === id)
+  const cat = categoryList.value.find(c => c.id === id)
   return cat?.name || '未分类'
 }
 
@@ -672,7 +692,7 @@ async function handleSaveDraft() {
     }
 
     if (isEdit.value) {
-      await articleApi.update(articleId.value, data)
+      await articleApi.update(articleId.value, data, authStore.selectedTenantId)
       message.success('草稿保存成功')
     } else {
       message.success('草稿保存成功（新建模式）')
@@ -707,8 +727,8 @@ async function handleSubmitReview() {
     }
 
     if (isEdit.value) {
-      await articleApi.update(articleId.value, data)
-      await reviewApi.submitForReview(articleId.value)
+      await articleApi.update(articleId.value, data, authStore.selectedTenantId)
+      await reviewApi.submitForReview(articleId.value, authStore.selectedTenantId)
       articleForm.status = 'reviewing'
       message.success('提交审核成功')
     } else {
@@ -745,7 +765,7 @@ async function handlePublish() {
     }
 
     if (isEdit.value) {
-      await articleApi.update(articleId.value, data)
+      await articleApi.update(articleId.value, data, authStore.selectedTenantId)
       articleForm.status = 'published'
       message.success('文章发布成功')
       router.push('/workspace/articles')
@@ -770,7 +790,7 @@ async function confirmDelete() {
   }
 
   try {
-    await articleApi.delete(articleId.value)
+    await articleApi.delete(articleId.value, authStore.selectedTenantId)
     message.success('删除成功')
     deleteVisible.value = false
     router.push('/workspace/articles')
@@ -817,7 +837,7 @@ async function loadArticleDetail() {
 
   loading.value = true
   try {
-    const article = await articleApi.get(articleId.value)
+    const article = await articleApi.get(articleId.value, authStore.selectedTenantId)
 
     articleForm.title = article.title || ''
     articleForm.summary = article.summary || ''
@@ -857,6 +877,8 @@ async function loadArticleDetail() {
 
 onMounted(() => {
   loadArticleDetail()
+  loadCategoryList()
+  loadHotTags()
 })
 </script>
 

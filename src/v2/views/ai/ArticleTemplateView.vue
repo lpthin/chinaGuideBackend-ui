@@ -501,11 +501,7 @@ const categoryList = [
   { value: 'custom', label: '自定义' },
 ]
 
-const modelList = ref([
-  { id: 1, name: '通义千问 - 默认' },
-  { id: 2, name: 'GPT-4 - 高级版' },
-  { id: 3, name: '文心一言 - 标准' },
-])
+const modelList = ref<{ id: number; name: string }[]>([])
 
 const getCategoryColor = (category: string) => {
   const colorMap: Record<string, string> = {
@@ -727,7 +723,9 @@ const downloadContent = () => {
 
 onMounted(async () => {
   try {
-    const models = await modelConfigApi.list({ tenantId: getTenantId(), isActive: true })
+    const res = await modelConfigApi.list({ tenantId: getTenantId(), isActive: true })
+    const records = (res as any)?.records || (res as any)?.data?.records || []
+    modelList.value = records.map((m: any) => ({ id: m.id, name: m.displayName || m.name || m.modelName || `模型${m.id}` }))
   } catch (error) {
     console.error('Failed to load models:', error)
   }

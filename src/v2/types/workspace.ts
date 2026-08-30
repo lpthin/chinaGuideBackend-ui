@@ -39,7 +39,11 @@ export interface KeywordCluster {
   priority?: number
   searchIntent?: string
   articleDirection?: string
+  articleTitle?: string
+  contentPrompt?: string
+  suggestedCategory?: string
   keywords?: string[]
+  contentSuggestions?: KeywordContentSuggestion[]
   createdAt: string
   updatedAt: string
 }
@@ -48,12 +52,15 @@ export interface KeywordCluster {
 export interface KeywordContentSuggestion {
   id: number
   clusterId: number
-  keyword: string
+  keyword?: string
   title: string
-  outline: string
-  suggestion: string
-  priority: 'high' | 'medium' | 'low'
-  status: 'pending' | 'generated' | 'published'
+  outline?: string
+  suggestion?: string
+  contentPrompt?: string
+  score?: number
+  reason?: string
+  priority?: 'high' | 'medium' | 'low'
+  status: string
   createdAt: string
 }
 

@@ -57,7 +57,7 @@ export const caseTagApi = {
 
   // 获取热门标签
   hot: (tenantId: number, limit: number = 10) =>
-    http.get<CaseTag[]>('/case/tags/hot', { params: { tenantId, limit } }),
+    http.get<CaseTag[]>('/operation/cases/tags/hot', { params: { tenantId, limit } }),
 
   // 获取标签详情
   get: (id: number) =>

@@ -505,16 +505,16 @@ const loadData = async () => {
 
     const data = await getPortalData()
 
-    // 填充数据
-    heroData.value = data.heroData
+    // 填充数据（每项都加防御兜底）
+    heroData.value = data.heroData || heroData.value
     services.value = transformServiceData(data.services)
-    aboutData.value.subtitle = data.heroData.subtitle
-    aboutData.value.description = data.heroData.description
-    aboutData.value.imageUrl = data.heroData.backgroundImage || ''
+    aboutData.value.subtitle = data.heroData?.subtitle || ''
+    aboutData.value.description = data.heroData?.description || ''
+    aboutData.value.imageUrl = data.heroData?.backgroundImage || ''
     cases.value = transformCaseData(data.cases)
     newsList.value = transformNewsData(data.news)
-    contactInfo.value = data.contactInfo
-    companyInfo.value = data.companyInfo
+    contactInfo.value = data.contactInfo || contactInfo.value
+    companyInfo.value = data.companyInfo || companyInfo.value
     seoMeta.value = data.seoMeta || null
     faviconUrl.value = data.faviconUrl || ''
   } catch (err) {

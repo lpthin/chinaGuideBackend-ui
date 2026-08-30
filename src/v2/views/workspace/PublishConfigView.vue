@@ -130,12 +130,12 @@
 import { ref, reactive, onMounted } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  ExperimentOutlined,
+  SettingOutlined, SaveOutlined, PlusOutlined, DeleteOutlined,
 } from '@ant-design/icons-vue'
 import { publishConfigApi } from '../../api/workspace'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
 
 const activeTab = ref('platform')
 const loading = ref(false)
@@ -201,7 +201,7 @@ function getPlatformTypeName(type?: string) {
 async function loadConfig() {
   loading.value = true
   try {
-    const data = await publishConfigApi.get() as any
+    const data = await publishConfigApi.get(authStore.selectedTenantId) as any
     if (data) {
       configForm.publishMode = data.publishMode || 'MANUAL'
       configForm.autoPublishEnabled = !!data.autoPublishEnabled
@@ -224,7 +224,7 @@ async function saveConfig() {
       autoPublishEnabled: configForm.autoPublishEnabled,
       reviewFlow: configForm.reviewFlow,
       publishFrequency: configForm.publishFrequency,
-    })
+    }, authStore.selectedTenantId)
     message.success('配置保存成功')
   } catch (error) {
     console.error(error)
@@ -242,36 +242,7 @@ async function loadPlatforms() {
     platformList.value = data
   } catch (error) {
     console.error(error)
-    const mockData = [
-      {
-        id: 1,
-        name: '公司官网',
-        type: 'WORDPRESS',
-        apiUrl: 'https://example.com/wp-json/wp/v2',
-        username: 'admin',
-        status: 'active',
-        createdAt: '2024-01-15 10:30:00',
-      },
-      {
-        id: 2,
-        name: '微信公众号',
-        type: 'WECHAT',
-        apiUrl: '',
-        username: 'gh_xxxxx',
-        status: 'active',
-        createdAt: '2024-02-20 14:20:00',
-      },
-      {
-        id: 3,
-        name: '知乎专栏',
-        type: 'ZHIHU',
-        apiUrl: '',
-        username: 'zhihu_user',
-        status: 'inactive',
-        createdAt: '2024-03-10 09:15:00',
-      },
-    ]
-    platformList.value = mockData
+    platformList.value = []
   } finally {
     platformLoading.value = false
   }

@@ -750,7 +750,7 @@ async function loadReviewStats() {
 async function loadData() {
   loading.value = true
   try {
-    const articlesRes = await reviewApi.pendingList({}) as any
+    const articlesRes = await reviewApi.pendingList({ tenantId: authStore.selectedTenantId }) as any
     const records = articlesRes?.records || articlesRes || []
     articles.value = records
     await loadReviewStats()

@@ -728,8 +728,8 @@ async function loadData() {
   loading.value = true
   try {
     const [allData, statsData] = await Promise.all([
-      publishApi.list({ page: 1, size: 100 }) as any,
-      publishApi.getStats() as any,
+      publishApi.list({ page: 1, size: 100, tenantId: authStore.selectedTenantId }) as any,
+      publishApi.getStats(authStore.selectedTenantId) as any,
     ])
     const allList = allData?.records || allData || []
     articles.value = allList.map((a: any) => ({ ...a, priority: a.priority || 'normal' }))
@@ -772,7 +772,7 @@ async function batchPublish() {
     return
   }
   try {
-    const promises = publishableRows.map(r => publishApi.create({ articleId: r.id, platform: 'default' }))
+    const promises = publishableRows.map(r => publishApi.create({ articleId: r.id, platform: 'default', tenantId: authStore.selectedTenantId }))
     await Promise.all(promises)
     message.success(`成功发布 ${publishableRows.length} 篇文章`)
     selectedRowKeys.value = []
@@ -801,7 +801,7 @@ function confirmSingleSchedule() {
 
 async function publishArticle(article: any) {
   try {
-    await publishApi.create({ articleId: article.id, platform: 'default' })
+    await publishApi.create({ articleId: article.id, platform: 'default', tenantId: authStore.selectedTenantId })
     message.success('发布成功')
     await loadData()
   } catch (error) {
@@ -813,7 +813,7 @@ async function publishArticle(article: any) {
 async function cancelPublish(article: any) {
   try {
     if (article.jobId) {
-      await publishApi.cancel(article.jobId)
+      await publishApi.cancel(article.jobId, authStore.selectedTenantId)
     }
     message.success('已取消发布')
     await loadData()
@@ -836,7 +836,7 @@ function batchCancel() {
       try {
         const promises = cancelableRows
           .filter(r => r.jobId)
-          .map(r => publishApi.cancel(r.jobId))
+          .map(r => publishApi.cancel(r.jobId, authStore.selectedTenantId))
         await Promise.all(promises)
         message.success('已批量取消')
         selectedRowKeys.value = []
