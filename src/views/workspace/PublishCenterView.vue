@@ -381,6 +381,7 @@ const candidateLoading = ref(false)
 const candidates = ref<any[]>([])
 const selectedArticleIds = ref<number[]>([])
 const candidateQuery = reactive({ page: 1, size: 10 })
+const candidateTotal = ref(0)
 
 const candidateColumns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 90 },
@@ -399,7 +400,6 @@ const candidatePagination = computed(() => ({
   showSizeChanger: true,
   showTotal: (total: number) => `共 ${total} 条`,
 }))
-const candidateTotal = ref(0)
 
 function onArticleSelect(keys: (string | number)[]) {
   selectedArticleIds.value = keys.map(Number)
