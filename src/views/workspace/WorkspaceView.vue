@@ -79,7 +79,7 @@
             <template #title>内容生产</template>
             <a-menu-item key="keywords">
               <template #icon><DownloadOutlined /></template>
-              热词管理
+              关键词库
             </a-menu-item>
             <a-menu-item key="cluster">
               <template #icon><ClusterOutlined /></template>
@@ -95,15 +95,11 @@
             </a-menu-item>
             <a-menu-item key="publish">
               <template #icon><RocketOutlined /></template>
-              发布管理
+              发布中心
             </a-menu-item>
             <a-menu-item key="publish-config">
               <template #icon><SettingOutlined /></template>
               发布配置
-            </a-menu-item>
-            <a-menu-item key="publish-queue">
-              <template #icon><OrderedListOutlined /></template>
-              发布队列
             </a-menu-item>
           </a-sub-menu>
 
@@ -273,7 +269,7 @@
             </a-menu-item>
             <a-menu-item key="ai/article-templates">
               <template #icon><FileTextOutlined /></template>
-              模板库
+              生成模板
             </a-menu-item>
           </a-sub-menu>
 
@@ -438,7 +434,6 @@ import {
   ApiOutlined,
   PictureOutlined,
   FireOutlined,
-  OrderedListOutlined,
   FileDoneOutlined,
   BookOutlined,
   IdcardOutlined,
@@ -475,13 +470,12 @@ const importCallback = ref<(() => void) | null>(null)
 
 const menuLabels: Record<string, string> = {
   dashboard: '工作台',
-  keywords: '热词管理',
+  keywords: '关键词库',
   cluster: '聚类分析',
   'article-generate': 'AI生成',
   review: '审核管理',
-  publish: '发布管理',
+  publish: '发布中心',
   'publish-config': '发布配置',
-  'publish-queue': '发布队列',
   articles: '文章列表',
   categories: '栏目管理',
   'article-templates': '软文模板',
@@ -510,7 +504,7 @@ const menuLabels: Record<string, string> = {
   'ai/models': '大模型配置',
   'ai/embedding': '向量化配置',
   'ai/usage': '用量监控',
-  'ai/article-templates': '模板库',
+  'ai/article-templates': '生成模板',
   'operation/dashboard': '运营概览',
   'operation/cases': '客户案例',
   'operation/reports': '数据报表',
@@ -549,7 +543,6 @@ const currentParentMenu = computed(() => {
     review: '内容生产',
     publish: '内容生产',
     'publish-config': '内容生产',
-    'publish-queue': '内容生产',
     articles: '文章管理',
     categories: '文章管理',
     'article-templates': '文章管理',

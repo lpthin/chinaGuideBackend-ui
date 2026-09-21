@@ -1,7 +1,7 @@
 <template>
   <div class="review-panel-page">
     <a-spin :spinning="loading">
-      <!-- 顶部数据概览区 -->
+      <!-- 顶部数据概览区：全部取自 reviewApi.getReviewStats -->
       <a-row :gutter="16" class="stats-row">
         <a-col :xs="24" :sm="12" :md="6">
           <a-card class="stat-card" hoverable>
@@ -19,12 +19,12 @@
         <a-col :xs="24" :sm="12" :md="6">
           <a-card class="stat-card" hoverable>
             <div class="stat-content">
-              <div class="stat-icon" style="background: linear-gradient(135deg, #722ed1 0%, #b37feb 100%)">
-                <CalendarOutlined />
+              <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
+                <CheckCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.todayReviewed }}</div>
-                <div class="stat-title">今日已审核</div>
+                <div class="stat-value">{{ stats.approvedCount }}</div>
+                <div class="stat-title">已通过文章数</div>
               </div>
             </div>
           </a-card>
@@ -32,12 +32,12 @@
         <a-col :xs="24" :sm="12" :md="6">
           <a-card class="stat-card" hoverable>
             <div class="stat-content">
-              <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                <CheckCircleOutlined />
+              <div class="stat-icon" style="background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%)">
+                <CloseCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.passRate }}%</div>
-                <div class="stat-title">审核通过率</div>
+                <div class="stat-value">{{ stats.rejectedCount }}</div>
+                <div class="stat-title">已驳回文章数</div>
               </div>
             </div>
           </a-card>
@@ -49,8 +49,8 @@
                 <DashboardOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.avgTime }}分</div>
-                <div class="stat-title">平均审核耗时</div>
+                <div class="stat-value">{{ stats.passRate }}%</div>
+                <div class="stat-title">审核通过率</div>
               </div>
             </div>
           </a-card>
@@ -72,27 +72,13 @@
                   优先级说明
                 </a-button>
               </a-tooltip>
-              <a-button @click="showReviewTemplate = true">
-                <template #icon><FileTextOutlined /></template>
-                审核模板
-              </a-button>
-              <a-switch 
-                v-model:checked="autoConfig.enabled" 
-                checked-children="自动审核" 
-                un-checked-children="自动审核"
-                @change="toggleAutoReview"
-              />
-              <a-button type="primary" :disabled="!selectedRows.length" @click="() => selectedRows.length && batchPass()">
+              <a-button type="primary" :loading="batchLoading" :disabled="!selectedRows.length" @click="batchPass">
                 <template #icon><CheckOutlined /></template>
                 批量通过 ({{ selectedRows.length }})
               </a-button>
               <a-button type="primary" danger :disabled="!selectedRows.length" @click="() => selectedRows.length && (showBatchRejectModal = true)">
                 <template #icon><CloseOutlined /></template>
                 批量驳回
-              </a-button>
-              <a-button :disabled="!selectedRows.length" @click="() => selectedRows.length && batchSendBack()">
-                <template #icon><RollbackOutlined /></template>
-                批量退回
               </a-button>
             </a-space>
           </div>
@@ -102,44 +88,19 @@
         <div class="quick-filters">
           <a-space size="middle">
             <span class="filter-label">快速筛选：</span>
-            <a-tag 
-              :class="['filter-tag', { active: statusFilter === 'all' }]" 
-              @click="statusFilter = 'all'"
+            <a-tag
+              v-for="opt in statusFilterOptions"
+              :key="opt.value"
+              :color="opt.color"
+              :class="['filter-tag', { active: statusFilter === opt.value }]"
+              @click="statusFilter = opt.value"
             >
-              全部
-            </a-tag>
-            <a-tag 
-              :class="['filter-tag', { active: statusFilter === 'pending' }]" 
-              color="processing"
-              @click="statusFilter = 'pending'"
-            >
-              待审核
-            </a-tag>
-            <a-tag 
-              :class="['filter-tag', { active: statusFilter === 'reviewing' }]" 
-              color="blue"
-              @click="statusFilter = 'reviewing'"
-            >
-              审核中
-            </a-tag>
-            <a-tag 
-              :class="['filter-tag', { active: statusFilter === 'passed' }]" 
-              color="success"
-              @click="statusFilter = 'passed'"
-            >
-              已通过
-            </a-tag>
-            <a-tag 
-              :class="['filter-tag', { active: statusFilter === 'rejected' }]" 
-              color="error"
-              @click="statusFilter = 'rejected'"
-            >
-              已驳回
+              {{ opt.label }}
             </a-tag>
           </a-space>
           <a-input-search 
             v-model:value="searchKeyword" 
-            placeholder="搜索文章标题或作者" 
+            placeholder="搜索文章标题或审核人" 
             style="width: 280px" 
             enter-button 
             size="middle"
@@ -172,11 +133,11 @@
             @click.stop="toggleSelect(article)"
           />
                   <a-tag :color="getPriorityColor(article.priority)" size="small">P{{ article.priority }}</a-tag>
-                  <a-tag :color="getStatusColor(article.status)" size="small">{{ getStatusText(article.status) }}</a-tag>
+                  <a-tag :color="articleStatusMeta(article.status).color" size="small">{{ articleStatusMeta(article.status).label }}</a-tag>
                 </div>
                 <div class="card-item-title">{{ article.title }}</div>
                 <div class="card-item-meta">
-                  <span><UserOutlined /> {{ article.author }}</span>
+                  <span><UserOutlined /> {{ article.reviewer || '未分配' }}</span>
                   <span><FileTextOutlined /> {{ article.wordCount }}字</span>
                 </div>
                 <div class="card-item-footer">
@@ -214,16 +175,16 @@
                     <a-tag :color="getPriorityColor(currentArticle.priority)">
                       <FlagOutlined /> 优先级 P{{ currentArticle.priority }}
                     </a-tag>
-                    <a-tag :color="getStatusColor(currentArticle.status)">
-                      {{ getStatusText(currentArticle.status) }}
+                    <a-tag :color="articleStatusMeta(currentArticle.status).color">
+                      {{ articleStatusMeta(currentArticle.status).label }}
                     </a-tag>
-                    <span class="meta-text"><UserOutlined /> {{ currentArticle.author }}</span>
+                    <span class="meta-text"><UserOutlined /> {{ currentArticle.reviewer || '未分配' }}</span>
                     <span class="meta-text"><CalendarOutlined /> {{ formatTime(currentArticle.createdAt) }}</span>
                     <span class="meta-text"><FileTextOutlined /> {{ currentArticle.wordCount }}字</span>
                   </div>
                 </div>
                 <div class="detail-actions">
-                  <a-button @click="editArticle">
+                  <a-button @click="editArticle(currentArticle)">
                     <template #icon><EditOutlined /></template>
                     编辑文章
                   </a-button>
@@ -379,10 +340,6 @@
                     <template #icon><CheckCircleOutlined /></template>
                     通过审核
                   </a-button>
-                  <a-button size="large" class="sendback-btn" @click="sendBack">
-                    <template #icon><RollbackOutlined /></template>
-                    退回编辑
-                  </a-button>
                   <a-button type="primary" danger size="large" class="reject-btn" @click="showRejectModal = true">
                     <template #icon><CloseCircleOutlined /></template>
                     驳回
@@ -405,19 +362,12 @@
             </span>
           </template>
           <a-row :gutter="16">
-            <a-col :xs="24" :lg="8">
-              <a-card title="审核人员工作量" :bordered="false" size="small">
-                <div ref="workloadChartRef" class="chart-container"></div>
-              </a-card>
-            </a-col>
-            <a-col :xs="24" :lg="8">
-              <a-card title="审核时效趋势" :bordered="false" size="small">
-                <div ref="trendChartRef" class="chart-container"></div>
-              </a-card>
-            </a-col>
-            <a-col :xs="24" :lg="8">
+            <a-col :xs="24" :lg="12">
               <a-card title="驳回原因分布" :bordered="false" size="small">
-                <div ref="rejectChartRef" class="chart-container"></div>
+                <div class="chart-body">
+                  <div ref="rejectChartRef" class="chart-container"></div>
+                  <div v-if="!rejectData.length" class="chart-empty-hint">暂无驳回数据</div>
+                </div>
               </a-card>
             </a-col>
           </a-row>
@@ -442,7 +392,7 @@
       </a-modal>
 
       <!-- 批量驳回弹窗 -->
-      <a-modal v-model:open="showBatchRejectModal" title="批量驳回" @ok="batchReject">
+      <a-modal v-model:open="showBatchRejectModal" title="批量驳回" :confirm-loading="batchLoading" @ok="batchReject">
         <a-alert message="提示" :description="`将批量驳回 ${selectedRows.length} 篇文章`" type="info" style="margin-bottom: 16px" />
         <a-form layout="vertical">
           <a-form-item label="驳回原因">
@@ -450,29 +400,6 @@
               <a-select-option value="quality">文章质量不达标</a-select-option>
               <a-select-option value="sensitive">包含敏感内容</a-select-option>
             </a-select>
-          </a-form-item>
-        </a-form>
-      </a-modal>
-
-      <!-- 自动审核配置弹窗 -->
-      <a-modal v-model:open="showAutoConfig" title="自动审核配置" @ok="saveAutoConfig">
-        <a-form layout="vertical">
-          <a-form-item label="启用自动审核">
-            <a-switch v-model:checked="autoConfig.enabled" />
-          </a-form-item>
-          <a-form-item label="质量分阈值">
-            <a-slider v-model:value="autoConfig.qualityThreshold" :min="0" :max="100" />
-            <div class="slider-label">质量分 ≥ {{ autoConfig.qualityThreshold }} 分时自动通过</div>
-          </a-form-item>
-          <a-form-item label="原创度阈值">
-            <a-slider v-model:value="autoConfig.originalThreshold" :min="0" :max="100" />
-            <div class="slider-label">原创度 ≥ {{ autoConfig.originalThreshold }}% 时自动通过</div>
-          </a-form-item>
-          <a-form-item label="敏感词处理">
-            <a-radio-group v-model:value="autoConfig.sensitiveAction">
-              <a-radio value="reject">包含敏感词自动驳回</a-radio>
-              <a-radio value="review">包含敏感词转入人工审核</a-radio>
-            </a-radio-group>
           </a-form-item>
         </a-form>
       </a-modal>
@@ -498,23 +425,6 @@
           </div>
         </div>
       </a-modal>
-
-      <!-- 审核模板弹窗 -->
-      <a-modal v-model:open="showReviewTemplate" title="审核模板管理" width="700px" :footer="null">
-        <div class="template-manage">
-          <a-space style="margin-bottom: 16px">
-            <a-button type="primary">新建模板</a-button>
-          </a-space>
-          <a-table :scroll="{ x: 'max-content' }" :data-source="reviewTemplates" :columns="templateColumns" row-key="id" size="small">
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'action'">
-                <a-button type="link" size="small">编辑</a-button>
-                <a-button type="link" size="small" danger>删除</a-button>
-              </template>
-            </template>
-          </a-table>
-        </div>
-      </a-modal>
     </a-spin>
   </div>
 </template>
@@ -523,6 +433,7 @@
 import { ref, computed, onMounted, onUnmounted, reactive, watch, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
+import { useRouter } from 'vue-router'
 import {
   ClockCircleOutlined,
   CalendarOutlined,
@@ -530,13 +441,11 @@ import {
   DashboardOutlined,
   CheckOutlined,
   CloseOutlined,
-  SettingOutlined,
   EditOutlined,
   BarChartOutlined,
   AuditOutlined,
   InfoCircleOutlined,
   FileTextOutlined,
-  RollbackOutlined,
   UserOutlined,
   CopyOutlined,
   StarOutlined,
@@ -550,37 +459,24 @@ import {
   CloseCircleOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons-vue'
-import { reviewApi, articleApi } from '../../api'
+import { reviewApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
+import { articleStatusMeta } from '../../utils/contentStatus'
 
 const authStore = useAuthStore()
+const router = useRouter()
 const loading = ref(false)
+const batchLoading = ref(false)
 const showRejectModal = ref(false)
 const showBatchRejectModal = ref(false)
-const showAutoConfig = ref(false)
 const showPriorityGuide = ref(false)
-const showReviewTemplate = ref(false)
 const statusFilter = ref('all')
 const searchKeyword = ref('')
 const reviewOpinion = ref('')
 const statsPanelKey = ref<string | string[]>(['1'])
 
-const workloadChartRef = ref<HTMLElement>()
-const trendChartRef = ref<HTMLElement>()
 const rejectChartRef = ref<HTMLElement>()
-let workloadChart: echarts.ECharts | null = null
-let trendChart: echarts.ECharts | null = null
 let rejectChart: echarts.ECharts | null = null
-
-const mockWorkloadData = {
-  reviewers: ['张三', '李四', '王五', '赵六', '钱七'],
-  reviewed: [45, 38, 52, 41, 33]
-}
-
-const mockTrendData = {
-  dates: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-  avgTime: [12, 15, 10, 14, 11, 8, 9]
-}
 
 const rejectData = ref<{ name: string; value: number }[]>([])
 
@@ -592,23 +488,18 @@ const opinionTemplates = [
   '语言表达需更加严谨',
 ]
 
-const reviewTemplates = ref([
-  { id: 1, name: '质量不通过模板', type: '驳回', content: '文章整体质量有待提升...' },
-  { id: 2, name: '敏感词模板', type: '驳回', content: '文章包含敏感内容...' },
-  { id: 3, name: '通过鼓励模板', type: '通过', content: '文章质量不错，继续保持...' },
-])
-
-const templateColumns = [
-  { title: '模板名称', dataIndex: 'name', key: 'name' },
-  { title: '类型', dataIndex: 'type', key: 'type', width: 80 },
-  { title: '操作', key: 'action', width: 120 },
-]
+/** 快速筛选项：状态取值与文案都来自 contentStatus，避免手写映射漂移 */
+const statusFilterOptions = computed(() =>
+  (['all', 'pending_review', 'approved', 'rejected'] as const).map(value =>
+    value === 'all' ? { value, label: '全部', color: undefined as string | undefined } : { value, ...articleStatusMeta(value) }
+  )
+)
 
 const stats = reactive({
   pendingCount: 0,
-  todayReviewed: 0,
+  approvedCount: 0,
+  rejectedCount: 0,
   passRate: 0,
-  avgTime: 0,
 })
 
 const articles = ref<any[]>([])
@@ -619,13 +510,6 @@ const rejectReason = ref('')
 const rejectDetail = ref('')
 const batchRejectReason = ref('')
 
-const autoConfig = reactive({
-  enabled: true,
-  qualityThreshold: 80,
-  originalThreshold: 70,
-  sensitiveAction: 'review',
-})
-
 const filteredArticles = computed(() => {
   let result = articles.value
   if (statusFilter.value !== 'all') {
@@ -633,9 +517,9 @@ const filteredArticles = computed(() => {
   }
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
-    result = result.filter(a => 
-      a.title.toLowerCase().includes(keyword) || 
-      a.author.toLowerCase().includes(keyword)
+    result = result.filter(a =>
+      (a.title || '').toLowerCase().includes(keyword) ||
+      (a.reviewer || '').toLowerCase().includes(keyword)
     )
   }
   return result
@@ -654,26 +538,6 @@ function getScoreColor(score?: number) {
   if (s >= 80) return '#52c41a'
   if (s >= 60) return '#faad14'
   return '#ff4d4f'
-}
-
-function getStatusColor(status?: string) {
-  switch (status) {
-    case 'passed': return 'success'
-    case 'pending': return 'processing'
-    case 'reviewing': return 'blue'
-    case 'rejected': return 'error'
-    default: return 'default'
-  }
-}
-
-function getStatusText(status?: string) {
-  switch (status) {
-    case 'passed': return '已通过'
-    case 'pending': return '待审核'
-    case 'reviewing': return '审核中'
-    case 'rejected': return '已驳回'
-    default: return '未知'
-  }
 }
 
 function formatTime(time?: string) {
@@ -709,25 +573,14 @@ function insertOpinion(text: string) {
   reviewOpinion.value = reviewOpinion.value ? `${reviewOpinion.value}\n${text}` : text
 }
 
-function toggleAutoReview(checked: boolean) {
-  if (checked) {
-    message.success('自动审核已开启')
-  } else {
-    message.info('自动审核已关闭')
-  }
-}
-
-function editArticle() {
-  message.info('跳转到文章编辑页面...')
-}
-
-function batchSendBack() {
-  message.info(`批量退回 ${selectedRows.value.length} 篇文章`)
+function editArticle(record: any) {
+  if (!record) return
+  router.push({ name: 'workspace-article-edit', params: { id: record.articleId ?? record.id } })
 }
 
 async function loadReviewStats() {
   try {
-    const res = await reviewApi.getReviewStats(authStore.selectedTenantId || undefined) as any
+    const res = await reviewApi.getReviewStats(authStore.selectedTenantId ?? undefined) as any
     if (res) {
       if (res.rejectDistribution) {
         rejectData.value = res.rejectDistribution
@@ -735,6 +588,12 @@ async function loadReviewStats() {
       }
       if (typeof res.pendingCount === 'number') {
         stats.pendingCount = res.pendingCount
+      }
+      if (typeof res.approvedCount === 'number') {
+        stats.approvedCount = res.approvedCount
+      }
+      if (typeof res.rejectedCount === 'number') {
+        stats.rejectedCount = res.rejectedCount
       }
       if (typeof res.approvedCount === 'number' && typeof res.rejectedCount === 'number') {
         const total = res.approvedCount + res.rejectedCount
@@ -750,7 +609,7 @@ async function loadReviewStats() {
 async function loadData() {
   loading.value = true
   try {
-    const articlesRes = await reviewApi.pendingList({ tenantId: authStore.selectedTenantId }) as any
+    const articlesRes = await reviewApi.pendingList({ tenantId: authStore.selectedTenantId ?? undefined }) as any
     const records = articlesRes?.records || articlesRes || []
     articles.value = records
     await loadReviewStats()
@@ -762,10 +621,19 @@ async function loadData() {
   }
 }
 
+/** 审核接口的路径参数是文章 ID：pendingList 返回 ReviewItem，articleId 优先于审核记录自身的 id */
+function articleIdOf(row: any) {
+  return row?.articleId ?? row?.id
+}
+
 async function passArticle() {
   if (!currentArticle.value) return
   try {
-    await reviewApi.approve(currentArticle.value.id, reviewOpinion.value)
+    await reviewApi.approve(
+      articleIdOf(currentArticle.value),
+      reviewOpinion.value,
+      authStore.selectedTenantId ?? undefined
+    )
     message.success('审核通过')
     await loadData()
     currentArticle.value = null
@@ -778,7 +646,11 @@ async function passArticle() {
 async function rejectArticle() {
   if (!currentArticle.value) return
   try {
-    await reviewApi.reject(currentArticle.value.id, rejectDetail.value || rejectReason.value)
+    await reviewApi.reject(
+      articleIdOf(currentArticle.value),
+      rejectDetail.value || rejectReason.value,
+      authStore.selectedTenantId ?? undefined
+    )
     message.success('已驳回')
     showRejectModal.value = false
     await loadData()
@@ -789,148 +661,54 @@ async function rejectArticle() {
   }
 }
 
-function sendBack() {
-  message.info('已退回修改')
+/** 批量：逐条调用审核接口，如实汇报成功/失败条数（全部失败时不报成功） */
+async function batchReview(mode: 'approve' | 'reject', comment: string, label: string) {
+  const rows = selectedRows.value.slice()
+  if (!rows.length) return { succeeded: 0, failed: 0 }
+  batchLoading.value = true
+  let succeeded = 0
+  let failed = 0
+  for (const row of rows) {
+    try {
+      if (mode === 'approve') {
+        await reviewApi.approve(articleIdOf(row), comment, authStore.selectedTenantId ?? undefined)
+      } else {
+        await reviewApi.reject(articleIdOf(row), comment, authStore.selectedTenantId ?? undefined)
+      }
+      succeeded++
+    } catch (error) {
+      failed++
+      console.error(error)
+    }
+  }
+  batchLoading.value = false
+  if (succeeded && failed) {
+    message.success(`已${label} ${succeeded} 篇，失败 ${failed} 篇`)
+  } else if (succeeded) {
+    message.success(`已${label} ${succeeded} 篇文章`)
+  } else {
+    message.error(`批量${label}失败，${failed} 篇均未生效`)
+  }
+  if (succeeded) {
+    selectedRows.value = []
+    await loadData()
+  }
+  return { succeeded, failed }
 }
 
 async function batchPass() {
-  try {
-    for (const row of selectedRows.value) {
-      await reviewApi.approve(row.id)
-    }
-    message.success(`批量通过 ${selectedRows.value.length} 篇文章`)
-    selectedRows.value = []
-    await loadData()
-  } catch (error) {
-    message.error('操作失败')
-    console.error(error)
-  }
+  await batchReview('approve', reviewOpinion.value || '批量通过', '通过')
 }
 
 async function batchReject() {
-  try {
-    for (const row of selectedRows.value) {
-      await reviewApi.reject(row.id, batchRejectReason.value)
-    }
-    message.success(`批量驳回 ${selectedRows.value.length} 篇文章`)
-    showBatchRejectModal.value = false
-    selectedRows.value = []
-    await loadData()
-  } catch (error) {
-    message.error('操作失败')
-    console.error(error)
-  }
-}
-
-function saveAutoConfig() {
-  message.success('自动审核配置已保存')
-  showAutoConfig.value = false
-}
-
-const initWorkloadChart = () => {
-  if (!workloadChartRef.value) return
-  
-  workloadChart = echarts.init(workloadChartRef.value)
-  
-  const option: echarts.EChartsOption = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: mockWorkloadData.reviewers,
-      axisLabel: {
-        fontSize: 11
-      }
-    },
-    yAxis: {
-      type: 'value'
-    },
-    series: [
-      {
-        type: 'bar',
-        data: mockWorkloadData.reviewed,
-        itemStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#1890ff' },
-            { offset: 1, color: '#91d5ff' }
-          ]),
-          borderRadius: [4, 4, 0, 0]
-        },
-        barWidth: '50%'
-      }
-    ]
-  }
-  
-  workloadChart.setOption(option)
-}
-
-const initTrendChart = () => {
-  if (!trendChartRef.value) return
-  
-  trendChart = echarts.init(trendChartRef.value)
-  
-  const option: echarts.EChartsOption = {
-    tooltip: {
-      trigger: 'axis',
-      formatter: '{b}: {c}分钟'
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: mockTrendData.dates
-    },
-    yAxis: {
-      type: 'value',
-      axisLabel: {
-        formatter: '{value}分'
-      }
-    },
-    series: [
-      {
-        name: '平均耗时',
-        type: 'line',
-        smooth: true,
-        data: mockTrendData.avgTime,
-        lineStyle: {
-          color: '#fa8c16',
-          width: 3
-        },
-        itemStyle: {
-          color: '#fa8c16'
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(250, 140, 22, 0.3)' },
-            { offset: 1, color: 'rgba(250, 140, 22, 0.05)' }
-          ])
-        }
-      }
-    ]
-  }
-  
-  trendChart.setOption(option)
+  const { succeeded } = await batchReview('reject', batchRejectReason.value, '驳回')
+  if (succeeded) showBatchRejectModal.value = false
 }
 
 const initRejectChart = () => {
   if (!rejectChartRef.value) return
-  
-  rejectChart = echarts.init(rejectChartRef.value)
+  // 复用已有实例，避免重复 init 导致图表叠加
+  rejectChart = echarts.getInstanceByDom(rejectChartRef.value) || echarts.init(rejectChartRef.value)
   updateRejectChartData()
 }
 
@@ -989,22 +767,14 @@ const updateRejectChartData = () => {
 }
 
 const handleResize = () => {
-  workloadChart?.resize()
-  trendChart?.resize()
   rejectChart?.resize()
 }
 
 const initCharts = () => {
   nextTick(() => {
     setTimeout(() => {
-      // 检查图表容器是否有尺寸
-      const workloadEl = document.getElementById('workload-chart')
-      const trendEl = document.getElementById('trend-chart')
-      const rejectEl = document.getElementById('reject-chart')
-      
-      if (workloadEl && workloadEl.clientWidth > 0) initWorkloadChart()
-      if (trendEl && trendEl.clientWidth > 0) initTrendChart()
-      if (rejectEl && rejectEl.clientWidth > 0) initRejectChart()
+      // 容器有宽度才初始化，避免折叠面板未展开时渲染成 0 尺寸
+      if (rejectChartRef.value && rejectChartRef.value.clientWidth > 0) initRejectChart()
     }, 300)
   })
 }
@@ -1032,8 +802,6 @@ watch(() => authStore.selectedTenantId, () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
-  workloadChart?.dispose()
-  trendChart?.dispose()
   rejectChart?.dispose()
 })
 </script>
@@ -1555,7 +1323,6 @@ onUnmounted(() => {
 }
 
 .pass-btn,
-.sendback-btn,
 .reject-btn {
   min-width: 160px;
   height: 52px;
@@ -1593,11 +1360,6 @@ onUnmounted(() => {
   }
 }
 
-.sendback-btn {
-  border-width: 2px;
-  font-weight: 600;
-}
-
 .empty-detail {
   padding: 120px 0;
 }
@@ -1628,15 +1390,23 @@ onUnmounted(() => {
   }
 }
 
+.chart-body {
+  position: relative;
+}
+
 .chart-container {
   height: 220px;
   width: 100%;
 }
 
-.slider-label {
+.chart-empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
-  color: #666;
-  margin-top: 4px;
+  color: #bfbfbf;
 }
 
 .priority-guide {
@@ -1660,10 +1430,6 @@ onUnmounted(() => {
   }
 }
 
-.template-manage {
-  min-height: 300px;
-}
-
 @media (max-width: 992px) {
   .list-panel {
     height: auto;
@@ -1675,7 +1441,6 @@ onUnmounted(() => {
     justify-content: stretch;
 
     .pass-btn,
-    .sendback-btn,
     .reject-btn {
       flex: 1;
       min-width: auto;

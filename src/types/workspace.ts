@@ -120,8 +120,10 @@ export interface PublishRecord {
   tenantId?: number
   siteId?: number
   articleId: number
+  title?: string
   dryRun?: boolean
   status: JobStatus
+  outputPath?: string
   errorMessage?: string
   createdAt: string
   finishedAt?: string

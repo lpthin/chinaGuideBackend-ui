@@ -58,7 +58,7 @@
     <a-card :bordered="false">
       <template #title>
         <div class="card-header">
-          <span>软文模板管理</span>
+          <span>生成模板管理</span>
         </div>
       </template>
       <template #extra>
@@ -120,10 +120,6 @@
           </template>
           <template v-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" size="small" @click="generateArticle(record)">
-                <template #icon><ThunderboltOutlined /></template>
-                生成
-              </a-button>
               <a-button type="link" size="small" @click="openModal(record)">
                 <template #icon><EditOutlined /></template>
                 编辑
@@ -274,99 +270,6 @@
         </a-form-item>
       </a-form>
     </a-modal>
-
-    <a-modal
-      v-model:open="generateModalVisible"
-      title="生成文章"
-      :width="700"
-      :footer="null"
-      @cancel="generateModalVisible = false"
-    >
-      <a-form
-        ref="generateFormRef"
-        :model="generateFormData"
-        :rules="generateFormRules"
-        layout="vertical"
-      >
-        <a-form-item
-          v-for="variable in selectedVariables"
-          :key="variable.key"
-          :label="variable.label"
-          :name="variable.key"
-        >
-          <a-input
-            v-if="variable.type === 'text'"
-            v-model:value="generateFormData[variable.key]"
-            :placeholder="variable.placeholder || `请输入${variable.label}`"
-          />
-          <a-textarea
-            v-else-if="variable.type === 'textarea'"
-            v-model:value="generateFormData[variable.key]"
-            :placeholder="variable.placeholder || `请输入${variable.label}`"
-            :rows="4"
-          />
-          <a-select
-            v-else-if="variable.type === 'select'"
-            v-model:value="generateFormData[variable.key]"
-            :placeholder="variable.placeholder || `请选择${variable.label}`"
-          >
-            <a-select-option
-              v-for="opt in variable.options"
-              :key="opt"
-              :value="opt"
-            >
-              {{ opt }}
-            </a-select-option>
-          </a-select>
-          <a-input-number
-            v-else-if="variable.type === 'number'"
-            v-model:value="generateFormData[variable.key]"
-            style="width: 100%"
-            :placeholder="variable.placeholder || `请输入${variable.label}`"
-          />
-          <a-date-picker
-            v-else-if="variable.type === 'date'"
-            v-model:value="generateFormData[variable.key]"
-            style="width: 100%"
-          />
-        </a-form-item>
-
-        <a-form-item>
-          <a-button
-            type="primary"
-            :loading="generating"
-            @click="handleGenerate"
-            style="width: 100%"
-          >
-            <template #icon><ThunderboltOutlined /></template>
-            开始生成
-          </a-button>
-        </a-form-item>
-      </a-form>
-
-      <div v-if="generatedContent" class="generated-result">
-        <a-divider>生成结果</a-divider>
-        <div class="result-stats">
-          <a-tag color="blue">字数: {{ generateResult.wordCount }}</a-tag>
-          <a-tag color="green">Token: {{ generateResult.tokensUsed }}</a-tag>
-          <a-tag color="purple">费用: ¥{{ generateResult.cost.toFixed(4) }}</a-tag>
-          <a-tag color="orange">耗时: {{ generateResult.duration }}ms</a-tag>
-        </div>
-        <div class="result-content">{{ generatedContent }}</div>
-        <div class="result-actions">
-          <a-space>
-            <a-button @click="copyContent">
-              <template #icon><CopyOutlined /></template>
-              复制内容
-            </a-button>
-            <a-button type="primary" @click="downloadContent">
-              <template #icon><DownloadOutlined /></template>
-              下载文本
-            </a-button>
-          </a-space>
-        </div>
-      </div>
-    </a-modal>
   </div>
 </template>
 
@@ -380,13 +283,11 @@ import {
   FileDoneOutlined,
   ClockCircleOutlined,
   PlusOutlined,
-  ThunderboltOutlined,
   CopyOutlined,
   DeleteOutlined,
-  DownloadOutlined,
   FunctionOutlined,
 } from '@ant-design/icons-vue'
-import { articleTemplateApi, aiGenerateApi } from '../../api/ai-model'
+import { articleTemplateApi } from '../../api/ai-model'
 import type {
   ArticleTemplate,
   ArticleTemplateForm,
@@ -401,8 +302,6 @@ const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 const loading = ref(false)
 const modalVisible = ref(false)
 const modalLoading = ref(false)
-const generateModalVisible = ref(false)
-const generating = ref(false)
 
 const totalTemplates = ref(0)
 const systemCount = ref(0)
@@ -647,87 +546,6 @@ const handleTableChange = (pag: any) => {
   pagination.current = pag.current
   pagination.pageSize = pag.pageSize
   loadTemplates()
-}
-
-const generateFormRef = ref<FormInstance>()
-const selectedTemplate = ref<ArticleTemplate | null>(null)
-const selectedVariables = ref<ArticleTemplateVariable[]>([])
-const generateFormData = reactive<Record<string, any>>({})
-const generatedContent = ref('')
-const generateResult = reactive({
-  wordCount: 0,
-  tokensUsed: 0,
-  cost: 0,
-  duration: 0,
-})
-
-const generateFormRules = computed(() => {
-  const rules: Record<string, any> = {}
-  selectedVariables.value.forEach(v => {
-    if (v.required) {
-      rules[v.key] = [{ required: true, message: `请输入${v.label}`, trigger: 'blur' }]
-    }
-  })
-  return rules
-})
-
-const generateArticle = (record: ArticleTemplate) => {
-  selectedTemplate.value = record
-  selectedVariables.value = parseVariables(record.variables)
-  Object.keys(generateFormData).forEach(key => delete generateFormData[key])
-  generatedContent.value = ''
-  selectedVariables.value.forEach(v => {
-    generateFormData[v.key] = v.defaultValue || ''
-  })
-  generateModalVisible.value = true
-}
-
-const handleGenerate = async () => {
-  try {
-    await generateFormRef.value?.validate()
-    generating.value = true
-
-    let prompt = selectedTemplate.value?.content || ''
-    const variables: Record<string, string> = {}
-    Object.entries(generateFormData).forEach(([key, value]) => {
-      prompt = prompt.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value || ''))
-      variables[key] = String(value || '')
-    })
-
-    const result = await aiGenerateApi.generateArticle({
-      prompt,
-      templateId: selectedTemplate.value?.id,
-      tenantId: getTenantId(),
-    })
-
-    generatedContent.value = result.content
-    generateResult.wordCount = result.wordCount
-    generateResult.tokensUsed = result.tokensUsed
-    generateResult.cost = result.cost
-    generateResult.duration = result.duration
-    message.success('生成成功')
-  } catch (error: any) {
-    console.error('Generate failed:', error)
-    message.error(error?.message || '生成失败，请重试')
-  } finally {
-    generating.value = false
-  }
-}
-
-const copyContent = () => {
-  navigator.clipboard.writeText(generatedContent.value)
-  message.success('已复制到剪贴板')
-}
-
-const downloadContent = () => {
-  const blob = new Blob([generatedContent.value], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `generated-article-${Date.now()}.txt`
-  a.click()
-  URL.revokeObjectURL(url)
-  message.success('下载成功')
 }
 
 onMounted(() => {

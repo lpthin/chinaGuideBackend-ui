@@ -227,21 +227,6 @@ export const articleTemplateApi = {
 
 // AI 生成 API
 export const aiGenerateApi = {
-  generateArticle: (data: {
-    prompt: string
-    templateId?: number
-    keywords?: string
-    tenantId?: number
-  }) =>
-    http.post<{
-      content: string
-      wordCount: number
-      tokensUsed: number
-      model: string
-      cost: number
-      duration: number
-    }>('/ai/generate/article', data),
-
   generateSeo: (data: {
     title?: string
     content?: string

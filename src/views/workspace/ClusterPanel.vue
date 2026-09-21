@@ -12,7 +12,7 @@
       <!-- Stats Row -->
       <a-row :gutter="[12, 12]" class="stats-row">
         <a-col :xs="12" :sm="6" v-for="item in statItems" :key="item.key">
-          <div class="stat-card" :class="`stat-card--${item.color}`" @click="handleStatClick(item)">
+          <div class="stat-card" :class="`stat-card--${item.color}`">
             <div class="stat-card__icon"><component :is="item.icon" /></div>
             <div class="stat-card__body">
               <div class="stat-card__value">{{ item.value }}</div>
@@ -63,59 +63,6 @@
               <template #icon><RocketOutlined /></template>
               批量生成建议
             </a-button>
-            <a-popover v-model:open="configPopOpen" trigger="click" placement="bottomLeft">
-              <template #content>
-                <div class="popover-config">
-                  <div class="pop-row">
-                    <span class="pop-label">聚类算法</span>
-                    <a-select v-model:value="distillConfig.algorithm" size="small" style="width: 170px">
-                      <a-select-option value="kmeans">K-Means</a-select-option>
-                      <a-select-option value="hierarchical">层次聚类</a-select-option>
-                      <a-select-option value="dbscan">DBSCAN</a-select-option>
-                    </a-select>
-                  </div>
-                  <div class="pop-row">
-                    <span class="pop-label">聚类数量</span>
-                    <a-slider
-                      v-model:value="distillConfig.clusterCount"
-                      :min="3"
-                      :max="20"
-                      style="width: 170px"
-                    />
-                    <span class="pop-val">{{ distillConfig.clusterCount }}</span>
-                  </div>
-                  <div class="pop-row">
-                    <span class="pop-label">相似度</span>
-                    <a-slider
-                      v-model:value="distillConfig.similarityThreshold"
-                      :min="0.5"
-                      :max="1"
-                      :step="0.05"
-                      style="width: 170px"
-                    />
-                    <span class="pop-val">{{ distillConfig.similarityThreshold }}</span>
-                  </div>
-                  <div class="pop-row">
-                    <span class="pop-label">每日自动蒸馏</span>
-                    <a-switch v-model:checked="distillConfig.autoDistill" size="small" />
-                    <a-time-picker
-                      v-if="distillConfig.autoDistill"
-                      v-model:value="distillConfig.distillTime"
-                      format="HH:mm"
-                      size="small"
-                      style="width: 110px; margin-left: 8px"
-                    />
-                  </div>
-                  <div class="pop-footer">
-                    <a-button size="small" type="primary" @click="savePopConfig">保存</a-button>
-                  </div>
-                </div>
-              </template>
-              <a-button size="large">
-                <template #icon><SettingOutlined /></template>
-                参数配置
-              </a-button>
-            </a-popover>
             <a-button
               danger
               size="large"
@@ -642,7 +589,6 @@ import {
   ClockCircleOutlined,
   ExperimentOutlined,
   RocketOutlined,
-  SettingOutlined,
   DeleteOutlined,
   FireOutlined,
   EditOutlined,
@@ -683,7 +629,6 @@ const clearing = ref(false)
 const selectedClusterKeys = ref<(string | number)[]>([])
 const searchText = ref('')
 const priorityFilter = ref('all')
-const configPopOpen = ref(false)
 const distillProgress = ref(0)
 const currentDistillStep = ref(0)
 const totalDistillSteps = ref(0)
@@ -800,14 +745,6 @@ const statItems = computed(() => {
 const clusters = ref<KeywordCluster[]>([])
 const suggestionsMap = ref<Record<number, KeywordContentSuggestion[]>>({})
 
-const distillConfig = reactive({
-  algorithm: 'kmeans',
-  clusterCount: 10,
-  similarityThreshold: 0.7,
-  autoDistill: false,
-  distillTime: null as any,
-})
-
 const clustersWithSuggestions = computed(() => {
   return clusters.value.map((cluster: any) => ({
     ...cluster,
@@ -858,10 +795,6 @@ function getScoreTagColor(score?: number) {
   if (s >= 90) return 'success'
   if (s >= 80) return 'processing'
   return 'default'
-}
-
-function handleStatClick(item: any) {
-  message.info(`查看 ${item.label}`)
 }
 
 function filterClusters() {
@@ -1215,11 +1148,6 @@ async function batchDeleteClusters() {
   })
 }
 
-function savePopConfig() {
-  message.success('蒸馏参数已保存')
-  configPopOpen.value = false
-}
-
 const initRadarChart = () => {
   if (!radarChartRef.value) return
   radarChart = echarts.init(radarChartRef.value)
@@ -1432,7 +1360,6 @@ onUnmounted(() => {
   border: 1px solid @gray-200;
   border-radius: @radius-md;
   padding: 14px 16px;
-  cursor: pointer;
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 
   &:hover {
@@ -1558,41 +1485,6 @@ onUnmounted(() => {
     color: @gray-600;
     white-space: nowrap;
   }
-}
-
-// Popover config
-.popover-config {
-  min-width: 320px;
-  padding: 4px;
-}
-
-.pop-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-}
-
-.pop-label {
-  font-size: 13px;
-  color: @gray-600;
-  width: 72px;
-  flex-shrink: 0;
-}
-
-.pop-val {
-  font-size: 12px;
-  color: @gray-700;
-  width: 36px;
-  text-align: right;
-}
-
-.pop-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 8px;
-  border-top: 1px solid @gray-200;
-  margin-top: 8px;
 }
 
 // Priority cell

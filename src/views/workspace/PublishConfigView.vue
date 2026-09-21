@@ -55,8 +55,8 @@
                 </a-tag>
               </template>
               <template v-else-if="column.key === 'status'">
-                <a-tag :color="record.status === 'active' ? 'green' : 'default'">
-                  {{ record.status === 'active' ? '启用' : '禁用' }}
+                <a-tag :color="record.status === 1 ? 'green' : 'default'">
+                  {{ record.status === 1 ? '启用' : '禁用' }}
                 </a-tag>
               </template>
               <template v-else-if="column.key === 'actions'">
@@ -114,8 +114,8 @@
         </a-form-item>
         <a-form-item label="状态">
           <a-radio-group v-model:value="platformForm.status">
-            <a-radio value="active">启用</a-radio>
-            <a-radio value="inactive">禁用</a-radio>
+            <a-radio :value="1">启用</a-radio>
+            <a-radio :value="0">禁用</a-radio>
           </a-radio-group>
         </a-form-item>
         <a-form-item label="备注">
@@ -127,22 +127,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
-  SettingOutlined, SaveOutlined, PlusOutlined, DeleteOutlined,
+  PlusOutlined, DeleteOutlined,
+  ExperimentOutlined, EditOutlined,
 } from '@ant-design/icons-vue'
 import { publishConfigApi } from '../../api/workspace'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
 
-const activeTab = ref('platform')
+const activeTab = ref('mode')
 const loading = ref(false)
 const platformLoading = ref(false)
 const platformSaving = ref(false)
 const platformModalVisible = ref(false)
 const editingPlatform = ref<any>(null)
+
+// publish_config 主键：读取后必须回传，否则后端会插入重复配置行
+const configId = ref<number | null>(null)
 
 const configForm = reactive({
   publishMode: 'MANUAL' as 'AUTO' | 'MANUAL',
@@ -150,6 +154,8 @@ const configForm = reactive({
   reviewFlow: 'NONE' as 'NONE' | 'PRE_REVIEW' | 'POST_REVIEW',
   publishFrequency: '',
 })
+
+const tenantId = computed(() => authStore.selectedTenantId ?? undefined)
 
 const platformList = ref<any[]>([])
 
@@ -159,7 +165,7 @@ const platformForm = reactive({
   apiUrl: '',
   username: '',
   password: '',
-  status: 'active',
+  status: 1,
   remark: '',
 })
 
@@ -201,16 +207,18 @@ function getPlatformTypeName(type?: string) {
 async function loadConfig() {
   loading.value = true
   try {
-    const data = await publishConfigApi.get(authStore.selectedTenantId) as any
+    const data = await publishConfigApi.get(tenantId.value) as any
     if (data) {
+      configId.value = data.id ?? null
       configForm.publishMode = data.publishMode || 'MANUAL'
       configForm.autoPublishEnabled = !!data.autoPublishEnabled
       configForm.reviewFlow = data.reviewFlow || 'NONE'
       configForm.publishFrequency = data.publishFrequency || ''
+    } else {
+      configId.value = null
     }
-  } catch (error) {
-    console.error(error)
-    message.error('加载配置失败')
+  } catch (error: any) {
+    message.error(error?.message || '加载配置失败')
   } finally {
     loading.value = false
   }
@@ -219,16 +227,17 @@ async function loadConfig() {
 async function saveConfig() {
   loading.value = true
   try {
-    await publishConfigApi.update({
+    const saved = await publishConfigApi.update({
+      id: configId.value,
       publishMode: configForm.publishMode,
-      autoPublishEnabled: configForm.autoPublishEnabled,
+      autoPublishEnabled: configForm.autoPublishEnabled ? 1 : 0,
       reviewFlow: configForm.reviewFlow,
       publishFrequency: configForm.publishFrequency,
-    }, authStore.selectedTenantId)
+    }, tenantId.value) as any
+    if (saved?.id) configId.value = saved.id
     message.success('配置保存成功')
-  } catch (error) {
-    console.error(error)
-    message.error('保存配置失败')
+  } catch (error: any) {
+    message.error(error?.message || '保存配置失败')
   } finally {
     loading.value = false
   }
@@ -237,12 +246,11 @@ async function saveConfig() {
 async function loadPlatforms() {
   platformLoading.value = true
   try {
-    const res = await publishConfigApi.listPlatforms() as any
-    const data = res?.data || res?.records || res || []
-    platformList.value = data
-  } catch (error) {
-    console.error(error)
+    const data = await publishConfigApi.listPlatforms({ tenantId: tenantId.value }) as any
+    platformList.value = Array.isArray(data) ? data : []
+  } catch (error: any) {
     platformList.value = []
+    message.error(error?.message || '加载发布平台失败')
   } finally {
     platformLoading.value = false
   }
@@ -255,7 +263,7 @@ function showAddPlatformModal() {
   platformForm.apiUrl = ''
   platformForm.username = ''
   platformForm.password = ''
-  platformForm.status = 'active'
+  platformForm.status = 1
   platformForm.remark = ''
   platformModalVisible.value = true
 }
@@ -267,7 +275,7 @@ function editPlatform(record: any) {
   platformForm.apiUrl = record.apiUrl || ''
   platformForm.username = record.username || ''
   platformForm.password = ''
-  platformForm.status = record.status || 'active'
+  platformForm.status = Number(record.status ?? 1)
   platformForm.remark = record.remark || ''
   platformModalVisible.value = true
 }
@@ -283,18 +291,20 @@ async function handlePlatformModalOk() {
   }
   platformSaving.value = true
   try {
+    // 编辑时不回填密码框：留空表示沿用原值，避免把明文密码显示出来
+    const payload: any = { ...platformForm }
     if (editingPlatform.value) {
-      await publishConfigApi.updatePlatform(editingPlatform.value.id, platformForm)
+      if (!payload.password) delete payload.password
+      await publishConfigApi.updatePlatform(editingPlatform.value.id, payload, tenantId.value)
       message.success('更新成功')
     } else {
-      await publishConfigApi.createPlatform(platformForm)
+      await publishConfigApi.createPlatform(payload, tenantId.value)
       message.success('创建成功')
     }
     platformModalVisible.value = false
     await loadPlatforms()
-  } catch (error) {
-    console.error(error)
-    message.error('操作失败')
+  } catch (error: any) {
+    message.error(error?.message || '操作失败')
   } finally {
     platformSaving.value = false
   }
@@ -308,12 +318,11 @@ function deletePlatform(record: any) {
     cancelText: '取消',
     onOk: async () => {
       try {
-        await publishConfigApi.deletePlatform(record.id)
+        await publishConfigApi.deletePlatform(record.id, tenantId.value)
         message.success('删除成功')
         await loadPlatforms()
-      } catch (error) {
-        console.error(error)
-        message.error('删除失败')
+      } catch (error: any) {
+        message.error(error?.message || '删除失败')
       }
     },
   })
@@ -321,15 +330,14 @@ function deletePlatform(record: any) {
 
 async function testPlatform(record: any) {
   try {
-    const res = await publishConfigApi.testPlatform(record.id) as any
+    const res = await publishConfigApi.testPlatform(record.id, tenantId.value) as any
     if (res?.success) {
-      message.success('连接测试成功')
+      message.success(res.message || '连接测试成功')
     } else {
       message.error(res?.message || '连接测试失败')
     }
-  } catch (error) {
-    console.error(error)
-    message.error('连接测试失败')
+  } catch (error: any) {
+    message.error(error?.message || '连接测试失败')
   }
 }
 

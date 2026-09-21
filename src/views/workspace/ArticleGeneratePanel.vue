@@ -254,14 +254,14 @@
                       @change="onClusterSelect"
                     >
                       <a-select-option v-for="c in clusterList" :key="c.id" :value="c.id">
-                        {{ c.name }} · 优先级{{ c.priority || 0 }}
+                        {{ c.name }} · 优先级{{ c.priority ?? '-' }}
                       </a-select-option>
                     </a-select>
                   </a-form-item>
                 </a-col>
                 <a-col :span="8" style="text-align: right; padding-top: 32px">
                   <a-button @click="loadClusterList">刷新聚类</a-button>
-                  <a-button type="link" @click="router.push({ name: 'workspace-cluster-panel' })">去聚类蒸馏</a-button>
+                  <a-button type="link" @click="router.push({ name: 'workspace-cluster' })">去聚类蒸馏</a-button>
                 </a-col>
               </a-row>
             </a-form>
@@ -344,7 +344,6 @@
         <div class="action-bar">
           <a-space size="middle">
             <a-switch v-model:checked="useKnowledge" checked-children="知识库引用" un-checked-children="知识库引用" />
-            <a-button @click="showBatchConfig = true">批量生成</a-button>
             <a-button @click="loadTokenStats">Token 统计</a-button>
             <a-button @click="openAnalysisDrawer">质量分析</a-button>
           </a-space>
@@ -365,49 +364,66 @@
         </div>
       </div>
 
-      <!-- 文章列表 -->
+      <!-- 本次生成任务 -->
       <div class="list-card">
         <div class="toolbar">
-          <a-space size="middle">
-            <a-input-search v-model:value="searchQuery" placeholder="搜索文章标题" style="width: 200px" allow-clear />
-            <a-select v-model:value="statusFilter" style="width: 120px" placeholder="状态" allow-clear>
-              <a-select-option value="all">全部状态</a-select-option>
-              <a-select-option value="draft">草稿</a-select-option>
-              <a-select-option value="reviewing">待审核</a-select-option>
-              <a-select-option value="published">已发布</a-select-option>
-            </a-select>
-            <a-select v-model:value="generateTypeFilter" style="width: 120px" placeholder="生成方式" allow-clear>
-              <a-select-option value="all">全部方式</a-select-option>
-              <a-select-option value="keyword">热词驱动</a-select-option>
-              <a-select-option value="case">案例驱动</a-select-option>
-              <a-select-option value="document">文档驱动</a-select-option>
-              <a-select-option value="custom">自定义主题</a-select-option>
-            </a-select>
-          </a-space>
-          <a-space v-if="selectedRowKeys.length > 0">
-            <span class="selected-count">已选 {{ selectedRowKeys.length }} 项</span>
-            <a-button size="small" type="primary" @click="batchReview">批量审核</a-button>
-            <a-button size="small" @click="batchPublish">批量发布</a-button>
-            <a-button size="small" danger @click="batchDelete">批量删除</a-button>
+          <a-space wrap size="middle" class="toolbar-fill">
+            <span class="list-hint">
+              本页只负责生成：共 {{ generationTasks.length }} 个任务，已生成 {{ generatedArticleCount }} 篇。
+              审核请在「审核管理」处理，发布与删除请在「发布中心 / 文章管理」处理。
+            </span>
+            <a-space>
+              <span v-if="selectedRowKeys.length > 0" class="selected-count">已选 {{ selectedRowKeys.length }} 项</span>
+              <a-button v-if="selectedRowKeys.length > 0" size="small" type="primary" @click="batchSubmitReview">
+                <template #icon><SendOutlined /></template>
+                批量送审
+              </a-button>
+              <a-button size="small" @click="router.push({ name: 'workspace-articles' })">
+                <template #icon><FileTextOutlined /></template>
+                前往文章管理
+              </a-button>
+            </a-space>
           </a-space>
         </div>
-        <a-table :scroll="{ x: 'max-content' }" :data-source="filteredArticles" :columns="articleColumns" row-key="id"
-          :loading="loading" :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
-          :pagination="{ pageSize: 10, showSizeChanger: true, showTotal: (t: number) => `共 ${t} 条` }" size="middle">
+        <a-table :scroll="{ x: 'max-content' }" :data-source="generationTasks" :columns="taskColumns"
+          row-key="taskId" :pagination="false" size="middle" :row-selection="taskRowSelection">
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'status'">
-              <a-tag :color="getStatusColor(record.status)">{{ getStatusText(record.status) }}</a-tag>
+            <template v-if="column.key === 'driver'">
+              <a-tag>{{ driverLabel(record.driver) }}</a-tag>
             </template>
-            <template v-else-if="column.key === 'generateType'">
-              <a-tag :color="getGenerateTypeColor(record.generateType)">{{ getGenerateTypeText(record.generateType) }}</a-tag>
+            <template v-else-if="column.key === 'title'">
+              <span>{{ record.title || record.topic || '-' }}</span>
             </template>
-            <template v-else-if="column.key === 'score'">
-              <span>{{ record.score || '-' }}</span>
+            <template v-else-if="column.key === 'status'">
+              <a-tag :color="taskStatusMeta(record.status).color">{{ taskStatusMeta(record.status).label }}</a-tag>
+              <div v-if="record.errorMessage" class="task-error">{{ record.errorMessage }}</div>
+            </template>
+            <template v-else-if="column.key === 'progress'">
+              <a-progress :percent="Math.floor(record.progress || 0)" size="small" :show-info="false"
+                style="width: 100px" />
+            </template>
+            <template v-else-if="column.key === 'stage'">
+              <span>{{ record.stage || '-' }}</span>
+            </template>
+            <template v-else-if="column.key === 'articleStatus'">
+              <a-tag v-if="record.articleStatus" :color="articleStatusMeta(record.articleStatus).color">
+                {{ articleStatusMeta(record.articleStatus).label }}
+              </a-tag>
+              <span v-else>-</span>
+            </template>
+            <template v-else-if="column.key === 'wordCount'">
+              <span>{{ record.wordCount ?? '-' }}</span>
+            </template>
+            <template v-else-if="column.key === 'createdAt'">
+              <span>{{ formatDate(record.createdAt) }}</span>
             </template>
             <template v-else-if="column.key === 'action'">
-              <a-button type="link" size="small" @click="handleView(record)">查看</a-button>
-              <a-button type="link" size="small" @click="handleEdit(record)">编辑</a-button>
-              <a-button type="link" size="small" danger @click="handleDelete(record)">删除</a-button>
+              <a-button type="link" size="small" :disabled="!record.articleId" @click="viewArticle(record)">
+                查看文章
+              </a-button>
+              <a-button type="link" size="small" :disabled="!canSubmitReview(record)" @click="submitForReview(record)">
+                送审
+              </a-button>
             </template>
           </template>
         </a-table>
@@ -496,18 +512,6 @@
         </div>
       </a-modal>
 
-      <!-- 批量生成弹窗 -->
-      <a-modal v-model:open="showBatchConfig" title="批量生成配置" @ok="confirmBatchGenerate">
-        <a-form layout="vertical">
-          <a-form-item label="生成数量">
-            <a-input-number v-model:value="batchCount" :min="1" :max="50" style="width: 100%" />
-          </a-form-item>
-          <a-form-item label="生成间隔（秒）">
-            <a-input-number v-model:value="batchInterval" :min="1" :max="60" style="width: 100%" />
-          </a-form-item>
-        </a-form>
-      </a-modal>
-
       <!-- Token 统计弹窗 -->
       <a-modal v-model:open="showTokenStats" title="Token 消耗统计" width="720px" :footer="null">
         <div v-if="tokenStats" class="token-stats-content">
@@ -527,60 +531,34 @@
         </div>
         <a-spin v-else />
       </a-modal>
-
-      <!-- 版本对比弹窗 -->
-      <a-modal v-model:open="showVersionCompare" title="文章版本对比" width="900px" :footer="null">
-        <div v-if="versionCompareResult" class="version-compare-content">
-          <a-alert v-for="field in changedFields" :key="field.key"
-            :message="`${field.label} 已变更`" type="warning" show-icon style="margin-bottom: 8px" />
-          <a-row :gutter="16">
-            <a-col :span="12">
-              <div class="version-panel">
-                <div class="version-panel__header">版本 {{ versionCompareResult.version1?.version || 'V1' }}</div>
-                <div class="version-panel__body">
-                  <p><strong>标题：</strong>{{ versionCompareResult.version1?.title || '-' }}</p>
-                  <p><strong>摘要：</strong>{{ versionCompareResult.version1?.summary || '-' }}</p>
-                  <div class="version-content-text">{{ versionCompareResult.version1?.contentMd || '-' }}</div>
-                </div>
-              </div>
-            </a-col>
-            <a-col :span="12">
-              <div class="version-panel">
-                <div class="version-panel__header">版本 {{ versionCompareResult.version2?.version || 'V2' }}</div>
-                <div class="version-panel__body">
-                  <p><strong>标题：</strong>{{ versionCompareResult.version2?.title || '-' }}</p>
-                  <p><strong>摘要：</strong>{{ versionCompareResult.version2?.summary || '-' }}</p>
-                  <div class="version-content-text">{{ versionCompareResult.version2?.contentMd || '-' }}</div>
-                </div>
-              </div>
-            </a-col>
-          </a-row>
-        </div>
-        <a-spin v-else />
-      </a-modal>
     </a-spin>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, reactive, nextTick, watch } from 'vue'
-import { message, Modal } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import {
   FileTextOutlined, EditOutlined, SendOutlined, ClockCircleOutlined,
-  RocketOutlined, StarOutlined, PieChartOutlined, FireOutlined, TrophyOutlined,
-  EyeOutlined, AppstoreOutlined, CheckOutlined, DeleteOutlined, UploadOutlined,
-  InboxOutlined, CloseOutlined,
+  RocketOutlined, StarOutlined, FireOutlined, TrophyOutlined,
+  EyeOutlined, AppstoreOutlined, CheckOutlined,
+  InboxOutlined,
 } from '@ant-design/icons-vue'
 import { useRouter, useRoute } from 'vue-router'
-import { articleApi, suggestionApi, dashboardApi, keywordApi, clusterApi } from '../../api'
+import { articleApi, dashboardApi, keywordApi, clusterApi } from '../../api'
 import { caseApi } from '../../api/case'
-import http from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
+import { articleStatusMeta, ARTICLE_STATUS } from '../../utils/contentStatus'
+import type { ArticleStatus } from '../../utils/contentStatus'
+import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+
+/** 接口参数是 number | undefined，而 selectedTenantId 是 number | null，统一在此收敛 */
+const tenantId = computed<number | undefined>(() => authStore.selectedTenantId ?? undefined)
 
 const loading = ref(false)
 const generating = ref(false)
@@ -589,17 +567,13 @@ const activeTab = ref('keyword')
 // 聚类驱动模式
 const clusterMode = ref(false)
 const clusterInfo = ref<any>(null)
-const clusterSuggestions = ref<any[]>([])
+const clusterSuggestions = ref<KeywordContentSuggestion[]>([])
 const selectedSuggestionId = ref<number | null>(null)
-const clusterList = ref<any[]>([])
+const clusterList = ref<KeywordCluster[]>([])
 const selectedClusterId = ref<number | null>(null)
-const statusFilter = ref('all')
-const generateTypeFilter = ref('all')
-const searchQuery = ref('')
 const showTemplateEditor = ref(false)
 const showTemplatePreview = ref(false)
 const showCasePreview = ref(false)
-const showBatchConfig = ref(false)
 const showDocumentPreview = ref(false)
 const showCustomPreview = ref(false)
 const useKnowledge = ref(true)
@@ -609,8 +583,6 @@ const currentTaskId = ref<number | null>(null)
 let pollTimer: any = null
 let sseSource: EventSource | null = null
 const isCanceling = ref(false)
-const batchCount = ref(5)
-const batchInterval = ref(3)
 const selectedRowKeys = ref<number[]>([])
 const highlightOptions = ref<string[]>(['data', 'result'])
 const showAnalysisDrawer = ref(false)
@@ -626,23 +598,76 @@ const tokenStatColumns = [
   { title: '总Token', dataIndex: 'totalTokens', key: 'totalTokens' },
 ]
 
-// 版本对比
-const showVersionCompare = ref(false)
-const versionCompareResult = ref<any>(null)
-const changedFields = computed(() => {
-  if (!versionCompareResult.value) return []
-  const fields = [
-    { key: 'title', label: '标题', changed: versionCompareResult.value.titleChanged },
-    { key: 'summary', label: '摘要', changed: versionCompareResult.value.summaryChanged },
-    { key: 'content', label: '正文', changed: versionCompareResult.value.contentChanged },
-    { key: 'seoTitle', label: 'SEO标题', changed: versionCompareResult.value.seoTitleChanged },
-    { key: 'seoDescription', label: 'SEO描述', changed: versionCompareResult.value.seoDescriptionChanged },
-    { key: 'keywords', label: '关键词', changed: versionCompareResult.value.keywordsChanged },
-    { key: 'llmsSummary', label: 'LLM摘要', changed: versionCompareResult.value.llmsSummaryChanged },
-    { key: 'geoCitation', label: '地理引用', changed: versionCompareResult.value.geoCitationSummaryChanged },
-  ]
-  return fields.filter(f => f.changed)
-})
+// 本次生成任务（后端无任务列表接口，任务记录仅存在于当前会话）
+type GenerationTask = {
+  taskId: number
+  driver: string
+  topic: string
+  status: string
+  progress: number
+  stage: string
+  createdAt: string
+  articleId?: number
+  title?: string
+  wordCount?: number
+  errorMessage?: string
+  articleStatus?: ArticleStatus
+}
+
+/** 生成任务状态来自 getGenerationStatus / SSE，取值是大写字符串，不属于文章状态词表 */
+const TASK_STATUS_META: Record<string, { label: string; color: string }> = {
+  PENDING: { label: '排队中', color: 'default' },
+  PROCESSING: { label: '生成中', color: 'processing' },
+  RETRYING: { label: '重试中', color: 'warning' },
+  COMPLETED: { label: '已完成', color: 'success' },
+  FAILED: { label: '失败', color: 'error' },
+  CANCELLED: { label: '已取消', color: 'default' },
+}
+
+function taskStatusMeta(status?: string) {
+  if (!status) return { label: '-', color: 'default' }
+  return TASK_STATUS_META[status.toUpperCase()] ?? { label: status, color: 'default' }
+}
+
+const DRIVER_LABELS: Record<string, string> = {
+  keyword: '热词驱动',
+  cluster: '聚类建议',
+  case: '案例驱动',
+  document: '文档驱动',
+  custom: '自定义主题',
+}
+
+function driverLabel(driver?: string) {
+  return (driver && DRIVER_LABELS[driver]) || '-'
+}
+
+const generationTasks = ref<GenerationTask[]>([])
+
+const generatedArticleCount = computed(
+  () => generationTasks.value.filter(t => !!t.articleId).length,
+)
+
+const taskColumns = [
+  { title: '任务', dataIndex: 'taskId', key: 'taskId', width: 70 },
+  { title: '生成入口', dataIndex: 'driver', key: 'driver', width: 100 },
+  { title: '标题 / 主题', dataIndex: 'title', key: 'title', ellipsis: true },
+  { title: '任务状态', dataIndex: 'status', key: 'status', width: 110 },
+  { title: '进度', dataIndex: 'progress', key: 'progress', width: 130 },
+  { title: '当前阶段', dataIndex: 'stage', key: 'stage', width: 140 },
+  { title: '文章状态', dataIndex: 'articleStatus', key: 'articleStatus', width: 100 },
+  { title: '字数', dataIndex: 'wordCount', key: 'wordCount', width: 80 },
+  { title: '提交时间', dataIndex: 'createdAt', key: 'createdAt', width: 120 },
+  { title: '操作', key: 'action', width: 160, fixed: 'right' as const },
+]
+
+const taskRowSelection = computed(() => ({
+  selectedRowKeys: selectedRowKeys.value,
+  onChange: (keys: Array<string | number>) => {
+    selectedRowKeys.value = keys.filter((k): k is number => typeof k === 'number')
+  },
+  // 只有已生成、且仍是草稿（未送审）的任务可勾选，避免重复送审
+  getCheckboxProps: (record: GenerationTask) => ({ disabled: !canSubmitReview(record) }),
+}))
 
 // 图表
 const trendChartRef = ref<HTMLElement>()
@@ -661,9 +686,9 @@ const stats = reactive({
 
 const statItems = computed(() => [
   { key: 'total', label: '文章总数', value: stats.totalArticles, unit: '篇', icon: FileTextOutlined, color: 'blue', path: '/workspace/articles' },
-  { key: 'draft', label: '草稿数', value: stats.draftCount, unit: '篇', icon: EditOutlined, color: 'purple', path: '/workspace/articles?status=draft' },
-  { key: 'published', label: '已发布', value: stats.publishedCount, unit: '篇', icon: SendOutlined, color: 'green', path: '/workspace/articles?status=published' },
-  { key: 'pending', label: '待审核', value: stats.pendingCount, unit: '篇', icon: ClockCircleOutlined, color: 'orange', path: '/workspace/articles?status=reviewing' },
+  { key: 'draft', label: `${ARTICLE_STATUS.draft.label}数`, value: stats.draftCount, unit: '篇', icon: EditOutlined, color: 'purple', path: '/workspace/articles?status=draft' },
+  { key: 'published', label: ARTICLE_STATUS.published.label, value: stats.publishedCount, unit: '篇', icon: SendOutlined, color: 'green', path: '/workspace/articles?status=published' },
+  { key: 'pending', label: ARTICLE_STATUS.pending_review.label, value: stats.pendingCount, unit: '篇', icon: ClockCircleOutlined, color: 'orange', path: '/workspace/articles?status=pending_review' },
 ])
 
 function navigateTo(path: string) {
@@ -699,7 +724,18 @@ const customArticleTone = ref('neutral')
 
 const editingTemplate = reactive({ name: '', content: '' })
 
-const keywordsList = ref<{ id: number; name: string; priority: number }[]>([])
+type KeywordOption = {
+  id: number
+  name: string
+  category?: string
+  intentValue: number
+  searchVolume: number
+  suggestionCount: number
+  articleCount: number
+  status?: string
+}
+
+const keywordsList = ref<KeywordOption[]>([])
 const casesList = ref<{ id: number; title: string; highlights: string[] }[]>([])
 
 const filteredCases = computed(() => {
@@ -712,84 +748,12 @@ const selectedCaseData = computed(() => {
   return casesList.value.find(c => c.id === selectedCase.value)
 })
 
-const articles = ref<any[]>([])
-
-const filteredArticles = computed(() => {
-  let list = articles.value
-  if (searchQuery.value) {
-    list = list.filter(a => (a.title || '').includes(searchQuery.value))
-  }
-  if (statusFilter.value && statusFilter.value !== 'all') {
-    list = list.filter(a => a.status === statusFilter.value)
-  }
-  if (generateTypeFilter.value && generateTypeFilter.value !== 'all') {
-    list = list.filter(a => a.generateType === generateTypeFilter.value)
-  }
-  return list
-})
-
-const articleColumns = [
-  { title: 'ID', dataIndex: 'id', key: 'id', width: 60 },
-  { title: '文章标题', dataIndex: 'title', key: 'title', ellipsis: true },
-  { title: '状态', dataIndex: 'status', key: 'status', width: 90 },
-  { title: '质量分', dataIndex: 'score', key: 'score', width: 80 },
-  { title: '生成方式', dataIndex: 'generateType', key: 'generateType', width: 100 },
-  { title: '字数', dataIndex: 'wordCount', key: 'wordCount', width: 80 },
-  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 120 },
-  { title: '操作', key: 'action', width: 180, fixed: 'right' as const },
-]
-
-function getPriorityColor(priority?: number) {
-  const p = priority || 0
-  if (p >= 80) return 'red'
-  if (p >= 60) return 'orange'
-  return 'green'
-}
-
-function getStatusColor(status?: string) {
-  switch (status) {
-    case 'published': return 'success'
-    case 'reviewing': return 'processing'
-    case 'draft': return 'default'
-    default: return 'default'
-  }
-}
-
-function getStatusText(status?: string) {
-  switch (status) {
-    case 'published': return '已发布'
-    case 'reviewing': return '待审核'
-    case 'draft': return '草稿'
-    default: return '未知'
-  }
-}
-
-function getGenerateTypeColor(type?: string) {
-  switch (type) {
-    case 'keyword': return 'blue'
-    case 'case': return 'purple'
-    case 'document': return 'green'
-    case 'custom': return 'orange'
-    default: return 'default'
-  }
-}
-
-function getGenerateTypeText(type?: string) {
-  switch (type) {
-    case 'keyword': return '热词驱动'
-    case 'case': return '案例驱动'
-    case 'document': return '文档驱动'
-    case 'custom': return '自定义主题'
-    default: return '未知'
-  }
-}
-
 function getAudienceName(audience: string) {
   const map: Record<string, string> = {
     general: '普通读者', professional: '专业人士',
     business: '企业决策者', student: '学生群体', technical: '技术人员',
   }
-  return map[audience] || '普通读者'
+  return map[audience] || '-'
 }
 
 function beforeDocumentUpload(file: any) {
@@ -824,37 +788,92 @@ function formatDate(date?: string) {
   return new Date(date).toLocaleDateString()
 }
 
-function onSelectChange(selectedKeys: number[]) {
-  selectedRowKeys.value = selectedKeys
+const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED']
+
+function isTerminal(status?: string) {
+  return !!status && TERMINAL_STATUSES.includes(status.toUpperCase())
 }
 
-async function loadData() {
-  loading.value = true
+function addTask(taskId: number, driver: string, topic: string) {
+  generationTasks.value.unshift({
+    taskId,
+    driver,
+    topic,
+    status: 'PENDING',
+    progress: 0,
+    stage: '任务已提交',
+    createdAt: new Date().toISOString(),
+  })
+}
+
+type TaskUpdate = Partial<Pick<GenerationTask,
+  'status' | 'progress' | 'stage' | 'articleId' | 'title' | 'wordCount' | 'errorMessage'
+>>
+
+function applyTaskUpdate(taskId: number, patch: TaskUpdate) {
+  const task = generationTasks.value.find(t => t.taskId === taskId)
+  if (!task) return
+  if (patch.status !== undefined) task.status = patch.status
+  if (patch.progress !== undefined) task.progress = patch.progress
+  if (patch.stage !== undefined) task.stage = patch.stage
+  if (patch.articleId !== undefined) task.articleId = patch.articleId
+  if (patch.title !== undefined) task.title = patch.title
+  if (patch.wordCount !== undefined) task.wordCount = patch.wordCount
+  if (patch.errorMessage !== undefined) task.errorMessage = patch.errorMessage
+}
+
+function findTask(taskId: number) {
+  return generationTasks.value.find(t => t.taskId === taskId)
+}
+
+/** 文章状态只有后端知道，生成完成后回读一次，缺失就显示 '-' */
+async function refreshArticleStatus(task: GenerationTask) {
+  if (!task.articleId) {
+    // SSE 的 complete 负载不一定带 articleId，回读任务状态补齐
+    try {
+      applyTaskUpdate(task.taskId, await articleApi.getGenerationStatus(task.taskId))
+    } catch (error) {
+      console.error(error)
+      message.error('回读生成任务失败')
+    }
+  }
+  if (!task.articleId) return
   try {
-    const [articlesRes, statsData] = await Promise.all([
-      articleApi.list({ tenantId: authStore.selectedTenantId }),
-      dashboardApi.getStats(authStore.selectedTenantId),
-    ]) as any
-    articles.value = articlesRes?.records || articlesRes || []
-    stats.totalArticles = statsData?.totalArticles || statsData?.total || 0
-    stats.draftCount = statsData?.draftCount || 0
-    stats.publishedCount = statsData?.publishedCount || 0
-    stats.pendingCount = statsData?.pendingReview || statsData?.pendingReviewCount || 0
+    const article = await articleApi.get(task.articleId, tenantId.value)
+    task.articleStatus = article?.status
   } catch (error) {
     console.error(error)
+    message.error('获取文章状态失败')
+  }
+}
+
+async function loadStats() {
+  loading.value = true
+  try {
+    const statsData = await dashboardApi.getStats(tenantId.value)
+    stats.totalArticles = statsData?.totalArticles ?? 0
+    stats.draftCount = statsData?.draftCount ?? 0
+    stats.publishedCount = statsData?.publishedCount ?? 0
+    stats.pendingCount = statsData?.pendingReview ?? 0
+  } catch (error) {
+    console.error(error)
+    message.error('加载统计数据失败')
   } finally {
     loading.value = false
   }
 }
 
 async function cancelGeneration() {
-  if (!currentTaskId.value) return
+  const taskId = currentTaskId.value
+  if (!taskId) return
   isCanceling.value = true
   try {
-    await articleApi.cancelGeneration(currentTaskId.value)
+    await articleApi.cancelGeneration(taskId)
+    applyTaskUpdate(taskId, { status: 'CANCELLED', stage: '已取消' })
     message.info('已取消生成任务')
   } catch (error) {
     console.error(error)
+    message.error('取消生成任务失败')
   } finally {
     isCanceling.value = false
     clearPolling()
@@ -878,30 +897,36 @@ function resetGenerationState() {
   currentTaskId.value = null
 }
 
-async function handleTaskComplete(res: any) {
+async function handleTaskComplete(taskId: number, res: TaskUpdate) {
   clearPolling()
+  applyTaskUpdate(taskId, res)
   resetGenerationState()
-  if (res.status === 'COMPLETED') {
-    message.success('文章生成成功！')
-    await loadData()
-  } else if (res.status === 'FAILED') {
+  const status = (res.status || '').toUpperCase()
+  if (status === 'COMPLETED') {
+    message.success('文章生成成功')
+    const task = findTask(taskId)
+    if (task) await refreshArticleStatus(task)
+    await loadStats()
+  } else if (status === 'FAILED') {
     message.error(res.errorMessage || '生成失败')
-  } else if (res.status === 'CANCELLED') {
+  } else if (status === 'CANCELLED') {
     message.info('已取消生成任务')
   }
 }
 
-async function pollTaskStatus(taskId: number) {
+function pollTaskStatus(taskId: number) {
   pollTimer = setInterval(async () => {
     try {
       const res = await articleApi.getGenerationStatus(taskId)
-      generateProgress.value = res.progress || 0
+      generateProgress.value = res.progress ?? 0
       progressText.value = res.stage || '处理中...'
-      if (['COMPLETED', 'FAILED', 'CANCELLED', 'RETRYING'].includes(res.status)) {
-        await handleTaskComplete(res)
-      }
+      applyTaskUpdate(taskId, res)
+      if (isTerminal(res.status)) await handleTaskComplete(taskId, res)
     } catch (error) {
       console.error(error)
+      clearPolling()
+      resetGenerationState()
+      message.error('查询生成进度失败，请到文章管理确认生成结果')
     }
   }, 2000)
 }
@@ -923,8 +948,9 @@ async function trySSE(taskId: number): Promise<boolean> {
       source.addEventListener('progress', (event: Event) => {
         try {
           const data = JSON.parse((event as MessageEvent).data)
-          generateProgress.value = data.progress || 0
+          generateProgress.value = data.progress ?? 0
           progressText.value = data.stage || '处理中...'
+          applyTaskUpdate(taskId, data)
         } catch (e) { console.error('解析 SSE progress 失败', e) }
       })
       source.addEventListener('complete', (event: Event) => {
@@ -932,7 +958,8 @@ async function trySSE(taskId: number): Promise<boolean> {
         resolved = true
         if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null }
         try {
-          handleTaskComplete(JSON.parse((event as MessageEvent).data))
+          const data = JSON.parse((event as MessageEvent).data)
+          handleTaskComplete(taskId, data)
           resolve(true)
         } catch (e) {
           clearSSE(); resolve(false)
@@ -967,9 +994,12 @@ async function generateArticle() {
 
   try {
     let params: any = { useKnowledge: useKnowledge.value }
+    let topic = ''
 
     if (activeTab.value === 'cluster') {
       if (!selectedSuggestionId.value) { message.warning('请先选择一条内容建议'); generating.value = false; return }
+      const suggestion = clusterSuggestions.value.find(s => s.id === selectedSuggestionId.value)
+      topic = suggestion?.title || clusterInfo.value?.name || `建议 #${selectedSuggestionId.value}`
       params.type = 'keyword'
       params.suggestionId = selectedSuggestionId.value
       params.templateType = selectedTemplate.value
@@ -977,22 +1007,24 @@ async function generateArticle() {
       params.articleStyle = articleStyle.value
       params.articleTone = articleTone.value
     } else if (activeTab.value === 'keyword') {
+      if (!selectedKeyword.value) { message.warning('请先选择关键词'); generating.value = false; return }
+      topic = selectedKeyword.value
       params.type = 'keyword'
       params.keyword = selectedKeyword.value
       params.templateType = selectedTemplate.value
       params.articleLength = articleLength.value
       params.articleStyle = articleStyle.value
       params.articleTone = articleTone.value
-      const suggestionsRes = await suggestionApi.list({ page: 1, size: 1 })
-      if (suggestionsRes.records?.length > 0) params.suggestionId = suggestionsRes.records[0].id
     } else if (activeTab.value === 'case') {
       if (!selectedCase.value) { message.warning('请先选择案例'); generating.value = false; return }
+      topic = selectedCaseData.value?.title || `案例 #${selectedCase.value}`
       params.type = 'case'
       params.caseId = selectedCase.value
       params.templateType = selectedCaseTemplate.value
       params.highlights = highlightOptions.value
     } else if (activeTab.value === 'document') {
       if (!selectedDocument.value) { message.warning('请先选择文档'); generating.value = false; return }
+      topic = selectedDocument.value.name || '-'
       params.type = 'document'
       params.docContent = selectedDocument.value.name
       params.templateType = selectedDocumentTemplate.value
@@ -1001,6 +1033,7 @@ async function generateArticle() {
       params.articleTone = documentArticleTone.value
     } else if (activeTab.value === 'custom') {
       if (!customTopic.value.trim()) { message.warning('请输入主题'); generating.value = false; return }
+      topic = customTopic.value
       params.type = 'custom'
       params.customTopic = customTopic.value
       params.keywords = customKeywords.value
@@ -1011,8 +1044,9 @@ async function generateArticle() {
       params.articleTone = customArticleTone.value
     }
 
-    const res = await articleApi.generateAsync(params, { tenantId: authStore.selectedTenantId })
+    const res = await articleApi.generateAsync(params, { tenantId: tenantId.value })
     currentTaskId.value = res.taskId
+    addTask(res.taskId, activeTab.value, topic)
     generateProgress.value = 5
     progressText.value = '任务已提交'
 
@@ -1030,87 +1064,58 @@ function saveTemplate() {
   showTemplateEditor.value = false
 }
 
-function handleView(record: any) {
-  router.push(`/workspace/articles/${record.id}`)
+/** 查看 / 编辑文章归 文章管理，这里只做跳转 */
+function viewArticle(task: GenerationTask) {
+  if (!task.articleId) { message.warning('该任务尚未产出文章'); return }
+  router.push({ name: 'workspace-article-edit', params: { id: task.articleId } })
 }
 
-function handleEdit(record: any) {
-  router.push({ name: 'workspace-article-edit', params: { id: record.id } })
+/** 送审是本页唯一保留的下游动作（审核/发布/删除归审核管理与发布中心） */
+function canSubmitReview(task?: GenerationTask) {
+  return !!task?.articleId && (!task.articleStatus || task.articleStatus === 'draft')
 }
 
-function handleDelete(record: any) {
-  Modal.confirm({
-    title: '确认删除',
-    content: `确定要删除文章「${record.title}」吗？`,
-    okText: '删除', okType: 'danger', cancelText: '取消',
-    async onOk() {
-      try {
-        await articleApi.delete(record.id, authStore.selectedTenantId)
-        message.success('删除成功')
-        await loadData()
-      } catch { message.error('删除失败') }
-    },
-  })
-}
-
-async function batchReview() {
-  if (!selectedRowKeys.value.length) return
-  let ok = 0
-  for (const id of selectedRowKeys.value) {
-    try { await articleApi.submitReview(id, authStore.selectedTenantId); ok++ } catch {}
-  }
-  message.success(`已提交 ${ok} 篇审核`)
-  selectedRowKeys.value = []
-  await loadData()
-}
-
-async function batchPublish() {
-  if (!selectedRowKeys.value.length) return
+async function submitForReview(task: GenerationTask) {
+  if (!task.articleId) { message.warning('该任务尚未产出文章'); return }
   try {
-    const res = await articleApi.batchPublish(selectedRowKeys.value, undefined, authStore.selectedTenantId) as any
-    message.success(`已发布 ${res?.published ?? 0} 篇，已排期 ${res?.scheduled ?? 0} 篇，失败 ${res?.failed ?? 0} 篇`)
-    selectedRowKeys.value = []
-    await loadData()
-  } catch { message.error('批量发布失败') }
+    await articleApi.submitReview(task.articleId, tenantId.value)
+    message.success('已提交审核')
+    await refreshArticleStatus(task)
+    await loadStats()
+  } catch (error) {
+    console.error(error)
+    message.error('提交审核失败')
+  }
 }
 
-function batchDelete() {
-  if (!selectedRowKeys.value.length) return
-  Modal.confirm({
-    title: '确认批量删除',
-    content: `确定要删除选中的 ${selectedRowKeys.value.length} 篇文章吗？`,
-    okText: '删除', okType: 'danger', cancelText: '取消',
-    async onOk() {
-      let ok = 0
-      for (const id of selectedRowKeys.value) {
-        try { await articleApi.delete(id, authStore.selectedTenantId); ok++ } catch {}
-      }
-      message.success(`已删除 ${ok} 篇`)
-      selectedRowKeys.value = []
-      await loadData()
-    },
-  })
-}
-
-function confirmBatchGenerate() {
-  message.success(`已配置批量生成 ${batchCount.value} 篇`)
-  showBatchConfig.value = false
+async function batchSubmitReview() {
+  const targets = generationTasks.value.filter(t => selectedRowKeys.value.includes(t.taskId) && canSubmitReview(t))
+  if (!targets.length) { message.warning('请选择已生成且仍为草稿的文章'); return }
+  const failed: string[] = []
+  for (const task of targets) {
+    try {
+      await articleApi.submitReview(task.articleId as number, tenantId.value)
+      await refreshArticleStatus(task)
+    } catch (error) {
+      console.error(error)
+      failed.push(task.title || task.topic || `任务 #${task.taskId}`)
+    }
+  }
+  if (failed.length) message.error(`${failed.length} 篇提交审核失败：${failed.join('、')}`)
+  else message.success(`已提交 ${targets.length} 篇进入审核`)
+  selectedRowKeys.value = []
+  await loadStats()
 }
 
 async function loadTokenStats() {
   showTokenStats.value = true
   tokenStats.value = null
   try {
-    tokenStats.value = await articleApi.getTokenStats(7, authStore.selectedTenantId)
-  } catch { message.error('加载 Token 统计失败') }
-}
-
-async function openVersionCompare(articleId: number, v1: number, v2: number) {
-  showVersionCompare.value = true
-  versionCompareResult.value = null
-  try {
-    versionCompareResult.value = await articleApi.compareVersions(articleId, v1, v2)
-  } catch { message.error('加载版本对比失败') }
+    tokenStats.value = await articleApi.getTokenStats(7, tenantId.value)
+  } catch (error) {
+    console.error(error)
+    message.error('加载 Token 统计失败')
+  }
 }
 
 // 图表初始化
@@ -1190,18 +1195,18 @@ function handleResize() {
 
 async function loadKeywords() {
   try {
-    const tid = authStore.selectedTenantId || authStore.tenantId
+    const tid: number = authStore.selectedTenantId ?? authStore.tenantId
     // 企业关键词库 SOT：按意图价值倒序 + 搜索量 取前 100（比 size:50 扩大 1 倍），
     // 优先展示高转化意图词（价格/选择/效果/本地服务）。
     const res = await keywordApi.list({
       page: 1,
       size: 100,
-      tenantId: tid as any,
+      tenantId: tid,
     }) as any
-    const records = (res?.records || []).map((k: any) => ({
+    const records: KeywordOption[] = (res?.records || []).map((k: any) => ({
       id: k.id,
       name: k.rawKeyword || k.normalizedKeyword || '',
-      category: k.category || '基础',
+      category: k.category,
       intentValue: Number(k.intentValue || 0),
       searchVolume: Number(k.searchVolume || 0),
       suggestionCount: Number(k.suggestionCount || 0),
@@ -1209,7 +1214,7 @@ async function loadKeywords() {
       status: k.status,
     }))
     // 高意图值倒序 → 搜索量倒序 → 未生成内容优先（没文章优先于有文章）
-    records.sort((a: any, b: any) => {
+    records.sort((a, b) => {
       if (b.intentValue !== a.intentValue) return b.intentValue - a.intentValue
       if (b.searchVolume !== a.searchVolume) return b.searchVolume - a.searchVolume
       return (a.articleCount > 0 ? 1 : 0) - (b.articleCount > 0 ? 1 : 0)
@@ -1221,7 +1226,7 @@ async function loadKeywords() {
 async function loadClusterData(clusterId: number) {
   try {
     loading.value = true
-    const res = await clusterApi.get(clusterId, { tenantId: authStore.selectedTenantId })
+    const res = await clusterApi.get(clusterId, { tenantId: tenantId.value })
     clusterInfo.value = res
     clusterSuggestions.value = res?.contentSuggestions || []
     if (clusterSuggestions.value.length > 0) {
@@ -1239,10 +1244,11 @@ async function loadClusterData(clusterId: number) {
 
 async function loadClusterList() {
   try {
-    const res = await clusterApi.list({ tenantId: authStore.selectedTenantId, page: 1, size: 100 }) as any
+    const res = await clusterApi.list({ tenantId: tenantId.value, page: 1, size: 100 })
     clusterList.value = res?.records || []
   } catch (e) {
     console.error('加载聚类列表失败', e)
+    message.error('加载聚类列表失败')
   }
 }
 
@@ -1260,7 +1266,7 @@ async function generateSuggestionsForCluster() {
   if (!selectedClusterId.value) return
   try {
     loading.value = true
-    const res = await clusterApi.generateSuggestions(selectedClusterId.value, { tenantId: authStore.selectedTenantId })
+    const res = await clusterApi.generateSuggestions(selectedClusterId.value, { tenantId: tenantId.value })
     clusterSuggestions.value = res || []
     if (clusterSuggestions.value.length > 0) {
       selectedSuggestionId.value = clusterSuggestions.value[0].id
@@ -1286,7 +1292,7 @@ async function loadCases() {
 }
 
 onMounted(() => {
-  loadData()
+  loadStats()
   loadKeywords()
   loadCases()
   loadClusterList()
@@ -1298,15 +1304,17 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
 })
 
-// 租户切换时重新加载所有数据
+// 租户切换时重新加载数据；生成任务与租户绑定，切换后必须清空
 watch(() => authStore.selectedTenantId, () => {
-  loadData()
+  loadStats()
   loadKeywords()
   loadClusterList()
   selectedSuggestionId.value = null
   clusterInfo.value = null
   clusterSuggestions.value = []
   selectedClusterId.value = null
+  generationTasks.value = []
+  selectedRowKeys.value = []
 })
 
 onUnmounted(() => {
@@ -1332,7 +1340,6 @@ onUnmounted(() => {
 
 .article-generate-page {
   width: 100%;
-  padding: 8px 0;
 }
 
 /* 页面头部 */
@@ -1489,11 +1496,26 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 8px;
 
+  .toolbar-fill {
+    align-items: center;
+  }
+
+  .list-hint {
+    font-size: 12px;
+    color: @slate-400;
+  }
+
   .selected-count {
     font-size: 13px;
     color: @blue-500;
     font-weight: 500;
   }
+}
+
+.task-error {
+  font-size: 12px;
+  color: #ff4d4f;
+  margin-top: 2px;
 }
 
 /* 图表 */
@@ -1557,40 +1579,6 @@ onUnmounted(() => {
       color: #fa8c16;
     }
   }
-}
-
-/* 版本对比 */
-.version-panel {
-  border: 1px solid @slate-200;
-  border-radius: 8px;
-  overflow: hidden;
-
-  &__header {
-    padding: 8px 12px;
-    background: @slate-100;
-    font-weight: 600;
-    font-size: 13px;
-    color: @slate-700;
-  }
-
-  &__body {
-    padding: 12px;
-    font-size: 13px;
-    color: @slate-600;
-
-    p {
-      margin-bottom: 4px;
-    }
-  }
-}
-
-.version-content-text {
-  white-space: pre-wrap;
-  max-height: 200px;
-  overflow-y: auto;
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 8px;
 }
 
 /* 聚类建议选择卡片 */

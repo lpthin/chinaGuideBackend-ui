@@ -31,8 +31,6 @@ const KnowledgeTagView = () => import('../views/knowledge/KnowledgeTagView.vue')
 const KnowledgeSearchView = () => import('../views/knowledge/KnowledgeSearchView.vue')
 
 // ✍️ 文章系统模块
-const ArticleCategoryView = () => import('../views/article/ArticleCategoryView.vue')
-const ArticleListView = () => import('../views/article/ArticleListView.vue')
 const ArticleDetailView = () => import('../views/article/ArticleDetailView.vue')
 const ArticleEditView = () => import('../views/article/ArticleEditView.vue')
 const ArticleTemplateManageView = () => import('../views/article/ArticleTemplateManageView.vue')
@@ -85,15 +83,12 @@ const UserProfileView = () => import('../views/user/UserProfileView.vue')
 
 // 工作流页面
 const DashboardView = () => import('../views/workspace/DashboardView.vue')
-const KeywordCollectPanel = () => import('../views/workspace/KeywordCollectPanel.vue')
 const ClusterPanel = () => import('../views/workspace/ClusterPanel.vue')
 const ArticleGeneratePanel = () => import('../views/workspace/ArticleGeneratePanel.vue')
 const ReviewPanel = () => import('../views/workspace/ReviewPanel.vue')
-const PublishPanel = () => import('../views/workspace/PublishPanel.vue')
+const PublishCenterView = () => import('../views/workspace/PublishCenterView.vue')
 const PublishConfigView = () => import('../views/workspace/PublishConfigView.vue')
-const PublishQueueView = () => import('../views/workspace/PublishQueueView.vue')
 const ArticlesPanel = () => import('../views/workspace/ArticlesPanel.vue')
-const MediaPanel = () => import('../views/workspace/MediaPanel.vue') // 已合并到文档管理页
 const CategoriesPanel = () => import('../views/workspace/CategoriesPanel.vue')
 const SystemPromptPanel = () => import('../views/workspace/SystemPromptPanel.vue')
 const RolesPanel = () => import('../views/workspace/RolesPanel.vue')
@@ -179,7 +174,7 @@ const routes: RouteRecordRaw[] = [
         path: 'article-templates',
         name: 'workspace-article-templates',
         component: ArticleTemplateManageView,
-        meta: { title: '软文模板', icon: 'file-text', breadcrumb: ['首页', '内容生产', '软文模板'] }
+        meta: { title: '软文模板', icon: 'file-text', breadcrumb: ['首页', '文章管理', '软文模板'] }
       },
       {
         path: 'cluster',
@@ -202,8 +197,8 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'publish',
         name: 'workspace-publish',
-        component: PublishPanel,
-        meta: { title: '发布管理', icon: 'upload', breadcrumb: ['首页', '内容生产', '发布管理'] }
+        component: PublishCenterView,
+        meta: { title: '发布中心', icon: 'upload', breadcrumb: ['首页', '内容生产', '发布中心'] }
       },
       {
         path: 'publish-config',
@@ -212,10 +207,9 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '发布配置', icon: 'setting', breadcrumb: ['首页', '内容生产', '发布配置'] }
       },
       {
+        // 发布队列已合并进发布中心，保留旧地址可达
         path: 'publish-queue',
-        name: 'workspace-publish-queue',
-        component: PublishQueueView,
-        meta: { title: '发布队列', icon: 'ordered-list', breadcrumb: ['首页', '内容生产', '发布队列'] }
+        redirect: { name: 'workspace-publish' }
       },
 
       // ===== ✍️ 文章管理 =====
@@ -449,7 +443,8 @@ const routes: RouteRecordRaw[] = [
         path: 'ai/article-templates',
         name: 'workspace-ai-article-templates',
         component: ArticleTemplateView,
-        meta: { title: '软文模板', icon: 'article', breadcrumb: ['首页', 'AI配置', '软文模板'], requiresSuperAdmin: true }
+        // ai_article_template 是 AI 生成时真正读取的模板表，与「文章管理 > 软文模板」(article_template) 不是同一份数据
+        meta: { title: '生成模板', icon: 'article', breadcrumb: ['首页', 'AI配置', '生成模板'], requiresSuperAdmin: true }
       },
 
       // ===== 📊 运营管理 =====

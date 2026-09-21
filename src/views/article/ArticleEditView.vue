@@ -429,17 +429,16 @@ import {
   QuestionCircleOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons-vue'
-import { articleApi, reviewApi } from '../../api/workspace'
+import { articleApi, publishApi, reviewApi } from '../../api/workspace'
 import { articleCategoryApi } from '../../api/article'
 import { caseTagApi } from '../../api/case'
 import { aiGenerateApi } from '../../api/ai-model'
 import { marked } from 'marked'
+import { articleStatusMeta, type ArticleStatus } from '../../utils/contentStatus'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-
-type ArticleStatus = 'draft' | 'reviewing' | 'approved' | 'rejected' | 'published'
 
 const loading = ref(false)
 const savingDraft = ref(false)
@@ -486,34 +485,17 @@ const geoForm = reactive({
   faqJson: '',
 })
 
-const statusText = computed(() => {
-  const map: Record<ArticleStatus, string> = {
-    draft: '草稿',
-    reviewing: '审核中',
-    approved: '已通过',
-    rejected: '已拒绝',
-    published: '已发布',
-  }
-  return map[articleForm.status] || '未知'
-})
+const statusText = computed(() => articleStatusMeta(articleForm.status).label)
 
-const statusColor = computed(() => {
-  const map: Record<ArticleStatus, string> = {
-    draft: 'default',
-    reviewing: 'processing',
-    approved: 'success',
-    rejected: 'error',
-    published: 'green',
-  }
-  return map[articleForm.status] || 'default'
-})
+const statusColor = computed(() => articleStatusMeta(articleForm.status).color)
 
 const statusStepIndex = computed(() => {
   const map: Record<ArticleStatus, number> = {
     draft: 0,
-    reviewing: 1,
-    approved: 2,
+    pending_review: 1,
     rejected: 1,
+    approved: 2,
+    scheduled: 2,
     published: 3,
   }
   return map[articleForm.status] ?? 0
@@ -692,7 +674,7 @@ async function handleSaveDraft() {
     }
 
     if (isEdit.value) {
-      await articleApi.update(articleId.value, data, authStore.selectedTenantId)
+      await articleApi.update(articleId.value, data, authStore.selectedTenantId ?? undefined)
       message.success('草稿保存成功')
     } else {
       message.success('草稿保存成功（新建模式）')
@@ -706,6 +688,10 @@ async function handleSaveDraft() {
 }
 
 async function handleSubmitReview() {
+  if (!isEdit.value) {
+    message.warning('请先保存草稿，再提交审核')
+    return
+  }
   if (!validateForm()) return
   if (!articleForm.categoryId) {
     message.error('请选择文章分类')
@@ -726,23 +712,22 @@ async function handleSubmitReview() {
       faqJson: geoForm.faqJson,
     }
 
-    if (isEdit.value) {
-      await articleApi.update(articleId.value, data, authStore.selectedTenantId)
-      await reviewApi.submitForReview(articleId.value, authStore.selectedTenantId)
-      articleForm.status = 'reviewing'
-      message.success('提交审核成功')
-    } else {
-      message.success('提交审核成功（新建模式）')
-      articleForm.status = 'reviewing'
-    }
-  } catch (error) {
-    message.error('提交审核失败')
+    await articleApi.update(articleId.value, data, authStore.selectedTenantId ?? undefined)
+    const result = await reviewApi.submitForReview(articleId.value, authStore.selectedTenantId ?? undefined)
+    articleForm.status = (result?.status as ArticleStatus) || 'pending_review'
+    message.success('已提交审核')
+  } catch (error: any) {
+    message.error(error?.message || '提交审核失败')
   } finally {
     submittingReview.value = false
   }
 }
 
 async function handlePublish() {
+  if (!isEdit.value) {
+    message.warning('请先保存草稿，审核通过后才能发布')
+    return
+  }
   if (!validateForm()) return
   if (!articleForm.categoryId) {
     message.error('请选择文章分类')
@@ -753,7 +738,6 @@ async function handlePublish() {
   try {
     const data = {
       ...articleForm,
-      status: 'published' as ArticleStatus,
       tags: selectedTags.value,
       seoTitle: seoForm.title,
       seoDescription: seoForm.description,
@@ -764,16 +748,14 @@ async function handlePublish() {
       faqJson: geoForm.faqJson,
     }
 
-    if (isEdit.value) {
-      await articleApi.update(articleId.value, data, authStore.selectedTenantId)
-      articleForm.status = 'published'
-      message.success('文章发布成功')
-      router.push('/workspace/articles')
-    } else {
-      message.success('文章发布成功（新建模式）')
-    }
-  } catch (error) {
-    message.error('发布失败')
+    await articleApi.update(articleId.value, data, authStore.selectedTenantId ?? undefined)
+    // 发布统一走后端 PublishExecutor 出口，编辑页不再自己改状态
+    const result = await publishApi.publish(articleId.value, undefined, authStore.selectedTenantId ?? undefined)
+    articleForm.status = result?.status === 'scheduled' ? 'scheduled' : 'published'
+    message.success(result?.status === 'scheduled' ? '已加入发布队列' : '文章发布成功')
+    router.push('/workspace/articles')
+  } catch (error: any) {
+    message.error(error?.message || '发布失败，仅审核通过的文章可发布')
   } finally {
     publishing.value = false
   }
@@ -790,7 +772,7 @@ async function confirmDelete() {
   }
 
   try {
-    await articleApi.delete(articleId.value, authStore.selectedTenantId)
+    await articleApi.delete(articleId.value, authStore.selectedTenantId ?? undefined)
     message.success('删除成功')
     deleteVisible.value = false
     router.push('/workspace/articles')
@@ -837,7 +819,7 @@ async function loadArticleDetail() {
 
   loading.value = true
   try {
-    const article = await articleApi.get(articleId.value, authStore.selectedTenantId)
+    const article = await articleApi.get(articleId.value, authStore.selectedTenantId ?? undefined)
 
     articleForm.title = article.title || ''
     articleForm.summary = article.summary || ''

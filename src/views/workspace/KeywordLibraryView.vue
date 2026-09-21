@@ -60,6 +60,27 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 
+const tablePagination = computed(() => ({
+  current: currentPage.value,
+  pageSize: pageSize.value,
+  total: total.value,
+  showSizeChanger: true,
+  showQuickJumper: true,
+  showTotal: (t: number) => `共 ${t} 条`,
+  onChange: (page: number, size: number) => {
+    currentPage.value = page
+    pageSize.value = size
+    loadKeywords()
+  },
+}))
+
+const rowSelection = computed(() => ({
+  selectedRowKeys: selectedRowKeys.value,
+  onChange: (keys: (string | number)[]) => {
+    selectedRowKeys.value = keys.map(Number)
+  },
+}))
+
 const libraryStats = reactive<{
   total: number
   cat_price: number; cat_choice: number; cat_effect: number; cat_guide: number
@@ -254,6 +275,32 @@ async function submitImport() {
     await fetchAll()
   } catch (e: any) {
     message.error(e?.message || '导入失败')
+  }
+}
+
+const priorityModalVisible = ref(false)
+const prioritySaving = ref(false)
+const priorityInput = ref(5)
+
+function openPriorityModal() {
+  if (!selectedRowKeys.value.length) return message.warning('请先选择关键词')
+  const first = keywords.value.find(k => k.id === selectedRowKeys.value[0])
+  priorityInput.value = first?.priority ?? 5
+  priorityModalVisible.value = true
+}
+
+async function submitPriority() {
+  prioritySaving.value = true
+  try {
+    const res = await keywordApi.batchUpdatePriority(selectedRowKeys.value, priorityInput.value, currentTenant()) as any
+    message.success(`已更新 ${res?.updated ?? 0} 个关键词的优先级`)
+    priorityModalVisible.value = false
+    selectedRowKeys.value = []
+    await loadKeywords()
+  } catch (e: any) {
+    message.error(e?.message || '优先级更新失败')
+  } finally {
+    prioritySaving.value = false
   }
 }
 
@@ -510,6 +557,12 @@ onMounted(fetchAll)
           </div>
 
           <div class="actions">
+            <a-tooltip title="蒸馏时按优先级从高到低选词">
+              <a-button :disabled="!selectedRowKeys.length" @click="openPriorityModal">
+                <template #icon><ThunderboltOutlined /></template>
+                设优先级（{{ selectedRowKeys.length }}）
+              </a-button>
+            </a-tooltip>
             <a-tooltip title="批量删除">
               <a-button danger :disabled="!selectedRowKeys.length" @click="batchDelete">
                 <template #icon><DeleteOutlined /></template>
@@ -522,17 +575,9 @@ onMounted(fetchAll)
         <a-table
           :scroll="{ x: 'max-content' }"
           :data-source="keywords"
-          :row-key="'id'"
-          :pagination="{
-            current: currentPage,
-            pageSize: pageSize,
-            total: total,
-            showSizeChanger: true,
-            showTotal: (t) => `共 ${t} 条`,
-            showQuickJumper: true,
-            onChange: (p, s) => { currentPage = p as number; pageSize = s as number; loadKeywords() }
-          }"
-          :row-selection="{ selectedRowKeys, onChange: (ks) => (selectedRowKeys = ks as number[]) }"
+          row-key="id"
+          :pagination="tablePagination"
+          :row-selection="rowSelection"
           class="kw-table"
         >
           <a-table-column title="#" type="index" width="48" />
@@ -562,10 +607,16 @@ onMounted(fetchAll)
             </template>
           </a-table-column>
 
-          <a-table-column title="搜索量" data-index="searchVolume" width="100" align="right" sorter
-            :sorter="(a:any,b:any)=>a.searchVolume-b.searchVolume"
-            default-sort-order="descend">
+          <a-table-column title="搜索量" data-index="searchVolume" width="100" align="right">
             <template #default="{ record }">{{ (record.searchVolume || 0).toLocaleString() }}</template>
+          </a-table-column>
+
+          <a-table-column title="蒸馏优先级" data-index="priority" width="110" align="right">
+            <template #default="{ record }">
+              <a-tag :color="record.priority >= 8 ? 'red' : record.priority >= 5 ? 'orange' : 'default'">
+                {{ record.priority || 0 }}
+              </a-tag>
+            </template>
           </a-table-column>
 
           <a-table-column title="竞争度" data-index="competition" width="110" align="right">
@@ -661,6 +712,24 @@ onMounted(fetchAll)
         placeholder="深圳种植牙价格&#10;种植牙哪家好&#10;种植牙效果对比"
       />
       <a-alert style="margin-top: 12px" type="info" show-icon message="导入后会自动进入 keyword 表（统一真实源），后续可参与聚类蒸馏 / 建议 / 生成链路。" />
+    </a-modal>
+
+    <a-modal
+      v-model:open="priorityModalVisible"
+      :title="`设置蒸馏优先级（已选 ${selectedRowKeys.length} 个关键词）`"
+      ok-text="保存"
+      cancel-text="取消"
+      :confirm-loading="prioritySaving"
+      @ok="submitPriority"
+      :width="420"
+    >
+      <a-slider v-model:value="priorityInput" :min="0" :max="10" :marks="{ 0: '0', 5: '5', 10: '10' }" />
+      <a-alert
+        style="margin-top: 16px"
+        type="info"
+        show-icon
+        message="蒸馏选词按优先级从高到低，其次按搜索量；分值 0-10。"
+      />
     </a-modal>
   </div>
 </template>
