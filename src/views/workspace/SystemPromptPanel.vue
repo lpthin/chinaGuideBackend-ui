@@ -8,6 +8,7 @@
       </a-button>
     </div>
     <a-table
+  :scroll="{ x: 'max-content' }"
   :data-source="templates"
   :loading="loading"
   :pagination="false"
@@ -170,7 +171,6 @@ onMounted(fetchTemplates)
 
 <style scoped>
 .system-prompt-panel {
-  padding: 24px;
 }
 .panel-header {
   display: flex;

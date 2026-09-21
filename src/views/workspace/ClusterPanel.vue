@@ -147,6 +147,7 @@
 
         <!-- Cluster Table -->
         <a-table
+          :scroll="{ x: 'max-content' }"
           :columns="tableColumns"
           :data-source="filteredClusters"
           :row-selection="{

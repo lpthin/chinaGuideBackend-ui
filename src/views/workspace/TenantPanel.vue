@@ -88,6 +88,7 @@
       </template>
 
       <a-table
+        :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="tenantList"
         :loading="loading"
@@ -219,6 +220,7 @@
             </a-button>
           </template>
           <a-table
+            :scroll="{ x: 'max-content' }"
             :columns="userColumns"
             :data-source="tenantUsers"
             :pagination="false"

@@ -418,6 +418,7 @@ const handleResultClick = (item: KnowledgeSearchResultItem) => {
     margin-top: 16px;
     display: flex;
     gap: 12px;
+    justify-content: flex-end;
   }
 }
 

@@ -202,6 +202,7 @@
         <a-tabs v-model:activeKey="activeTab">
           <a-tab-pane key="entities" :tab="`实体 (${selectedEntities.length}/${extractionResult.entities.length})`">
             <a-table
+              :scroll="{ x: 'max-content' }"
               :data-source="extractionResult.entities"
               :pagination="{ pageSize: 5 }"
               size="small"
@@ -245,6 +246,7 @@
 
           <a-tab-pane key="relations" :tab="`关系 (${selectedRelations.length}/${extractionResult.relations.length})`">
             <a-table
+              :scroll="{ x: 'max-content' }"
               :data-source="extractionResult.relations"
               :pagination="{ pageSize: 5 }"
               size="small"

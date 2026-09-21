@@ -166,6 +166,7 @@
         <!-- 列表视图 -->
         <div v-else class="list-view">
           <a-table
+            :scroll="{ x: 'max-content' }"
             :data-source="imageList"
             :columns="listColumns"
             :row-key="(record: any) => record.id"

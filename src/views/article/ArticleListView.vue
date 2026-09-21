@@ -107,6 +107,7 @@
         </template>
 
         <a-table
+          :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="articleList"
           :pagination="false"

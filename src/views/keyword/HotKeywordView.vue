@@ -70,7 +70,7 @@
             <a-tab-pane key="config" tab="采集配置" />
           </a-tabs>
           <div class="tabs-extra" v-if="activeTab === 'list'">
-            <a-space wrap size="small">
+            <a-space wrap size="small" class="toolbar-fill">
               <a-select
                 v-model:value="queryParams.source"
                 style="width: 130px"
@@ -112,31 +112,33 @@
                 @search="loadKeywords"
                 allow-clear
               />
-              <a-button type="primary" size="small" @click="handleCollect" :loading="collecting" class="action-btn-primary">
-                <template #icon><CloudDownloadOutlined /></template>
-                开始采集
-              </a-button>
-              <a-button size="small" @click="handleAutoSelect" :loading="autoSelecting" class="action-btn-default">
-                <template #icon><StarOutlined /></template>
-                自动精选TOP3
-              </a-button>
-              <a-popconfirm
-                v-if="selectedRowKeys.length > 0"
-                :title="`确定要删除选中的 ${selectedRowKeys.length} 个热词吗？`"
-                ok-text="删除"
-                ok-type="danger"
-                cancel-text="取消"
-                @confirm="handleBatchDelete"
-              >
-                <a-button size="small" danger>
-                  <template #icon><DeleteOutlined /></template>
-                  批量删除 ({{ selectedRowKeys.length }})
+              <a-space size="small">
+                <a-button type="primary" size="small" @click="handleCollect" :loading="collecting" class="action-btn-primary">
+                  <template #icon><CloudDownloadOutlined /></template>
+                  开始采集
                 </a-button>
-              </a-popconfirm>
-              <a-button size="small" @click="showLogDrawer = true" class="action-btn-default">
-                <template #icon><FileTextOutlined /></template>
-                采集日志
-              </a-button>
+                <a-button size="small" @click="handleAutoSelect" :loading="autoSelecting" class="action-btn-default">
+                  <template #icon><StarOutlined /></template>
+                  自动精选TOP3
+                </a-button>
+                <a-popconfirm
+                  v-if="selectedRowKeys.length > 0"
+                  :title="`确定要删除选中的 ${selectedRowKeys.length} 个热词吗？`"
+                  ok-text="删除"
+                  ok-type="danger"
+                  cancel-text="取消"
+                  @confirm="handleBatchDelete"
+                >
+                  <a-button size="small" danger>
+                    <template #icon><DeleteOutlined /></template>
+                    批量删除 ({{ selectedRowKeys.length }})
+                  </a-button>
+                </a-popconfirm>
+                <a-button size="small" @click="showLogDrawer = true" class="action-btn-default">
+                  <template #icon><FileTextOutlined /></template>
+                  采集日志
+                </a-button>
+              </a-space>
             </a-space>
           </div>
         </div>
@@ -183,6 +185,7 @@
         <div class="card-body">
           <div v-show="activeTab === 'list'">
             <a-table
+              :scroll="{ x: 'max-content' }"
               class="keyword-table"
               :columns="columns"
               :data-source="keywordList"

@@ -89,6 +89,7 @@
           </template>
 
           <a-table
+            :scroll="{ x: 'max-content' }"
             :columns="columns"
             :data-source="jobList"
             :pagination="false"
@@ -438,7 +439,6 @@ onMounted(() => {
 }
 
 .content-wrapper {
-  padding: 24px;
 }
 
 .stat-card {

@@ -312,6 +312,7 @@
             <!-- 列表视图 -->
             <div v-if="viewMode === 'list'" class="view-content">
               <a-table
+                :scroll="{ x: 'max-content' }"
                 :data-source="filteredArticles"
                 :columns="tableColumns"
                 :pagination="tablePagination"

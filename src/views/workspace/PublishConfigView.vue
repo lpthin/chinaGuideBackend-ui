@@ -47,7 +47,7 @@
             </a-button>
           </template>
 
-          <a-table :columns="platformColumns" :data-source="platformList" :loading="platformLoading" row-key="id">
+          <a-table :scroll="{ x: 'max-content' }" :columns="platformColumns" :data-source="platformList" :loading="platformLoading" row-key="id">
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'type'">
                 <a-tag :color="getPlatformTypeColor(record.type)">

@@ -1,0 +1,52 @@
+/**
+ * 全局排版基线：只补齐 ant-design-vue 缺失的换行/溢出行为，不改动既有配色与字号。
+ * 引入顺序在 antd reset.css 之后（见 main.ts）。
+ */
+
+/* 1. 行内表单（列表页筛选栏）在窄容器换行时，antd 的 .ant-form-item margin-bottom 为 0，
+      第二行会紧贴第一行造成挤压。用 row-gap 补间距，单行时不产生额外留白。 */
+form.ant-form-inline {
+  row-gap: 8px;
+}
+
+/* 2. 表格未设置 scroll.x 时按列内容最小宽度撑开，会把整页横向撑破（筛选栏、统计卡一起被拉宽）。
+      让表格外层容器自身横向滚动，页面宽度保持稳定。 */
+.ant-table-content {
+  overflow-x: auto;
+}
+
+/* 3. 带固定列的表格（scroll.x 已设置）滚动条常驻会遮挡末行内容 */
+.ant-table-content::-webkit-scrollbar {
+  height: 8px;
+}
+
+.ant-table-content::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
+  border-radius: 4px;
+}
+
+/* 4. 筛选栏控件普遍写了固定宽度（width:150px/280px），窄容器下 max-width 让它们收缩，
+      而不是把卡片和整页横向撑破。 */
+form.ant-form-inline .ant-form-item {
+  max-width: 100%;
+
+  .ant-form-item-control-input-content > * {
+    max-width: 100%;
+  }
+}
+
+/* 5. 列表页工具条统一「筛选靠左、动作靠右」。行内表单里把按钮项推到行末。 */
+form.ant-form-inline > .ant-form-item.toolbar-actions {
+  margin-left: auto;
+}
+
+/* a-space 工具条占满整行，最后一项（按钮组）贴右边；配合把按钮收进一个内层 a-space 使用 */
+.toolbar-fill {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+
+  > .ant-space-item:last-child {
+    margin-left: auto;
+  }
+}

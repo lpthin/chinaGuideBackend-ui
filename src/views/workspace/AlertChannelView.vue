@@ -15,6 +15,7 @@
 
       <!-- 表格 -->
       <a-table
+        :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="channelList"
         :pagination="pagination"
@@ -480,7 +481,6 @@ onMounted(() => {
 
 <style scoped lang="less">
 .alert-channel {
-  padding: 24px;
 
   h3 {
     margin: 0 0 20px;

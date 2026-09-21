@@ -118,6 +118,7 @@
 
         <div v-show="viewMode === 'list'">
           <a-table
+            :scroll="{ x: 'max-content' }"
             :columns="columns"
             :data-source="templateList"
             :pagination="paginationConfig"

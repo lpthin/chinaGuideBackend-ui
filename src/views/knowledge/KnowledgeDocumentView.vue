@@ -164,6 +164,7 @@
 
         <!-- 列表视图 -->
         <a-table
+          :scroll="{ x: 'max-content' }"
           v-else
           :columns="mediaColumns"
           :data-source="filteredFiles"
@@ -1238,7 +1239,6 @@ onMounted(async () => {
 
 <style lang="less" scoped>
 .media-panel-page {
-  padding: 24px;
 
   .panel-header {
     display: flex;

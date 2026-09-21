@@ -417,7 +417,6 @@ onMounted(() => {
 
 <style scoped>
 .sites-view {
-  padding: 24px;
 }
 .page-header {
   display: flex;

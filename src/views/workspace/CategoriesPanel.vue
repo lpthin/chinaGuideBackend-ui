@@ -433,6 +433,7 @@
                   </div>
 
                   <a-table
+                    :scroll="{ x: 'max-content' }"
                     :data-source="extendFields"
                     :columns="extendTableColumns"
                     :pagination="false"

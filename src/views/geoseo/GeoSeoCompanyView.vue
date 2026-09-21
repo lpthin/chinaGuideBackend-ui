@@ -218,7 +218,6 @@ onMounted(() => {
 }
 
 .content-wrapper {
-  padding: 24px;
 }
 
 .tab-form {

@@ -85,6 +85,7 @@
           </template>
 
           <a-table
+            :scroll="{ x: 'max-content' }"
             :columns="columns"
             :data-source="messageList"
             :pagination="false"
@@ -353,7 +354,6 @@ onMounted(() => {
 }
 
 .content-wrapper {
-  padding: 24px;
 }
 
 .stat-card {

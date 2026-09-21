@@ -175,6 +175,7 @@
         </div>
 
         <a-table
+          :scroll="{ x: 'max-content' }"
           v-else
           :columns="columns"
           :data-source="cardList"

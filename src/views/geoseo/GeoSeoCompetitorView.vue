@@ -19,6 +19,7 @@
       </a-alert>
 
       <a-table
+        :scroll="{ x: 'max-content' }"
         v-if="competitors.length"
         :data-source="competitors"
         :columns="columns"

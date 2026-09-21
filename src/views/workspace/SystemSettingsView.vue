@@ -484,7 +484,6 @@ onMounted(() => {
 
 <style scoped lang="less">
 .system-settings {
-  padding: 24px;
 
   h3 {
     margin: 0 0 20px;

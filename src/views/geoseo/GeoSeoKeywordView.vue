@@ -42,6 +42,7 @@
       </div>
 
       <a-table
+        :scroll="{ x: 'max-content' }"
         v-if="keywords.length || loading"
         :data-source="keywords"
         :columns="columns"

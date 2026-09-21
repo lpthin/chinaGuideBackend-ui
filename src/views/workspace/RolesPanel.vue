@@ -20,6 +20,7 @@
       </template>
 
       <a-table
+        :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="roles"
         :pagination="pagination"

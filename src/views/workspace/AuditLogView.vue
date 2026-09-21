@@ -56,7 +56,7 @@
             value-format="YYYY-MM-DD"
           />
         </a-form-item>
-        <a-form-item>
+        <a-form-item class="toolbar-actions">
           <a-space>
             <a-button type="primary" :loading="loading" @click="handleSearch">
               <template #icon><SearchOutlined /></template>
@@ -116,6 +116,7 @@
 
       <!-- 表格 -->
       <a-table
+        :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="logList"
         :pagination="pagination"
@@ -381,7 +382,6 @@ onMounted(() => {
 
 <style scoped lang="less">
 .audit-log {
-  padding: 24px;
 
   h3 {
     margin: 0 0 20px;

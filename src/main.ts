@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import { createHead } from '@vueuse/head'
 import Antd from 'ant-design-vue'
 import 'ant-design-vue/dist/reset.css'
+import './styles/global.less'
 import App from './App.vue'
 import { router } from './router'
 

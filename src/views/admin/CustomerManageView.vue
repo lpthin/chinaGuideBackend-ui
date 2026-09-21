@@ -84,6 +84,7 @@
       <!-- 客户列表 -->
       <a-card title="客户列表" :bordered="false">
         <a-table
+          :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="customerListData"
           :pagination="paginationConfig"

@@ -89,6 +89,7 @@
         <!-- 4. 排名变化概览 -->
         <a-card title="排名变化概览" class="section-card" v-if="rankChanges.length > 0">
           <a-table
+            :scroll="{ x: 'max-content' }"
             :data-source="rankChanges"
             :pagination="false"
             row-key="keyword"

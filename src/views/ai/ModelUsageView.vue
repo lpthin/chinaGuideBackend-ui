@@ -321,6 +321,7 @@
             </template>
 
             <a-table
+              :scroll="{ x: 'max-content' }"
               :columns="logColumns"
               :data-source="paginatedLogs"
               :pagination="false"
@@ -690,7 +691,7 @@ onMounted(() => {
 
 <style scoped lang="less">
 .model-usage-page {
-  padding: 20px;
+  width: 100%;
 }
 
 .filter-label {

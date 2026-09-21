@@ -391,7 +391,7 @@
             <a-button size="small" danger @click="batchDelete">批量删除</a-button>
           </a-space>
         </div>
-        <a-table :data-source="filteredArticles" :columns="articleColumns" row-key="id"
+        <a-table :scroll="{ x: 'max-content' }" :data-source="filteredArticles" :columns="articleColumns" row-key="id"
           :loading="loading" :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
           :pagination="{ pageSize: 10, showSizeChanger: true, showTotal: (t: number) => `共 ${t} 条` }" size="middle">
           <template #bodyCell="{ column, record }">
@@ -521,7 +521,7 @@
             <a-col :span="12"><a-card size="small"><a-statistic title="输入Token" :value="tokenStats.totalPromptTokens" /></a-card></a-col>
             <a-col :span="12"><a-card size="small"><a-statistic title="输出Token" :value="tokenStats.totalCompletionTokens" /></a-card></a-col>
           </a-row>
-          <a-table v-if="tokenStats.modelStats?.length > 0" :columns="tokenStatColumns"
+          <a-table :scroll="{ x: 'max-content' }" v-if="tokenStats.modelStats?.length > 0" :columns="tokenStatColumns"
             :data-source="tokenStats.modelStats" row-key="modelName" size="small" :pagination="false" />
           <a-empty v-else description="暂无数据" />
         </div>

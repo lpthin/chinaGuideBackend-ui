@@ -264,7 +264,6 @@ onMounted(() => {
 
 <style scoped lang="less">
 .geoseo-config-view {
-  padding: 24px;
 
   .preview-content {
     padding: 16px;

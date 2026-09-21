@@ -138,6 +138,7 @@
         </template>
 
         <a-table
+          :scroll="{ x: 'max-content' }"
           :columns="invoiceColumns"
           :data-source="invoiceList"
           :pagination="pagination"

@@ -520,6 +520,7 @@ onMounted(fetchAll)
         </div>
 
         <a-table
+          :scroll="{ x: 'max-content' }"
           :data-source="keywords"
           :row-key="'id'"
           :pagination="{
@@ -674,7 +675,7 @@ onMounted(fetchAll)
 @slate-900: #0f172a;
 
 .keyword-library-page {
-  padding: 20px 24px 48px;
+  padding: 20px 0 48px;
   background: @slate-50;
   min-height: 100vh;
   color: @slate-900;

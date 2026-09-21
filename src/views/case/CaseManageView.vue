@@ -59,7 +59,7 @@
 
       <!-- 搜索筛选区 -->
       <a-card style="margin-bottom: 16px">
-        <a-space wrap>
+        <a-space wrap class="toolbar-fill">
           <a-input-search
             v-model:value="queryParams.keyword"
             placeholder="搜索案例标题"
@@ -86,21 +86,24 @@
             <a-select-option value="draft">草稿</a-select-option>
           </a-select>
           <a-range-picker v-model:value="queryParams.dateRange" style="width: 240px" />
-          <a-button type="primary" @click="handleSearch">
-            <template #icon><SearchOutlined /></template>
-            搜索
-          </a-button>
-          <a-button @click="handleReset">重置</a-button>
-          <a-button type="primary" @click="showAddModal">
-            <template #icon><PlusOutlined /></template>
-            新增案例
-          </a-button>
+          <a-space>
+            <a-button type="primary" @click="handleSearch">
+              <template #icon><SearchOutlined /></template>
+              搜索
+            </a-button>
+            <a-button @click="handleReset">重置</a-button>
+            <a-button type="primary" @click="showAddModal">
+              <template #icon><PlusOutlined /></template>
+              新增案例
+            </a-button>
+          </a-space>
         </a-space>
       </a-card>
 
       <!-- 案例列表 -->
       <a-card :bordered="false">
         <a-table
+          :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="caseListData"
           :loading="tableLoading"

@@ -289,7 +289,7 @@
         </div>
 
         <div class="table-toolbar">
-          <a-space wrap size="middle">
+          <a-space wrap size="middle" class="toolbar-fill">
             <a-input-search
               v-model:value="searchText"
               placeholder="搜索关键词"
@@ -315,22 +315,25 @@
               <a-select-option value="rule_expand">规则扩展</a-select-option>
               <a-select-option value="baidu_suggest">百度联想</a-select-option>
             </a-select>
-            <a-button type="primary" danger :disabled="selectedRowKeys.length === 0" @click="batchDelete">
-              <template #icon><DeleteOutlined /></template>
-              批量删除
-            </a-button>
-            <a-button type="primary" :disabled="selectedRowKeys.length === 0" @click="batchSetPriority">
-              <template #icon><StarOutlined /></template>
-              批量设置优先级
-            </a-button>
-            <a-button type="primary" ghost :disabled="selectedRowKeys.length === 0 || distilling" @click="startDistill">
-              <template #icon><ClusterOutlined /></template>
-              批量加入蒸馏队列
-            </a-button>
+            <a-space>
+              <a-button type="primary" danger :disabled="selectedRowKeys.length === 0" @click="batchDelete">
+                <template #icon><DeleteOutlined /></template>
+                批量删除
+              </a-button>
+              <a-button type="primary" :disabled="selectedRowKeys.length === 0" @click="batchSetPriority">
+                <template #icon><StarOutlined /></template>
+                批量设置优先级
+              </a-button>
+              <a-button type="primary" ghost :disabled="selectedRowKeys.length === 0 || distilling" @click="startDistill">
+                <template #icon><ClusterOutlined /></template>
+                批量加入蒸馏队列
+              </a-button>
+            </a-space>
           </a-space>
         </div>
 
         <a-table
+          :scroll="{ x: 'max-content' }"
           class="keyword-table"
           :columns="keywordColumns"
           :data-source="filteredKeywords"

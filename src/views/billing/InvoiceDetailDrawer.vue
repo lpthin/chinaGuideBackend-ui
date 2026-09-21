@@ -35,6 +35,7 @@
         <!-- 账单明细 -->
         <a-divider orientation="left">账单明细</a-divider>
         <a-table
+          :scroll="{ x: 'max-content' }"
           :columns="itemColumns"
           :data-source="invoice.items || []"
           :pagination="false"

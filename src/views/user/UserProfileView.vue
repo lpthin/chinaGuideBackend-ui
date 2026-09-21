@@ -151,6 +151,7 @@
               </template>
               <div class="tab-content">
                 <a-table
+              :scroll="{ x: 'max-content' }"
                   :columns="logColumns"
                   :data-source="loginLogs"
                   :pagination="pagination"
@@ -437,7 +438,6 @@ onMounted(() => {
 
 <style scoped lang="less">
 .user-profile-page {
-  padding: 24px;
 }
 
 .user-card {

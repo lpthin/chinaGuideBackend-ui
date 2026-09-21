@@ -505,7 +505,7 @@
           <a-space style="margin-bottom: 16px">
             <a-button type="primary">新建模板</a-button>
           </a-space>
-          <a-table :data-source="reviewTemplates" :columns="templateColumns" row-key="id" size="small">
+          <a-table :scroll="{ x: 'max-content' }" :data-source="reviewTemplates" :columns="templateColumns" row-key="id" size="small">
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'action'">
                 <a-button type="link" size="small">编辑</a-button>

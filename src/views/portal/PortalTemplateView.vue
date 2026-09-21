@@ -610,7 +610,6 @@ onMounted(() => {
 }
 
 .content-wrapper {
-  padding: 24px;
 }
 
 .stats-row {

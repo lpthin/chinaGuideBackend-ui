@@ -692,7 +692,6 @@ onMounted(() => {
 }
 
 .content-wrapper {
-  padding: 24px;
 }
 
 .info-card {
