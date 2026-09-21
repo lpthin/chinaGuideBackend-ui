@@ -1,4 +1,5 @@
 // Workspace 模块类型定义
+import type { ArticleStatus, JobStatus, QueueStatus } from '../utils/contentStatus'
 
 // 租户信息
 export interface Tenant {
@@ -72,7 +73,7 @@ export interface GeneratedContent {
   summary: string
   keywords: string
   categoryId: number
-  status: 'draft' | 'reviewing' | 'published'
+  status: ArticleStatus
   createdAt: string
   createdBy: string
   source?: string
@@ -85,28 +86,45 @@ export interface GeneratedContent {
   seoKeywords?: string
 }
 
-// 审核项目
+// 审核项目（GET /workspace/reviews/pending 返回的就是文章，字段与后端一致）
 export interface ReviewItem {
   id: number
   articleId: number
   title: string
-  status: 'pending' | 'approved' | 'rejected'
-  reviewer: string
-  reviewTime: string
-  comments: string
-  submittedAt: string
+  summary?: string
+  status: ArticleStatus
+  reviewer?: string
+  reviewedAt?: string
+  createdAt: string
 }
 
-// 发布任务
+// 待发布队列记录（后端 PublishQueueDTO）
 export interface PublishTask {
   id: number
+  tenantId?: number
+  siteId?: number
   articleId: number
   title: string
   platform: string
-  status: 'pending' | 'publishing' | 'success' | 'failed'
-  scheduledTime: string
+  priority?: number
+  status: QueueStatus
+  scheduledTime?: string
   publishTime?: string
   errorMessage?: string
+  createdAt?: string
+}
+
+// 发布记录（后端 publish_job）
+export interface PublishRecord {
+  id: number
+  tenantId?: number
+  siteId?: number
+  articleId: number
+  dryRun?: boolean
+  status: JobStatus
+  errorMessage?: string
+  createdAt: string
+  finishedAt?: string
 }
 
 // 媒体库资源

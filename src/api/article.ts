@@ -4,15 +4,12 @@ import type { AxiosProgressEvent } from 'axios'
 import type {
   ArticleCategory,
   Article,
-  ArticleTemplate,
   ImageLibrary,
   ArticleCategoryQuery,
   ArticleQuery,
-  ArticleTemplateQuery,
   ImageLibraryQuery,
   ArticleCategoryForm,
   ArticleForm,
-  ArticleTemplateForm,
   ArticlePublish,
   PageResult
 } from '../types/article'
@@ -46,33 +43,6 @@ export const articleCategoryApi = {
   // 批量删除
   batchDelete: (ids: number[]) =>
     http.delete('/article/categories/batch', { data: ids })
-}
-
-// 文章模板 API
-export const articleTemplateApi = {
-  // 获取模板列表
-  list: (params: ArticleTemplateQuery) =>
-    http.get<PageResult<ArticleTemplate>>('/article/templates', { params }),
-
-  // 获取模板详情
-  get: (id: number) =>
-    http.get<ArticleTemplate>(`/article/templates/${id}`),
-
-  // 创建模板
-  create: (data: ArticleTemplateForm) =>
-    http.post<ArticleTemplate>('/article/templates', data),
-
-  // 更新模板
-  update: (id: number, data: ArticleTemplateForm) =>
-    http.put<ArticleTemplate>(`/article/templates/${id}`, data),
-
-  // 删除模板
-  delete: (id: number) =>
-    http.delete(`/article/templates/${id}`),
-
-  // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete('/article/templates/batch', { data: ids })
 }
 
 // 文章管理 API
@@ -167,7 +137,6 @@ export const imageLibraryApi = {
 
 export default {
   category: articleCategoryApi,
-  template: articleTemplateApi,
   article: articleManageApi,
   image: imageLibraryApi
 }

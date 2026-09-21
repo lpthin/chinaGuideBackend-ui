@@ -7,6 +7,7 @@ import type {
   GeneratedContent,
   ReviewItem,
   PublishTask,
+  PublishRecord,
   Media,
   MediaStats,
   MediaQuery,
@@ -60,7 +61,7 @@ export const keywordApi = {
 
   // 删除关键词
   delete: (id: number, tenantId?: number) =>
-    http.delete<void>(`/api/workspace/keywords/${id}`, { params: { tenantId } }),
+    http.delete<void>(`/workspace/keywords/${id}`, { params: { tenantId } }),
 
   // 批量删除
   batchDelete: (ids: number[], tenantId?: number) =>
@@ -77,9 +78,9 @@ export const keywordApi = {
       sourceDistribution: { name: string; value: number }[]
     }>('/workspace/keywords/stats', { params: { tenantId } }),
 
-  // 批量更新优先级
+  // 批量更新优先级（priority 参与蒸馏选词排序，不是展示字段）
   batchUpdatePriority: (ids: number[], priority: number, tenantId?: number) =>
-    http.post('/workspace/keywords/batch-update-priority', { ids, priority }, { params: { tenantId } }),
+    http.post<{ updated: number }>('/workspace/keywords/batch-priority', { ids, priority }, { params: { tenantId } }),
 
   // 关键词库 SOT 总览：词量绝对值 / 转化漏斗分布 / 生产进度（FR-4 FR-6）
   getLibraryStats: (tenantId?: number) =>
@@ -106,10 +107,6 @@ export const keywordApi = {
   // 管理员立即触发关键词扩展（默认 3 源白名单，可传 sourceCodes 覆盖）
   expand: (data?: { sourceCodes?: string[] }, tenantId?: number) =>
     http.post<{ message: string; libraryStats?: any }>('/workspace/keywords/expand', data ?? {}, { params: { tenantId } }),
-
-  // 采集任务历史（保留原接口）
-  collectionJobs: (tenantId?: number) =>
-    http.get<any[]>('/workspace/keywords/collection-jobs', { params: { tenantId } }),
 }
 
 // ==================== 聚类蒸馏 API ====================
@@ -147,13 +144,9 @@ export const suggestionApi = {
   list: (params: { tenantId?: number; page?: number; size?: number; status?: string }) =>
     http.get<PageResult<KeywordContentSuggestion>>('/workspace/suggestions', { params }),
 
-  // 获取单个建议
-  get: (id: number) =>
-    http.get<KeywordContentSuggestion>(`/api/workspace/suggestions/${id}`),
-
   // 更新内容建议
   update: (id: number, data: { title: string; contentPrompt: string; score: number; reason: string; status: string }) =>
-    http.put<KeywordContentSuggestion>(`/api/workspace/suggestions/${id}`, data),
+    http.put<KeywordContentSuggestion>(`/workspace/suggestions/${id}`, data),
 }
 
 // ==================== 文章生成 API ====================
@@ -186,14 +179,6 @@ export const articleApi = {
   // 取消生成任务
   cancelGeneration: (taskId: number) =>
     http.post<{ taskId: number; status: string; message: string }>(`/workspace/articles/generate/${taskId}/cancel`),
-
-  // 获取最近生成历史
-  getRecentGenerations: (limit: number = 10, tenantId?: number) =>
-    http.get<any[]>('/workspace/articles/generate/recent', { params: { limit, tenantId } }),
-
-  // 批量生成文章
-  generateBatch: (paramsList: any[], tenantId?: number) =>
-    http.post<any[]>('/workspace/articles/generate-batch', paramsList, { params: { tenantId } }),
 
   // 版本对比
   compareVersions: (articleId: number, versionId1: number, versionId2: number) =>
@@ -230,13 +215,6 @@ export const articleApi = {
       }>
     }>('/workspace/articles/generate/token-stats', { params: { days, tenantId } }),
 
-  // 从建议生成文章
-  generateFromSuggestion: (suggestionId: number, templateType?: string, tenantId?: number) =>
-    http.post<{ articleId: number; title: string; status: string }>('/workspace/articles/generate', {
-      suggestionId,
-      templateType: templateType || 'default'
-    }, { params: { tenantId } }),
-
   // 获取文章列表
   list: (params: { page?: number; size?: number; status?: string; category?: string; tenantId?: number }) =>
     http.get<PageResult<GeneratedContent>>('/workspace/articles', { params }),
@@ -261,9 +239,13 @@ export const articleApi = {
   submitReview: (id: number, tenantId?: number) =>
     http.post<{ articleId: number; status: string }>(`/workspace/articles/${id}/submit-review`, null, { params: { tenantId } }),
 
-  // 批量发布
-  batchPublish: (articleIds: number[], tenantId?: number) =>
-    http.post('/workspace/articles/batch-publish', { articleIds }, { params: { tenantId } }),
+  // 批量发布：不传 scheduledTime 就是逐条立即发布，传未来的时间则逐条入队
+  batchPublish: (ids: number[], options?: { scheduledTime?: string; priority?: number }, tenantId?: number) =>
+    http.post<{ published: number; scheduled: number; failed: number; total: number; errors: { articleId: number; message: string }[] }>(
+      '/workspace/articles/batch-publish',
+      { ids, ...options },
+      { params: { tenantId } }
+    ),
 }
 
 // ==================== 内容审核 API ====================
@@ -272,25 +254,21 @@ export const reviewApi = {
   pendingList: (params: { page?: number; size?: number; tenantId?: number }) =>
     http.get<PageResult<ReviewItem>>('/workspace/reviews/pending', { params }),
 
-  // 获取审核详情
-  get: (id: number) =>
-    http.get<ReviewItem>(`/api/workspace/reviews/${id}`),
-
   // 提交审核
   submitForReview: (articleId: number, tenantId?: number) =>
-    http.post<{ articleId: number; status: string; submittedAt: string }>(`/api/workspace/articles/${articleId}/submit-review`, null, { params: { tenantId } }),
+    http.post<{ articleId: number; status: string; submittedAt: string }>(`/workspace/articles/${articleId}/submit-review`, null, { params: { tenantId } }),
 
   // 通过审核
-  approve: (articleId: number, comment?: string) =>
-    http.post<{ articleId: number; status: string; approvedAt: string; comment: string }>(`/api/workspace/reviews/${articleId}/approve`, {
+  approve: (articleId: number, comment?: string, tenantId?: number) =>
+    http.post<{ articleId: number; status: string; approvedAt: string; comment: string }>(`/workspace/reviews/${articleId}/approve`, {
       comment: comment || ''
-    }),
+    }, { params: { tenantId } }),
 
   // 拒绝审核
-  reject: (articleId: number, reason?: string) =>
-    http.post<{ articleId: number; status: string; rejectedAt: string; reason: string }>(`/api/workspace/reviews/${articleId}/reject`, {
+  reject: (articleId: number, reason?: string, tenantId?: number) =>
+    http.post<{ articleId: number; status: string; rejectedAt: string; reason: string }>(`/workspace/reviews/${articleId}/reject`, {
       reason: reason || ''
-    }),
+    }, { params: { tenantId } }),
 
   // 获取审核统计
   getReviewStats: (tenantId?: number) =>
@@ -302,31 +280,29 @@ export const reviewApi = {
     }>('/workspace/reviews/stats', tenantId ? { params: { tenantId } } : {}),
 }
 
-// ==================== 发布管理 API ====================
+// ==================== 发布 API ====================
+// 三个后端入口共用 PublishExecutor：立即发布 / 排期入队都走 publish()，
+// 队列的增删改查走 publishQueueApi，历史记录走 publishApi.records。
 export const publishApi = {
-  // 获取发布任务列表
-  list: (params: { page?: number; size?: number; status?: string; tenantId?: number }) =>
-    http.get<PageResult<PublishTask>>('/workspace/publish/jobs', { params }),
+  // 发布单篇：不传 scheduledTime 即立即发布，传未来时间即入队
+  publish: (articleId: number, options?: { scheduledTime?: string; priority?: number }, tenantId?: number) =>
+    http.post<{ articleId: number; jobId?: number; queueId?: number; status: string; scheduledAt: string }>(
+      `/workspace/publish/${articleId}`, options ?? {}, { params: { tenantId } }),
 
-  // 创建发布任务
-  create: (params: { articleId: number; platform: string; scheduledTime?: string; tenantId?: number }) =>
-    http.post<{ jobId: number; articleId: number; status: string; scheduledAt: string }>('/workspace/publish/' + params.articleId, params, { params: { tenantId: params.tenantId } }),
+  // 发布记录列表（publish_job）
+  records: (params: { page?: number; size?: number; status?: string; siteId?: number; tenantId?: number }) =>
+    http.get<PageResult<PublishRecord>>('/publish-records', { params }),
 
-  // 取消发布
-  cancel: (jobId: number, tenantId?: number) =>
-    http.post<{ jobId: number; status: string }>(`/api/workspace/publish/jobs/${jobId}/cancel`, null, { params: { tenantId } }),
-
-  // 获取发布统计
-  getStats: (tenantId?: number) =>
-    http.get<{ pending: number; completed: number; failed: number }>('/workspace/publish/stats', { params: { tenantId } }),
-
-  // 获取发布统计详情
-  getStatsDetail: (tenantId?: number) =>
-    http.get<any>('/workspace/publish/stats/detail' + (tenantId ? '?tenantId=' + tenantId : '')),
-
-  // 导出发布报表
-  export: (params: { date?: string }) =>
-    http.get('/workspace/publish/export', { params, responseType: 'blob' }),
+  // 发布记录统计
+  recordStats: (params?: { siteId?: number; tenantId?: number }) =>
+    http.get<{
+      total: number
+      successCount: number
+      failedCount: number
+      cancelledCount: number
+      todayCount: number
+      successRate: number
+    }>('/publish-records/stats', { params }),
 }
 
 // ==================== 发布配置 API ====================
@@ -339,52 +315,62 @@ export const publishConfigApi = {
   update: (data: any, tenantId?: number) =>
     http.put<any>('/publish-config', data, { params: { tenantId } }),
 
-  // 获取平台配置列表
-  listPlatforms: () =>
-    http.get<any[]>('/publish-config/platforms'),
+  // 可选发布模式
+  modes: () =>
+    http.get<{ value: string; label: string }[]>('/publish-config/modes'),
 
-  // 获取平台配置详情
-  getPlatform: (id: number) =>
-    http.get<any>(`/publish-config/platforms/${id}`),
+  // 获取平台配置列表
+  listPlatforms: (params?: { siteId?: number; tenantId?: number }) =>
+    http.get<any[]>('/publish-config/platforms', { params }),
 
   // 创建平台配置
-  createPlatform: (data: any) =>
-    http.post<any>('/publish-config/platforms', data),
+  createPlatform: (data: any, tenantId?: number) =>
+    http.post<any>('/publish-config/platforms', data, { params: { tenantId } }),
 
   // 更新平台配置
-  updatePlatform: (id: number, data: any) =>
-    http.put<any>(`/publish-config/platforms/${id}`, data),
+  updatePlatform: (id: number, data: any, tenantId?: number) =>
+    http.put<any>(`/publish-config/platforms/${id}`, data, { params: { tenantId } }),
 
   // 删除平台配置
-  deletePlatform: (id: number) =>
-    http.delete<void>(`/publish-config/platforms/${id}`),
+  deletePlatform: (id: number, tenantId?: number) =>
+    http.delete<void>(`/publish-config/platforms/${id}`, { params: { tenantId } }),
 
-  // 测试平台连接
-  testPlatform: (id: number) =>
-    http.post<{ success: boolean; message: string }>(`/publish-config/platforms/${id}/test`),
+  // 测试平台连接（网络可达性探测，未接入发布驱动）
+  testPlatform: (id: number, tenantId?: number) =>
+    http.post<{ success: boolean; message: string }>(`/publish-config/platforms/${id}/test`, null, { params: { tenantId } }),
 }
 
 // ==================== 发布队列 API ====================
 export const publishQueueApi = {
   // 获取队列列表
-  list: (params: { page?: number; size?: number; status?: string }) =>
-    http.get<PageResult<any>>('/publish-queue', { params }),
+  list: (params: { page?: number; size?: number; siteId?: number; status?: string; keyword?: string; tenantId?: number }) =>
+    http.get<PageResult<PublishTask>>('/publish-queue', { params }),
 
-  // 立即发布
-  publishNow: (id: number) =>
-    http.post<any>(`/api/publish-queue/${id}/publish-now`),
+  // 入队定时发布
+  create: (body: { articleId: number; scheduledTime: string; priority?: number }, tenantId?: number) =>
+    http.post<PublishTask>('/publish-queue', body, { params: { tenantId } }),
+
+  // 立即发布这条队列记录
+  publishNow: (id: number, tenantId?: number) =>
+    http.post<{ id: number; status: string; publishTime: string; errorMessage: string }>(
+      `/publish-queue/${id}/publish-now`, null, { params: { tenantId } }),
 
   // 调整优先级
-  adjustPriority: (id: number, priority: number) =>
-    http.put<void>(`/api/publish-queue/${id}/priority`, { priority }),
+  adjustPriority: (id: number, priority: number, tenantId?: number) =>
+    http.put<PublishTask>(`/publish-queue/${id}/priority`, { priority }, { params: { tenantId } }),
 
   // 取消发布
-  cancel: (id: number) =>
-    http.put<void>(`/api/publish-queue/${id}/cancel`),
+  cancel: (id: number, tenantId?: number) =>
+    http.put<PublishTask>(`/publish-queue/${id}/cancel`, null, { params: { tenantId } }),
+
+  // 删除队列记录
+  remove: (id: number, tenantId?: number) =>
+    http.delete<void>(`/publish-queue/${id}`, { params: { tenantId } }),
 
   // 获取队列统计
-  getStats: () =>
-    http.get<{ pending: number; publishing: number; todayPublished: number; failed: number }>('/publish-queue/stats'),
+  getStats: (tenantId?: number) =>
+    http.get<{ pending: number; publishing: number; todayPublished: number; failed: number }>(
+      '/publish-queue/stats', { params: { tenantId } }),
 }
 
 // ==================== 媒体库 API ====================
@@ -396,10 +382,6 @@ export const mediaApi = {
   // 获取媒体列表（可按项目筛选）
   list: (params?: { tenantId?: number; page?: number; size?: number; type?: string; category?: string }) =>
     http.get<PageResult<Media>>('/workspace/media', { params }),
-
-  // 获取媒体详情
-  get: (id: number) =>
-    http.get<Media>(`/api/workspace/media/${id}`),
 
   // 上传单个媒体文件
   upload: (file: File, category?: string, onProgress?: (progress: number) => void) => {
@@ -416,17 +398,6 @@ export const mediaApi = {
     })
   },
 
-  // 批量上传
-  uploadBatch: (files: File[], category?: string) => {
-    const formData = new FormData()
-    files.forEach(f => formData.append('files', f))
-    if (category) formData.append('category', category)
-    return http.post<Media[]>('/workspace/media/upload-batch', formData)
-  },
-
-  // 获取图片分析状态
-  getAnalysisStatus: (id: number) => http.get<{ ocrStatus: string; ocrText: string; aiDescription: string }>(`/workspace/media/${id}/analysis-status`),
-
   // 删除媒体
   delete: (id: number) =>
     http.delete<void>(`/workspace/media/${id}`),
@@ -434,10 +405,6 @@ export const mediaApi = {
   // 批量删除
   deleteBatch: (ids: number[]) =>
     http.post<{ deleted: number }>('/workspace/media/batch-delete', { ids }),
-
-  // 获取媒体统计
-  getStats: () =>
-    http.get<{ total: number; images: number; videos: number; audios: number; documents: number }>('/workspace/media/stats'),
 }
 
 // ==================== 租户管理 API ====================

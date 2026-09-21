@@ -1067,8 +1067,8 @@ async function batchReview() {
 async function batchPublish() {
   if (!selectedRowKeys.value.length) return
   try {
-    await articleApi.batchPublish(selectedRowKeys.value, authStore.selectedTenantId)
-    message.success(`已发布 ${selectedRowKeys.value.length} 篇`)
+    const res = await articleApi.batchPublish(selectedRowKeys.value, undefined, authStore.selectedTenantId) as any
+    message.success(`已发布 ${res?.published ?? 0} 篇，已排期 ${res?.scheduled ?? 0} 篇，失败 ${res?.failed ?? 0} 篇`)
     selectedRowKeys.value = []
     await loadData()
   } catch { message.error('批量发布失败') }
