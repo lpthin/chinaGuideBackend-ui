@@ -272,18 +272,32 @@ export interface WorkflowSettings {
 }
 
 // 报警规则
+// 与后端 AlertRule 实体一致：channels/receivers 为逗号分隔字符串，triggerCondition 为 JSON 字符串，isActive 为 0/1
 export interface AlertRule {
   id: number
   tenantId: number
   name: string
-  triggerType: 'api_error' | 'exception' | 'custom'
-  triggerCondition: Record<string, any>
+  triggerType: 'api_error' | 'exception' | 'ai_model_unreachable' | 'ai_model_missing' | 'custom'
+  triggerCondition: string | null
   severity: 'low' | 'medium' | 'high' | 'critical'
+  channels: string
+  receivers: string
+  isActive: number
+  createdAt: string
+  updatedAt: string
+}
+
+// 弹窗表单使用的形态（多选/开关/JSON 编辑器）
+export interface AlertRuleForm {
+  id?: number
+  tenantId?: number
+  name: string
+  triggerType: AlertRule['triggerType']
+  triggerCondition: Record<string, any>
+  severity: AlertRule['severity']
   channels: string[]
   receivers: string[]
   isActive: boolean
-  createdAt: string
-  updatedAt: string
 }
 
 // 报警规则查询参数
@@ -294,7 +308,7 @@ export interface AlertRuleQuery {
   name?: string
   triggerType?: string
   severity?: string
-  isActive?: boolean
+  isActive?: number
 }
 
 // 报警记录

@@ -63,6 +63,8 @@
           >
             <a-select-option value="api_error">API错误</a-select-option>
             <a-select-option value="exception">异常</a-select-option>
+            <a-select-option value="ai_model_unreachable">AI模型不可用</a-select-option>
+            <a-select-option value="ai_model_missing">AI模型未配置</a-select-option>
             <a-select-option value="custom">自定义</a-select-option>
           </a-select>
         </a-form-item>
@@ -86,11 +88,11 @@
             style="width: 150px"
             allowClear
           >
-            <a-select-option :value="true">启用</a-select-option>
-            <a-select-option :value="false">禁用</a-select-option>
+            <a-select-option :value="1">启用</a-select-option>
+            <a-select-option :value="0">禁用</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item>
+        <a-form-item class="toolbar-actions">
           <a-space>
             <a-button type="primary" :loading="loading" @click="handleSearch">
               <template #icon><SearchOutlined /></template>
@@ -110,6 +112,7 @@
 
       <!-- 表格 -->
       <a-table
+        :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="ruleList"
         :pagination="pagination"
@@ -128,14 +131,14 @@
           </template>
           <template v-if="column.key === 'channels'">
             <a-space wrap>
-              <a-tag v-for="channel in record.channels" :key="channel" color="blue">
+              <a-tag v-for="channel in splitList(record.channels)" :key="channel" color="blue">
                 {{ getChannelName(channel) }}
               </a-tag>
             </a-space>
           </template>
           <template v-if="column.key === 'isActive'">
             <a-switch
-              :checked="record.isActive"
+              :checked="record.isActive === 1"
               :loading="toggleLoading[record.id]"
               @change="(checked: boolean) => handleToggleActive(record, checked)"
             />
@@ -185,6 +188,8 @@
               <a-select v-model:value="formData.triggerType" placeholder="请选择触发类型">
                 <a-select-option value="api_error">API错误</a-select-option>
                 <a-select-option value="exception">异常</a-select-option>
+                <a-select-option value="ai_model_unreachable">AI模型不可用</a-select-option>
+                <a-select-option value="ai_model_missing">AI模型未配置</a-select-option>
                 <a-select-option value="custom">自定义</a-select-option>
               </a-select>
             </a-form-item>
@@ -250,7 +255,7 @@ import {
 import type { TablePaginationConfig } from 'ant-design-vue'
 import { alertApi } from '../../api/workspace'
 import { useAuthStore } from '../../stores/auth'
-import type { AlertRule } from '../../types/workspace'
+import type { AlertRule, AlertRuleForm } from '../../types/workspace'
 
 const authStore = useAuthStore()
 
@@ -266,7 +271,7 @@ const filterForm = reactive({
   name: '',
   triggerType: undefined as string | undefined,
   severity: undefined as string | undefined,
-  isActive: undefined as boolean | undefined
+  isActive: undefined as number | undefined
 })
 
 const stats = reactive({
@@ -285,7 +290,7 @@ const pagination = reactive<TablePaginationConfig>({
   showTotal: (total) => `共 ${total} 条`
 })
 
-const formData = reactive<Partial<AlertRule>>({
+const formData = reactive<AlertRuleForm>({
   name: '',
   triggerType: 'api_error',
   severity: 'medium',
@@ -327,6 +332,8 @@ const columns = [
 const triggerTypeMap: Record<string, string> = {
   api_error: 'API错误',
   exception: '异常',
+  ai_model_unreachable: 'AI模型不可用',
+  ai_model_missing: 'AI模型未配置',
   custom: '自定义'
 }
 
@@ -358,6 +365,34 @@ const getSeverityColor = (severity: string) => {
 
 const getChannelName = (channel: string) => {
   return channelMap[channel] || channel
+}
+
+const splitList = (value?: string | null) => {
+  return (value || '').split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+const parseCondition = (value?: string | null): Record<string, any> => {
+  if (!value) {
+    return {}
+  }
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' ? parsed : { value: parsed }
+  } catch (e) {
+    return {}
+  }
+}
+
+const toRulePayload = (form: AlertRuleForm): Partial<AlertRule> => {
+  return {
+    name: form.name,
+    triggerType: form.triggerType,
+    severity: form.severity,
+    channels: form.channels.join(','),
+    receivers: form.receivers.join(','),
+    triggerCondition: JSON.stringify(form.triggerCondition || {}),
+    isActive: form.isActive ? 1 : 0
+  }
 }
 
 const fetchRules = async () => {
@@ -398,7 +433,7 @@ const fetchRules = async () => {
 
 const calculateStats = (records: AlertRule[]) => {
   stats.total = records.length
-  stats.activeCount = records.filter(r => r.isActive).length
+  stats.activeCount = records.filter(r => r.isActive === 1).length
   stats.criticalCount = records.filter(r => r.severity === 'critical').length
   stats.highCount = records.filter(r => r.severity === 'high').length
 }
@@ -426,6 +461,8 @@ const handleTableChange = (pag: TablePaginationConfig) => {
 const handleAdd = () => {
   isEdit.value = false
   Object.assign(formData, {
+    id: undefined,
+    tenantId: undefined,
     name: '',
     triggerType: 'api_error',
     severity: 'medium',
@@ -440,8 +477,15 @@ const handleAdd = () => {
 const handleEdit = (record: AlertRule) => {
   isEdit.value = true
   Object.assign(formData, {
-    ...record,
-    triggerCondition: { ...record.triggerCondition }
+    id: record.id,
+    tenantId: record.tenantId,
+    name: record.name,
+    triggerType: record.triggerType,
+    severity: record.severity,
+    channels: splitList(record.channels),
+    receivers: splitList(record.receivers),
+    triggerCondition: parseCondition(record.triggerCondition),
+    isActive: record.isActive === 1
   })
   modalVisible.value = true
 }
@@ -456,13 +500,7 @@ const handleSubmit = async () => {
     await formRef.value?.validate()
     submitLoading.value = true
 
-    const data: Partial<AlertRule> = {
-      ...formData
-    }
-
-    if (authStore.selectedTenantId) {
-      data.tenantId = authStore.selectedTenantId
-    }
+    const data = toRulePayload(formData)
 
     if (isEdit.value && formData.id) {
       await alertApi.rules.update(formData.id, data)
@@ -497,9 +535,9 @@ const handleDelete = async (id: number) => {
 const handleToggleActive = async (record: AlertRule, checked: boolean) => {
   toggleLoading[record.id] = true
   try {
-    await alertApi.rules.update(record.id, { isActive: checked })
+    await alertApi.rules.update(record.id, { isActive: checked ? 1 : 0 })
     message.success(checked ? '已启用' : '已禁用')
-    record.isActive = checked
+    record.isActive = checked ? 1 : 0
   } catch (error: any) {
     message.error(error.message || '操作失败')
   } finally {
@@ -522,7 +560,6 @@ onMounted(() => {
 
 <style scoped lang="less">
 .alert-rule-manage {
-  padding: 24px;
 
   h3 {
     margin: 0 0 20px;

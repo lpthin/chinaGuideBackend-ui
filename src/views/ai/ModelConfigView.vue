@@ -83,6 +83,10 @@
               <a-select-option value="image">图像模型</a-select-option>
               <a-select-option value="audio">语音模型</a-select-option>
             </a-select>
+            <a-button :loading="checkingAll" @click="handleCheckAllHealth">
+              <template #icon><SafetyCertificateOutlined /></template>
+              立即巡检
+            </a-button>
             <a-button type="primary" @click="showAddModal = true">
               <template #icon><PlusOutlined /></template>
               添加配置
@@ -91,6 +95,7 @@
         </template>
 
         <a-table
+          :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="filteredConfigs"
           :pagination="false"
@@ -127,6 +132,14 @@
                 :loading="togglingId === record.id"
                 @change="toggleConfigStatus(record)"
               />
+            </template>
+            <template v-if="column.key === 'healthStatus'">
+              <a-tooltip :title="healthTooltip(record)">
+                <a-tag :color="healthColor(record.healthStatus)">{{ healthLabel(record.healthStatus) }}</a-tag>
+              </a-tooltip>
+              <div v-if="record.lastHealthCheckAt" class="health-check-time">
+                {{ formatDateTime(record.lastHealthCheckAt) }}
+              </div>
             </template>
             <template v-if="column.key === 'actions'">
               <a-space>
@@ -287,6 +300,7 @@ import {
   BlockOutlined,
   PlusOutlined,
   ThunderboltOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons-vue'
 import { modelConfigApi, usageApi } from '../../api/ai-model'
 import type { ModelConfig } from '../../types/ai-model'
@@ -298,6 +312,7 @@ const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 const loading = ref(false)
 const saving = ref(false)
 const testingId = ref<number | null>(null)
+const checkingAll = ref(false)
 const togglingId = ref<number | null>(null)
 const settingDefaultId = ref<number | null>(null)
 
@@ -359,6 +374,7 @@ const columns = [
   { title: '优先级', key: 'priority', width: 100, align: 'center' as const },
   { title: '默认配置', key: 'isDefault', width: 100, align: 'center' as const },
   { title: '状态', key: 'isActive', width: 100, align: 'center' as const },
+  { title: '测试结果', key: 'healthStatus', width: 170 },
   { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 200 },
 ]
@@ -373,6 +389,36 @@ const filteredConfigs = computed(() => {
   }
   return result
 })
+
+function healthLabel(status?: string) {
+  if (status === 'passed') return '通过'
+  if (status === 'failed') return '不通过'
+  return '未检测'
+}
+
+function healthColor(status?: string) {
+  if (status === 'passed') return 'success'
+  if (status === 'failed') return 'error'
+  return 'default'
+}
+
+function healthTooltip(record: ModelConfig) {
+  if (record.healthStatus === 'failed') {
+    const reason = record.lastHealthError || '未知原因'
+    const latency = record.lastHealthLatencyMs != null ? ` · 耗时 ${record.lastHealthLatencyMs}ms` : ''
+    return `不通过：${reason}${latency} · 已通过报警管理通知管理员，系统不会自动停用该模型`
+  }
+  if (record.healthStatus === 'passed') {
+    return record.lastHealthLatencyMs != null
+      ? `通过 · 最近一次探测耗时 ${record.lastHealthLatencyMs}ms`
+      : '通过'
+  }
+  return '尚未探测 · 点击「测试」或「立即巡检」，每日 03:30 也会自动巡检'
+}
+
+function formatDateTime(value?: string) {
+  return value ? String(value).replace('T', ' ').slice(0, 19) : ''
+}
 
 function getProviderIcon(provider: string) {
   const map: Record<string, any> = {
@@ -489,17 +535,32 @@ async function setDefaultConfig(config: ModelConfig) {
 async function testConnection(config: ModelConfig) {
   testingId.value = config.id
   try {
-    const result: any = await modelConfigApi.test(config.id)
+    const result = await modelConfigApi.test(config.id)
     if (result.success) {
-      message.success(`连接成功！延迟：${result.responseTime ?? result.latency}ms`)
+      message.success(`连接测试通过！耗时：${result.responseTime}ms`)
     } else {
-      message.error(`连接失败：${result.message}`)
+      message.error(`连接测试不通过：${result.message}`)
     }
+    await loadData()
   } catch (error) {
     console.error(error)
-    message.error('连接测试失败')
+    message.error('连接测试请求失败')
   } finally {
     testingId.value = null
+  }
+}
+
+async function handleCheckAllHealth() {
+  checkingAll.value = true
+  try {
+    const result = await modelConfigApi.checkAllHealth()
+    message.success(`巡检完成：通过 ${result.passed} 个，不通过 ${result.failed} 个，跳过 ${result.skipped} 个`)
+    await loadData()
+  } catch (error) {
+    console.error(error)
+    message.error('巡检请求失败')
+  } finally {
+    checkingAll.value = false
   }
 }
 
@@ -656,6 +717,12 @@ onMounted(() => {
 .provider-option {
   display: flex;
   align-items: center;
+}
+
+.health-check-time {
+  color: #8c8c8c;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .param-value {

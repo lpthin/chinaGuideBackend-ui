@@ -30,15 +30,6 @@ export const enum ModelPurpose {
   OCR = 'ocr',                                 // OCR 识别
 }
 
-// 向量数据库类型枚举
-export const enum VectorDatabaseType {
-  MILVUS = 'milvus',             // Milvus
-  PG_VECTOR = 'pgvector',         // PGVector
-  CHROMA = 'chroma',              // Chroma
-  PINECONE = 'pinecone',          // Pinecone
-  WEAVIATE = 'weaviate',          // Weaviate
-}
-
 // 相似度算法枚举
 export const enum SimilarityAlgorithm {
   COSINE = 'cosine',             // 余弦相似度
@@ -106,6 +97,11 @@ export interface ModelConfig {
   modelType?: ModelType | string
   apiEndpoint?: string
   sortOrder?: number
+  healthStatus?: 'unknown' | 'passed' | 'failed' | string
+  lastHealthCheckAt?: string
+  lastHealthLatencyMs?: number
+  lastHealthError?: string
+  healthConsecutiveFailures?: number
   createdAt: string
   updatedAt: string
 }
@@ -122,116 +118,66 @@ export interface ModelPurposeMapping {
   updatedAt: string
 }
 
-// 调用日志
-export interface ModelUsageLog {
-  id: number
-  tenantId: number
-  modelConfigId: number
-  modelName: string
-  provider: ModelProvider
-  purpose: ModelPurpose
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  cost: number
-  duration?: number
-  success: boolean
-  errorMessage?: string
-  requestId?: string
-  createdAt: string
-}
-
-// 用量统计
-export interface ModelUsageStatistics {
-  date: string
-  tenantId: number
-  provider: ModelProvider
-  modelName: string
-  purpose: ModelPurpose
-  totalTokens: number
-  totalCost: number
-  callCount: number
-  successCount: number
-  avgDuration?: number
-}
-
-// 向量数据库配置
+// 向量数据库连接配置（纯连接登记表；维度/相似度/索引等参数由 EmbeddingConfig 统一管理）
 export interface VectorDatabaseConfig {
   id: number
   tenantId: number
-  type: VectorDatabaseType
+  dbType: string
   name: string
-  isSystemDefault: boolean
-  isActive: boolean
   host?: string
   port?: number
   endpoint?: string
-  apiKey?: string
   username?: string
   password?: string
-  database?: string
-  collection?: string
-  dimension: number
-  indexType?: string
-  metricType?: SimilarityAlgorithm
-  nlist?: number
-  efConstruction?: number
-  efSearch?: number
-  schema?: Record<string, any>
+  databaseName?: string
+  schemaName?: string
+  paramsJson?: string
+  apiKey?: string
+  collectionName?: string
+  isActive: boolean
+  isDefault?: boolean
+  remark?: string
   createdAt: string
   updatedAt: string
 }
 
-// 向量化配置
+// 向量化配置（每租户一条，向量参数的唯一事实来源）
 export interface EmbeddingConfig {
   id: number
   tenantId: number
-  chunkStrategy: ChunkStrategy
+  chunkStrategy: ChunkStrategy | string
   chunkSize: number
   chunkOverlap: number
-  embeddingModelId: number
-  embeddingModel?: AIModel
-  vectorDatabaseId: number
-  vectorDatabase?: VectorDatabaseConfig
-  similarityAlgorithm: SimilarityAlgorithm
+  separator?: string
+  enableSemanticChunk?: boolean
+  embeddingModelId?: number
+  embeddingModel?: string
+  vectorDbId?: number
+  vectorDbType?: string
+  dimension?: number
+  similarityMetric: SimilarityAlgorithm | string
   topK: number
   minScore?: number
-  enableRerank?: boolean
-  rerankModelId?: number
-  rerankModel?: AIModel
-  rerankTopN?: number
-  enableCache?: boolean
-  cacheTtl?: number
-  enableBatch?: boolean
-  batchSize?: number
-  dimension?: number
-  collection?: string
+  collectionName?: string
   indexType?: string
   createdAt: string
   updatedAt: string
 }
 
-// 性能指标统计
-export interface ModelPerformanceMetrics {
-  successRate: number
-  avgResponseTime: number
-  p50ResponseTime: number
-  p90ResponseTime: number
-  p99ResponseTime: number
-  errorRate: number
-  timeoutRate: number
-  totalCalls: number
-  totalTokens: number
-  totalCost: number
-}
-
-// 模型连接测试结果
+// 模型连接测试结果（字段名与后端 toTestResult 一致）
 export interface ModelConnectionTestResult {
   success: boolean
   message: string
-  latency?: number
-  modelName?: string
-  maxTokens?: number
+  responseTime: number
+  dimension?: number
+}
+
+// 全量健康巡检结果
+export interface ModelHealthCheckSummary {
+  total: number
+  passed: number
+  failed: number
+  skipped: number
 }
 
 // 模型查询参数
@@ -243,17 +189,6 @@ export interface ModelQueryParams {
   isActive?: boolean
   page?: number
   size?: number
-}
-
-// 用量查询参数
-export interface UsageQueryParams {
-  tenantId: number
-  startDate: string
-  endDate: string
-  provider?: ModelProvider
-  modelName?: string
-  purpose?: ModelPurpose
-  groupBy?: 'date' | 'model' | 'provider' | 'purpose'
 }
 
 // 模型配置表单
@@ -279,42 +214,38 @@ export interface ModelConfigForm {
   retryDelay?: number
 }
 
-// 向量数据库配置表单
+// 向量数据库连接表单
 export interface VectorDatabaseForm {
   name: string
-  type: VectorDatabaseType
+  dbType: string
   host?: string
   port?: number
   endpoint?: string
-  apiKey?: string
   username?: string
   password?: string
-  database?: string
-  collection?: string
-  dimension: number
-  indexType?: string
-  metricType?: SimilarityAlgorithm
-  nlist?: number
-  efConstruction?: number
-  efSearch?: number
+  databaseName?: string
+  schemaName?: string
+  apiKey?: string
+  collectionName?: string
+  remark?: string
+  isActive: boolean
 }
 
 // 向量化配置表单
 export interface EmbeddingConfigForm {
-  chunkStrategy: ChunkStrategy
+  chunkStrategy: ChunkStrategy | string
   chunkSize: number
   chunkOverlap: number
-  embeddingModelId: number
-  vectorDatabaseId: number
-  similarityAlgorithm: SimilarityAlgorithm
+  separator: string
+  enableSemanticChunk: boolean
+  embeddingModelId?: number
+  vectorDbId?: number
+  dimension: number
+  similarityMetric: SimilarityAlgorithm | string
   topK: number
-  minScore?: number
-  enableRerank?: boolean
-  rerankModelId?: number
-  enableCache?: boolean
-  cacheTtl?: number
-  enableBatch?: boolean
-  batchSize?: number
+  minScore: number
+  collectionName: string
+  indexType: string
 }
 
 // 提供商信息
@@ -359,62 +290,43 @@ export interface ArticleTemplateVariable {
   placeholder?: string
 }
 
-// 软文模板
+// 软文模板（variables 为 JSON 字符串，前端自行解析）
 export interface ArticleTemplate {
   id: number
   tenantId: number
   name: string
-  category: ArticleTemplateCategory
+  templateType?: string
+  category: ArticleTemplateCategory | string
   description?: string
   content: string
-  variables: ArticleTemplateVariable[]
-  modelConfigId?: number
-  modelConfig?: ModelConfig
+  variables?: string
   isSystem: boolean
   isActive: boolean
-  useCount: number
-  createdBy?: number
+  version?: number
+  status?: string
+  sortOrder?: number
+  tags?: string
   createdAt: string
   updatedAt: string
 }
 
-// 软文模板表单
+// 软文模板表单（variables 表单内为数组，提交时序列化为 JSON 字符串）
 export interface ArticleTemplateForm {
   name: string
-  category: ArticleTemplateCategory
+  templateType?: string
+  category: ArticleTemplateCategory | string
   description?: string
   content: string
-  variables: ArticleTemplateVariable[]
-  modelConfigId?: number
+  variables: ArticleTemplateVariable[] | string
   isActive: boolean
-}
-
-// 软文生成记录
-export interface ArticleGenerationLog {
-  id: number
-  tenantId: number
-  templateId?: number
-  templateName?: string
-  modelConfigId: number
-  modelName: string
-  title?: string
-  content: string
-  variables?: Record<string, any>
-  wordCount: number
-  tokensUsed: number
-  cost: number
-  duration?: number
-  success: boolean
-  errorMessage?: string
-  createdAt: string
+  sortOrder?: number
 }
 
 // 软文模板查询参数
 export interface ArticleTemplateQueryParams {
-  tenantId: number
-  category?: ArticleTemplateCategory
-  isActive?: boolean
-  isSystem?: boolean
+  tenantId?: number
+  templateType?: string
+  category?: ArticleTemplateCategory | string
   keyword?: string
   page?: number
   size?: number

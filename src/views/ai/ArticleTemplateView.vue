@@ -21,8 +21,8 @@
               <EditOutlined />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ totalGenerated }}</div>
-              <div class="stat-title">生成文章数</div>
+              <div class="stat-value">{{ systemCount }}</div>
+              <div class="stat-title">系统模板</div>
             </div>
           </div>
         </a-card>
@@ -34,8 +34,8 @@
               <FileDoneOutlined />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ todayGenerated }}</div>
-              <div class="stat-title">今日生成</div>
+              <div class="stat-value">{{ customCount }}</div>
+              <div class="stat-title">自定义模板</div>
             </div>
           </div>
         </a-card>
@@ -47,8 +47,8 @@
               <ClockCircleOutlined />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ avgWordCount }}</div>
-              <div class="stat-title">平均字数</div>
+              <div class="stat-value">{{ activeCount }}</div>
+              <div class="stat-title">启用中</div>
             </div>
           </div>
         </a-card>
@@ -68,6 +68,7 @@
             style="width: 140px"
             placeholder="按分类筛选"
             allowClear
+            @change="handleSearch"
           >
             <a-select-option
               v-for="cat in categoryList"
@@ -82,7 +83,7 @@
             placeholder="搜索模板名称"
             style="width: 240px"
             enter-button
-            @search="loadTemplates"
+            @search="handleSearch"
           />
           <a-button type="primary" @click="openModal()">
             <template #icon><PlusOutlined /></template>
@@ -92,6 +93,7 @@
       </template>
 
       <a-table
+        :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="templateList"
         :loading="loading"
@@ -105,14 +107,11 @@
               {{ getCategoryLabel(record.category) }}
             </a-tag>
           </template>
-          <template v-if="column.key === 'useCount'">
-            <span class="use-count">{{ record.useCount }}</span>
-          </template>
           <template v-if="column.key === 'isActive'">
             <a-switch
               v-model:checked="record.isActive"
               :disabled="record.isSystem"
-              @change="toggleStatus(record.id)"
+              @change="toggleStatus(record)"
             />
           </template>
           <template v-if="column.key === 'isSystem'">
@@ -191,18 +190,6 @@
           />
         </a-form-item>
 
-        <a-form-item label="使用模型" name="modelConfigId">
-          <a-select v-model:value="formData.modelConfigId" placeholder="请选择生成模型">
-            <a-select-option
-              v-for="model in modelList"
-              :key="model.id"
-              :value="model.id"
-            >
-              {{ model.name }}
-            </a-select-option>
-          </a-select>
-        </a-form-item>
-
         <a-form-item label="模板内容" name="content">
           <div class="editor-toolbar">
             <a-button size="small" @click="insertVariable">
@@ -222,6 +209,7 @@
         <a-divider>变量配置</a-divider>
 
         <a-table
+          :scroll="{ x: 'max-content' }"
           :columns="variableColumns"
           :data-source="formData.variables"
           :pagination="false"
@@ -301,7 +289,7 @@
         layout="vertical"
       >
         <a-form-item
-          v-for="variable in selectedTemplate?.variables"
+          v-for="variable in selectedVariables"
           :key="variable.key"
           :label="variable.label"
           :name="variable.key"
@@ -395,11 +383,10 @@ import {
   ThunderboltOutlined,
   CopyOutlined,
   DeleteOutlined,
-  CodeOutlined,
   DownloadOutlined,
   FunctionOutlined,
 } from '@ant-design/icons-vue'
-import { articleTemplateApi, modelConfigApi, aiGenerateApi } from '../../api/ai-model'
+import { articleTemplateApi, aiGenerateApi } from '../../api/ai-model'
 import type {
   ArticleTemplate,
   ArticleTemplateForm,
@@ -417,77 +404,30 @@ const modalLoading = ref(false)
 const generateModalVisible = ref(false)
 const generating = ref(false)
 
-const totalTemplates = ref(12)
-const totalGenerated = ref(1568)
-const todayGenerated = ref(42)
-const avgWordCount = ref(856)
+const totalTemplates = ref(0)
+const systemCount = ref(0)
+const customCount = ref(0)
+const activeCount = ref(0)
 
 const searchKeyword = ref('')
-const filterCategory = ref<ArticleTemplateCategory | undefined>()
+const filterCategory = ref<ArticleTemplateCategory | string | undefined>()
 
-const templateList = ref<ArticleTemplate[]>([
-  {
-    id: 1,
-    tenantId: getTenantId(),
-    name: '产品推广文案',
-    category: 'marketing' as ArticleTemplateCategory,
-    description: '用于新产品发布的营销推广文案模板',
-    content: '今天为大家介绍我们的新产品{{productName}}，这是一款针对{{targetAudience}}的{{productType}}。',
-    variables: [
-      { key: 'productName', label: '产品名称', type: 'text', required: true },
-      { key: 'targetAudience', label: '目标受众', type: 'text', required: true },
-      { key: 'productType', label: '产品类型', type: 'text', required: true },
-    ],
-    isSystem: true,
-    isActive: true,
-    useCount: 356,
-    createdAt: '2024-01-15 10:00:00',
-    updatedAt: '2024-01-15 10:00:00',
-  },
-  {
-    id: 2,
-    tenantId: getTenantId(),
-    name: '新闻资讯模板',
-    category: 'news' as ArticleTemplateCategory,
-    description: '企业新闻和资讯发布的标准模板',
-    content: '{{date}}，我们很高兴地宣布{{newsSubject}}。此次{{newsType}}将为{{stakeholder}}带来{{benefit}}。',
-    variables: [
-      { key: 'date', label: '发布日期', type: 'date', required: true },
-      { key: 'newsSubject', label: '新闻主题', type: 'textarea', required: true },
-      { key: 'newsType', label: '新闻类型', type: 'select', required: true, options: ['合作', '发布', '融资', '获奖'] },
-      { key: 'stakeholder', label: '受众群体', type: 'text', required: true },
-      { key: 'benefit', label: '带来价值', type: 'textarea', required: true },
-    ],
-    isSystem: true,
-    isActive: true,
-    useCount: 243,
-    createdAt: '2024-01-15 10:00:00',
-    updatedAt: '2024-01-15 10:00:00',
-  },
-  {
-    id: 3,
-    tenantId: getTenantId(),
-    name: '品牌故事模板',
-    category: 'brand' as ArticleTemplateCategory,
-    description: '讲述品牌发展历程和理念的模板',
-    content: '{{brandName}}成立于{{foundingYear}}年，一直致力于{{mission}}。',
-    variables: [
-      { key: 'brandName', label: '品牌名称', type: 'text', required: true },
-      { key: 'foundingYear', label: '创立年份', type: 'number', required: true },
-      { key: 'mission', label: '品牌使命', type: 'textarea', required: true },
-    ],
-    isSystem: false,
-    isActive: true,
-    useCount: 89,
-    createdAt: '2024-02-20 14:30:00',
-    updatedAt: '2024-02-20 14:30:00',
-  },
-])
+function parseVariables(json?: string): ArticleTemplateVariable[] {
+  if (!json) return []
+  try {
+    const parsed = JSON.parse(json)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+const templateList = ref<ArticleTemplate[]>([])
 
 const pagination = reactive({
   current: 1,
   pageSize: 10,
-  total: 3,
+  total: 0,
 })
 
 const categoryList = [
@@ -500,8 +440,6 @@ const categoryList = [
   { value: 'announcement', label: '公告通知' },
   { value: 'custom', label: '自定义' },
 ]
-
-const modelList = ref<{ id: number; name: string }[]>([])
 
 const getCategoryColor = (category: string) => {
   const colorMap: Record<string, string> = {
@@ -526,7 +464,6 @@ const columns = [
   { title: '模板名称', dataIndex: 'name', key: 'name', width: 200 },
   { title: '分类', key: 'category', width: 120 },
   { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
-  { title: '使用次数', key: 'useCount', width: 100 },
   { title: '类型', key: 'isSystem', width: 80 },
   { title: '状态', key: 'isActive', width: 80 },
   { title: '操作', key: 'action', width: 240, fixed: 'right' as const },
@@ -544,13 +481,12 @@ const variableColumns = [
 const formRef = ref<FormInstance>()
 const editingTemplate = ref<ArticleTemplate | null>(null)
 
-const formData = reactive<ArticleTemplateForm>({
+const formData = reactive<Omit<ArticleTemplateForm, 'variables'> & { variables: ArticleTemplateVariable[] }>({
   name: '',
-  category: 'marketing' as ArticleTemplateCategory,
+  category: 'marketing',
   description: '',
   content: '',
   variables: [],
-  modelConfigId: undefined,
   isActive: true,
 })
 
@@ -567,16 +503,14 @@ const openModal = (record?: ArticleTemplate) => {
     formData.category = record.category
     formData.description = record.description || ''
     formData.content = record.content
-    formData.variables = [...record.variables]
-    formData.modelConfigId = record.modelConfigId
+    formData.variables = parseVariables(record.variables)
     formData.isActive = record.isActive
   } else {
     formData.name = ''
-    formData.category = 'marketing' as ArticleTemplateCategory
+    formData.category = 'marketing'
     formData.description = ''
     formData.content = ''
     formData.variables = []
-    formData.modelConfigId = undefined
     formData.isActive = true
   }
   modalVisible.value = true
@@ -603,37 +537,110 @@ const insertVariable = () => {
   }
 }
 
+const buildPayload = (): ArticleTemplateForm => ({
+  name: formData.name,
+  category: formData.category,
+  description: formData.description,
+  content: formData.content,
+  variables: JSON.stringify(formData.variables.filter(v => v.key)),
+  isActive: formData.isActive,
+})
+
 const handleSubmit = async () => {
   try {
     await formRef.value?.validate()
-    modalLoading.value = true
-    message.success(editingTemplate.value ? '更新成功' : '创建成功')
+  } catch {
+    return
+  }
+  modalLoading.value = true
+  try {
+    if (editingTemplate.value) {
+      await articleTemplateApi.update(editingTemplate.value.id, buildPayload())
+      message.success('更新成功')
+    } else {
+      await articleTemplateApi.create(getTenantId(), buildPayload())
+      message.success('创建成功')
+    }
     modalVisible.value = false
-  } catch (error) {
-    console.error('Validation failed:', error)
+    await loadTemplates()
+  } catch (error: any) {
+    console.error('保存模板失败:', error)
+    message.error(error?.message || '保存模板失败')
   } finally {
     modalLoading.value = false
   }
 }
 
-const toggleStatus = async (id: number) => {
-  message.success('状态已更新')
+const toggleStatus = async (record: ArticleTemplate) => {
+  try {
+    await articleTemplateApi.toggleStatus(record.id)
+    message.success('状态已更新')
+    await loadStats()
+  } catch (error: any) {
+    record.isActive = !record.isActive
+    message.error(error?.message || '状态切换失败')
+  }
 }
 
 const copyTemplate = async (id: number) => {
-  message.success('模板已复制')
+  try {
+    await articleTemplateApi.copy(id)
+    message.success('模板已复制')
+    await loadTemplates()
+  } catch (error: any) {
+    console.error('复制模板失败:', error)
+    message.error(error?.message || '复制模板失败')
+  }
 }
 
 const deleteTemplate = async (id: number) => {
-  message.success('删除成功')
+  try {
+    await articleTemplateApi.delete(id)
+    message.success('删除成功')
+    await loadTemplates()
+  } catch (error: any) {
+    console.error('删除模板失败:', error)
+    message.error(error?.message || '删除模板失败')
+  }
 }
 
-// TODO: 接入真实的模板列表 API
-const loadTemplates = () => {
+const loadTemplates = async () => {
   loading.value = true
-  setTimeout(() => {
+  try {
+    const result = await articleTemplateApi.list({
+      tenantId: getTenantId(),
+      page: pagination.current,
+      size: pagination.pageSize,
+      category: filterCategory.value,
+      keyword: searchKeyword.value || undefined,
+    })
+    templateList.value = result.records || []
+    pagination.total = result.total || 0
+  } catch (error: any) {
+    console.error('加载模板列表失败:', error)
+    message.error(error?.message || '加载模板列表失败')
+    templateList.value = []
+  } finally {
     loading.value = false
-  }, 500)
+  }
+}
+
+const loadStats = async () => {
+  try {
+    const result = await articleTemplateApi.list({ tenantId: getTenantId(), page: 1, size: 1000 })
+    const all = result.records || []
+    totalTemplates.value = result.total ?? all.length
+    systemCount.value = all.filter(t => t.isSystem).length
+    customCount.value = all.filter(t => !t.isSystem).length
+    activeCount.value = all.filter(t => t.isActive).length
+  } catch (error) {
+    console.error('加载模板统计失败:', error)
+  }
+}
+
+const handleSearch = () => {
+  pagination.current = 1
+  loadTemplates()
 }
 
 const handleTableChange = (pag: any) => {
@@ -644,6 +651,7 @@ const handleTableChange = (pag: any) => {
 
 const generateFormRef = ref<FormInstance>()
 const selectedTemplate = ref<ArticleTemplate | null>(null)
+const selectedVariables = ref<ArticleTemplateVariable[]>([])
 const generateFormData = reactive<Record<string, any>>({})
 const generatedContent = ref('')
 const generateResult = reactive({
@@ -655,7 +663,7 @@ const generateResult = reactive({
 
 const generateFormRules = computed(() => {
   const rules: Record<string, any> = {}
-  selectedTemplate.value?.variables.forEach(v => {
+  selectedVariables.value.forEach(v => {
     if (v.required) {
       rules[v.key] = [{ required: true, message: `请输入${v.label}`, trigger: 'blur' }]
     }
@@ -665,9 +673,10 @@ const generateFormRules = computed(() => {
 
 const generateArticle = (record: ArticleTemplate) => {
   selectedTemplate.value = record
-  generateFormData.value = {}
+  selectedVariables.value = parseVariables(record.variables)
+  Object.keys(generateFormData).forEach(key => delete generateFormData[key])
   generatedContent.value = ''
-  record.variables.forEach(v => {
+  selectedVariables.value.forEach(v => {
     generateFormData[v.key] = v.defaultValue || ''
   })
   generateModalVisible.value = true
@@ -721,20 +730,15 @@ const downloadContent = () => {
   message.success('下载成功')
 }
 
-onMounted(async () => {
-  try {
-    const res = await modelConfigApi.list({ tenantId: getTenantId(), isActive: true })
-    const records = (res as any)?.records || (res as any)?.data?.records || []
-    modelList.value = records.map((m: any) => ({ id: m.id, name: m.displayName || m.name || m.modelName || `模型${m.id}` }))
-  } catch (error) {
-    console.error('Failed to load models:', error)
-  }
+onMounted(() => {
+  loadTemplates()
+  loadStats()
 })
 </script>
 
 <style scoped lang="less">
 .article-template-page {
-  padding: 20px;
+  width: 100%;
 }
 
 .card-header {

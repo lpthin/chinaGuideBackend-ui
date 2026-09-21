@@ -70,7 +70,6 @@ const GeoSeoKeywordView = () => import('../views/geoseo/GeoSeoKeywordView.vue')
 
 // 🤖 AI 配置模块
 const ModelConfigView = () => import('../views/ai/ModelConfigView.vue')
-const VectorDbView = () => import('../views/ai/VectorDbView.vue')
 const EmbeddingConfigView = () => import('../views/ai/EmbeddingConfigView.vue')
 const ModelUsageView = () => import('../views/ai/ModelUsageView.vue')
 const ArticleTemplateView = () => import('../views/ai/ArticleTemplateView.vue')
@@ -432,9 +431,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'ai/vector-db',
-        name: 'workspace-ai-vector-db',
-        component: VectorDbView,
-        meta: { title: '向量数据库', icon: 'database', breadcrumb: ['首页', 'AI配置', '向量数据库'], requiresSuperAdmin: true }
+        redirect: { name: 'workspace-ai-embedding' },
       },
       {
         path: 'ai/embedding',

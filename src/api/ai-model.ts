@@ -4,14 +4,11 @@ import type {
   AIModel,
   ModelConfig,
   ModelPurposeMapping,
-  ModelUsageLog,
-  ModelUsageStatistics,
   VectorDatabaseConfig,
   EmbeddingConfig,
-  ModelPerformanceMetrics,
   ModelConnectionTestResult,
+  ModelHealthCheckSummary,
   ModelQueryParams,
-  UsageQueryParams,
   ModelConfigForm,
   VectorDatabaseForm,
   EmbeddingConfigForm,
@@ -20,7 +17,6 @@ import type {
   ArticleTemplate,
   ArticleTemplateForm,
   ArticleTemplateQueryParams,
-  ArticleGenerationLog,
 } from '../types/ai-model'
 
 // 模型 API (复用 modelConfigApi)
@@ -87,6 +83,10 @@ export const modelConfigApi = {
   // 测试新配置（不保存）
   testNew: (data: ModelConfigForm) =>
     http.post<ModelConnectionTestResult>('/ai/model-configs/test', data),
+
+  // 立即巡检全部模型（与每日定时任务同一逻辑，不通过会写健康列并报警）
+  checkAllHealth: () =>
+    http.post<ModelHealthCheckSummary>('/ai/model-configs/health/check-all'),
 }
 
 // 模型用途映射 API
@@ -138,48 +138,33 @@ export const vectorDbApi = {
   toggleStatus: (id: number) =>
     http.post<VectorDatabaseConfig>(`/ai/vector-dbs/${id}/toggle-status`),
 
-  // 测试连接
+  // 测试连接（TCP 可达性探测）
   test: (id: number) =>
-    http.post<{ success: boolean; message: string }>(`/ai/vector-dbs/${id}/test`),
+    http.post<{ success: boolean; message: string; driverReady?: boolean }>(`/ai/vector-dbs/${id}/test`),
 
   // 测试新配置
   testNew: (data: VectorDatabaseForm) =>
-    http.post<{ success: boolean; message: string }>('/ai/vector-dbs/test', data),
+    http.post<{ success: boolean; message: string; driverReady?: boolean }>('/ai/vector-dbs/test', data),
 }
 
-// 向量化配置 API
+// 向量化配置 API（向量参数唯一事实来源，每租户一条）
 export const embeddingConfigApi = {
   // 获取配置
   get: (tenantId: number) =>
     http.get<EmbeddingConfig>('/ai/embedding-config', { params: { tenantId } }),
 
-  // 更新配置
+  // 更新配置（tenantId 走 query 参数，body 为配置本身）
   update: (tenantId: number, data: EmbeddingConfigForm) =>
-    http.put<EmbeddingConfig>('/ai/embedding-config', { tenantId, ...data }),
+    http.put<EmbeddingConfig>('/ai/embedding-config', data, { params: { tenantId } }),
+
+  // 向量化统计（真实文档/分片计数）
+  stats: (tenantId: number) =>
+    http.get<{ processedDocs: number; vectorChunks: number }>('/ai/embedding-config/stats', { params: { tenantId } }),
 }
 
-// 用量与日志 API
+// 用量 API
 export const usageApi = {
-  // 获取用量概览
-  getOverview: () =>
-    http.get<any>('/ai/usage/today'),
-
-  // 获取用量统计
-  getStatistics: (params?: any) =>
-    http.get<any[]>('/ai/usage/statistics', { params }),
-
-  // 获取性能指标
-  getPerformance: (tenantId: number) =>
-    http.get<any>('/ai/usage/performance', { params: { tenantId, startDate: '', endDate: '' } }),
-
-  // 获取调用日志
-  getUsageRecords: (params: { page?: number; pageSize?: number }) =>
-    http.get<{
-      records: any[]
-      total: number
-    }>('/ai/usage/logs', { params: { page: params.page, size: params.pageSize } }),
-
-  // 获取今日用量
+  // 获取今日用量（真实聚合）
   today: (tenantId: number) =>
     http.get<any>('/ai/usage/today', { params: { tenantId } }),
 }
@@ -235,26 +220,9 @@ export const articleTemplateApi = {
   copy: (id: number) =>
     http.post<ArticleTemplate>(`/ai/article-templates/${id}/copy`),
 
-  // 设置为启用/禁用
+  // 切换启用状态
   toggleStatus: (id: number) =>
     http.post<ArticleTemplate>(`/ai/article-templates/${id}/toggle-status`),
-
-  // 使用模板生成文章
-  generate: (id: number, variables: Record<string, any>) =>
-    http.post<{
-      content: string
-      wordCount: number
-      tokensUsed: number
-      cost: number
-      duration: number
-    }>(`/ai/article-templates/${id}/generate`, { variables }),
-
-  // 获取生成记录
-  generationLogs: (params: { tenantId: number; page?: number; size?: number }) =>
-    http.get<{
-      records: ArticleGenerationLog[]
-      total: number
-    }>('/ai/article-templates/generation-logs', { params }),
 }
 
 // AI 生成 API

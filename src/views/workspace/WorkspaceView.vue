@@ -263,10 +263,6 @@
               <template #icon><RobotOutlined /></template>
               大模型配置
             </a-menu-item>
-            <a-menu-item key="ai/vector-db">
-              <template #icon><DatabaseOutlined /></template>
-              向量数据库
-            </a-menu-item>
             <a-menu-item key="ai/embedding">
               <template #icon><ApiOutlined /></template>
               向量化配置
@@ -455,7 +451,6 @@ import {
   BankOutlined,
   SearchOutlined,
   RobotOutlined,
-  DatabaseOutlined,
   PieChartOutlined,
   FileSearchOutlined,
   AuditOutlined,
@@ -513,7 +508,6 @@ const menuLabels: Record<string, string> = {
   'geoseo/competitors': '竞品追踪',
   'geoseo/keywords': '关键词排名',
   'ai/models': '大模型配置',
-  'ai/vector-db': '向量数据库',
   'ai/embedding': '向量化配置',
   'ai/usage': '用量监控',
   'ai/article-templates': '模板库',
@@ -582,7 +576,6 @@ const currentParentMenu = computed(() => {
     'geoseo/competitors': 'SEO & GEO',
     'geoseo/keywords': 'SEO & GEO',
     'ai/models': 'AI配置',
-    'ai/vector-db': 'AI配置',
     'ai/embedding': 'AI配置',
     'ai/usage': 'AI配置',
     'ai/article-templates': 'AI配置',
