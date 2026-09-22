@@ -137,21 +137,15 @@
                 </div>
                 <div class="image-info">
                   <div class="image-name" :title="item.name">{{ item.name }}</div>
-                  <div class="image-tags">
+                  <div v-if="getItemTags(item).length" class="image-tags">
                     <a-tag
                       v-for="tag in getItemTags(item)"
                       :key="tag"
                       size="small"
                       color="blue"
-                      closable
-                      @close.stop="removeTag(item, tag)"
                     >
                       {{ tag }}
                     </a-tag>
-                    <a-button type="dashed" size="small" class="add-tag-btn" @click.stop="showTagInput(item)">
-                      <template #icon><PlusOutlined /></template>
-                      标签
-                    </a-button>
                   </div>
                   <div class="image-meta">
                     <span>{{ formatFileSize(item.fileSize) }}</span>
@@ -195,7 +189,6 @@
               <template v-else-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="previewImage(record)">预览</a-button>
-                  <a-button type="link" size="small" @click="showTagInput(record)">标签</a-button>
                   <a-button type="link" size="small" @click="copyUrl(record)">复制链接</a-button>
                   <a-popconfirm
                     title="确定要删除这张图片吗？"
@@ -261,14 +254,6 @@
               </a-select-option>
             </a-select>
           </a-form-item>
-          <a-form-item label="标签">
-            <a-select
-              v-model:value="uploadTags"
-              mode="tags"
-              style="width: 100%"
-              placeholder="输入标签后按回车"
-            />
-          </a-form-item>
         </a-form>
       </div>
     </a-modal>
@@ -285,36 +270,17 @@
         <div style="margin-top: 16px; text-align: left">
           <p><strong>文件名：</strong>{{ previewItem?.name }}</p>
           <p><strong>文件大小：</strong>{{ previewItem?.fileSize ? formatFileSize(previewItem.fileSize) : '-' }}</p>
-          <p><strong>分辨率：</strong>{{ previewItem?.width }} x {{ previewItem?.height }}</p>
+          <p><strong>分辨率：</strong>{{ formatResolution(previewItem) }}</p>
           <p><strong>分类：</strong>{{ previewItem?.category }}</p>
           <p><strong>标签：</strong>
             <a-tag v-for="tag in previewItem ? getItemTags(previewItem) : []" :key="tag" size="small" color="blue" style="margin-right: 4px">
               {{ tag }}
             </a-tag>
-            <a-button type="link" size="small" @click="showTagInput(previewItem!)">编辑标签</a-button>
+            <span v-if="!previewItem || !getItemTags(previewItem).length">-</span>
           </p>
           <p><strong>使用次数：</strong>{{ previewItem?.useCount }} 次</p>
         </div>
       </div>
-    </a-modal>
-
-    <!-- 标签编辑弹窗 -->
-    <a-modal
-      v-model:open="showTagModal"
-      title="编辑标签"
-      @ok="handleTagOk"
-      width="500px"
-    >
-      <a-form layout="vertical">
-        <a-form-item label="图片标签">
-          <a-select
-            v-model:value="editTags"
-            mode="tags"
-            style="width: 100%"
-            placeholder="输入标签后按回车添加"
-          />
-        </a-form-item>
-      </a-form>
     </a-modal>
   </div>
 </template>
@@ -330,9 +296,10 @@ import {
   UploadOutlined,
   CopyOutlined,
   DeleteOutlined,
-  PlusOutlined,
 } from '@ant-design/icons-vue'
 import { imageLibraryApi } from '../../api/article'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime, formatFileSize } from '../../utils/format'
 import type { ImageLibrary } from '../../types/article'
 import { useAuthStore } from '../../stores/auth'
 
@@ -343,12 +310,8 @@ const loading = ref(false)
 const uploading = ref(false)
 const showUploadModal = ref(false)
 const showPreviewModal = ref(false)
-const showTagModal = ref(false)
 const previewItem = ref<ImageLibrary | null>(null)
-const editingTagItem = ref<ImageLibrary | null>(null)
-const editTags = ref<string[]>([])
 const uploadCategory = ref('')
-const uploadTags = ref<string[]>([])
 const uploadFileList = ref<any[]>([])
 
 const stats = reactive({
@@ -383,25 +346,22 @@ const listColumns = [
   { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
   { title: '标签', key: 'tags', width: 200, ellipsis: true },
   { title: '文件大小', key: 'fileSize', width: 100, customRender: ({ record }: { record: ImageLibrary }) => formatFileSize(record.fileSize) },
-  { title: '分辨率', key: 'resolution', width: 110, customRender: ({ record }: { record: ImageLibrary }) => `${record.width || '-'} x ${record.height || '-'}` },
+  { title: '分辨率', key: 'resolution', width: 110, customRender: ({ record }: { record: ImageLibrary }) => formatResolution(record) },
   { title: '使用次数', dataIndex: 'useCount', key: 'useCount', width: 90 },
-  { title: '上传时间', dataIndex: 'createdAt', key: 'createdAt', width: 170 },
+  { title: '上传时间', key: 'createdAt', width: 170, customRender: ({ record }: { record: ImageLibrary }) => formatDateTime(record.createdAt) },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 200 },
 ]
 
-const tableRowSelection = {
-  selectedRowKeys: selectedKeys,
-  onChange: (keys: number[]) => {
-    selectedKeys.value = keys
+const tableRowSelection = computed(() => ({
+  selectedRowKeys: selectedKeys.value,
+  onChange: (keys: (string | number)[]) => {
+    selectedKeys.value = keys.map(Number)
   },
-}
+}))
 
-function formatFileSize(bytes: number): string {
-  if (!bytes || bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+function formatResolution(item: ImageLibrary | null): string {
+  if (!item || !item.width || !item.height) return '-'
+  return `${item.width} × ${item.height}`
 }
 
 function getItemTags(item: ImageLibrary): string[] {
@@ -409,31 +369,6 @@ function getItemTags(item: ImageLibrary): string[] {
   if (Array.isArray(item.tags)) return item.tags
   if (typeof item.tags === 'string') return item.tags.split(',').filter(t => t.trim())
   return []
-}
-
-function showTagInput(item: ImageLibrary) {
-  editingTagItem.value = item
-  editTags.value = [...getItemTags(item)]
-  showTagModal.value = true
-}
-
-function removeTag(item: ImageLibrary, tag: string) {
-  const tags = getItemTags(item)
-  const newTags = tags.filter(t => t !== tag)
-  item.tags = newTags.join(',')
-  message.success('标签已移除')
-}
-
-async function handleTagOk() {
-  if (!editingTagItem.value) return
-  try {
-    editingTagItem.value.tags = editTags.value.join(',')
-    message.success('标签更新成功')
-    showTagModal.value = false
-  } catch (error) {
-    console.error('更新标签失败:', error)
-    message.error('标签更新失败')
-  }
 }
 
 function toggleSelect(id: number) {
@@ -455,7 +390,7 @@ function copyUrl(item: ImageLibrary) {
   navigator.clipboard.writeText(fullUrl).then(() => {
     message.success('链接已复制')
   }).catch(() => {
-    message.success('链接已复制')
+    message.error('浏览器已阻止复制，请手动复制链接')
   })
 }
 
@@ -477,7 +412,7 @@ async function handleUploadOk() {
   uploading.value = true
   try {
     const formData = new FormData()
-    uploadFileList.value.forEach((fileItem, index) => {
+    uploadFileList.value.forEach((fileItem) => {
       if (fileItem.originFileObj) {
         formData.append('files', fileItem.originFileObj)
       }
@@ -491,12 +426,11 @@ async function handleUploadOk() {
     showUploadModal.value = false
     uploadFileList.value = []
     uploadCategory.value = ''
-    uploadTags.value = []
     selectedKeys.value = []
     await loadData()
-  } catch (error: any) {
+  } catch (error) {
     console.error('上传失败:', error)
-    message.error(error?.message || '上传失败')
+    message.error(describeHttpError(error))
   } finally {
     uploading.value = false
   }
@@ -508,9 +442,9 @@ async function handleDelete(id: number) {
     message.success('删除成功')
     selectedKeys.value = selectedKeys.value.filter(k => k !== id)
     await loadData()
-  } catch (error: any) {
+  } catch (error) {
     console.error('删除失败:', error)
-    message.error(error?.message || '删除失败')
+    message.error(describeHttpError(error))
   }
 }
 
@@ -524,9 +458,9 @@ async function batchDelete() {
     message.success('批量删除成功')
     selectedKeys.value = []
     await loadData()
-  } catch (error: any) {
+  } catch (error) {
     console.error('批量删除失败:', error)
-    message.error(error?.message || '批量删除失败')
+    message.error(describeHttpError(error))
   }
 }
 
@@ -557,9 +491,9 @@ async function loadData() {
     pagination.total = result.total || 0
 
     updateStats()
-  } catch (error: any) {
+  } catch (error) {
     console.error('加载文件列表失败:', error)
-    message.error(error?.message || '加载文件列表失败')
+    message.error(describeHttpError(error))
     imageList.value = []
     pagination.total = 0
   } finally {
@@ -740,13 +674,6 @@ onMounted(() => {
 
     :deep(.ant-tag) {
       margin: 0;
-    }
-
-    .add-tag-btn {
-      height: 22px;
-      padding: 0 8px;
-      font-size: 12px;
-      line-height: 20px;
     }
   }
 

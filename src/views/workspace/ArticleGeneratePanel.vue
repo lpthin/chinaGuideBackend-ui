@@ -455,7 +455,8 @@
       </a-drawer>
 
       <!-- 模板编辑弹窗 -->
-      <a-modal v-model:open="showTemplateEditor" title="自定义模板编辑" width="700px" @ok="saveTemplate">
+      <a-modal v-model:open="showTemplateEditor" title="自定义模板编辑" width="700px"
+        :confirm-loading="templateSaving" @ok="saveTemplate">
         <a-form layout="vertical">
           <a-form-item label="模板名称">
             <a-input v-model:value="editingTemplate.name" />
@@ -548,6 +549,9 @@ import {
 import { useRouter, useRoute } from 'vue-router'
 import { articleApi, dashboardApi, keywordApi, clusterApi } from '../../api'
 import { caseApi } from '../../api/case'
+import { articleTemplateApi } from '../../api/articleTemplate'
+import { describeHttpError } from '../../api/http'
+import { formatDate } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { articleStatusMeta, ARTICLE_STATUS } from '../../utils/contentStatus'
 import type { ArticleStatus } from '../../utils/contentStatus'
@@ -723,6 +727,7 @@ const customArticleStyle = ref('professional')
 const customArticleTone = ref('neutral')
 
 const editingTemplate = reactive({ name: '', content: '' })
+const templateSaving = ref(false)
 
 type KeywordOption = {
   id: number
@@ -781,11 +786,6 @@ function handleDocumentRemove(file: any) {
 function handleDocumentChange(info: any) {
   if (info.file.status === 'done') message.success(`${info.file.name} 上传成功`)
   else if (info.file.status === 'error') message.error(`${info.file.name} 上传失败`)
-}
-
-function formatDate(date?: string) {
-  if (!date) return '-'
-  return new Date(date).toLocaleDateString()
 }
 
 const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED']
@@ -1059,9 +1059,29 @@ async function generateArticle() {
   }
 }
 
-function saveTemplate() {
-  message.success('模板已保存')
-  showTemplateEditor.value = false
+async function saveTemplate() {
+  if (!editingTemplate.name.trim() || !editingTemplate.content.trim()) {
+    message.warning('请填写模板名称和内容')
+    return
+  }
+  templateSaving.value = true
+  try {
+    await articleTemplateApi.create({
+      name: editingTemplate.name.trim(),
+      type: 'custom',
+      category: 'general',
+      description: '',
+      content: editingTemplate.content,
+      variables: [],
+      status: 'active',
+    })
+    message.success('模板已保存')
+    showTemplateEditor.value = false
+  } catch (e) {
+    message.error(`保存失败：${describeHttpError(e)}`)
+  } finally {
+    templateSaving.value = false
+  }
 }
 
 /** 查看 / 编辑文章归 文章管理，这里只做跳转 */

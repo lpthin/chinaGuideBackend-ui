@@ -59,6 +59,9 @@
                   {{ record.status === 1 ? '启用' : '禁用' }}
                 </a-tag>
               </template>
+              <template v-else-if="column.key === 'createdAt'">
+                {{ formatDateTime(record.createdAt) }}
+              </template>
               <template v-else-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="testPlatform(record)">
@@ -135,6 +138,7 @@ import {
 } from '@ant-design/icons-vue'
 import { publishConfigApi } from '../../api/workspace'
 import { useAuthStore } from '../../stores/auth'
+import { formatDateTime } from '../../utils/format'
 
 const authStore = useAuthStore()
 

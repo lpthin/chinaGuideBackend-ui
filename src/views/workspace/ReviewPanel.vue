@@ -142,7 +142,7 @@
                 </div>
                 <div class="card-item-footer">
                   <span class="submit-time">
-                    <ClockCircleOutlined /> {{ formatTime(article.createdAt) }}
+                    <ClockCircleOutlined /> {{ formatDateTime(article.createdAt) }}
                   </span>
                   <div class="mini-scores">
                     <template v-if="article.originalScore != null || article.qualityScore != null">
@@ -182,7 +182,7 @@
                       {{ articleStatusMeta(currentArticle.status).label }}
                     </a-tag>
                     <span class="meta-text"><UserOutlined /> {{ currentArticle.reviewer || '未分配' }}</span>
-                    <span class="meta-text"><CalendarOutlined /> {{ formatTime(currentArticle.createdAt) }}</span>
+                    <span class="meta-text"><CalendarOutlined /> {{ formatDateTime(currentArticle.createdAt) }}</span>
                     <span class="meta-text"><FileTextOutlined /> {{ currentArticle.wordCount }}字</span>
                   </div>
                 </div>
@@ -465,6 +465,7 @@ import {
 import { reviewApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import { articleStatusMeta } from '../../utils/contentStatus'
+import { formatDateTime, formatDecimal, formatPercent } from '../../utils/format'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -543,14 +544,10 @@ function getScoreColor(score?: number) {
   return '#ff4d4f'
 }
 
-function formatTime(time?: string) {
-  if (!time) return '-'
-  return new Date(time).toLocaleString()
-}
-
 /** 预审分数是模型给出的估计，缺结果时显示占位而不是 0 分 */
 function scoreText(score?: number | null, suffix = '') {
-  return score == null || score === undefined ? '-' : `${score}${suffix}`
+  if (score === null || score === undefined) return '-'
+  return suffix === '%' ? formatPercent(Number(score), 0, true) : `${formatDecimal(Number(score), 0)}${suffix}`
 }
 
 const VERDICT_TEXT: Record<string, string> = { pass: '建议通过', caution: '需关注', reject: '建议驳回' }

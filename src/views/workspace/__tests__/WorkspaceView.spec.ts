@@ -5,14 +5,21 @@ import WorkspaceView from '../WorkspaceView.vue'
 describe('WorkspaceView', () => {
   let wrapper: any
 
+  // 布局类 stub 必须渲染默认插槽并带上组件名，否则嵌套的 header/sider/content/breadcrumb 既不会出现在 wrapper 里，也无法按名称查找到
+  const layoutStub = (name: string) => ({
+    name,
+    template: '<div><slot /></div>',
+  })
+
   beforeEach(() => {
     wrapper = mount(WorkspaceView, {
       global: {
         stubs: {
-          'a-layout': true,
-          'a-layout-header': true,
-          'a-layout-content': true,
-          'a-layout-sider': true,
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
           'a-menu': true,
           'a-menu-item': true,
           'a-sub-menu': true,
@@ -20,10 +27,10 @@ describe('WorkspaceView', () => {
           'a-dropdown': true,
           'a-divider': true,
           'a-tooltip': true,
-          'a-breadcrumb': true,
           'a-breadcrumb-item': true,
           'router-view': true,
           'router-link': true,
+          TenantSwitcher: true,
         },
       },
     })

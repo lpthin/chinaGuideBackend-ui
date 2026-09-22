@@ -141,9 +141,6 @@
               </template>
               <template v-if="column.key === 'actions'">
                 <a-space>
-                  <a-button type="link" size="small" @click="handleUse(record)">
-                    使用
-                  </a-button>
                   <a-button type="link" size="small" @click="handleClone(record)">
                     复制
                   </a-button>
@@ -202,10 +199,7 @@
                 </div>
                 <div class="card-footer">
                   <a-space>
-                    <a-button type="primary" size="small" @click="handleUse(item)">
-                      使用模板
-                    </a-button>
-                    <a-button size="small" @click="openModal(item)">
+                    <a-button type="primary" size="small" @click="openModal(item)">
                       编辑
                     </a-button>
                     <a-dropdown>
@@ -290,6 +284,7 @@
             <a-form-item label="状态">
               <a-switch
                 :checked="formData.status === 'active'"
+                @change="(v: boolean) => formData.status = v ? 'active' : 'inactive'"
                 checked-children="启用"
                 un-checked-children="停用"
               />
@@ -357,23 +352,14 @@
               <a-timeline-item
                 v-for="ver in versionList"
                 :key="ver.id"
-                :color="ver.version === formData.version ? 'blue' : 'gray'"
+                :color="ver.version === currentVersion ? 'blue' : 'gray'"
               >
                 <div class="version-item">
                   <div class="version-header">
                     <span class="version-tag">v{{ ver.version }}</span>
-                    <span class="version-time">{{ ver.createdAt }}</span>
-                    <span class="version-author">{{ ver.createdBy }}</span>
+                    <span class="version-time">{{ formatDateTime(ver.createdAt) }}</span>
                   </div>
-                  <div class="version-changelog">{{ ver.changelog }}</div>
-                  <div class="version-actions">
-                    <a-button type="link" size="small">
-                      查看内容
-                    </a-button>
-                    <a-button type="link" size="small">
-                      回滚到此版本
-                    </a-button>
-                  </div>
+                  <div class="version-changelog">{{ ver.versionNote }}</div>
                 </div>
               </a-timeline-item>
             </a-timeline>
@@ -410,6 +396,8 @@ import {
   type TemplateVariable,
   type TemplateVersion,
 } from '../../api/articleTemplate'
+import { formatDateTime } from '@/utils/format'
+import { describeHttpError } from '@/api/http'
 
 const authStore = useAuthStore()
 
@@ -464,6 +452,7 @@ const templateList = ref<ArticleTemplate[]>([])
 const versionList = ref<TemplateVersion[]>([])
 
 const currentVersion = ref('')
+const editId = ref<number | null>(null)
 
 const formData = reactive({
   name: '',
@@ -483,7 +472,7 @@ const columns = [
   { title: '版本', dataIndex: 'version', key: 'version', width: 100 },
   { title: '使用次数', key: 'useCount', width: 100 },
   { title: '状态', key: 'status', width: 80 },
-  { title: '更新时间', dataIndex: 'updatedAt', key: 'updatedAt', width: 180 },
+  { title: '更新时间', dataIndex: 'updatedAt', key: 'updatedAt', width: 180, customRender: ({ text }: any) => formatDateTime(text) },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 280 },
 ]
 
@@ -540,6 +529,7 @@ function openModal(record?: ArticleTemplate) {
   isEdit.value = !!record
   formTab.value = 'basic'
   if (record) {
+    editId.value = record.id
     currentVersion.value = record.version
     formData.name = record.name
     formData.type = record.type
@@ -550,6 +540,7 @@ function openModal(record?: ArticleTemplate) {
     formData.status = record.status
     loadVersions(record.id)
   } else {
+    editId.value = null
     currentVersion.value = ''
     formData.name = ''
     formData.type = 'custom'
@@ -575,16 +566,18 @@ async function loadVersions(id: number) {
 async function handleSubmit() {
   submitLoading.value = true
   try {
-    if (isEdit.value) {
+    if (isEdit.value && editId.value !== null) {
+      await articleTemplateApi.update(editId.value, formData as ArticleTemplateForm)
       message.success('模板更新成功')
     } else {
+      await articleTemplateApi.create(formData as ArticleTemplateForm)
       message.success('模板创建成功')
     }
     modalVisible.value = false
     loadTemplates()
     loadStats()
   } catch (e) {
-    message.error('保存失败')
+    message.error(`保存失败：${describeHttpError(e)}`)
   } finally {
     submitLoading.value = false
   }
@@ -610,10 +603,6 @@ async function handleClone(record: ArticleTemplate) {
   } catch (e) {
     message.error('复制失败')
   }
-}
-
-function handleUse(record: ArticleTemplate) {
-  message.info(`使用模板：${record.name}`)
 }
 
 function viewVersions(record: ArticleTemplate) {

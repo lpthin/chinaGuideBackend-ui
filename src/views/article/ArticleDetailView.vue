@@ -7,8 +7,8 @@
       >
         <template #extra>
           <a-space>
-            <a-button @click="handleShare">
-              <ShareAltOutlined /> 分享
+            <a-button @click="copyLink">
+              <ShareAltOutlined /> 复制本页链接
             </a-button>
             <a-button type="primary" @click="goToEdit">编辑</a-button>
           </a-space>
@@ -20,12 +20,12 @@
           <a-card :bordered="false" v-if="article">
             <div class="article-meta">
               <a-space>
-                <a-tag color="blue">{{ categoryName }}</a-tag>
-                <span><UserOutlined /> {{ article.source || '原创' }}</span>
+                <a-tag v-if="categoryName" color="blue">{{ categoryName }}</a-tag>
+                <span v-else class="category-empty">栏目未设置</span>
+                <span><UserOutlined /> {{ article.source || '未填写来源' }}</span>
                 <span><EyeOutlined /> {{ article.viewCount }} 浏览</span>
                 <span><LikeOutlined /> {{ article.likeCount }} 点赞</span>
-                <span><ShareAltOutlined /> {{ article.shareCount }} 分享</span>
-                <span>{{ formatDate(article.publishAt || '') }}</span>
+                <span>{{ formatTime(article.publishedAt) }}</span>
               </a-space>
             </div>
 
@@ -59,15 +59,15 @@
                   <a @click="goToDetail(item.id)">{{ item.title }}</a>
                 </a-list-item>
               </template>
+              <template #empty>
+                <a-empty description="同栏目暂无其他文章" />
+              </template>
             </a-list>
           </a-card>
 
           <a-card title="操作" style="margin-top: 16px" :bordered="false" v-if="article">
             <a-space direction="vertical" style="width: 100%">
-              <a-button type="primary" block @click="handleLike">
-                <LikeOutlined /> 点赞 ({{ article.likeCount }})
-              </a-button>
-              <a-button block @click="goToEdit">
+              <a-button type="primary" block @click="goToEdit">
                 <EditOutlined /> 编辑文章
               </a-button>
               <a-popconfirm
@@ -99,6 +99,8 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons-vue'
 import { articleManageApi } from '../../api/article'
+import { describeHttpError } from '../../api/http'
+import { formatTime } from '../../utils/format'
 import type { Article } from '../../types/article'
 import { marked } from 'marked'
 
@@ -107,10 +109,8 @@ const route = useRoute()
 const loading = ref(false)
 const article = ref<Article | null>(null)
 
-const categoryName = computed(() => {
-  if (!article.value) return '未分类'
-  return (article.value as any).categoryName || '未分类'
-})
+/** 后端详情接口会带 categoryName；没有就是真的没栏目，不能写成「未分类」冒充 */
+const categoryName = computed(() => article.value?.categoryName || '')
 
 const keywordList = computed(() => {
   if (!article.value?.keywords) return []
@@ -126,21 +126,7 @@ const renderedContent = computed(() => {
   }
 })
 
-const relatedArticles = ref<{ id: number; title: string }[]>([
-  { id: 2, title: '公司完成新一轮融资，加速产品研发' },
-  { id: 3, title: '新产品 v2.0 正式发布，新增多项功能' },
-  { id: 4, title: 'Vue 3 组合式 API 最佳实践' },
-  { id: 5, title: '微服务架构设计原则详解' },
-])
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
+const relatedArticles = ref<{ id: number; title: string }[]>([])
 
 function goBack() {
   router.back()
@@ -156,20 +142,29 @@ function goToDetail(id: number) {
   router.push(`/workspace/articles/${id}`)
 }
 
-function handleShare() {
-  message.success('分享链接已复制')
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(window.location.href)
+    message.success('链接已复制')
+  } catch {
+    message.error('浏览器不允许复制，请手动复制地址栏链接')
+  }
 }
 
-async function handleLike() {
-  if (!article.value) return
+async function loadRelated(current: Article) {
+  if (!current.categoryId) {
+    relatedArticles.value = []
+    return
+  }
   try {
-    await articleManageApi.like(article.value.id)
-    article.value.likeCount += 1
-    message.success('点赞成功')
-  } catch (error) {
-    console.error('点赞失败:', error)
-    article.value.likeCount += 1
-    message.success('点赞成功')
+    const data: any = await articleManageApi.list({ tenantId: current.tenantId, categoryId: current.categoryId, page: 1, size: 6 })
+    relatedArticles.value = (data?.records || [])
+      .filter((item: any) => item.id !== current.id)
+      .slice(0, 5)
+      .map((item: any) => ({ id: item.id, title: item.title }))
+  } catch {
+    // 相关文章只是补充信息，加载失败就留空，不用假数据顶替
+    relatedArticles.value = []
   }
 }
 
@@ -180,8 +175,7 @@ async function handleDelete() {
     message.success('删除成功')
     router.push('/workspace/articles')
   } catch (error) {
-    console.error('删除失败:', error)
-    message.error('删除失败')
+    message.error(`删除失败：${describeHttpError(error)}`)
   }
 }
 
@@ -196,9 +190,9 @@ async function loadArticle() {
   try {
     const data = await articleManageApi.get(Number(id))
     article.value = data as Article
+    loadRelated(data as Article)
   } catch (error) {
-    console.error('加载文章详情失败:', error)
-    message.error('加载文章详情失败')
+    message.error(`加载文章详情失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }
@@ -218,6 +212,10 @@ onMounted(() => {
   font-size: 14px;
   color: #8c8c8c;
   margin-bottom: 16px;
+
+  .category-empty {
+    color: #bfbfbf;
+  }
 }
 
 .article-keywords {

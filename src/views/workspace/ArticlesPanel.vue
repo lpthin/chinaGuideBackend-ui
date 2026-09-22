@@ -15,10 +15,10 @@
               </div>
             </div>
             <div class="stat-footer">
-              <span class="stat-trend up">
-                <ArrowUpOutlined /> 15%
+              <span class="stat-trend">
+                {{ statusCounts.published }}
               </span>
-              <span class="stat-label">较上月</span>
+              <span class="stat-label">已发布</span>
             </div>
           </a-card>
         </a-col>
@@ -34,10 +34,10 @@
               </div>
             </div>
             <div class="stat-footer">
-              <span class="stat-trend up">
-                <ArrowUpOutlined /> 5
+              <span class="stat-trend">
+                {{ stats.weekCount }}
               </span>
-              <span class="stat-label">较昨日</span>
+              <span class="stat-label">近 7 天</span>
             </div>
           </a-card>
         </a-col>
@@ -48,15 +48,15 @@
                 <CalendarOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.monthCount }}</div>
+                <div class="stat-value">{{ stats.monthPublished }}</div>
                 <div class="stat-title">本月发布</div>
               </div>
             </div>
             <div class="stat-footer">
-              <span class="stat-trend up">
-                <ArrowUpOutlined /> 12%
+              <span class="stat-trend">
+                {{ stats.yearPublished }}
               </span>
-              <span class="stat-label">较上月</span>
+              <span class="stat-label">本年发布</span>
             </div>
           </a-card>
         </a-col>
@@ -72,10 +72,10 @@
               </div>
             </div>
             <div class="stat-footer">
-              <span class="stat-trend up">
-                <ArrowUpOutlined /> 8%
+              <span class="stat-trend">
+                {{ stats.viewsSum }}
               </span>
-              <span class="stat-label">较上周</span>
+              <span class="stat-label">列表阅读合计</span>
             </div>
           </a-card>
         </a-col>
@@ -98,10 +98,6 @@
                     <template #icon><DownOutlined v-if="!showAdvancedFilter" /><UpOutlined v-else /></template>
                     {{ showAdvancedFilter ? '收起筛选' : '高级筛选' }}
                   </a-button>
-                  <a-button size="small" @click="saveFilterTemplate">
-                    <template #icon><SaveOutlined /></template>
-                    保存模板
-                  </a-button>
                   <a-button size="small" @click="resetFilter">
                     <template #icon><ReloadOutlined /></template>
                     重置
@@ -111,12 +107,12 @@
 
               <!-- 搜索框 -->
               <div class="search-row">
+                <!-- 关键词命中即由 filteredArticles 响应式生效，无需再挂 @search 调空函数 -->
                 <a-input-search
                   v-model:value="filterForm.keyword"
                   placeholder="搜索文章标题或内容..."
                   size="large"
                   enter-button
-                  @search="filterArticles"
                 >
                   <template #addonBefore>
                     <a-select v-model:value="searchType" style="width: 100px">
@@ -149,13 +145,13 @@
                     <span class="status-count">{{ statusCounts.draft }}</span>
                   </a-tag>
                   <a-tag
-                    :class="{ 'status-tag-active': filterForm.status === 'reviewing' }"
+                    :class="{ 'status-tag-active': filterForm.status === 'pending_review' }"
                     color="processing"
                     class="status-tag"
-                    @click="setQuickStatus('reviewing')"
+                    @click="setQuickStatus('pending_review')"
                   >
                     <ClockCircleOutlined /> 待审核
-                    <span class="status-count">{{ statusCounts.reviewing }}</span>
+                    <span class="status-count">{{ statusCounts.pending_review }}</span>
                   </a-tag>
                   <a-tag
                     :class="{ 'status-tag-active': filterForm.status === 'published' }"
@@ -200,7 +196,6 @@
                           style="width: 100%"
                           :tree-default-expand-all="true"
                           allow-clear
-                          @change="filterArticles"
                         />
                       </a-form-item>
                     </a-col>
@@ -211,10 +206,11 @@
                           style="width: 100%"
                           allow-clear
                           placeholder="选择状态"
-                          @change="filterArticles"
                         >
                           <a-select-option value="draft">草稿</a-select-option>
-                          <a-select-option value="reviewing">待审</a-select-option>
+                          <a-select-option value="pending_review">待审核</a-select-option>
+                          <a-select-option value="approved">审核通过</a-select-option>
+                          <a-select-option value="scheduled">已排期</a-select-option>
                           <a-select-option value="published">已发布</a-select-option>
                           <a-select-option value="offline">已下架</a-select-option>
                           <a-select-option value="rejected">已驳回</a-select-option>
@@ -228,7 +224,6 @@
                           style="width: 100%"
                           allow-clear
                           placeholder="选择作者"
-                          @change="filterArticles"
                         >
                           <a-select-option v-for="a in authors" :key="a.id" :value="a.id">{{ a.name }}</a-select-option>
                         </a-select>
@@ -239,7 +234,6 @@
                         <a-range-picker
                           v-model:value="filterForm.dateRange"
                           style="width: 100%"
-                          @change="filterArticles"
                         />
                       </a-form-item>
                     </a-col>
@@ -251,7 +245,6 @@
                           style="width: 100%"
                           placeholder="选择标签"
                           allow-clear
-                          @change="filterArticles"
                         >
                           <a-select-option v-for="tag in allTags" :key="tag" :value="tag">{{ tag }}</a-select-option>
                         </a-select>
@@ -297,10 +290,6 @@
                   <template #icon><TagsOutlined /></template>
                   设置标签
                 </a-button>
-                <a-button size="small" @click="batchExport">
-                  <template #icon><ExportOutlined /></template>
-                  导出
-                </a-button>
                 <a-button size="small" danger @click="batchDelete">
                   <template #icon><DeleteOutlined /></template>
                   批量删除
@@ -338,17 +327,18 @@
                     </div>
                   </template>
                   <template v-else-if="column.key === 'category'">
-                    <a-tag color="blue">{{ categoryNameOf(record) }}</a-tag>
+                    <a-tag v-if="categoryNameOf(record)" color="blue">{{ categoryNameOf(record) }}</a-tag>
+                    <span v-else class="category-missing">-</span>
                   </template>
                   <template v-else-if="column.key === 'status'">
-                    <a-tag :color="getStatusColor(record.status)">
+                    <a-tag :color="statusMeta(record.status).color">
                       <component :is="getStatusIcon(record.status)" />
-                      {{ getStatusText(record.status) }}
+                      {{ statusMeta(record.status).label }}
                     </a-tag>
                   </template>
                   <template v-else-if="column.key === 'views'">
                     <span class="views-cell">
-                      <EyeOutlined /> {{ record.views || 0 }}
+                      <EyeOutlined /> {{ record.viewCount || 0 }}
                     </span>
                   </template>
                   <template v-else-if="column.key === 'publishTime'">
@@ -413,8 +403,8 @@
                         <FileTextOutlined />
                       </div>
                       <div class="card-status">
-                        <a-tag :color="getStatusColor(article.status)" size="small">
-                          {{ getStatusText(article.status) }}
+                        <a-tag :color="statusMeta(article.status).color" size="small">
+                          {{ statusMeta(article.status).label }}
                         </a-tag>
                       </div>
                       <div v-if="article.isTop" class="card-badge top">置顶</div>
@@ -432,7 +422,7 @@
                         </span>
                       </div>
                       <div class="card-stats">
-                        <span><EyeOutlined /> {{ article.views || 0 }}</span>
+                        <span><EyeOutlined /> {{ article.viewCount || 0 }}</span>
                         <span><LikeOutlined /> {{ article.likes || 0 }}</span>
                         <span><MessageOutlined /> {{ article.comments || 0 }}</span>
                       </div>
@@ -469,13 +459,13 @@
                         <FileTextOutlined />
                       </div>
                       <div class="thumbnail-overlay">
-                        <a-tag :color="getStatusColor(article.status)" size="small">{{ getStatusText(article.status) }}</a-tag>
+                        <a-tag :color="statusMeta(article.status).color" size="small">{{ statusMeta(article.status).label }}</a-tag>
                       </div>
                     </div>
                     <div class="thumbnail-info">
                       <div class="thumbnail-title" :title="article.title">{{ article.title }}</div>
                       <div class="thumbnail-meta">
-                        <span><EyeOutlined /> {{ article.views || 0 }}</span>
+                        <span><EyeOutlined /> {{ article.viewCount || 0 }}</span>
                       </div>
                     </div>
                     <div class="thumbnail-actions">
@@ -511,16 +501,6 @@
                   <div class="entry-info">
                     <div class="entry-name">草稿箱</div>
                     <div class="entry-count">{{ draftCount }} 篇</div>
-                  </div>
-                  <RightOutlined class="entry-arrow" />
-                </div>
-                <div class="quick-entry" @click="goToTrash">
-                  <div class="entry-icon trash">
-                    <DeleteOutlined />
-                  </div>
-                  <div class="entry-info">
-                    <div class="entry-name">回收站</div>
-                    <div class="entry-count">{{ trashCount }} 篇</div>
                   </div>
                   <RightOutlined class="entry-arrow" />
                 </div>
@@ -573,11 +553,11 @@
         <div class="article-preview" v-if="previewArticle">
           <a-descriptions :column="2" bordered size="small" style="margin-bottom: 16px">
             <a-descriptions-item label="状态">
-              <a-tag :color="getStatusColor(previewArticle.status)">{{ getStatusText(previewArticle.status) }}</a-tag>
+              <a-tag :color="statusMeta(previewArticle.status).color">{{ statusMeta(previewArticle.status).label }}</a-tag>
             </a-descriptions-item>
-            <a-descriptions-item label="栏目">{{ categoryNameOf(previewArticle) }}</a-descriptions-item>
+            <a-descriptions-item label="栏目">{{ categoryNameOf(previewArticle) || '-' }}</a-descriptions-item>
             <a-descriptions-item label="作者">{{ previewArticle.authorName || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="浏览量">{{ previewArticle.views || 0 }}</a-descriptions-item>
+            <a-descriptions-item label="浏览量">{{ previewArticle.viewCount || 0 }}</a-descriptions-item>
             <a-descriptions-item label="创建时间">{{ formatTime(previewArticle.createdAt) }}</a-descriptions-item>
             <a-descriptions-item label="更新时间">{{ formatTime(previewArticle.updatedAt) }}</a-descriptions-item>
           </a-descriptions>
@@ -675,10 +655,6 @@
                 <template #icon><AuditOutlined /></template>
                 提交审核
               </a-button>
-              <a-button type="primary" @click="publishArticleFromEditor">
-                <template #icon><SendOutlined /></template>
-                立即发布
-              </a-button>
             </a-space>
           </div>
         </div>
@@ -691,7 +667,6 @@
 import { ref, reactive, computed, onMounted, h, watch } from 'vue'
 import { message, Modal, Empty, Form as AForm, FormItem as AFormItem, TreeSelect as ATreeSelect, Select as ASelect, Space as ASpace, Button as AButton } from 'ant-design-vue'
 import { marked } from 'marked'
-import http from '../../api/http'
 import {
   FileTextOutlined,
   CheckCircleOutlined,
@@ -711,7 +686,6 @@ import {
   SendOutlined,
   SwapOutlined,
   TagsOutlined,
-  ExportOutlined,
   DeleteOutlined,
   EditOutlined,
   UserOutlined,
@@ -728,8 +702,10 @@ import {
   CloseCircleOutlined,
   ClockCircleOutlined,
 } from '@ant-design/icons-vue'
-import { articleManageApi, categoryApi, userApi } from '../../api'
+import { adminApi, articleManageApi, categoryApi } from '../../api'
 import { formatTime } from '../../utils/format'
+import { articleStatusMeta as statusMeta } from '../../utils/contentStatus'
+import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
@@ -747,8 +723,11 @@ const searchType = ref('all')
 const stats = reactive({
   totalArticles: 0,
   todayCount: 0,
-  monthCount: 0,
+  weekCount: 0,
+  monthPublished: 0,
+  yearPublished: 0,
   topViews: 0,
+  viewsSum: 0,
 })
 
 const filterForm = reactive({
@@ -760,19 +739,21 @@ const filterForm = reactive({
   keyword: '',
 })
 
-const statusCounts = computed(() => ({
-  draft: articles.value.filter(a => a.status?.toLowerCase() === 'draft').length,
-  reviewing: articles.value.filter(a => {
-    const s = a.status?.toLowerCase()
-    return s === 'reviewing' || s === 'pending_review' || s === 'pending-review' || s === 'pending'
-  }).length,
-  published: articles.value.filter(a => {
-    const s = a.status?.toLowerCase()
-    return s === 'published' || s === 'approved' || s === 'scheduled'
-  }).length,
-  offline: articles.value.filter(a => a.status?.toLowerCase() === 'offline').length,
-  rejected: articles.value.filter(a => a.status?.toLowerCase() === 'rejected').length,
-}))
+/** 快速标签的口径 = 后端状态词表原值，不再把 approved/scheduled 混进「已发布」虚增数量 */
+const statusCounts = computed(() => {
+  const counts: Record<string, number> = {
+    draft: 0,
+    pending_review: 0,
+    published: 0,
+    offline: 0,
+    rejected: 0,
+  }
+  for (const article of articles.value) {
+    const s = String(article.status ?? '').toLowerCase()
+    if (s in counts) counts[s] += 1
+  }
+  return counts
+})
 
 const articles = ref<any[]>([])
 const categories = ref<any[]>([])
@@ -804,11 +785,13 @@ const articleForm = reactive({
 const recentEdits = ref<any[]>([])
 
 const draftCount = computed(() => articles.value.filter(a => a.status?.toLowerCase() === 'draft').length)
-const trashCount = ref(0)
-const reviewCount = computed(() => articles.value.filter(a => {
-  const s = a.status?.toLowerCase()
-  return s === 'reviewing' || s === 'pending_review' || s === 'pending-review' || s === 'pending'
-}).length)
+const reviewCount = computed(() => articles.value.filter(a => a.status?.toLowerCase() === 'pending_review').length)
+
+/** 创建时间戳，无 createdAt 时退到 updatedAt，都没有则返回 0（时间筛选会把它排除） */
+function createdTimeOf(item: any): number {
+  const raw = item?.createdAt || item?.updatedAt
+  return raw ? new Date(raw).getTime() : 0
+}
 
 const filteredArticles = computed(() => {
   let list = [...articles.value]
@@ -821,6 +804,20 @@ const filteredArticles = computed(() => {
   }
   if (filterForm.authorId) {
     list = list.filter(item => item.authorId === filterForm.authorId)
+  }
+  // 时间范围按创建时间比较：后端列表接口不支持时间参数，只能在本页已加载的数据里筛
+  const range = filterForm.dateRange
+  if (range && range.length === 2 && range[0] && range[1]) {
+    const from = new Date(String(range[0])).getTime()
+    const endDay = new Date(String(range[1]))
+    endDay.setHours(23, 59, 59, 999)
+    const to = endDay.getTime()
+    if (!Number.isNaN(from) && !Number.isNaN(to)) {
+      list = list.filter(item => {
+        const t = createdTimeOf(item)
+        return t >= from && t <= to
+      })
+    }
   }
   if (filterForm.tags?.length) {
     list = list.filter(item => item.tags?.some((t: string) => filterForm.tags.includes(t)))
@@ -841,23 +838,36 @@ const filteredArticles = computed(() => {
   return list
 })
 
+/** 分页必须是有状态的：原来 current 写死在 computed 里、@change 是空函数，第 2 页永远点不动 */
+const tableCurrentPage = ref(1)
+const tablePageSize = ref(20)
+
 const tablePagination = computed(() => ({
-  current: 1,
-  pageSize: 20,
+  current: tableCurrentPage.value,
+  pageSize: tablePageSize.value,
   total: filteredArticles.value.length,
   showSizeChanger: true,
   showQuickJumper: true,
   showTotal: (total: number) => `共 ${total} 篇文章`,
 }))
 
+// 筛选条件变了就回到第 1 页，否则可能停在一个已经空的页码上
+watch(
+  () => [filterForm.categoryId, filterForm.status, filterForm.authorId, filterForm.tags, filterForm.keyword, filterForm.dateRange, searchType.value],
+  () => {
+    tableCurrentPage.value = 1
+  },
+)
+
 const categoryTreeData = computed(() => buildTree(categories.value, null))
 
-/** 列表接口只返回 categoryId，栏目名要用本页已加载的栏目表补齐，否则整列都是「未分类」 */
+/** 列表和详情接口都会带 categoryName；本页栏目表只用来兜住极少数只回 categoryId 的记录 */
 const categoryNames = computed(() => new Map(categories.value.map((c: any) => [c.id, c.name])))
 
+/** 返回空串表示真的没有栏目，界面显示 '-'，不能编一个「未分类」冒充接口数据 */
 function categoryNameOf(record: any) {
   if (record?.categoryName) return record.categoryName
-  return categoryNames.value.get(record?.categoryId) || '未分类'
+  return categoryNames.value.get(record?.categoryId) || ''
 }
 
 const tableColumns = [
@@ -865,7 +875,7 @@ const tableColumns = [
   { title: '栏目', dataIndex: 'categoryName', key: 'category', width: 100 },
   { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
   { title: '作者', dataIndex: 'authorName', key: 'authorName', width: 90, ellipsis: true },
-  { title: '浏览量', dataIndex: 'views', key: 'views', width: 90 },
+  { title: '浏览量', dataIndex: 'viewCount', key: 'views', width: 90 },
   { title: '发布时间', dataIndex: 'publishedAt', key: 'publishTime', width: 160 },
   { title: '操作', key: 'action', width: 150, fixed: 'right' as const },
 ]
@@ -881,51 +891,16 @@ function buildTree(list: any[], parentId: number | null): any[] {
     }))
 }
 
-function getStatusColor(status?: string) {
-  const s = status?.toLowerCase()
-  switch (s) {
-    case 'published': return 'success'
-    case 'reviewing': return 'processing'
-    case 'pending_review': 
-    case 'pending-review':
-    case 'pending': return 'processing'
-    case 'draft': return 'default'
-    case 'offline': return 'warning'
-    case 'rejected': return 'error'
-    case 'approved': return 'success'
-    default: return 'default'
-  }
-}
-
 function getStatusIcon(status?: string) {
-  const s = status?.toLowerCase()
-  switch (s) {
-    case 'published': return CheckCircleOutlined
-    case 'reviewing': return AuditOutlined
-    case 'pending_review': 
-    case 'pending-review':
-    case 'pending': return AuditOutlined
+  switch (status?.toLowerCase()) {
+    case 'published':
+    case 'approved': return CheckCircleOutlined
+    case 'pending_review': return AuditOutlined
+    case 'scheduled': return CalendarOutlined
     case 'draft': return FileTextOutlined
     case 'offline': return CloudDownloadOutlined
     case 'rejected': return CloseCircleOutlined
-    case 'approved': return CheckCircleOutlined
     default: return FileTextOutlined
-  }
-}
-
-function getStatusText(status?: string) {
-  const s = status?.toLowerCase()
-  switch (s) {
-    case 'published': return '已发布'
-    case 'reviewing': return '审核中'
-    case 'pending_review': 
-    case 'pending-review':
-    case 'pending': return '待审核'
-    case 'draft': return '草稿'
-    case 'offline': return '已下架'
-    case 'rejected': return '已驳回'
-    case 'approved': return '已通过'
-    default: return '未知'
   }
 }
 
@@ -935,9 +910,6 @@ function formatDate(date: string) {
 }
 
 function changeViewMode() {
-}
-
-function filterArticles() {
 }
 
 function setQuickStatus(status: string) {
@@ -953,10 +925,6 @@ function resetFilter() {
   filterForm.keyword = ''
   searchType.value = 'all'
   message.success('已重置筛选条件')
-}
-
-function saveFilterTemplate() {
-  message.success('筛选模板已保存')
 }
 
 function onSelectChange(keys: number[], rows: any[]) {
@@ -980,6 +948,8 @@ function clearSelection() {
 }
 
 function handleTableChange(pagination: any) {
+  tableCurrentPage.value = pagination?.current ?? 1
+  if (pagination?.pageSize) tablePageSize.value = pagination.pageSize
 }
 
 function viewArticle(article: any) {
@@ -1034,53 +1004,61 @@ function copyArticle(article: any) {
         } as any)
         message.success('复制成功')
         loadData()
-      } catch {
-        message.error('复制失败')
+      } catch (e) {
+        message.error(`复制失败：${describeHttpError(e)}`)
       }
     },
   })
 }
 
 async function publishArticle(article: any) {
+  publishScheduledEnabled.value = false
+  publishScheduledTime.value = null
   Modal.confirm({
     title: '发布文章',
     content: () => h('div', { style: { marginBottom: '16px' } }, [
       h('div', { style: { marginBottom: '8px' } }, `确定要发布文章"${article.title}"吗？`),
       h('a-switch', {
-        'v-model': publishScheduledEnabled.value,
+        checked: publishScheduledEnabled.value,
+        'onUpdate:checked': (checked: boolean) => {
+          publishScheduledEnabled.value = checked
+        },
         'checked-children': '定时发布',
         'un-checked-children': '立即发布',
-        onChange: (checked: boolean) => {
-          publishScheduledEnabled.value = checked
-        }
       }),
       publishScheduledEnabled.value ? h('a-date-picker', {
         style: { width: '100%', marginTop: '12px' },
         showTime: true,
         format: 'YYYY-MM-DD HH:mm',
+        valueFormat: 'YYYY-MM-DDTHH:mm:ss',
         placeholder: '选择发布时间',
         value: publishScheduledTime.value,
-        onChange: (date: any) => {
+        'onUpdate:value': (date: any) => {
           publishScheduledTime.value = date
         }
       }) : null
     ]),
     onOk: async () => {
+      const scheduledTime = publishScheduledEnabled.value ? publishScheduledTime.value : null
+      if (publishScheduledEnabled.value && !scheduledTime) {
+        message.warning('请选择发布时间')
+        return Promise.reject()
+      }
       try {
-        if (publishScheduledEnabled.value && publishScheduledTime.value) {
-          await articleManageApi.publish(article.id, publishScheduledTime.value)
-          message.success('已安排定时发布')
+        const result: any = await articleManageApi.publish(article.id, scheduledTime ? { scheduledTime } : undefined)
+        // 后端按时间是否晚于当前决定入队还是立即发布，提示以返回结果为准
+        if (result?.queueId) {
+          message.success(`已加入队列，计划 ${formatTime(result.scheduledAt)} 发布`)
           article.status = 'scheduled'
         } else {
-          await articleManageApi.publish(article.id)
           message.success('发布成功')
           article.status = 'published'
         }
         publishScheduledEnabled.value = false
         publishScheduledTime.value = null
         loadData()
-      } catch {
-        message.error('发布失败')
+      } catch (e) {
+        message.error(`发布失败：${describeHttpError(e)}`)
       }
     },
   })
@@ -1095,8 +1073,8 @@ async function offlineArticle(article: any) {
         await articleManageApi.update(article.id, { status: 'offline' } as any)
         message.success('已下架')
         loadData()
-      } catch {
-        message.error('下架失败')
+      } catch (e) {
+        message.error(`下架失败：${describeHttpError(e)}`)
       }
     },
   })
@@ -1126,8 +1104,8 @@ function deleteArticle(article: any) {
         await articleManageApi.delete(article.id)
         message.success('删除成功')
         loadData()
-      } catch {
-        message.error('删除失败')
+      } catch (e) {
+        message.error(`删除失败：${describeHttpError(e)}`)
       }
     },
   })
@@ -1146,8 +1124,8 @@ function batchPublish() {
         selectedRowKeys.value = []
         selectedRows.value = []
         loadData()
-      } catch {
-        message.error('批量发布失败')
+      } catch (e) {
+        message.error(`批量发布失败：${describeHttpError(e)}`)
       }
     },
   })
@@ -1191,8 +1169,8 @@ function batchMove() {
                   selectedRows.value = []
                   loadData()
                   Modal.destroyAll()
-                } catch {
-                  message.error('批量移动失败')
+                } catch (e) {
+                  message.error(`批量移动失败：${describeHttpError(e)}`)
                 }
               }}, '确定移动')
             ])
@@ -1241,8 +1219,8 @@ function batchSetTags() {
                   selectedRows.value = []
                   loadData()
                   Modal.destroyAll()
-                } catch {
-                  message.error('批量设置标签失败')
+                } catch (e) {
+                  message.error(`批量设置标签失败：${describeHttpError(e)}`)
                 }
               }}, '确定设置')
             ])
@@ -1252,25 +1230,6 @@ function batchSetTags() {
       })
     },
   })
-}
-
-async function batchExport() {
-  try {
-    const response = await http.get('/articles/export', { 
-      params: { ids: selectedRowKeys.value.join(',') },
-      responseType: 'blob'
-    })
-    const blob = new Blob([response.data], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `articles_${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
-    message.success('导出成功')
-  } catch {
-    message.error('导出失败')
-  }
 }
 
 function batchDelete() {
@@ -1285,8 +1244,8 @@ function batchDelete() {
         selectedRowKeys.value = []
         selectedRows.value = []
         loadData()
-      } catch {
-        message.error('批量删除失败')
+      } catch (e) {
+        message.error(`批量删除失败：${describeHttpError(e)}`)
       }
     },
   })
@@ -1303,14 +1262,14 @@ async function saveDraft() {
     message.success('草稿已保存')
     showArticleEditor.value = false
     loadData()
-  } catch {
-    message.error('保存失败')
+  } catch (e) {
+    message.error(`保存失败：${describeHttpError(e)}`)
   }
 }
 
 async function submitReview() {
   try {
-    const payload = { ...articleForm, status: 'reviewing' }
+    const payload = { ...articleForm, status: 'pending_review' }
     if (articleForm.id) {
       await articleManageApi.update(articleForm.id, payload as any)
     } else {
@@ -1319,40 +1278,18 @@ async function submitReview() {
     message.success('已提交审核')
     showArticleEditor.value = false
     loadData()
-  } catch {
-    message.error('提交失败')
+  } catch (e) {
+    message.error(`提交失败：${describeHttpError(e)}`)
   }
 }
 
-async function publishArticleFromEditor() {
-  try {
-    const payload = { ...articleForm, status: 'published' }
-    if (articleForm.id) {
-      await articleManageApi.update(articleForm.id, payload as any)
-    } else {
-      const created = await articleManageApi.create(payload as any)
-      await articleManageApi.publish((created as any).id)
-    }
-    message.success('发布成功')
-    showArticleEditor.value = false
-    loadData()
-  } catch {
-    message.error('发布失败')
-  }
-}
-
+/** 快捷入口只是切换状态筛选（列表是响应式的），没有跳转动作，所以不再 toast */
 function goToDrafts() {
   filterForm.status = 'draft'
-  message.info('已筛选草稿')
-}
-
-function goToTrash() {
-  message.info('跳转到回收站')
 }
 
 function goToReview() {
-  filterForm.status = 'reviewing'
-  message.info('已筛选待审核')
+  filterForm.status = 'pending_review'
 }
 
 async function loadData() {
@@ -1361,7 +1298,7 @@ async function loadData() {
     const [articlesData, categoriesData, authorsData] = await Promise.all([
       articleManageApi.list({ page: 1, size: 100 } as any),
       categoryApi.list({ all: true }) as any,
-      userApi.list({} as any).catch(() => []),
+      adminApi.users.list({}).catch(() => []),
     ])
 
     const articleList = (articlesData as any)?.records || (articlesData as any) || []
@@ -1390,18 +1327,30 @@ async function loadData() {
       .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
       .slice(0, 5)
 
-    stats.totalArticles = articleList.length
-    stats.todayCount = articleList.filter((a: any) => {
-      const today = new Date().toDateString()
-      return new Date(a.createdAt || a.publishTime).toDateString() === today
-    }).length
-    stats.monthCount = articleList.filter((a: any) => {
-      const now = new Date()
-      const d = new Date(a.createdAt || a.publishTime)
+    // 总数取接口返回的 total，不能拿当前页条数冒充；
+    // 「发布」口径按 publishedAt，创建口径按 createdAt
+    stats.totalArticles = (articlesData as any)?.total ?? articleList.length
+    const now = new Date()
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const startOfWeek = startOfToday - 6 * 24 * 3600 * 1000
+    const startOfYear = new Date(now.getFullYear(), 0, 1).getTime()
+    const created = (a: any) => new Date(a.createdAt || 0).getTime()
+    const published = (a: any) => (a.publishedAt ? new Date(a.publishedAt).getTime() : 0)
+    const inMonth = (t: number) => {
+      if (!t) return false
+      const d = new Date(t)
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+    }
+    stats.todayCount = articleList.filter((a: any) => created(a) >= startOfToday).length
+    stats.weekCount = articleList.filter((a: any) => created(a) >= startOfWeek).length
+    stats.monthPublished = articleList.filter((a: any) => inMonth(published(a))).length
+    stats.yearPublished = articleList.filter((a: any) => {
+      const t = published(a)
+      return t >= startOfYear
     }).length
-    const topArticle = articleList.reduce((max: any, a: any) => (a.views || 0) > (max?.views || 0) ? a : max, null)
-    stats.topViews = topArticle?.views || 0
+    stats.viewsSum = articleList.reduce((n: number, a: any) => n + (a.viewCount || 0), 0)
+    const topArticle = articleList.reduce((max: any, a: any) => (a.viewCount || 0) > (max?.viewCount || 0) ? a : max, null)
+    stats.topViews = topArticle?.viewCount || 0
   } catch (error) {
     message.error('数据加载失败')
     console.error(error)
@@ -1702,6 +1651,10 @@ onMounted(() => {
   color: #595959;
 }
 
+.category-missing {
+  color: #bfbfbf;
+}
+
 .card-view {
   .article-card {
     height: 100%;
@@ -1987,10 +1940,6 @@ onMounted(() => {
 
     &.draft {
       background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
-    }
-
-    &.trash {
-      background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%);
     }
 
     &.review {

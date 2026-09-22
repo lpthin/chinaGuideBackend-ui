@@ -39,9 +39,21 @@
         >
           <div class="stat-card__glow"></div>
           <div class="stat-card__pattern" aria-hidden="true">
-            <svg viewBox="0 0 100 100" fill="none">
-              <circle cx="80" cy="20" r="40" stroke="currentColor" stroke-width="0.5" opacity="0.3"/>
-              <circle cx="90" cy="10" r="30" stroke="currentColor" stroke-width="0.5" opacity="0.2"/>
+            <svg viewBox="0 0 100 100" fill="none" overflow="visible">
+              <defs>
+                <linearGradient :id="`stat-arc-${item.key}`" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0%" stop-color="currentColor" stop-opacity="0"/>
+                  <stop offset="100%" stop-color="currentColor" stop-opacity="0.8"/>
+                </linearGradient>
+              </defs>
+              <!-- 圆心落在卡片右上角，圆环只有朝卡内的这 1/4 弧在视野里 -->
+              <circle cx="92" cy="8" r="52" stroke="currentColor" stroke-opacity="0.12" stroke-width="10"/>
+              <path
+                d="M 92 60 A 52 52 0 0 1 40 8"
+                :stroke="`url(#stat-arc-${item.key})`"
+                stroke-width="10"
+                stroke-linecap="round"
+              />
             </svg>
           </div>
           <div class="stat-card__content">
@@ -49,9 +61,9 @@
               <div class="stat-card__icon">
                 <component :is="item.icon" />
               </div>
-              <div class="stat-card__trend" :class="item.trend > 0 ? 'trend-up' : 'trend-down'">
-                <span class="trend-arrow">{{ item.trend > 0 ? '↗' : '↘' }}</span>
-                <span class="trend-value">{{ Math.abs(item.trend) }}%</span>
+              <div class="stat-card__trend" :class="item.weekly > 0 ? 'trend-up' : 'trend-flat'">
+                <span class="trend-arrow">{{ item.weekly > 0 ? '↗' : '·' }}</span>
+                <span class="trend-value">近7天 +{{ item.weekly }}</span>
               </div>
             </div>
             <div class="stat-card__value">
@@ -60,7 +72,6 @@
             </div>
             <div class="stat-card__bottom">
               <span class="stat-card__label">{{ item.label }}</span>
-              <span class="stat-card__period">较上周</span>
             </div>
           </div>
         </div>
@@ -78,13 +89,18 @@
                 <p>追踪内容产出与流量变化</p>
               </div>
             </div>
-            <a-radio-group v-model:value="trendType" size="small" button-style="solid" class="chart-toggle">
-              <a-radio-button value="week">近7天</a-radio-button>
-              <a-radio-button value="month">近30天</a-radio-button>
-              <a-radio-button value="year">近半年</a-radio-button>
+            <a-radio-group v-model:value="trendDays" size="small" button-style="solid" class="chart-toggle">
+              <a-radio-button :value="7">近7天</a-radio-button>
+              <a-radio-button :value="30">近30天</a-radio-button>
+              <a-radio-button :value="180">近半年</a-radio-button>
             </a-radio-group>
           </div>
-          <div ref="trendChartRef" class="chart-container"></div>
+          <div class="chart-body">
+            <div ref="trendChartRef" class="chart-container"></div>
+            <div v-if="!loading && !chartLoading && trendIsEmpty" class="chart-empty">
+              近 {{ trendDays }} 天没有新增内容，图表留空
+            </div>
+          </div>
         </div>
 
         <div class="chart-card chart-card--narrow">
@@ -99,7 +115,12 @@
               </div>
             </div>
           </div>
-          <div ref="categoryChartRef" class="chart-container chart-container--pie"></div>
+          <div class="chart-body">
+            <div ref="categoryChartRef" class="chart-container chart-container--pie"></div>
+            <div v-if="!loading && !chartLoading && !categoryData.length" class="chart-empty">
+              还没有可统计的栏目分类
+            </div>
+          </div>
         </div>
       </div>
 
@@ -140,8 +161,8 @@
                   </span>
                 </div>
               </div>
-              <a-tag :color="getStatusColor(item.status)" class="article-status">
-                {{ getStatusText(item.status) }}
+              <a-tag :color="statusMeta(item.status).color" class="article-status">
+                {{ statusMeta(item.status).label }}
               </a-tag>
             </div>
             <div class="list-empty" v-if="!recentArticles.length">
@@ -256,20 +277,23 @@ import {
   ThunderboltOutlined
 } from '@ant-design/icons-vue'
 import { dashboardApi } from '../../api'
+import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
-import type { DashboardStats, Article } from '../../types'
+import type { DashboardStats, DashboardCharts } from '../../types/workspace'
+import type { Article } from '../../types'
 import { formatTime } from '@/utils/format'
+import { articleStatusMeta as statusMeta } from '@/utils/contentStatus'
 
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
 const chartLoading = ref(false)
-const chartData = ref<any>(null)
+const chartData = ref<DashboardCharts | null>(null)
 const stats = ref<DashboardStats>()
 const recentArticles = ref<Article[]>([])
 const trendChartRef = ref<HTMLElement>()
 const categoryChartRef = ref<HTMLElement>()
-const trendType = ref('week')
+const trendDays = ref(7)
 let trendChart: echarts.ECharts | null = null
 let categoryChart: echarts.ECharts | null = null
 
@@ -299,7 +323,7 @@ const statItems = computed(() => [
     icon: FileTextOutlined, 
     value: stats.value?.totalArticles || 0, 
     label: '文章总数', 
-    trend: 12.5, 
+    weekly: stats.value?.articlesWeek || 0,
     color: 'blue',
     unit: '篇',
     path: 'articles'
@@ -309,7 +333,7 @@ const statItems = computed(() => [
     icon: TagsOutlined, 
     value: stats.value?.totalKeywords || 0, 
     label: '关键词数量', 
-    trend: 8.3, 
+    weekly: stats.value?.keywordsWeek || 0,
     color: 'purple',
     unit: '个',
     path: 'keywords'
@@ -319,7 +343,7 @@ const statItems = computed(() => [
     icon: EyeOutlined, 
     value: stats.value?.totalViews || 0, 
     label: '总浏览量', 
-    trend: -2.1, 
+    weekly: stats.value?.viewsWeek || 0,
     color: 'green',
     unit: '次',
     path: 'articles'
@@ -329,7 +353,7 @@ const statItems = computed(() => [
     icon: ClockCircleOutlined, 
     value: stats.value?.pendingReview || 0, 
     label: '待审核', 
-    trend: 5.7, 
+    weekly: stats.value?.pendingWeek || 0,
     color: 'orange',
     unit: '篇',
     path: 'review'
@@ -338,7 +362,7 @@ const statItems = computed(() => [
 
 const pendingTasks = computed(() => stats.value?.pendingReview || 0)
 const todayNew = computed(() => stats.value?.todayCount || 0)
-const monthTotal = computed(() => stats.value?.totalArticles || 0)
+const monthTotal = computed(() => stats.value?.monthCount || 0)
 
 function getTenantId(): number {
   return auth.selectedTenantId || auth.tenantId || 1
@@ -347,27 +371,35 @@ function getTenantId(): number {
 const loadChartData = async () => {
   chartLoading.value = true
   try {
-    const data = await dashboardApi.getCharts(getTenantId())
+    const data = await dashboardApi.getCharts(getTenantId(), trendDays.value)
     chartData.value = data
+    return true
   } catch (error) {
     console.error('获取图表数据失败:', error)
     chartData.value = null
-    message.error('获取图表数据失败')
+    return false
   } finally {
     chartLoading.value = false
   }
 }
 
-const initTrendChart = () => {
-  if (!trendChartRef.value || !chartData.value?.articleTrend) return
-  
-  trendChart = echarts.init(trendChartRef.value)
-  
-  const articleTrend = chartData.value.articleTrend
-  const data = articleTrend[trendType.value as keyof typeof articleTrend] || articleTrend.week
-  
-  if (!data) return
-  
+const trend = computed(() => chartData.value?.articleTrend ?? null)
+
+const trendIsEmpty = computed(() => {
+  const t = trend.value
+  if (!t) return true
+  const sum = (arr: number[]) => arr.reduce((acc, n) => acc + n, 0)
+  return sum(t.articles) + sum(t.keywords) + sum(t.views) === 0
+})
+
+const renderTrendChart = () => {
+  const data = trend.value
+  if (!trendChartRef.value || !data) return
+
+  if (!trendChart) {
+    trendChart = echarts.init(trendChartRef.value)
+  }
+
   const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'axis',
@@ -479,15 +511,18 @@ const initTrendChart = () => {
     ]
   }
   
-  trendChart.setOption(option)
+  trendChart.setOption(option, { notMerge: true })
 }
 
-const initCategoryChart = () => {
-  if (!categoryChartRef.value || !chartData.value?.categoryDistribution) return
-  
-  categoryChart = echarts.init(categoryChartRef.value)
-  
-  const categoryData = chartData.value.categoryDistribution
+const categoryData = computed(() => chartData.value?.categoryDistribution ?? [])
+
+const renderCategoryChart = () => {
+  if (!categoryChartRef.value) return
+
+  if (!categoryChart) {
+    categoryChart = echarts.init(categoryChartRef.value)
+  }
+
   const colors = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']
   
   const option: echarts.EChartsOption = {
@@ -542,7 +577,7 @@ const initCategoryChart = () => {
         labelLine: {
           show: false
         },
-        data: categoryData.map((item: any, index: number) => ({
+        data: categoryData.value.map((item, index) => ({
           ...item,
           itemStyle: {
             color: colors[index % colors.length]
@@ -551,8 +586,8 @@ const initCategoryChart = () => {
       }
     ]
   }
-  
-  categoryChart.setOption(option)
+
+  categoryChart.setOption(option, { notMerge: true })
 }
 
 const handleResize = () => {
@@ -560,37 +595,33 @@ const handleResize = () => {
   categoryChart?.resize()
 }
 
-const fetchDashboardData = async () => {
+const fetchDashboardData = async (): Promise<boolean> => {
   loading.value = true
   try {
-    const [statsData, articlesData] = await Promise.all([
+    const [statsData, articlesData, chartsOk] = await Promise.all([
       dashboardApi.getStats(getTenantId()),
       dashboardApi.getRecentArticles(),
       loadChartData()
     ])
     stats.value = statsData
     recentArticles.value = (articlesData?.records || []).slice(0, 5)
+    if (!chartsOk) {
+      message.error('趋势图表加载失败，其余数据不受影响')
+    }
+    return true
   } catch (error) {
     console.error('获取仪表盘数据失败:', error)
-    stats.value = {
-      articles: 345,
-      keywords: 1250,
-      pageViews: 45678,
-      pendingReviews: 23
-    } as any
-    recentArticles.value = [
-      { id: 1, tenantId: 1, categoryId: 1, title: '2024年AI行业发展趋势分析', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'published', publishAt: '', createdAt: '2024-01-15 10:30:00', updatedAt: '' },
-      { id: 2, tenantId: 1, categoryId: 1, title: '如何使用ChatGPT提高工作效率', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'approved', publishAt: '', createdAt: '2024-01-14 15:20:00', updatedAt: '' },
-      { id: 3, tenantId: 1, categoryId: 1, title: 'Python编程入门指南', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'pending_human_review', publishAt: '', createdAt: '2024-01-13 09:15:00', updatedAt: '' },
-      { id: 4, tenantId: 1, categoryId: 1, title: '机器学习算法详解', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'published', publishAt: '', createdAt: '2024-01-12 14:45:00', updatedAt: '' },
-      { id: 5, tenantId: 1, categoryId: 1, title: '前端框架对比分析', summary: '', content: '', coverImage: '', keywords: '', source: '', viewCount: 0, likeCount: 0, shareCount: 0, sort: 0, status: 'rejected', publishAt: '', createdAt: '2024-01-11 11:30:00', updatedAt: '' }
-    ]
+    stats.value = undefined
+    recentArticles.value = []
+    chartData.value = null
+    message.error(`数据加载失败：${describeHttpError(error)}`)
+    return false
   } finally {
     loading.value = false
     nextTick(() => {
       setTimeout(() => {
-        initTrendChart()
-        initCategoryChart()
+        renderTrendChart()
+        renderCategoryChart()
       }, 100)
     })
   }
@@ -603,35 +634,19 @@ watch(
   }
 )
 
-const refreshData = () => {
-  fetchDashboardData()
-  message.success('数据已刷新')
-}
-
-const getStatusColor = (status?: string) => {
-  const s = (status || '').toLowerCase()
-  switch (s) {
-    case 'approved': return 'success'
-    case 'published': return 'success'
-    case 'pending_review': return 'warning'
-    case 'pending_human_review': return 'warning'
-    case 'reviewing': return 'warning'
-    case 'rejected': return 'error'
-    default: return 'default'
+// 切换时间窗口只重新拉取趋势数据，不影响统计卡片
+watch(trendDays, async () => {
+  const ok = await loadChartData()
+  if (ok) {
+    nextTick(() => renderTrendChart())
+  } else {
+    message.error('趋势图表加载失败')
   }
-}
+})
 
-const getStatusText = (status?: string) => {
-  const s = (status || '').toLowerCase()
-  switch (s) {
-    case 'approved': return '已通过'
-    case 'published': return '已发布'
-    case 'pending_review': return '待审核'
-    case 'pending_human_review': return '待审核'
-    case 'reviewing': return '审核中'
-    case 'rejected': return '已拒绝'
-    case 'draft': return '草稿'
-    default: return status || '未定义'
+const refreshData = async () => {
+  if (await fetchDashboardData()) {
+    message.success('数据已刷新')
   }
 }
 
@@ -836,9 +851,9 @@ onUnmounted(() => {
   position: absolute;
   top: 0;
   right: 0;
-  width: 120px;
-  height: 120px;
-  opacity: 0.4;
+  width: 148px;
+  height: 148px;
+  opacity: 0.25;
   pointer-events: none;
   transition: all 0.4s ease;
 }
@@ -850,7 +865,6 @@ onUnmounted(() => {
 
 .stat-card:hover .stat-card__pattern {
   opacity: 0.6;
-  transform: scale(1.1) rotate(5deg);
 }
 
 .stat-card__content {
@@ -916,14 +930,19 @@ onUnmounted(() => {
   background: @green-50;
 }
 
-.trend-down {
-  color: #dc2626;
-  background: #fef2f2;
+.trend-flat {
+  color: @slate-500;
+  background: @slate-50;
 }
 
 .trend-arrow {
   font-size: 14px;
   line-height: 1;
+}
+
+.trend-value {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-card__value {
@@ -960,9 +979,19 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-.stat-card__period {
-  font-size: 11px;
+.chart-body {
+  position: relative;
+}
+
+.chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
   color: @slate-400;
+  pointer-events: none;
 }
 
 .content-grid {

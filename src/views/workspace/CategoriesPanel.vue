@@ -3,7 +3,7 @@
     <a-spin :spinning="loading">
       <!-- 顶部数据概览区 -->
       <a-row :gutter="[16, 16]" style="margin-bottom: 20px">
-        <a-col :xs="24" :sm="12" :md="6">
+        <a-col :xs="24" :sm="12" :md="8">
           <a-card class="stat-card stat-card-blue" hoverable>
             <div class="stat-content">
               <div class="stat-icon">
@@ -14,15 +14,9 @@
                 <div class="stat-title">栏目总数</div>
               </div>
             </div>
-            <div class="stat-footer">
-              <span class="stat-trend up">
-                <ArrowUpOutlined /> 3
-              </span>
-              <span class="stat-label">本月新增</span>
-            </div>
           </a-card>
         </a-col>
-        <a-col :xs="24" :sm="12" :md="6">
+        <a-col :xs="24" :sm="12" :md="8">
           <a-card class="stat-card stat-card-purple" hoverable>
             <div class="stat-content">
               <div class="stat-icon">
@@ -33,41 +27,16 @@
                 <div class="stat-title">文章总数</div>
               </div>
             </div>
-            <div class="stat-footer">
-              <span class="stat-trend up">
-                <ArrowUpOutlined /> 12%
-              </span>
-              <span class="stat-label">较上月</span>
-            </div>
           </a-card>
         </a-col>
-        <a-col :xs="24" :sm="12" :md="6">
-          <a-card class="stat-card stat-card-green" hoverable>
-            <div class="stat-content">
-              <div class="stat-icon">
-                <EyeOutlined />
-              </div>
-              <div class="stat-info">
-                <div class="stat-value">{{ stats.totalViews }}</div>
-                <div class="stat-title">总浏览量</div>
-              </div>
-            </div>
-            <div class="stat-footer">
-              <span class="stat-trend up">
-                <ArrowUpOutlined /> 25%
-              </span>
-              <span class="stat-label">较上月</span>
-            </div>
-          </a-card>
-        </a-col>
-        <a-col :xs="24" :sm="12" :md="6">
+        <a-col :xs="24" :sm="12" :md="8">
           <a-card class="stat-card stat-card-orange" hoverable>
             <div class="stat-content">
               <div class="stat-icon">
                 <ArrowUpOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.maxLevel }}</div>
+                <div class="stat-value">{{ maxLevel }}</div>
                 <div class="stat-title">最大层级</div>
               </div>
             </div>
@@ -414,47 +383,6 @@
                   </a-form>
                 </div>
               </a-tab-pane>
-
-              <!-- Tab 4: 扩展字段 -->
-              <a-tab-pane key="extend">
-                <template #tab>
-                  <span>
-                    <AppstoreOutlined />
-                    扩展字段
-                  </span>
-                </template>
-                <div class="tab-content">
-                  <div class="extend-header">
-                    <div class="extend-title">自定义字段列表</div>
-                    <a-button type="primary" size="small" @click="addExtendField">
-                      <template #icon><PlusOutlined /></template>
-                      添加字段
-                    </a-button>
-                  </div>
-
-                  <a-table
-                    :scroll="{ x: 'max-content' }"
-                    :data-source="extendFields"
-                    :columns="extendTableColumns"
-                    :pagination="false"
-                    size="middle"
-                    class="extend-table"
-                  >
-                    <template #bodyCell="{ column, record }">
-                      <template v-if="column.key === 'type'">
-                        <a-tag color="blue">{{ record.type }}</a-tag>
-                      </template>
-                      <template v-else-if="column.key === 'required'">
-                        <a-tag :color="record.required ? 'error' : 'default'">{{ record.required ? '是' : '否' }}</a-tag>
-                      </template>
-                      <template v-else-if="column.key === 'action'">
-                        <a-button type="link" size="small" @click="editExtendField(record)">编辑</a-button>
-                        <a-button type="link" size="small" danger @click="deleteExtendField(record)">删除</a-button>
-                      </template>
-                    </template>
-                  </a-table>
-                </div>
-              </a-tab-pane>
             </a-tabs>
           </a-card>
           <a-empty v-else description="请选择左侧栏目进行编辑" class="detail-empty" />
@@ -476,35 +404,10 @@
           <a-collapse-panel key="stats" :show-arrow="false">
             <a-row :gutter="24">
               <!-- 柱状图 -->
-              <a-col :xs="24" :md="14">
+              <a-col :span="24">
                 <div class="chart-section">
                   <div class="section-title">各栏目文章数量统计</div>
                   <div ref="categoryChartRef" style="height: 300px; width: 100%"></div>
-                </div>
-              </a-col>
-
-              <!-- 访问量排行 -->
-              <a-col :xs="24" :md="10">
-                <div class="chart-section">
-                  <div class="section-title">栏目访问量排行</div>
-                  <div class="rank-list">
-                    <div v-for="(item, index) in viewRankList" :key="index" class="rank-item">
-                      <div class="rank-no" :class="'rank-' + (index + 1)">{{ index + 1 }}</div>
-                      <div class="rank-info">
-                        <div class="rank-name">{{ item.name }}</div>
-                        <div class="rank-progress">
-                          <div
-                            class="rank-bar"
-                            :style="{
-                              width: (item.views / maxViewCount * 100) + '%',
-                              background: barColors[index % barColors.length]
-                            }"
-                          ></div>
-                        </div>
-                      </div>
-                      <div class="rank-views">{{ item.views }}</div>
-                    </div>
-                  </div>
                 </div>
               </a-col>
             </a-row>
@@ -553,7 +456,6 @@ import { message, Modal } from 'ant-design-vue'
 import {
   ApartmentOutlined,
   FileTextOutlined,
-  EyeOutlined,
   ArrowUpOutlined,
   PlusOutlined,
   DownOutlined,
@@ -570,7 +472,6 @@ import {
   ProfileOutlined,
   GlobalOutlined,
   SafetyOutlined,
-  AppstoreOutlined,
   BarChartOutlined,
   CaretUpOutlined,
   CaretDownOutlined,
@@ -589,8 +490,6 @@ let categoryChart: echarts.ECharts | null = null
 const stats = reactive({
   totalCategories: 0,
   totalArticles: 0,
-  totalViews: 0,
-  maxLevel: 3,
 })
 
 const searchText = ref('')
@@ -620,59 +519,26 @@ const roleList = [
   { value: 'contributor', label: '投稿者' },
 ]
 
-const extendFields = ref([
-  { id: 1, name: '副标题', key: 'subtitle', type: '文本', required: false, sort: 1 },
-  { id: 2, name: '来源', key: 'source', type: '文本', required: false, sort: 2 },
-  { id: 3, name: '作者简介', key: 'authorIntro', type: '富文本', required: false, sort: 3 },
-  { id: 4, name: '相关推荐', key: 'related', type: '关联文章', required: false, sort: 4 },
-])
-
-const extendTableColumns = [
-  { title: '字段名称', dataIndex: 'name', key: 'name' },
-  { title: '字段标识', dataIndex: 'key', key: 'key' },
-  { title: '字段类型', dataIndex: 'type', key: 'type', width: 120 },
-  { title: '是否必填', dataIndex: 'required', key: 'required', width: 100 },
-  { title: '排序', dataIndex: 'sort', key: 'sort', width: 80 },
-  { title: '操作', key: 'action', width: 150 },
-]
-
-const barColors = [
-  'linear-gradient(90deg, #1890ff 0%, #36cfc9 100%)',
-  'linear-gradient(90deg, #722ed1 0%, #b37feb 100%)',
-  'linear-gradient(90deg, #52c41a 0%, #95de64 100%)',
-  'linear-gradient(90deg, #fa8c16 0%, #ffec3d 100%)',
-  'linear-gradient(90deg, #eb2f96 0%, #ff85c0 100%)',
-]
-
-const categoryStats = [
-  { name: '技术文章', count: 128 },
-  { name: '行业资讯', count: 96 },
-  { name: '产品评测', count: 72 },
-  { name: '用户指南', count: 58 },
-  { name: '案例分析', count: 45 },
-  { name: '公司动态', count: 32 },
-]
-
-const viewRankList = [
-  { name: '技术文章', views: 12580 },
-  { name: '行业资讯', views: 9860 },
-  { name: '产品评测', views: 7520 },
-  { name: '案例分析', views: 5680 },
-  { name: '用户指南', views: 4320 },
-]
-
-const maxArticleCount = computed(() => Math.max(...categoryStats.map(s => s.count)))
-const maxViewCount = computed(() => Math.max(...viewRankList.map(s => s.views)))
+const categoryStats = computed(() =>
+  categories.value.map((c: any) => ({ name: c.name || '-', count: c.articleCount || 0 }))
+)
 
 const treeData = computed(() => buildTree(categories.value, null))
 const treeSelectData = computed(() => buildSelectTree(categories.value, null))
 
+const maxLevel = computed(() => treeDepth(treeData.value))
+
+function treeDepth(nodes: any[]): number {
+  if (!nodes.length) return 0
+  return 1 + Math.max(...nodes.map((n: any) => treeDepth(n.children || [])))
+}
+
 function buildTree(list: any[], parentId: number | null): any[] {
   return list
-    .filter(item => item.parentId === parentId)
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .filter(item => (item.parentId || null) === parentId)
+    .sort((a, b) => (a.sort ?? a.sortOrder ?? 0) - (b.sort ?? b.sortOrder ?? 0))
     .map(item => ({
-      title: item.name,
+      title: item.name || '-',
       key: String(item.id),
       status: item.status,
       icon: item.icon,
@@ -683,10 +549,10 @@ function buildTree(list: any[], parentId: number | null): any[] {
 
 function buildSelectTree(list: any[], parentId: number | null): any[] {
   return list
-    .filter(item => item.parentId === parentId)
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .filter(item => (item.parentId || null) === parentId)
+    .sort((a, b) => (a.sort ?? a.sortOrder ?? 0) - (b.sort ?? b.sortOrder ?? 0))
     .map(item => ({
-      title: item.name,
+      title: item.name || '-',
       value: item.id,
       children: buildSelectTree(list, item.id),
     }))
@@ -854,30 +720,6 @@ function resetForm() {
   }
 }
 
-function previewTemplate(type: string) {
-  message.info(`预览${type === 'list' ? '列表页' : '详情页'}模板`)
-}
-
-function addExtendField() {
-  message.info('添加扩展字段')
-}
-
-function editExtendField(field: any) {
-  message.info(`编辑字段: ${field.name}`)
-}
-
-function deleteExtendField(field: any) {
-  Modal.confirm({
-    title: '确认删除',
-    content: `确定要删除字段"${field.name}"吗？`,
-    okType: 'danger',
-    onOk: () => {
-      extendFields.value = extendFields.value.filter(f => f.id !== field.id)
-      message.success('删除成功')
-    },
-  })
-}
-
 async function loadData() {
   loading.value = true
   try {
@@ -886,12 +728,17 @@ async function loadData() {
     categories.value = list
     stats.totalCategories = list.length
     stats.totalArticles = list.reduce((sum: number, c: any) => sum + (c.articleCount || 0), 0)
-    stats.totalViews = list.reduce((sum: number, c: any) => sum + (c.viewCount || 0), 0)
     if (list.length && !selectedKeys.value.length) {
       selectedKeys.value = [String(list[0].id)]
       currentCategory.value = { ...list[0] }
     }
+    await nextTick()
+    initCategoryChart()
   } catch (error) {
+    categories.value = []
+    stats.totalCategories = 0
+    stats.totalArticles = 0
+    message.error('栏目数据加载失败')
     console.error(error)
   } finally {
     loading.value = false
@@ -900,7 +747,8 @@ async function loadData() {
 
 function initCategoryChart() {
   if (!categoryChartRef.value) return
-  categoryChart = echarts.init(categoryChartRef.value)
+  categoryChart = echarts.getInstanceByDom(categoryChartRef.value) || echarts.init(categoryChartRef.value)
+  const items = categoryStats.value
   const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'axis',
@@ -915,7 +763,7 @@ function initCategoryChart() {
     },
     xAxis: {
       type: 'category',
-      data: categoryStats.map(item => item.name),
+      data: items.map(item => item.name),
       axisLabel: {
         interval: 0,
         rotate: 30
@@ -929,7 +777,7 @@ function initCategoryChart() {
         name: '文章数量',
         type: 'bar',
         barWidth: '50%',
-        data: categoryStats.map((item, index) => ({
+        data: items.map((item, index) => ({
           value: item.count,
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -946,9 +794,6 @@ function initCategoryChart() {
 
 onMounted(() => {
   loadData()
-  nextTick(() => {
-    initCategoryChart()
-  })
 })
 </script>
 

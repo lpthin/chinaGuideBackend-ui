@@ -373,10 +373,6 @@
           <!-- 上下文操作按钮 -->
           <div class="context-actions">
             <a-space>
-              <a-button type="primary" v-if="showStartTask" @click="startTask">
-                <template #icon><PlayCircleOutlined /></template>
-                开始任务
-              </a-button>
               <a-button type="primary" v-if="showImportBtn" @click="handleImport">
                 <template #icon><UploadOutlined /></template>
                 导入数据
@@ -417,7 +413,6 @@ import {
   SettingOutlined,
   HomeOutlined,
   ReloadOutlined,
-  PlayCircleOutlined,
   DownOutlined,
   BarChartOutlined,
   ApartmentOutlined,
@@ -467,7 +462,6 @@ const openKeys = ref<string[]>(['content', 'articleManage', 'knowledge', 'system
 
 const pageKey = ref(0)
 const refreshing = ref(false)
-const startTaskCallback = ref<(() => void) | null>(null)
 const importCallback = ref<(() => void) | null>(null)
 
 const menuLabels: Record<string, string> = {
@@ -597,11 +591,6 @@ const selectedKeys = computed(() => {
   return [key]
 })
 
-const showStartTask = computed(() => {
-  const key = getMenuKey()
-  return ['keywords', 'cluster', 'article-generate', 'review', 'publish'].includes(key)
-})
-
 const showImportBtn = computed(() => {
   const key = getMenuKey()
   return key === 'keywords'
@@ -620,7 +609,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
 }
 
 const openDashboard = () => {
-  message.info('打开统计面板')
+  router.push('/workspace/dashboard')
 }
 
 /**
@@ -640,34 +629,6 @@ const refresh = async () => {
   pageKey.value += 1
   message.success('已刷新')
   refreshing.value = false
-}
-
-const startTask = () => {
-  if (startTaskCallback.value) {
-    startTaskCallback.value()
-    return
-  }
-  
-  const key = getMenuKey()
-  switch (key) {
-    case 'keywords':
-      message.success('关键词采集任务已启动')
-      break
-    case 'cluster':
-      message.success('聚类分析任务已启动')
-      break
-    case 'article-generate':
-      message.success('AI生成任务已启动')
-      break
-    case 'review':
-      message.success('内容审核任务已启动')
-      break
-    case 'publish':
-      message.success('内容发布任务已启动')
-      break
-    default:
-      message.success('任务已开始')
-  }
 }
 
 const handleImport = () => {
@@ -705,10 +666,6 @@ const handleLogout = async () => {
 }
 
 // 提供给子组件的方法
-provide('setStartTaskCallback', (callback: () => void) => {
-  startTaskCallback.value = callback
-})
-
 provide('setImportCallback', (callback: () => void) => {
   importCallback.value = callback
 })
@@ -725,7 +682,6 @@ watch(
 onMounted(() => {
   // 路由变化时清除回调
   const unregisterRouter = router.afterEach(() => {
-    startTaskCallback.value = null
     importCallback.value = null
   })
 

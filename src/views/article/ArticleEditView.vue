@@ -126,6 +126,7 @@
                     <a-step title="审核中" description="已提交，等待审核" />
                     <a-step title="已通过" description="审核通过，可发布" />
                     <a-step title="已发布" description="文章已上线" />
+                    <a-step title="已下架" description="文章已下线，不再对外展示" />
                   </a-steps>
                 </div>
                 <div v-if="articleForm.status === 'rejected'" class="reject-reason">
@@ -497,6 +498,7 @@ const statusStepIndex = computed(() => {
     approved: 2,
     scheduled: 2,
     published: 3,
+    offline: 4,
   }
   return map[articleForm.status] ?? 0
 })
@@ -507,7 +509,7 @@ const hotTags = ref<string[]>([])
 
 async function loadCategoryList() {
   try {
-    const tenantId = Number(localStorage.getItem('geocms_tenant_id') || localStorage.getItem('selected_tenant_id') || 1)
+    const tenantId = authStore.selectedTenantId || authStore.tenantId
     const res = await articleCategoryApi.all(tenantId) as any
     const list = Array.isArray(res) ? res : (res?.data || [])
     categoryList.value = list.map((c: any) => ({ id: c.id, name: c.name }))
@@ -518,7 +520,7 @@ async function loadCategoryList() {
 
 async function loadHotTags() {
   try {
-    const tenantId = Number(localStorage.getItem('geocms_tenant_id') || localStorage.getItem('selected_tenant_id') || 1)
+    const tenantId = authStore.selectedTenantId || authStore.tenantId
     const res = await caseTagApi.hot(tenantId, 10) as any
     const list = Array.isArray(res) ? res : (res?.data || [])
     hotTags.value = list.map((t: any) => t.name || t)
@@ -790,6 +792,7 @@ async function handleGenerateSeo() {
   generatingSeo.value = true
   try {
     const result = await aiGenerateApi.generateSeo({
+      tenantId: authStore.selectedTenantId,
       title: articleForm.title,
       content: articleForm.summary || articleForm.content,
       keywords: selectedTags.value.join(','),

@@ -85,7 +85,7 @@
                 </a-tag>
               </template>
               <template v-else-if="column.key === 'createdAt'">
-                {{ formatTime(record.createdAt) }}
+                {{ formatDateTime(record.createdAt) }}
               </template>
               <template v-else-if="column.key === 'actions'">
                 <a-space size="small">
@@ -176,10 +176,10 @@
                 </div>
               </template>
               <template v-else-if="column.key === 'scheduledTime'">
-                {{ formatTime(record.scheduledTime) }}
+                {{ formatDateTime(record.scheduledTime) }}
               </template>
               <template v-else-if="column.key === 'publishTime'">
-                {{ formatTime(record.publishTime) }}
+                {{ formatDateTime(record.publishTime) }}
               </template>
               <template v-else-if="column.key === 'errorMessage'">
                 <a-tooltip v-if="record.errorMessage" :title="record.errorMessage">
@@ -291,10 +291,10 @@
                 <span v-else class="muted">-</span>
               </template>
               <template v-else-if="column.key === 'createdAt'">
-                {{ formatTime(record.createdAt) }}
+                {{ formatDateTime(record.createdAt) }}
               </template>
               <template v-else-if="column.key === 'finishedAt'">
-                {{ formatTime(record.finishedAt) }}
+                {{ formatDateTime(record.finishedAt) }}
               </template>
             </template>
             <template #emptyText>
@@ -365,6 +365,7 @@ import { useRouter } from 'vue-router'
 import { articleApi, publishApi, publishQueueApi } from '../../api/workspace'
 import type { PublishRecord, PublishTask } from '../../types/workspace'
 import { articleStatusMeta, jobStatusMeta, queueStatusMeta } from '../../utils/contentStatus'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
@@ -433,8 +434,12 @@ async function loadCandidates() {
 
 async function publishNow(article: any) {
   try {
-    await publishApi.publish(article.id, {}, authStore.selectedTenantId ?? undefined)
-    message.success(`「${article.title || article.id}」已发布`)
+    const result = await publishApi.publish(article.id, {}, authStore.selectedTenantId ?? undefined)
+    if (result?.status === 'success') {
+      message.success(`「${article.title || article.id}」已发布`)
+    } else {
+      message.warning(`「${article.title || article.id}」发布未完成（状态：${result?.status || '未知'}）`)
+    }
     refreshAll()
   } catch (error: any) {
     message.error(error?.message || '发布失败')
@@ -487,9 +492,11 @@ async function confirmSchedule() {
     if (scheduleArticleIds.value.length === 1) {
       const result = await publishApi.publish(scheduleArticleIds.value[0], options, authStore.selectedTenantId ?? undefined)
       if (result?.queueId) {
-        message.success(`已加入队列，计划 ${formatTime(result.scheduledAt)} 发布`)
-      } else {
+        message.success(`已加入队列，计划 ${formatDateTime(result.scheduledAt)} 发布`)
+      } else if (result?.status === 'success') {
         message.success('所选时间已过期，文章已立即发布')
+      } else {
+        message.warning(`发布未完成（状态：${result?.status || '未知'}）`)
       }
     } else {
       const result = await articleApi.batchPublish(scheduleArticleIds.value, options, authStore.selectedTenantId ?? undefined)
@@ -611,7 +618,7 @@ async function runQueueItem(record: PublishTask) {
   try {
     const result = await publishQueueApi.publishNow(record.id, authStore.selectedTenantId ?? undefined)
     if (result?.status === 'success') {
-      message.success(`已发布，完成时间 ${formatTime(result.publishTime)}`)
+      message.success(`已发布，完成时间 ${formatDateTime(result.publishTime)}`)
     } else {
       message.error(`发布未成功（${queueStatusMeta(result?.status).label}）：${result?.errorMessage || '见队列失败原因'}`)
     }
@@ -788,11 +795,6 @@ function handleTabChange(key: string | number) {
 function viewArticle(id: number) {
   if (!id) return
   router.push({ name: 'workspace-article-detail', params: { id } })
-}
-
-function formatTime(value?: string | null) {
-  if (!value) return '-'
-  return String(value).replace('T', ' ').slice(0, 19)
 }
 
 function refreshAll() {

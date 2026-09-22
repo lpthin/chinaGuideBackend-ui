@@ -9,7 +9,7 @@
                 < TrophyOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalCases }}</div>
+                <div class="stat-value">{{ formatNumber(stats.total) }}</div>
                 <div class="stat-title">案例总数</div>
               </div>
             </div>
@@ -22,21 +22,8 @@
                 <EyeOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalViews }}</div>
+                <div class="stat-value">{{ formatNumber(stats.totalViews) }}</div>
                 <div class="stat-title">总浏览量</div>
-              </div>
-            </div>
-          </a-card>
-        </a-col>
-        <a-col :span="6">
-          <a-card class="stat-card" hoverable>
-            <div class="stat-content">
-              <div class="stat-icon" style="background: linear-gradient(135deg, #eb2f96 0%, #ff85c0 100%)">
-                <StarOutlined />
-              </div>
-              <div class="stat-info">
-                <div class="stat-value">{{ stats.totalStars }}</div>
-                <div class="stat-title">总收藏</div>
               </div>
             </div>
           </a-card>
@@ -48,7 +35,7 @@
                 <TagOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalIndustries }}</div>
+                <div class="stat-value">{{ formatNumber(stats.industryCount) }}</div>
                 <div class="stat-title">行业数</div>
               </div>
             </div>
@@ -79,7 +66,7 @@
             >
               <a-select-option value="published">已发布</a-select-option>
               <a-select-option value="draft">草稿</a-select-option>
-              <a-select-option value="offline">已下线</a-select-option>
+              <a-select-option value="archived">已归档</a-select-option>
             </a-select>
             <a-input-search
               v-model:value="queryParams.keyword"
@@ -120,6 +107,9 @@
               <a-tag :color="getStatusColor(record.status)">
                 {{ getStatusName(record.status) }}
               </a-tag>
+            </template>
+            <template v-if="column.key === 'viewCount'">
+              {{ formatNumber(record.viewCount) }}
             </template>
             <template v-if="column.key === 'createdAt'">
               {{ formatDate(record.createdAt) }}
@@ -195,7 +185,7 @@
               <a-select v-model:value="editForm.status">
                 <a-select-option value="draft">草稿</a-select-option>
                 <a-select-option value="published">已发布</a-select-option>
-                <a-select-option value="offline">已下线</a-select-option>
+                <a-select-option value="archived">已归档</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -204,6 +194,32 @@
           <a-input-number v-model:value="editForm.sort" :min="0" style="width: 200px" />
         </a-form-item>
       </a-form>
+    </a-modal>
+
+    <!-- 只读详情弹窗 -->
+    <a-modal v-model:open="detailVisible" title="案例详情" :footer="null" width="680px">
+      <a-descriptions v-if="detailCase" :column="1" bordered size="small">
+        <a-descriptions-item label="案例标题">{{ detailCase.title || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="客户名称">{{ detailCase.customerName || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="所属行业">
+          {{ detailCase.industry ? getIndustryName(detailCase.industry) : '-' }}
+        </a-descriptions-item>
+        <a-descriptions-item label="状态">
+          <a-tag :color="getStatusColor(detailCase.status)">{{ getStatusName(detailCase.status) }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="标签">{{ detailCase.tags || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="浏览量">{{ formatNumber(detailCase.viewCount) }}</a-descriptions-item>
+        <a-descriptions-item label="案例摘要">{{ detailCase.summary || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="案例内容">
+          <div class="detail-content">{{ detailCase.content || '-' }}</div>
+        </a-descriptions-item>
+        <a-descriptions-item label="封面图">
+          <img v-if="detailCase.coverImage" :src="detailCase.coverImage" class="detail-cover" />
+          <span v-else>-</span>
+        </a-descriptions-item>
+        <a-descriptions-item label="创建时间">{{ formatDateTime(detailCase.createdAt) }}</a-descriptions-item>
+        <a-descriptions-item label="更新时间">{{ formatDateTime(detailCase.updatedAt) }}</a-descriptions-item>
+      </a-descriptions>
     </a-modal>
   </div>
 </template>
@@ -214,12 +230,13 @@ import { message, Modal } from 'ant-design-vue'
 import {
   TrophyOutlined,
   EyeOutlined,
-  StarOutlined,
   TagOutlined,
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import { customerCaseApi } from '../../api/operation'
 import type { CustomerCase, CustomerCaseForm } from '../../types/operation'
+import { describeHttpError } from '../../api/http'
+import { formatDate, formatDateTime, formatNumber } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
@@ -228,13 +245,14 @@ const loading = ref(false)
 const tableLoading = ref(false)
 const modalVisible = ref(false)
 const isEdit = ref(false)
-const currentCase = ref<CustomerCase | null>(null)
+const detailVisible = ref(false)
+const detailCase = ref<CustomerCase | null>(null)
 
+// 服务端全量统计，空态如实展示 0/'-'
 const stats = reactive({
-  totalCases: 0,
-  totalViews: 0,
-  totalStars: 0,
-  totalIndustries: 0,
+  total: null as number | null,
+  totalViews: null as number | null,
+  industryCount: null as number | null,
 })
 
 const queryParams = reactive({
@@ -262,9 +280,8 @@ const columns = [
   { title: '行业', key: 'industry', width: 120 },
   { title: '服务内容', dataIndex: 'summary', key: 'summary', width: 200 },
   { title: '浏览量', dataIndex: 'viewCount', key: 'viewCount', width: 100, align: 'center' as const },
-  { title: '收藏数', dataIndex: 'starCount', key: 'starCount', width: 100, align: 'center' as const },
   { title: '状态', key: 'status', width: 100 },
-  { title: '发布时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
+  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 200 },
 ]
 
@@ -299,7 +316,7 @@ function getStatusColor(status: string): string {
   const colorMap: Record<string, string> = {
     published: 'green',
     draft: 'default',
-    offline: 'red',
+    archived: 'orange',
   }
   return colorMap[status] || 'default'
 }
@@ -308,14 +325,9 @@ function getStatusName(status: string): string {
   const nameMap: Record<string, string> = {
     published: '已发布',
     draft: '草稿',
-    offline: '已下线',
+    archived: '已归档',
   }
   return nameMap[status] || status
-}
-
-function formatDate(date: string): string {
-  if (!date) return '-'
-  return date.substring(0, 10)
 }
 
 async function loadCaseList() {
@@ -334,9 +346,8 @@ async function loadCaseList() {
     const res = await customerCaseApi.list(params)
     caseList.value = res.records || []
     paginationConfig.total = res.total || 0
-    updateStats(res.records || [])
   } catch (error) {
-    message.error('加载案例列表失败')
+    message.error(`加载案例列表失败：${describeHttpError(error)}`)
     console.error(error)
     caseList.value = []
   } finally {
@@ -344,18 +355,25 @@ async function loadCaseList() {
   }
 }
 
-function updateStats(list: CustomerCase[]) {
-  stats.totalCases = list.length
-  stats.totalViews = list.reduce((sum, item) => sum + (item.viewCount || 0), 0)
-  stats.totalStars = 0
-  const industries = new Set(list.map(item => item.industry).filter(Boolean))
-  stats.totalIndustries = industries.size
+async function loadStats() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  try {
+    const res = await customerCaseApi.statistics(tenantId)
+    stats.total = res.total
+    stats.totalViews = res.totalViews
+    stats.industryCount = res.industryCount
+  } catch (error) {
+    console.error('Failed to load case statistics:', error)
+    stats.total = null
+    stats.totalViews = null
+    stats.industryCount = null
+  }
 }
 
 async function loadAll() {
   loading.value = true
   try {
-    await loadCaseList()
+    await Promise.all([loadCaseList(), loadStats()])
   } catch (error) {
     console.error(error)
   } finally {
@@ -371,7 +389,6 @@ function showAddModal() {
 
 function editCase(record: CustomerCase) {
   isEdit.value = true
-  currentCase.value = record
   Object.assign(editForm, {
     id: record.id,
     tenantId: record.tenantId,
@@ -390,8 +407,8 @@ function editCase(record: CustomerCase) {
 }
 
 function viewDetail(record: CustomerCase) {
-  currentCase.value = record
-  editCase(record)
+  detailCase.value = record
+  detailVisible.value = true
 }
 
 function resetForm() {
@@ -420,9 +437,9 @@ async function handleSave() {
       message.success('创建成功')
     }
     modalVisible.value = false
-    loadCaseList()
+    await Promise.all([loadCaseList(), loadStats()])
   } catch (error) {
-    message.error('保存失败')
+    message.error(`保存失败：${describeHttpError(error)}`)
     console.error(error)
   }
 }
@@ -434,9 +451,9 @@ async function handleDelete(id: number) {
       try {
         await customerCaseApi.delete(id)
         message.success('删除成功')
-        loadCaseList()
+        await Promise.all([loadCaseList(), loadStats()])
       } catch (error) {
-        message.error('删除失败')
+        message.error(`删除失败：${describeHttpError(error)}`)
         console.error(error)
       }
     },
@@ -540,5 +557,17 @@ onMounted(() => {
 .case-client {
   font-size: 12px;
   color: #8c8c8c;
+}
+
+.detail-content {
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.detail-cover {
+  max-width: 200px;
+  border-radius: 6px;
 }
 </style>

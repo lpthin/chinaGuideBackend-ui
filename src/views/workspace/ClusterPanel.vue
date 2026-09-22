@@ -277,7 +277,7 @@
                 <div class="suggestion-card__head">
                   <span class="suggestion-card__index">#{{ editingPage * editingPageSize + i + 1 }}</span>
                   <a-input v-model:value="sug.title" class="suggestion-card__title" borderless placeholder="标题" />
-                  <a-tag :color="getScoreTagColor(sug.score)" size="small">{{ sug.score ?? 50 }}分</a-tag>
+                  <a-tag :color="getScoreTagColor(sug.score)" size="small">{{ sug.score == null ? '-' : sug.score + '分' }}</a-tag>
                 </div>
                 <div class="suggestion-card__body">
                   <a-textarea
@@ -526,7 +526,7 @@
                       <div class="suggestion-item">
                         <div class="suggestion-title-row">
                           <span class="suggestion-title">{{ sug.title }}</span>
-                          <a-tag :color="getScoreTagColor(sug.score)" size="small">{{ sug.score }}分</a-tag>
+                          <a-tag :color="getScoreTagColor(sug.score)" size="small">{{ sug.score == null ? '-' : sug.score + '分' }}</a-tag>
                         </div>
                         <p class="suggestion-desc">{{ sug.contentPrompt || sug.suggestion }}</p>
                         <div v-if="sug.reason" class="suggestion-reason">
@@ -603,6 +603,7 @@ import {
 } from '@ant-design/icons-vue'
 import { clusterApi, suggestionApi } from '../../api'
 import http from '../../api/http'
+import { formatDate } from '../../utils/format'
 import { useRouter } from 'vue-router'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 
@@ -672,9 +673,12 @@ const radarData = computed(() => {
 
   const avgPriority = list.reduce((sum: number, c: any) => sum + (c.priority || 0), 0) / list.length
 
+  // 关键词数取接口真实值：keywords 由后端 sourceKeywordIds 解析而来，keywordCount = keywords.length。
+  // 原来写成 `c.keywords?.length || c.sourceKeywordIds ? 1 : 0`（先算 || 再判真值，且 DTO 根本没有
+  // sourceKeywordIds），再把缺失的 0 兜成 5，等于凭空造数——缺失就是 0。
   const avgKeywords = list.reduce((sum: number, c: any) => {
-    const kwCount = c.keywords?.length || c.sourceKeywordIds ? 1 : 0
-    return sum + Math.min(kwCount || 5, 10)
+    const kwCount = c.keywords?.length ?? (c.keywordCount || 0)
+    return sum + Math.min(kwCount, 10)
   }, 0) / list.length
   const keywordDiversity = Math.round((avgKeywords / 10) * 100)
 
@@ -826,11 +830,6 @@ const editingTotalPages = computed(() =>
 function showClusterDetail(item: any) {
   selectedCluster.value = item
   showClusterModal.value = true
-}
-
-function formatDate(date?: string) {
-  if (!date) return '-'
-  return date.slice(0, 10)
 }
 
 async function loadData() {
@@ -1071,13 +1070,14 @@ async function saveSuggestions() {
   try {
     for (const sug of editingSuggestions.value) {
       if (!sug.id || sug.id < 0) continue
-      await suggestionApi.update(sug.id, {
+      const payload: any = {
         title: sug.title || '',
         contentPrompt: sug.contentPrompt || sug.suggestion || '',
-        score: sug.score ?? 50,
         reason: sug.reason || '',
         status: sug.status || 'candidate',
-      })
+      }
+      if (sug.score != null) payload.score = sug.score
+      await suggestionApi.update(sug.id, payload)
     }
     message.success('内容建议已保存')
     suggestionModalOpen.value = false
@@ -1088,10 +1088,6 @@ async function saveSuggestions() {
   } finally {
     savingSuggestions.value = false
   }
-}
-
-function generateArticle(suggestion: KeywordContentSuggestion) {
-  message.info(`开始生成文章: ${suggestion.title}`)
 }
 
 function generateSingleArticle(cluster: any) {

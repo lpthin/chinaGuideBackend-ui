@@ -161,25 +161,6 @@
           </a-card>
         </a-col>
       </a-row>
-
-      <a-row style="margin-top: 16px">
-        <a-col :span="24">
-          <a-card title="最新动态" :bordered="false">
-            <a-empty v-if="recentActivities.length === 0" description="暂无动态" />
-            <a-timeline v-else>
-              <a-timeline-item v-for="(item, index) in recentActivities" :key="index">
-                <template #dot>
-                  <component :is="item.icon" :style="{ color: item.color }" />
-                </template>
-                <div class="activity-content">
-                  <div class="activity-title">{{ item.title }}</div>
-                  <div class="activity-time">{{ item.time }}</div>
-                </div>
-              </a-timeline-item>
-            </a-timeline>
-          </a-card>
-        </a-col>
-      </a-row>
     </a-spin>
   </div>
 </template>
@@ -227,7 +208,6 @@ const trendData = ref<{ date: string; value: number; height: number }[]>([])
 const categoryData = ref<{ name: string; value: number; color: string }[]>([])
 const topArticles = ref<{ title: string; viewCount: number; likeCount: number }[]>([])
 const topCases = ref<{ title: string; viewCount: number; likeCount: number }[]>([])
-const recentActivities = ref<{ title: string; time: string; icon: any; color: string }[]>([])
 
 const chartColors = [
   '#1890ff',
@@ -611,22 +591,5 @@ onMounted(() => {
     align-items: center;
     gap: 4px;
   }
-}
-
-.activity-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.activity-title {
-  font-size: 14px;
-  color: #1a1a1a;
-}
-
-.activity-time {
-  font-size: 12px;
-  color: #8c8c8c;
 }
 </style>

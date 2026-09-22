@@ -18,6 +18,7 @@ import {
 import { message, Modal } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import { keywordApi } from '../../api'
+import { formatDateTime, formatNumber } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
@@ -312,10 +313,14 @@ async function batchDelete() {
     okText: '删除',
     cancelText: '取消',
     onOk: async () => {
-      const res = await keywordApi.batchDelete(selectedRowKeys.value, currentTenant()) as any
-      message.success(`已删除 ${res?.deleted ?? res?.data?.deleted ?? 0} 个`)
-      selectedRowKeys.value = []
-      await fetchAll()
+      try {
+        const res = await keywordApi.batchDelete(selectedRowKeys.value, currentTenant()) as any
+        message.success(`已删除 ${res?.deleted ?? res?.data?.deleted ?? 0} 个`)
+        selectedRowKeys.value = []
+        await fetchAll()
+      } catch (e: any) {
+        message.error(e?.message || '删除失败')
+      }
     },
   })
 }
@@ -608,7 +613,7 @@ onMounted(fetchAll)
           </a-table-column>
 
           <a-table-column title="搜索量" data-index="searchVolume" width="100" align="right">
-            <template #default="{ record }">{{ (record.searchVolume || 0).toLocaleString() }}</template>
+            <template #default="{ record }">{{ formatNumber(record.searchVolume) }}</template>
           </a-table-column>
 
           <a-table-column title="蒸馏优先级" data-index="priority" width="110" align="right">
@@ -652,7 +657,7 @@ onMounted(fetchAll)
           </a-table-column>
 
           <a-table-column title="收录时间" data-index="createdAt" width="160">
-            <template #default="{ record }">{{ record.createdAt ? String(record.createdAt).slice(0, 16) : '—' }}</template>
+            <template #default="{ record }">{{ formatDateTime(record.createdAt) }}</template>
           </a-table-column>
         </a-table>
       </a-card>
