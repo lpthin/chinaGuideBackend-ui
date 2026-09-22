@@ -1,74 +1,74 @@
 import axios from 'axios'
 
-// API 响应的接口类型
+/**
+ * 门户数据类型严格对齐 GET /api/portal/data 的真实返回（PortalDataDTO）。
+ * 后端没有对应字段的（服务图标、案例标签、新闻浏览量、团队/评价/FAQ）一律不声明，
+ * 模板也就没有机会把 undefined 渲染成编造出来的内容。
+ */
 export interface ApiHeroData {
-  title: string
-  subtitle: string
-  description: string
-  primaryButtonText?: string
-  secondaryButtonText?: string
-  backgroundImage?: string
+  title: string | null
+  description: string | null
+  buttonText?: string | null
+  buttonLink?: string | null
 }
 
-export interface ApiService {
+export interface ApiServiceItem {
   id: number
-  title: string
-  description: string
-  icon?: string
-  features?: string[]
+  title: string | null
+  summary: string | null
+  icon?: string | null
+  link?: string | null
 }
 
-export interface ApiCase {
+export interface ApiCaseItem {
   id: number
-  title: string
-  category: string
-  description: string
-  imageUrl: string
-  tags?: string[]
+  title: string | null
+  customerName: string | null
+  industry: string | null
+  summary: string | null
+  coverImage: string | null
+  link?: string | null
 }
 
-export interface ApiNews {
+export interface ApiNewsItem {
   id: number
-  title: string
-  summary: string
-  category: string
-  date: string
-  coverImage: string
-  views?: number
+  title: string | null
+  summary: string | null
+  category: string | null
+  publishedAt: string | null
+  coverImage: string | null
+  link?: string | null
 }
 
 export interface ApiContactInfo {
-  title: string
-  subtitle?: string
-  address: string
-  phone: string
-  email: string
-  website?: string
-  workingHours?: string
-  serviceHotline?: string
-  wechat?: string
-  weibo?: string
-  douyin?: string
-  linkedin?: string
-  github?: string
-  mapLocation?: { lat: number; lng: number }
+  phone: string | null
+  email: string | null
+  website: string | null
+  address: string | null
+  description: string | null
+  serviceHotline: string | null
+  wechat: string | null
+  weibo: string | null
+  douyin: string | null
+  linkedin: string | null
+  github: string | null
 }
 
 export interface ApiSeoMeta {
-  seoTitle: string
-  seoDescription: string
-  seoKeywords: string
-  canonicalUrl: string
-  robotsMeta: string
-  ogTitle: string
-  ogDescription: string
-  ogImage: string
-  twitterCardType: string
-  twitterTitle: string
-  twitterDescription: string
-  twitterImage: string
-  schemaJson: string
-  defaultSchemaJson: string
+  seoTitle: string | null
+  seoDescription: string | null
+  seoKeywords: string | null
+  canonicalUrl: string | null
+  robotsMeta: string | null
+  ogTitle: string | null
+  ogDescription: string | null
+  ogImage: string | null
+  twitterCardType: string | null
+  twitterTitle: string | null
+  twitterDescription: string | null
+  twitterImage: string | null
+  schemaJson: string | null
+  defaultSchemaJson: string | null
 }
 
 export interface ApiFeatureProject {
@@ -79,10 +79,11 @@ export interface ApiFeatureProject {
 }
 
 export interface ApiCompanyInfo {
-  name: string
-  slogan?: string
-  icp?: string
-  copyright?: string
+  name: string | null
+  logo: string | null
+  slogan: string | null
+  copyright: string | null
+  description: string | null
 }
 
 export interface ApiTeamMember {
@@ -91,53 +92,56 @@ export interface ApiTeamMember {
   position: string
   avatar: string
   bio: string
-  socialLinks?: { platform: string; url: string }[]
 }
 
-export interface ApiTestimonial {
+export interface ApiBanner {
   id: number
-  content: string
-  author: string
-  position: string
-  company: string
-  avatar: string
-  rating: number
+  title: string | null
+  subtitle: string | null
+  imageUrl: string | null
+  linkUrl: string | null
+  linkType: string | null
+  sort: number | null
 }
 
-export interface ApiFAQ {
-  id: number
-  question: string
-  answer: string
+export interface ApiFooterLink {
+  title: string
+  url: string
+  type: string
+  children: ApiFooterLink[]
 }
 
-// API 返回的整体数据结构
 export interface PortalDataResponse {
   heroData: ApiHeroData
-  services: ApiService[]
-  cases: ApiCase[]
-  news: ApiNews[]
+  services: ApiServiceItem[]
+  cases: ApiCaseItem[]
+  newsList: ApiNewsItem[]
   contactInfo: ApiContactInfo
   companyInfo: ApiCompanyInfo
-  teamMembers?: ApiTeamMember[]
-  testimonials?: ApiTestimonial[]
-  faqList?: ApiFAQ[]
+  teamMembers: ApiTeamMember[]
+  banners: ApiBanner[]
+  footerLinks: ApiFooterLink[]
   seoMeta?: ApiSeoMeta
-  faviconUrl?: string
-  coreProducts?: string
-  featureProjects?: ApiFeatureProject[]
+  faviconUrl?: string | null
+  coreProducts?: string | null
+  featureProjects?: ApiFeatureProject[] | null
 }
 
-// 获取门户数据的函数
-export async function getPortalData(): Promise<PortalDataResponse> {
-  // 兼容多个可能的 localStorage key 获取租户 ID
-  const tenantId =
+/** 门户是公开页面，租户身份靠 X-Tenant-Id 头传递，取自管理端登录/切换租户时写入的 localStorage。 */
+export function resolvePortalTenantId(): string {
+  return (
     localStorage.getItem('selected_tenant_id') ||
     localStorage.getItem('geocms_tenant_id') ||
     localStorage.getItem('tenantId') ||
     ''
+  )
+}
+
+export async function getPortalData(): Promise<PortalDataResponse> {
+  const tenantId = resolvePortalTenantId()
 
   if (!tenantId) {
-    throw new Error('缺少租户ID，请先登录')
+    throw new Error('无法确定站点所属租户，请先在管理端选择租户')
   }
 
   try {
@@ -157,55 +161,4 @@ export async function getPortalData(): Promise<PortalDataResponse> {
     console.error('获取门户数据失败:', error)
     throw error
   }
-}
-
-// 将 API 的 Service 数据转换为前端使用的格式
-export function transformServiceData(apiServices?: ApiService[]): any[] {
-  if (!apiServices) return []
-  return apiServices.map(service => ({
-    id: service.id,
-    icon: service.icon || 'AppstoreOutlined',
-    title: service.title,
-    description: service.description,
-    features: service.features || []
-  }))
-}
-
-// 将 API 的 Case 数据转换为前端使用的格式
-export function transformCaseData(apiCases?: ApiCase[]): any[] {
-  if (!apiCases) return []
-  return apiCases.map(caseItem => ({
-    id: caseItem.id,
-    title: caseItem.title,
-    category: caseItem.category,
-    description: caseItem.description,
-    imageUrl: caseItem.imageUrl,
-    tags: caseItem.tags || []
-  }))
-}
-
-// 将 API 的 News 数据转换为前端使用的格式
-export function transformNewsData(apiNews?: ApiNews[]): any[] {
-  if (!apiNews) return []
-  return apiNews.map(news => ({
-    id: news.id,
-    title: news.title,
-    summary: news.summary,
-    category: news.category,
-    date: news.date,
-    coverImage: news.coverImage,
-    views: news.views || 0
-  }))
-}
-
-// 将 API 的新闻数据转换为 SimpleTemplate 的作品展示格式
-export function transformArticleToWork(apiNews?: ApiNews[]): any[] {
-  if (!apiNews) return []
-  return apiNews.map(news => ({
-    id: news.id,
-    title: news.title,
-    category: news.category,
-    imageUrl: news.coverImage,
-    description: news.summary
-  }))
 }

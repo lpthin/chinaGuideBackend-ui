@@ -1,11 +1,12 @@
 <template>
   <div class="simple-template">
+    <div v-if="loadError" class="load-error">{{ loadError }}</div>
     <header class="simple-header" :class="{ scrolled: isScrolled }">
       <div class="container">
         <div class="header-content">
-          <a class="logo" @click="navigateTo('/')">
-            <span class="logo-mark">S</span>
-            <span class="logo-text">STUDIO</span>
+          <a v-if="companyInfo.name" class="logo" @click="navigateTo('/')">
+            <span class="logo-mark">{{ companyInfo.name.charAt(0) }}</span>
+            <span class="logo-text">{{ companyInfo.name }}</span>
           </a>
           <nav class="nav-menu">
             <a
@@ -37,26 +38,17 @@
       </div>
     </header>
 
-    <section class="simple-hero">
+    <section v-if="heroData" class="simple-hero">
       <div class="container">
         <div class="hero-content">
-          <span class="hero-label">创意工作室</span>
-          <h1 class="hero-title">
-            简约之美
-            <br />
-            源于匠心
+          <span v-if="companyInfo.slogan" class="hero-label">{{ companyInfo.slogan }}</span>
+          <h1 v-if="heroData.title" class="hero-title">
+            {{ heroData.title }}
           </h1>
-          <p class="hero-desc">
-            我们相信，真正优秀的设计
-            <br />
-            是删繁就简后的纯粹表达
+          <p v-if="heroData.description" class="hero-desc">
+            {{ heroData.description }}
           </p>
-          <div class="hero-meta">
-            <span class="meta-item">EST. 2015</span>
-            <span class="meta-divider">—</span>
-            <span class="meta-item">北京 / 上海 / 深圳</span>
-          </div>
-          <a class="scroll-indicator" @click="scrollToWorks">
+          <a v-if="cases.length" class="scroll-indicator" @click="scrollToWorks">
             <span>探索作品</span>
             <component :is="DownOutlined" />
           </a>
@@ -64,7 +56,7 @@
       </div>
     </section>
 
-    <section class="simple-works section" id="works">
+    <section v-if="cases.length" class="simple-works section" id="works">
       <div class="container">
         <div class="section-header">
           <span class="section-number">01</span>
@@ -72,18 +64,18 @@
         </div>
         <div class="works-masonry">
           <div
-            v-for="(work, index) in workItems"
+            v-for="(work, index) in cases"
             :key="work.id"
             class="work-item"
             :class="`work-${index + 1}`"
           >
             <div class="work-image">
-              <img :src="work.imageUrl" :alt="work.title" />
+              <img v-if="work.coverImage" :src="work.coverImage" :alt="work.title || ''" />
               <div class="work-overlay">
                 <div class="work-info">
-                  <span class="work-category">{{ work.category }}</span>
+                  <span v-if="work.industry" class="work-category">{{ work.industry }}</span>
                   <h3 class="work-title">{{ work.title }}</h3>
-                  <p v-if="work.description" class="work-desc">{{ work.description }}</p>
+                  <p v-if="work.summary" class="work-desc">{{ work.summary }}</p>
                 </div>
               </div>
             </div>
@@ -92,7 +84,7 @@
       </div>
     </section>
 
-    <section class="simple-about section">
+    <section v-if="heroData?.description || companyInfo.description" class="simple-about section">
       <div class="container">
         <div class="about-grid">
           <div class="about-left">
@@ -105,36 +97,19 @@
           </div>
           <div class="about-right">
             <div class="about-text">
-              <p class="lead">
-                我们是一家专注于极简设计的创意工作室，
-                致力于用最简洁的方式传达最有力的信息。
+              <p v-if="heroData?.description" class="lead">
+                {{ heroData.description }}
               </p>
-              <p>
-                自2015年成立以来，我们已为超过200家企业提供品牌设计、
-                视觉传达、数字产品等服务。我们相信，好的设计不是做加法，
-                而是做减法——去掉一切不必要的元素，留下最本质的美。
+              <p v-if="companyInfo.description">
+                {{ companyInfo.description }}
               </p>
-            </div>
-            <div class="about-stats">
-              <div class="stat-item">
-                <span class="stat-number">200+</span>
-                <span class="stat-label">合作客户</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-number">500+</span>
-                <span class="stat-label">完成项目</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-number">9</span>
-                <span class="stat-label">年行业经验</span>
-              </div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="simple-contact section">
+    <section v-if="contactInfo" class="simple-contact section">
       <div class="container">
         <div class="contact-content">
           <span class="section-number">03</span>
@@ -143,29 +118,18 @@
             <br />
             让我们聊聊
           </h2>
-          <p class="contact-desc">
-            无论是品牌设计、网站开发还是创意咨询，
-            <br />
-            我们都期待与您的合作。
+          <p v-if="contactInfo.description" class="contact-desc">
+            {{ contactInfo.description }}
           </p>
           <div class="contact-info">
-            <a href="mailto:hello@studio.com" class="contact-email">
-              hello@studio.com
+            <a v-if="contactInfo.email" :href="`mailto:${contactInfo.email}`" class="contact-email">
+              {{ contactInfo.email }}
               <component :is="ArrowRightOutlined" />
             </a>
-            <div class="contact-details">
-              <span>北京市朝阳区建国路88号</span>
-              <span>+86 10 8888 8888</span>
+            <div v-if="contactInfo.address || contactInfo.phone" class="contact-details">
+              <span v-if="contactInfo.address">{{ contactInfo.address }}</span>
+              <span v-if="contactInfo.phone">{{ contactInfo.phone }}</span>
             </div>
-          </div>
-          <div class="social-links">
-            <a href="#" class="social-link">Instagram</a>
-            <span class="dot">·</span>
-            <a href="#" class="social-link">Behance</a>
-            <span class="dot">·</span>
-            <a href="#" class="social-link">Dribbble</a>
-            <span class="dot">·</span>
-            <a href="#" class="social-link">WeChat</a>
           </div>
         </div>
       </div>
@@ -174,12 +138,12 @@
     <footer class="simple-footer">
       <div class="container">
         <div class="footer-content">
-          <div class="footer-left">
-            <span class="logo-mark">S</span>
-            <span>STUDIO</span>
+          <div v-if="companyInfo.name" class="footer-left">
+            <span class="logo-mark">{{ companyInfo.name.charAt(0) }}</span>
+            <span>{{ companyInfo.name }}</span>
           </div>
           <div class="footer-right">
-            <span>© 2024 Studio. All rights reserved.</span>
+            <span v-if="companyInfo.copyright">{{ companyInfo.copyright }}</span>
           </div>
         </div>
       </div>
@@ -197,11 +161,13 @@ import {
   DownOutlined,
   ArrowRightOutlined
 } from '@ant-design/icons-vue'
-import { workItems } from '../data/mockData'
 import {
   getPortalData,
   type ApiSeoMeta,
-  type ApiCompanyInfo
+  type ApiCompanyInfo,
+  type ApiHeroData,
+  type ApiCaseItem,
+  type ApiContactInfo
 } from '../api/portalData'
 
 const router = useRouter()
@@ -214,11 +180,17 @@ const seoMeta = ref<ApiSeoMeta | null>(null)
 const faviconUrl = ref<string>('')
 const companyInfo = ref<ApiCompanyInfo>({
   name: '',
+  logo: null,
   slogan: '',
-  icp: '',
-  copyright: ''
+  copyright: '',
+  description: ''
 })
+const heroData = ref<ApiHeroData | null>(null)
+const cases = ref<ApiCaseItem[]>([])
+const contactInfo = ref<ApiContactInfo | null>(null)
+const loadError = ref('')
 
+// 站点导航没有对应的后端表，属于前端自身的 UI 骨架，与 router 中真实存在的路由保持一致
 const simpleNavItems = [
   { key: 'home', label: '首页', path: '/' },
   { key: 'works', label: '作品', path: '/cases' },
@@ -246,13 +218,18 @@ const scrollToWorks = () => {
 const loadData = async () => {
   try {
     const data = await getPortalData()
+    loadError.value = ''
     seoMeta.value = data.seoMeta || null
     faviconUrl.value = data.faviconUrl || ''
     if (data.companyInfo) {
       companyInfo.value = data.companyInfo
     }
-  } catch (err) {
+    heroData.value = data.heroData || null
+    cases.value = data.cases || []
+    contactInfo.value = data.contactInfo || null
+  } catch (err: any) {
     console.error('加载数据失败:', err)
+    loadError.value = err?.message || '数据加载失败'
   }
 }
 
@@ -329,6 +306,19 @@ onUnmounted(() => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 40px;
+}
+
+.load-error {
+  position: relative;
+  z-index: 1001;
+  margin: 100px auto 0;
+  max-width: 1200px;
+  padding: 16px 40px;
+  background: #fff1f0;
+  border: 1px solid #ffa39e;
+  border-radius: 8px;
+  color: #cf1322;
+  text-align: center;
 }
 
 .section {
@@ -480,20 +470,6 @@ onUnmounted(() => {
     color: #666;
     margin-bottom: 48px;
     font-weight: 300;
-  }
-
-  .hero-meta {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 80px;
-    font-size: 13px;
-    color: #999;
-    letter-spacing: 0.1em;
-
-    .meta-divider {
-      color: #ddd;
-    }
   }
 
   .scroll-indicator {
@@ -680,8 +656,6 @@ onUnmounted(() => {
 
   .about-right {
     .about-text {
-      margin-bottom: 60px;
-
       .lead {
         font-size: 22px;
         line-height: 1.6;
@@ -695,33 +669,6 @@ onUnmounted(() => {
         line-height: 1.8;
         color: #666;
         margin: 0;
-      }
-    }
-
-    .about-stats {
-      display: flex;
-      gap: 60px;
-      padding-top: 40px;
-      border-top: 1px solid #eee;
-
-      .stat-item {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-
-        .stat-number {
-          font-size: 48px;
-          font-weight: 300;
-          letter-spacing: -0.02em;
-          color: #1a1a1a;
-        }
-
-        .stat-label {
-          font-size: 13px;
-          color: #999;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
       }
     }
   }
@@ -787,28 +734,6 @@ onUnmounted(() => {
         gap: 32px;
         font-size: 14px;
         color: rgba(255, 255, 255, 0.5);
-      }
-    }
-
-    .social-links {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-
-      .social-link {
-        color: rgba(255, 255, 255, 0.6);
-        text-decoration: none;
-        font-size: 14px;
-        transition: color 0.3s ease;
-
-        &:hover {
-          color: #fff;
-        }
-      }
-
-      .dot {
-        color: rgba(255, 255, 255, 0.3);
       }
     }
   }
@@ -929,16 +854,6 @@ onUnmounted(() => {
         font-size: 32px;
       }
     }
-
-    .about-right {
-      .about-stats {
-        gap: 40px;
-
-        .stat-item .stat-number {
-          font-size: 36px;
-        }
-      }
-    }
   }
 
   .simple-contact {
@@ -964,11 +879,6 @@ onUnmounted(() => {
 
     .hero-desc {
       font-size: 15px;
-    }
-
-    .hero-meta {
-      flex-wrap: wrap;
-      gap: 8px;
     }
   }
 
@@ -1002,15 +912,6 @@ onUnmounted(() => {
       .about-text .lead {
         font-size: 18px;
       }
-
-      .about-stats {
-        flex-wrap: wrap;
-        gap: 32px;
-
-        .stat-item .stat-number {
-          font-size: 28px;
-        }
-      }
     }
   }
 
@@ -1030,14 +931,6 @@ onUnmounted(() => {
     .contact-details {
       flex-direction: column;
       gap: 8px !important;
-    }
-
-    .social-links {
-      gap: 6px;
-
-      .social-link {
-        font-size: 13px;
-      }
     }
   }
 

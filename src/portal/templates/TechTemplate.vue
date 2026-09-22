@@ -55,130 +55,59 @@
       <div class="container">
         <div class="hero-content">
           <div class="hero-text">
-            <div class="hero-badge">
+            <div v-if="companyInfo.slogan" class="hero-badge">
               <component :is="RocketOutlined" />
-              <span>创新科技 · 引领未来</span>
+              <span>{{ companyInfo.slogan }}</span>
             </div>
-            <h1 class="hero-title">
-              {{ heroData.title }}
-              <span class="gradient-text">{{ heroData.subtitle }}</span>
-            </h1>
-            <p class="hero-description">{{ heroData.description }}</p>
+            <h1 class="hero-title">{{ heroData.title }}</h1>
+            <p v-if="heroData.description" class="hero-description">{{ heroData.description }}</p>
             <div class="hero-buttons">
               <a-button type="primary" size="large" @click="navigateTo('/contact')">
-                {{ heroData.primaryButtonText }}
+                {{ heroData.buttonText || '立即咨询' }}
                 <component :is="ArrowRightOutlined" />
               </a-button>
-              <a-button size="large" ghost @click="navigateTo('/about')">
-                {{ heroData.secondaryButtonText }}
+              <a-button
+                v-if="heroData.buttonLink"
+                size="large"
+                ghost
+                @click="openLink(heroData.buttonLink, '/about')"
+              >
+                了解更多
               </a-button>
-            </div>
-            <div class="hero-stats">
-              <div v-for="(item, index) in aboutData.highlights" :key="index" class="stat-item">
-                <span class="stat-value">{{ item.value }}</span>
-                <span class="stat-label">{{ item.label }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="hero-visual">
-            <div class="tech-card main-card">
-              <div class="card-glow"></div>
-              <div class="card-content">
-                <div class="tech-icon">
-                  <component :is="CloudServerOutlined" />
-                </div>
-                <div class="tech-title">智能云平台</div>
-                <div class="tech-desc">一站式数字化解决方案</div>
-                <div class="tech-metrics">
-                  <div class="metric">
-                    <span class="metric-value">99.9%</span>
-                    <span class="metric-label">可用性</span>
-                  </div>
-                  <div class="metric">
-                    <span class="metric-value">100ms</span>
-                    <span class="metric-label">响应</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="tech-card floating-card card-2">
-              <component :is="RobotOutlined" class="floating-icon" />
-              <div class="floating-text">AI 驱动</div>
-            </div>
-            <div class="tech-card floating-card card-3">
-              <component :is="SafetyOutlined" class="floating-icon" />
-              <div class="floating-text">安全可靠</div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="tech-services section">
+    <section v-if="services.length" class="tech-services section">
       <div class="container">
         <div class="section-header">
           <span class="section-tag">核心服务</span>
-          <h2 class="section-title">专业的数字化解决方案</h2>
-          <p class="section-subtitle">我们提供全方位的技术服务，助力企业实现数字化转型</p>
+          <h2 class="section-title">我们的服务</h2>
         </div>
         <div class="services-grid">
-          <div v-for="service in services" :key="service.id" class="service-card">
-            <div class="service-icon">
-              <component :is="getIcon(service.icon)" />
-            </div>
+          <a
+            v-for="service in services"
+            :key="service.id"
+            class="service-card"
+            :href="service.link || undefined"
+            @click.prevent="openLink(service.link, '/services')"
+          >
             <h3 class="service-title">{{ service.title }}</h3>
-            <p class="service-description">{{ service.description }}</p>
-            <ul class="service-features">
-              <li v-for="(feature, idx) in service.features" :key="idx">
-                <component :is="CheckOutlined" />
-                {{ feature }}
-              </li>
-            </ul>
-            <a class="service-link" @click="navigateTo('/services')">
-              了解更多 <component :is="ArrowRightOutlined" />
-            </a>
-          </div>
+            <p v-if="service.summary" class="service-description">{{ service.summary }}</p>
+          </a>
         </div>
       </div>
     </section>
 
-    <section class="tech-about section">
+    <section v-if="aboutDescription" class="tech-about section">
       <div class="container">
         <div class="about-content">
-          <div class="about-image">
-            <div class="image-wrapper">
-              <img :src="aboutData.imageUrl" alt="关于我们" />
-              <div class="image-overlay"></div>
-            </div>
-            <div class="experience-badge">
-              <span class="badge-number">10+</span>
-              <span class="badge-text">年行业经验</span>
-            </div>
-          </div>
           <div class="about-text">
             <span class="section-tag">关于我们</span>
-            <h2 class="section-title">{{ aboutData.subtitle }}</h2>
-            <p class="about-description">{{ aboutData.description }}</p>
-            <div class="about-features">
-              <div class="feature-item">
-                <div class="feature-icon">
-                  <component :is="BulbOutlined" />
-                </div>
-                <div class="feature-content">
-                  <h4>创新驱动</h4>
-                  <p>持续投入研发，引领技术前沿</p>
-                </div>
-              </div>
-              <div class="feature-item">
-                <div class="feature-icon">
-                  <component :is="TeamOutlined" />
-                </div>
-                <div class="feature-content">
-                  <h4>专业团队</h4>
-                  <p>来自顶尖科技公司的专家团队</p>
-                </div>
-              </div>
-            </div>
+            <h2 class="section-title">关于我们</h2>
+            <p class="about-description">{{ aboutDescription }}</p>
             <a-button type="primary" size="large" @click="navigateTo('/about')">
               了解更多
               <component :is="ArrowRightOutlined" />
@@ -188,64 +117,34 @@
       </div>
     </section>
 
-    <section class="tech-cases section">
+    <section v-if="cases.length" class="tech-cases section">
       <div class="container">
         <div class="section-header">
           <span class="section-tag">案例展示</span>
-          <h2 class="section-title">成功客户案例</h2>
-          <p class="section-subtitle">我们已帮助500+企业实现数字化转型</p>
+          <h2 class="section-title">客户案例</h2>
         </div>
         <div class="cases-grid">
           <div v-for="item in cases" :key="item.id" class="case-card">
-            <div class="case-image">
-              <img :src="item.imageUrl" :alt="item.title" />
+            <div v-if="item.coverImage" class="case-image">
+              <img :src="item.coverImage" :alt="item.title || ''" />
               <div class="case-overlay">
-                <a-button type="primary" ghost @click="navigateTo('/cases')">
+                <a-button type="primary" ghost @click="openLink(item.link, '/cases')">
                   查看详情
                 </a-button>
               </div>
             </div>
             <div class="case-content">
-              <span class="case-category">{{ item.category }}</span>
+              <span v-if="item.industry" class="case-category">{{ item.industry }}</span>
               <h3 class="case-title">{{ item.title }}</h3>
-              <p class="case-description">{{ item.description }}</p>
-              <div class="case-tags">
-                <a-tag v-for="tag in item.tags" :key="tag" color="blue">{{ tag }}</a-tag>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="tech-news section">
-      <div class="container">
-        <div class="section-header">
-          <span class="section-tag">新闻动态</span>
-          <h2 class="section-title">最新资讯</h2>
-          <p class="section-subtitle">了解公司最新动态和行业资讯</p>
-        </div>
-        <div class="news-grid">
-          <div v-for="news in newsList" :key="news.id" class="news-card">
-            <div class="news-image">
-              <img :src="news.coverImage" :alt="news.title" />
-              <span class="news-category">{{ news.category }}</span>
-            </div>
-            <div class="news-content">
-              <div class="news-meta">
-                <span class="news-date">
-                  <component :is="CalendarOutlined" />
-                  {{ news.date }}
-                </span>
-                <span class="news-views">
-                  <component :is="EyeOutlined" />
-                  {{ news.views }}
-                </span>
-              </div>
-              <h3 class="news-title">{{ news.title }}</h3>
-              <p class="news-summary">{{ news.summary }}</p>
-              <a class="news-link" @click="navigateTo('/news')">
-                阅读全文 <component :is="ArrowRightOutlined" />
+              <p v-if="item.customerName" class="case-customer">{{ item.customerName }}</p>
+              <p v-if="item.summary" class="case-description">{{ item.summary }}</p>
+              <a
+                v-if="item.link && !item.coverImage"
+                class="case-link"
+                :href="item.link"
+                @click.prevent="openLink(item.link)"
+              >
+                查看详情 <component :is="ArrowRightOutlined" />
               </a>
             </div>
           </div>
@@ -253,17 +152,36 @@
       </div>
     </section>
 
-    <section class="tech-clients section">
+    <section v-if="newsList.length" class="tech-news section">
       <div class="container">
         <div class="section-header">
-          <span class="section-tag">合作伙伴</span>
-          <h2 class="section-title">值得信赖的选择</h2>
-          <p class="section-subtitle">众多知名企业的共同选择</p>
+          <span class="section-tag">新闻动态</span>
+          <h2 class="section-title">最新资讯</h2>
+          <p class="section-subtitle">了解最新动态和行业资讯</p>
         </div>
-        <div class="clients-grid">
-          <div v-for="client in clientLogos" :key="client.id" class="client-item">
-            <div class="client-logo">{{ client.logoUrl }}</div>
-            <span class="client-name">{{ client.name }}</span>
+        <div class="news-grid">
+          <div v-for="news in newsList" :key="news.id" class="news-card">
+            <div v-if="news.coverImage" class="news-image">
+              <img :src="news.coverImage" :alt="news.title || ''" />
+            </div>
+            <div class="news-content">
+              <span v-if="news.category" class="news-category">{{ news.category }}</span>
+              <div v-if="news.publishedAt" class="news-meta">
+                <span class="news-date">
+                  <component :is="CalendarOutlined" />
+                  {{ formatDate(news.publishedAt) }}
+                </span>
+              </div>
+              <h3 class="news-title">{{ news.title }}</h3>
+              <p v-if="news.summary" class="news-summary">{{ news.summary }}</p>
+              <a
+                class="news-link"
+                :href="news.link || undefined"
+                @click.prevent="openLink(news.link, '/news')"
+              >
+                阅读全文 <component :is="ArrowRightOutlined" />
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -273,11 +191,11 @@
       <div class="container">
         <div class="contact-wrapper">
           <div class="contact-info">
-            <span class="section-tag light">联系我们</span>
-            <h2 class="section-title light">{{ contactInfo.title }}</h2>
-            <p class="contact-subtitle">{{ contactInfo.subtitle }}</p>
-            <div class="contact-details">
-              <div class="contact-item">
+            <span class="section-tag light">联系方式</span>
+            <h2 class="section-title light">联系我们</h2>
+            <p v-if="contactInfo.description" class="contact-subtitle">{{ contactInfo.description }}</p>
+            <div v-if="contactInfo.address || contactInfo.phone || contactInfo.email" class="contact-details">
+              <div v-if="contactInfo.address" class="contact-item">
                 <div class="contact-icon">
                   <component :is="EnvironmentOutlined" />
                 </div>
@@ -286,7 +204,7 @@
                   <p>{{ contactInfo.address }}</p>
                 </div>
               </div>
-              <div class="contact-item">
+              <div v-if="contactInfo.phone" class="contact-item">
                 <div class="contact-icon">
                   <component :is="PhoneOutlined" />
                 </div>
@@ -295,7 +213,7 @@
                   <p>{{ contactInfo.phone }}</p>
                 </div>
               </div>
-              <div class="contact-item">
+              <div v-if="contactInfo.email" class="contact-item">
                 <div class="contact-icon">
                   <component :is="MailOutlined" />
                 </div>
@@ -304,37 +222,34 @@
                   <p>{{ contactInfo.email }}</p>
                 </div>
               </div>
-              <div class="contact-item">
-                <div class="contact-icon">
-                  <component :is="ClockCircleOutlined" />
-                </div>
-                <div class="contact-text">
-                  <h4>工作时间</h4>
-                  <p>{{ contactInfo.workingHours }}</p>
-                </div>
-              </div>
             </div>
           </div>
-          <div class="contact-form-wrapper">
+          <div v-if="contactInfo.email" class="contact-form-wrapper">
             <div class="contact-form-card">
               <h3>在线咨询</h3>
               <a-form layout="vertical">
                 <a-form-item label="您的姓名">
-                  <a-input size="large" placeholder="请输入您的姓名" />
+                  <a-input v-model:value="inquiry.name" size="large" placeholder="请输入您的姓名" />
                 </a-form-item>
                 <a-form-item label="联系电话">
-                  <a-input size="large" placeholder="请输入您的电话" />
+                  <a-input v-model:value="inquiry.phone" size="large" placeholder="请输入您的电话" />
                 </a-form-item>
                 <a-form-item label="电子邮箱">
-                  <a-input size="large" placeholder="请输入您的邮箱" />
+                  <a-input v-model:value="inquiry.email" size="large" placeholder="请输入您的邮箱" />
                 </a-form-item>
                 <a-form-item label="咨询内容">
-                  <a-textarea :rows="4" size="large" placeholder="请描述您的需求..." />
+                  <a-textarea
+                    v-model:value="inquiry.content"
+                    :rows="4"
+                    size="large"
+                    placeholder="请描述您的需求..."
+                  />
                 </a-form-item>
-                <a-button type="primary" size="large" block>
+                <a-button type="primary" size="large" block @click="sendInquiry">
                   提交咨询
                   <component :is="SendOutlined" />
                 </a-button>
+                <p class="form-hint">提交后将通过本机邮件客户端发送至 {{ contactInfo.email }}</p>
               </a-form>
             </div>
           </div>
@@ -350,33 +265,34 @@
               <span class="logo-icon">
                 <component :is="ApiOutlined" />
               </span>
-              <span class="logo-text">{{ companyInfo.name }}</span>
+              <span v-if="companyInfo.name" class="logo-text">{{ companyInfo.name }}</span>
             </div>
-            <p class="footer-slogan">{{ companyInfo.slogan }}</p>
-            <div class="social-links">
-              <a class="social-link" href="#">
-                <component :is="GlobalOutlined" />
-              </a>
-              <a class="social-link" href="#">
-                <component :is="WechatOutlined" />
-              </a>
-              <a class="social-link" href="#">
-                <component :is="WeiboOutlined" />
-              </a>
-            </div>
+            <p v-if="companyInfo.slogan" class="footer-slogan">{{ companyInfo.slogan }}</p>
+            <ul v-if="contactChannels.length" class="contact-channels">
+              <li v-for="channel in contactChannels" :key="channel.label" class="channel-item">
+                <span class="channel-label">{{ channel.label }}</span>
+                <a
+                  v-if="channel.external"
+                  class="channel-value"
+                  :href="channel.value"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >{{ channel.value }}</a>
+                <span v-else class="channel-value">{{ channel.value }}</span>
+              </li>
+            </ul>
           </div>
-          <div v-for="linkGroup in footerLinks" :key="linkGroup.title" class="footer-column">
-            <h4 class="footer-title">{{ linkGroup.title }}</h4>
+          <div v-for="(group, groupIndex) in footerGroups" :key="`${group.title}-${groupIndex}`" class="footer-column">
+            <h4 v-if="group.showTitle" class="footer-title">{{ group.title }}</h4>
             <ul class="footer-links">
-              <li v-for="link in linkGroup.links" :key="link.label">
-                <a @click="navigateTo(link.path)">{{ link.label }}</a>
+              <li v-for="(link, index) in group.links" :key="`${group.title}-${index}`">
+                <a :href="link.url" @click.prevent="openLink(link.url)">{{ link.title }}</a>
               </li>
             </ul>
           </div>
         </div>
-        <div class="footer-bottom">
+        <div v-if="companyInfo.copyright" class="footer-bottom">
           <p>{{ companyInfo.copyright }}</p>
-          <p>{{ companyInfo.icp }}</p>
         </div>
       </div>
     </footer>
@@ -392,41 +308,34 @@ import {
   MenuOutlined,
   RocketOutlined,
   ArrowRightOutlined,
-  CloudServerOutlined,
-  RobotOutlined,
-  SafetyOutlined,
-  CloudOutlined,
-  AppstoreOutlined,
-  BarChartOutlined,
-  GlobalOutlined,
-  CheckOutlined,
-  BulbOutlined,
-  TeamOutlined,
   CalendarOutlined,
-  EyeOutlined,
   EnvironmentOutlined,
   PhoneOutlined,
   MailOutlined,
-  ClockCircleOutlined,
-  SendOutlined,
-  WechatOutlined,
-  WeiboOutlined
+  SendOutlined
 } from '@ant-design/icons-vue'
 import {
-  navItems,
-  clientLogos,
-  footerLinks
-} from '../data/mockData'
-import {
   getPortalData,
-  transformServiceData,
-  transformCaseData,
-  transformNewsData,
   type ApiHeroData,
+  type ApiServiceItem,
+  type ApiCaseItem,
+  type ApiNewsItem,
   type ApiContactInfo,
   type ApiCompanyInfo,
+  type ApiFooterLink,
   type ApiSeoMeta
 } from '../api/portalData'
+import { formatDate } from '../../utils/format'
+
+// 固定的站点导航（路由均在门户中真实存在），与站点内容无关
+const navItems: { key: string; label: string; path: string }[] = [
+  { key: 'home', label: '首页', path: '/' },
+  { key: 'about', label: '关于我们', path: '/about' },
+  { key: 'services', label: '服务项目', path: '/services' },
+  { key: 'cases', label: '案例展示', path: '/cases' },
+  { key: 'news', label: '新闻动态', path: '/news' },
+  { key: 'contact', label: '联系我们', path: '/contact' }
+]
 
 const router = useRouter()
 const route = useRoute()
@@ -436,45 +345,41 @@ const currentPath = ref('/')
 const loading = ref(true)
 const error = ref<string | null>(null)
 
-// 从 API 加载的数据
+// 从 API 加载的数据：后端没有的字段不声明也不兜底
 const heroData = ref<ApiHeroData>({
   title: '',
-  subtitle: '',
-  description: '',
-  primaryButtonText: '立即咨询',
-  secondaryButtonText: '了解更多'
+  description: ''
 })
-const services = ref<any[]>([])
-const aboutData = ref({
-  title: '关于我们',
-  subtitle: '',
-  description: '',
-  highlights: [
-    { label: '年行业经验', value: '10+' },
-    { label: '服务客户', value: '500+' },
-    { label: '成功案例', value: '1000+' },
-    { label: '专业团队', value: '200+' }
-  ],
-  imageUrl: ''
-})
-const cases = ref<any[]>([])
-const newsList = ref<any[]>([])
+const services = ref<ApiServiceItem[]>([])
+const cases = ref<ApiCaseItem[]>([])
+const newsList = ref<ApiNewsItem[]>([])
+const footerLinks = ref<ApiFooterLink[]>([])
 const contactInfo = ref<ApiContactInfo>({
-  title: '联系我们',
-  subtitle: '期待与您的合作',
-  address: '',
   phone: '',
   email: '',
-  workingHours: '周一至周五 9:00 - 18:00'
+  website: '',
+  address: '',
+  description: '',
+  serviceHotline: '',
+  wechat: '',
+  weibo: '',
+  douyin: '',
+  linkedin: '',
+  github: ''
 })
 const companyInfo = ref<ApiCompanyInfo>({
   name: '',
+  logo: '',
   slogan: '',
-  icp: '',
-  copyright: ''
+  copyright: '',
+  description: ''
 })
 const seoMeta = ref<ApiSeoMeta | null>(null)
 const faviconUrl = ref<string>('')
+
+const aboutDescription = computed(
+  () => companyInfo.value?.description || heroData.value?.description || ''
+)
 
 const handleScroll = () => {
   isScrolled.value = window.scrollY > 50
@@ -486,17 +391,78 @@ const navigateTo = (path: string) => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const getIcon = (iconName: string) => {
-  const icons: Record<string, any> = {
-    CloudOutlined,
-    RobotOutlined,
-    SafetyOutlined,
-    AppstoreOutlined,
-    BarChartOutlined,
-    GlobalOutlined
+const isExternalUrl = (value: string) =>
+  /^https?:\/\//i.test(value) || value.startsWith('//')
+
+/** 后端给的 link 可能是站内路径，也可能是完整外链 */
+const openLink = (url?: string | null, fallback = '') => {
+  const target = url || fallback
+  if (!target) return
+  if (isExternalUrl(target)) {
+    window.open(target, '_blank', 'noopener')
+    return
   }
-  return icons[iconName] || CloudOutlined
+  navigateTo(target)
 }
+
+const contactChannels = computed(() => {
+  const info = contactInfo.value
+  const source: [string, string | null][] = [
+    ['官网', info?.website],
+    ['服务热线', info?.serviceHotline],
+    ['微信', info?.wechat],
+    ['微博', info?.weibo],
+    ['抖音', info?.douyin],
+    ['LinkedIn', info?.linkedin],
+    ['GitHub', info?.github]
+  ]
+  return source
+    .filter(([, value]) => !!value)
+    .map(([label, value]) => ({
+      label,
+      value: value as string,
+      external: isExternalUrl(String(value))
+    }))
+})
+
+const inquiry = ref({ name: '', phone: '', email: '', content: '' })
+
+/** 门户是公开页面，留言写入需要鉴权的 /api/guestbook，游客拿不到身份；
+ *  这里只能用邮件客户端把内容发给站点邮箱，不假装「提交成功」。 */
+const sendInquiry = () => {
+  const to = contactInfo.value.email
+  if (!to) return
+  const subject = `${inquiry.value.name || '门户网站咨询'} - 在线咨询`
+  const body = [
+    `姓名：${inquiry.value.name}`,
+    `电话：${inquiry.value.phone}`,
+    `邮箱：${inquiry.value.email}`,
+    '',
+    inquiry.value.content
+  ].join('\n')
+  window.location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+}
+
+/** footerLinks 是扁平结构 { title, url, type, children }，把每组压成可点击的叶子节点 */
+const collectFooterLeaves = (group: ApiFooterLink): ApiFooterLink[] => {
+  const children = group.children ?? []
+  if (!children.length) return group.url ? [group] : []
+  return children.flatMap(collectFooterLeaves)
+}
+
+const footerGroups = computed(() => {
+  const groups: { title: string; showTitle: boolean; links: ApiFooterLink[] }[] = []
+  for (const group of footerLinks.value ?? []) {
+    const leaves = collectFooterLeaves(group)
+    if (!leaves.length) continue
+    groups.push({
+      title: group.title,
+      showTitle: leaves.length > 1 || leaves[0] !== group,
+      links: leaves
+    })
+  }
+  return groups
+})
 
 const loadData = async () => {
   try {
@@ -505,18 +471,15 @@ const loadData = async () => {
 
     const data = await getPortalData()
 
-    // 填充数据（每项都加防御兜底）
-    heroData.value = data.heroData || heroData.value
-    services.value = transformServiceData(data.services)
-    aboutData.value.subtitle = data.heroData?.subtitle || ''
-    aboutData.value.description = data.heroData?.description || ''
-    aboutData.value.imageUrl = data.heroData?.backgroundImage || ''
-    cases.value = transformCaseData(data.cases)
-    newsList.value = transformNewsData(data.news)
-    contactInfo.value = data.contactInfo || contactInfo.value
-    companyInfo.value = data.companyInfo || companyInfo.value
-    seoMeta.value = data.seoMeta || null
-    faviconUrl.value = data.faviconUrl || ''
+    heroData.value = data.heroData ?? heroData.value
+    services.value = data.services ?? []
+    cases.value = data.cases ?? []
+    newsList.value = data.newsList ?? []
+    footerLinks.value = data.footerLinks ?? []
+    contactInfo.value = data.contactInfo ?? contactInfo.value
+    companyInfo.value = data.companyInfo ?? companyInfo.value
+    seoMeta.value = data.seoMeta ?? null
+    faviconUrl.value = data.faviconUrl ?? ''
   } catch (err) {
     console.error('加载数据失败:', err)
     error.value = '加载失败，请稍后重试'
@@ -844,12 +807,14 @@ onUnmounted(() => {
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 60px;
     align-items: center;
   }
 
   .hero-text {
+    max-width: 820px;
+
     .hero-badge {
       display: inline-flex;
       align-items: center;
@@ -869,14 +834,6 @@ onUnmounted(() => {
       line-height: 1.2;
       color: #fff;
       margin-bottom: 24px;
-
-      .gradient-text {
-        display: block;
-        background: linear-gradient(135deg, #6366f1, #a78bfa, #c084fc);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
     }
 
     .hero-description {
@@ -889,7 +846,7 @@ onUnmounted(() => {
     .hero-buttons {
       display: flex;
       gap: 16px;
-      margin-bottom: 48px;
+      margin-bottom: 0;
 
       .ant-btn {
         display: flex;
@@ -922,142 +879,6 @@ onUnmounted(() => {
         }
       }
     }
-
-    .hero-stats {
-      display: flex;
-      gap: 40px;
-
-      .stat-item {
-        display: flex;
-        flex-direction: column;
-
-        .stat-value {
-          font-size: 36px;
-          font-weight: 700;
-          background: linear-gradient(135deg, #6366f1, #a78bfa);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-
-        .stat-label {
-          font-size: 14px;
-          color: #64748b;
-        }
-      }
-    }
-  }
-
-  .hero-visual {
-    position: relative;
-    height: 500px;
-
-    .tech-card {
-      position: absolute;
-      background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 20px;
-      overflow: hidden;
-
-      &.main-card {
-        width: 320px;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-
-        .card-glow {
-          position: absolute;
-          top: -50%;
-          left: -50%;
-          width: 200%;
-          height: 200%;
-          background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%);
-          animation: pulse 4s ease-in-out infinite;
-        }
-
-        .card-content {
-          position: relative;
-          padding: 32px;
-
-          .tech-icon {
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 28px;
-            margin-bottom: 20px;
-          }
-
-          .tech-title {
-            font-size: 22px;
-            font-weight: 700;
-            color: #fff;
-            margin-bottom: 8px;
-          }
-
-          .tech-desc {
-            font-size: 14px;
-            color: #94a3b8;
-            margin-bottom: 20px;
-          }
-
-          .tech-metrics {
-            display: flex;
-            gap: 20px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-
-            .metric {
-              .metric-value {
-                display: block;
-                font-size: 24px;
-                font-weight: 700;
-                color: #a78bfa;
-              }
-
-              .metric-label {
-                font-size: 12px;
-                color: #64748b;
-              }
-            }
-          }
-        }
-      }
-
-      &.floating-card {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 16px 24px;
-
-        .floating-icon {
-          font-size: 24px;
-          color: #6366f1;
-        }
-
-        .floating-text {
-          color: #fff;
-          font-weight: 500;
-        }
-
-        &.card-2 {
-          top: 40px;
-          right: 20px;
-          animation: float 6s ease-in-out infinite;
-        }
-
-        &.card-3 {
-          bottom: 60px;
-          left: 0;
-          animation: float 8s ease-in-out infinite reverse;
-        }
-      }
-    }
   }
 }
 
@@ -1071,6 +892,7 @@ onUnmounted(() => {
   }
 
   .service-card {
+    display: block;
     background: #fff;
     border-radius: 20px;
     padding: 40px 32px;
@@ -1078,6 +900,8 @@ onUnmounted(() => {
     transition: all 0.4s ease;
     position: relative;
     overflow: hidden;
+    color: inherit;
+    text-decoration: none;
 
     &::before {
       content: '';
@@ -1102,19 +926,6 @@ onUnmounted(() => {
       }
     }
 
-    .service-icon {
-      width: 64px;
-      height: 64px;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #6366f1;
-      font-size: 28px;
-      margin-bottom: 24px;
-    }
-
     .service-title {
       font-size: 22px;
       font-weight: 700;
@@ -1126,40 +937,7 @@ onUnmounted(() => {
       font-size: 14px;
       color: #64748b;
       line-height: 1.7;
-      margin-bottom: 20px;
-    }
-
-    .service-features {
-      list-style: none;
-      padding: 0;
-      margin: 0 0 24px;
-
-      li {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 0;
-        font-size: 14px;
-        color: #475569;
-
-        svg {
-          color: #6366f1;
-        }
-      }
-    }
-
-    .service-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: #6366f1;
-      font-weight: 500;
-      cursor: pointer;
-      transition: gap 0.3s ease;
-
-      &:hover {
-        gap: 10px;
-      }
+      margin: 0;
     }
   }
 }
@@ -1167,61 +945,15 @@ onUnmounted(() => {
 .tech-about {
   .about-content {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 80px;
+    grid-template-columns: 1fr;
+    gap: 40px;
     align-items: center;
   }
 
-  .about-image {
-    position: relative;
-
-    .image-wrapper {
-      position: relative;
-      border-radius: 24px;
-      overflow: hidden;
-
-      img {
-        width: 100%;
-        height: 500px;
-        object-fit: cover;
-      }
-
-      .image-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
-      }
-    }
-
-    .experience-badge {
-      position: absolute;
-      bottom: -30px;
-      right: 30px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      border-radius: 20px;
-      padding: 24px 32px;
-      text-align: center;
-      box-shadow: 0 10px 40px rgba(99, 102, 241, 0.4);
-
-      .badge-number {
-        display: block;
-        font-size: 42px;
-        font-weight: 800;
-        color: #fff;
-        line-height: 1;
-      }
-
-      .badge-text {
-        font-size: 14px;
-        color: rgba(255, 255, 255, 0.9);
-      }
-    }
-  }
-
   .about-text {
+    max-width: 880px;
+    margin: 0 auto;
+
     .section-tag {
       margin-bottom: 16px;
     }
@@ -1236,46 +968,6 @@ onUnmounted(() => {
       color: #64748b;
       line-height: 1.8;
       margin-bottom: 32px;
-    }
-
-    .about-features {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      margin-bottom: 32px;
-
-      .feature-item {
-        display: flex;
-        gap: 16px;
-
-        .feature-icon {
-          width: 52px;
-          height: 52px;
-          background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
-          border-radius: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #6366f1;
-          font-size: 24px;
-          flex-shrink: 0;
-        }
-
-        .feature-content {
-          h4 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1a1a2e;
-            margin-bottom: 4px;
-          }
-
-          p {
-            font-size: 14px;
-            color: #64748b;
-            margin: 0;
-          }
-        }
-      }
     }
 
     .ant-btn {
@@ -1361,7 +1053,14 @@ onUnmounted(() => {
         font-size: 20px;
         font-weight: 700;
         color: #1a1a2e;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
+      }
+
+      .case-customer {
+        font-size: 14px;
+        font-weight: 500;
+        color: #6366f1;
+        margin: 0 0 12px;
       }
 
       .case-description {
@@ -1371,10 +1070,19 @@ onUnmounted(() => {
         margin-bottom: 16px;
       }
 
-      .case-tags {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
+      .case-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #6366f1;
+        font-weight: 500;
+        font-size: 14px;
+        cursor: pointer;
+        transition: gap 0.3s ease;
+
+        &:hover {
+          gap: 10px;
+        }
       }
     }
   }
@@ -1409,22 +1117,21 @@ onUnmounted(() => {
         height: 100%;
         object-fit: cover;
       }
+    }
+
+    .news-content {
+      padding: 24px;
 
       .news-category {
-        position: absolute;
-        top: 16px;
-        left: 16px;
+        display: inline-block;
         padding: 4px 12px;
         background: linear-gradient(135deg, #6366f1, #8b5cf6);
         color: #fff;
         border-radius: 6px;
         font-size: 12px;
         font-weight: 500;
+        margin-bottom: 12px;
       }
-    }
-
-    .news-content {
-      padding: 24px;
 
       .news-meta {
         display: flex;
@@ -1473,46 +1180,6 @@ onUnmounted(() => {
           gap: 10px;
         }
       }
-    }
-  }
-}
-
-.tech-clients {
-  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
-
-  .clients-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 24px;
-  }
-
-  .client-item {
-    background: #fff;
-    border-radius: 16px;
-    padding: 32px;
-    text-align: center;
-    border: 1px solid #e2e8f0;
-    transition: all 0.3s ease;
-
-    &:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-      border-color: #6366f1;
-    }
-
-    .client-logo {
-      font-size: 20px;
-      font-weight: 700;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 8px;
-    }
-
-    .client-name {
-      font-size: 14px;
-      color: #64748b;
     }
   }
 }
@@ -1615,6 +1282,12 @@ onUnmounted(() => {
         color: #cbd5e1;
       }
 
+      .form-hint {
+        margin-top: 12px;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+
       :deep(.ant-input),
       :deep(.ant-input-affix-wrapper) {
         background: rgba(255, 255, 255, 0.05);
@@ -1663,7 +1336,7 @@ onUnmounted(() => {
 
   .footer-content {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: minmax(260px, 2fr) repeat(auto-fit, minmax(140px, 1fr));
     gap: 40px;
     padding-bottom: 60px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -1702,27 +1375,33 @@ onUnmounted(() => {
       line-height: 1.7;
     }
 
-    .social-links {
+    .contact-channels {
+      list-style: none;
+      padding: 0;
+      margin: 0;
       display: flex;
-      gap: 12px;
+      flex-direction: column;
+      gap: 10px;
 
-      .social-link {
-        width: 40px;
-        height: 40px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
+      .channel-item {
         display: flex;
-        align-items: center;
-        justify-content: center;
+        gap: 8px;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .channel-label {
+        color: #64748b;
+        flex-shrink: 0;
+      }
+
+      .channel-value {
         color: #94a3b8;
-        transition: all 0.3s ease;
+        text-decoration: none;
+        word-break: break-all;
 
         &:hover {
-          background: #6366f1;
-          border-color: #6366f1;
-          color: #fff;
-          transform: translateY(-2px);
+          color: #a78bfa;
         }
       }
     }
@@ -1780,15 +1459,6 @@ onUnmounted(() => {
   }
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 0.8;
-  }
-}
-
 @media (max-width: 992px) {
   .section {
     padding: 60px 0;
@@ -1823,20 +1493,11 @@ onUnmounted(() => {
       .hero-title {
         font-size: 36px;
       }
-
-      .hero-stats {
-        gap: 24px;
-      }
-    }
-
-    .hero-visual {
-      height: 400px;
     }
   }
 
   .tech-services .services-grid,
-  .tech-news .news-grid,
-  .tech-clients .clients-grid {
+  .tech-news .news-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -1862,7 +1523,6 @@ onUnmounted(() => {
 
   .tech-services .services-grid,
   .tech-news .news-grid,
-  .tech-clients .clients-grid,
   .tech-footer .footer-content {
     grid-template-columns: 1fr;
   }
@@ -1873,10 +1533,6 @@ onUnmounted(() => {
 
   .tech-hero .hero-text .hero-buttons {
     flex-direction: column;
-  }
-
-  .tech-hero .hero-stats {
-    flex-wrap: wrap;
   }
 }
 </style>
