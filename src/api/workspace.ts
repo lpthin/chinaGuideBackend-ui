@@ -1,5 +1,5 @@
 // Workspace 模块 API - 统一工作台接口
-import http from './http'
+import http, { currentAuthToken } from './http'
 import type {
   DashboardStats,
   KeywordCluster,
@@ -171,9 +171,9 @@ export const articleApi = {
       knowledgeReferences?: string[]
     }>(`/workspace/articles/generate/${taskId}/status`),
 
-  // SSE 流式获取生成任务进度（前端用 EventSource 接收，连接失败需降级为轮询）
+  // SSE 流式获取生成任务进度（EventSource 不能带请求头，令牌只能走 ?token= 查询参数）
   streamGenerationStatus: (taskId: number) => {
-    return new EventSource(`/api/workspace/articles/generate/${taskId}/stream`)
+    return new EventSource(`/api/workspace/articles/generate/${taskId}/stream?token=${encodeURIComponent(currentAuthToken() ?? '')}`)
   },
 
   // 取消生成任务

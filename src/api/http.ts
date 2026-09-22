@@ -53,12 +53,17 @@ const http = axios.create({
   timeout: 30000
 }) as unknown as HttpClient
 
+export function currentAuthToken(): string | null {
+  const auth = useAuthStore()
+  return auth.accessToken
+    || localStorage.getItem('access_token')
+    || localStorage.getItem('geocms_token')
+}
+
 http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const auth = useAuthStore()
-    let token = auth.accessToken
-      || localStorage.getItem('access_token')
-      || localStorage.getItem('geocms_token')
+    const token = currentAuthToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
