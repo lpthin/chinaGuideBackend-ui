@@ -15,7 +15,9 @@
   row-key="id"
 >
   <a-table-column title="名称" data-index="name" width="200" />
-  <a-table-column title="用途" data-index="purpose" width="150" />
+  <a-table-column title="用途" width="150">
+    <template #default="{ record }">{{ purposeName(record.purpose) }}</template>
+  </a-table-column>
   <a-table-column title="版本" data-index="version" width="100" />
   <a-table-column title="启用状态" data-index="enabled" width="100">
     <template #default="{ record }">
@@ -24,7 +26,9 @@
       </a-tag>
     </template>
   </a-table-column>
-  <a-table-column title="更新时间" data-index="updatedAt" width="180" />
+  <a-table-column title="更新时间" width="180">
+    <template #default="{ record }">{{ formatDateTime(record.updatedAt) }}</template>
+  </a-table-column>
   <a-table-column title="操作" width="200">
     <template #default="{ record }">
       <a-space>
@@ -79,7 +83,19 @@ import { ref, onMounted } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { systemPromptApi } from '../../api'
+import { formatDateTime } from '../../utils/format'
 import type { PromptTemplate } from '../../types'
+
+const purposeNames: Record<string, string> = {
+  keyword_distill: '关键词蒸馏',
+  article_draft: '文章草稿',
+  article_review: '文章审核'
+}
+
+function purposeName(purpose?: string) {
+  if (!purpose) return '-'
+  return purposeNames[purpose] || purpose
+}
 
 const templates = ref<PromptTemplate[]>([])
 const loading = ref(false)
@@ -92,8 +108,7 @@ const form = ref<PromptTemplate>({
   purpose: '',
   version: 'v1',
   templateText: '',
-  enabled: true,
-  isSystem: true
+  enabled: true
 })
 
 const fetchTemplates = async () => {
@@ -120,8 +135,7 @@ const openModal = (record?: PromptTemplate) => {
       purpose: '',
       version: 'v1',
       templateText: '',
-      enabled: true,
-      isSystem: true
+      enabled: true
     }
   }
   modalOpen.value = true

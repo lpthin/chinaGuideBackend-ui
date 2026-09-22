@@ -26,12 +26,9 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ invoiceStats.total }}</div>
-                <div class="stat-title">本月账单</div>
+                <div class="stat-value">{{ pagination.total }}</div>
+                <div class="stat-title">账单总数</div>
               </div>
-            </div>
-            <div class="stat-extra">
-              <span class="pending">待付 {{ invoiceStats.pending }}</span>
             </div>
           </a-card>
         </a-col>
@@ -46,9 +43,9 @@
                 <div class="stat-title">本月消费</div>
               </div>
             </div>
-            <div class="stat-extra">
+            <div class="stat-extra" v-if="consumptionStats.lastMonthAmount > 0">
               <span :class="consumptionStats.growthRate >= 0 ? 'growth-up' : 'growth-down'">
-                {{ consumptionStats.growthRate >= 0 ? '+' : '' }}{{ consumptionStats.growthRate.toFixed(1) }}%
+                {{ consumptionStats.growthRate >= 0 ? '+' : '' }}{{ formatDecimal(consumptionStats.growthRate, 1) }}%
               </span>
             </div>
           </a-card>
@@ -60,12 +57,9 @@
                 <BankOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ formatAmount(accountBalance.creditLimit || 0) }}</div>
+                <div class="stat-value">¥{{ formatAmount(accountBalance.creditLimit) }}</div>
                 <div class="stat-title">信用额度</div>
               </div>
-            </div>
-            <div class="stat-extra">
-              <span class="credit-used">已用 ¥{{ formatAmount((accountBalance.creditLimit || 0) - accountBalance.availableBalance) }}</span>
             </div>
           </a-card>
         </a-col>
@@ -123,6 +117,7 @@
             </a-select>
             <a-range-picker
               v-model:value="dateRange"
+              value-format="YYYY-MM-DD"
               style="width: 240px"
               @change="handleDateChange"
             />
@@ -172,14 +167,6 @@
                   @click="handlePay(record)"
                 >
                   支付
-                </a-button>
-                <a-button
-                  v-if="record.status === InvoiceStatus.PAID"
-                  type="link"
-                  size="small"
-                  @click="handleDownload(record)"
-                >
-                  下载
                 </a-button>
               </a-space>
             </template>
@@ -247,6 +234,7 @@
     <InvoiceDetailDrawer
       v-model:open="detailDrawerVisible"
       :invoice-id="currentInvoiceId"
+      @paid="loadInvoices"
     />
   </div>
 </template>
@@ -263,6 +251,8 @@ import {
 import { InvoiceStatus, PaymentMethod, Currency } from '../../types/billing'
 import type { Invoice, RechargePackage } from '../../types/billing'
 import { walletApi, packageApi, statsApi, invoiceApi, balanceApi } from '../../api/billing'
+import { describeHttpError } from '../../api/http'
+import { formatDate, formatDateTime, formatDecimal } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import InvoiceDetailDrawer from './InvoiceDetailDrawer.vue'
 
@@ -287,14 +277,9 @@ const accountBalance = reactive({
   totalExpense: 0,
 })
 
-const invoiceStats = reactive({
-  total: 0,
-  pending: 0,
-  paid: 0,
-})
-
 const consumptionStats = reactive({
   monthAmount: 0,
+  lastMonthAmount: 0,
   growthRate: 0,
 })
 
@@ -330,9 +315,9 @@ const invoiceColumns = [
   { title: '金额', key: 'amount', width: 120 },
   { title: '状态', key: 'status', width: 100 },
   { title: '支付方式', key: 'paymentMethod', width: 100 },
-  { title: '到期日', dataIndex: 'dueDate', key: 'dueDate', width: 120 },
-  { title: '支付时间', dataIndex: 'paidAt', key: 'paidAt', width: 180 },
-  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
+  { title: '到期日', dataIndex: 'dueDate', key: 'dueDate', width: 120, customRender: ({ text }: { text?: string }) => formatDate(text) },
+  { title: '支付时间', dataIndex: 'paidAt', key: 'paidAt', width: 180, customRender: ({ text }: { text?: string }) => formatDateTime(text) },
+  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180, customRender: ({ text }: { text?: string }) => formatDateTime(text) },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 150 },
 ]
 
@@ -350,8 +335,9 @@ function getTenantId(): number {
   return authStore.selectedTenantId || authStore.tenantId || 1
 }
 
-function formatAmount(amount: number): string {
-  return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+function formatAmount(amount?: number | null): string {
+  if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return '-'
+  return Number(amount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function getStatusName(status: InvoiceStatus): string {
@@ -404,7 +390,7 @@ async function loadWalletInfo() {
     }
   } catch (error: any) {
     console.error('加载钱包信息失败:', error)
-    message.error(error.message || '加载钱包信息失败')
+    message.error(`加载钱包信息失败：${describeHttpError(error)}`)
   }
 }
 
@@ -415,7 +401,7 @@ async function loadPackages() {
     rechargePackages.value = res as unknown as RechargePackage[]
   } catch (error: any) {
     console.error('加载充值套餐失败:', error)
-    message.error(error.message || '加载充值套餐失败')
+    message.error(`加载充值套餐失败：${describeHttpError(error)}`)
     rechargePackages.value = []
   }
 }
@@ -426,11 +412,12 @@ async function loadStats() {
     const res = await statsApi.overview(tenantId)
     if (res) {
       consumptionStats.monthAmount = res.thisMonthConsume || res.monthAmount || 0
+      consumptionStats.lastMonthAmount = res.lastMonthConsume || 0
       consumptionStats.growthRate = res.growthRate || 0
     }
   } catch (error: any) {
     console.error('加载消费统计失败:', error)
-    message.error(error.message || '加载消费统计失败')
+    message.error(`加载消费统计失败：${describeHttpError(error)}`)
   }
 }
 
@@ -451,19 +438,9 @@ async function loadInvoices() {
     const res = await invoiceApi.list(params)
     invoiceList.value = res.records || []
     pagination.total = res.total || 0
-
-    let pendingCount = 0
-    let paidCount = 0
-    invoiceList.value.forEach(inv => {
-      if (inv.status === InvoiceStatus.PENDING) pendingCount++
-      if (inv.status === InvoiceStatus.PAID) paidCount++
-    })
-    invoiceStats.total = invoiceList.value.length
-    invoiceStats.pending = pendingCount
-    invoiceStats.paid = paidCount
   } catch (error: any) {
     console.error('加载账单列表失败:', error)
-    message.error(error.message || '加载账单列表失败')
+    message.error(`加载账单列表失败：${describeHttpError(error)}`)
     invoiceList.value = []
     pagination.total = 0
   } finally {
@@ -508,7 +485,7 @@ async function handleExport() {
     const url = window.URL.createObjectURL(new Blob([res as any]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `账单导出_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    link.setAttribute('download', `账单导出_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -516,7 +493,7 @@ async function handleExport() {
     message.success('导出成功')
   } catch (error: any) {
     console.error('导出失败:', error)
-    message.error(error.message || '导出失败')
+    message.error(`导出失败：${describeHttpError(error)}`)
   }
 }
 
@@ -607,24 +584,6 @@ async function handlePay(record: Invoice) {
   } catch (error: any) {
     console.error('支付失败:', error)
     message.error(error.message || '支付失败')
-  }
-}
-
-async function handleDownload(record: Invoice) {
-  try {
-    const res = await invoiceApi.download(record.id)
-    const url = window.URL.createObjectURL(new Blob([res as any]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `账单_${record.invoiceNo}.pdf`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    message.success('下载成功')
-  } catch (error: any) {
-    console.error('下载失败:', error)
-    message.error(error.message || '下载失败')
   }
 }
 

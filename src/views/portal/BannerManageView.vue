@@ -118,6 +118,12 @@
                   {{ getStatusText(record.status) }}
                 </a-tag>
               </template>
+              <template v-if="column.key === 'createdAt'">
+                {{ formatDateTime(record.createdAt) }}
+              </template>
+              <template v-if="column.key === 'updatedAt'">
+                {{ formatDateTime(record.updatedAt) }}
+              </template>
               <template v-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="handlePreview(record)">预览</a-button>
@@ -184,6 +190,7 @@ import {
 import { bannerApi } from '../../api/portal'
 import type { Banner, BannerQuery } from '../../types/portal'
 import { useAuthStore } from '../../stores/auth'
+import { formatDateTime } from '../../utils/format'
 
 const router = useRouter()
 const auth = useAuthStore()

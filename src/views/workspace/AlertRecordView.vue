@@ -49,27 +49,6 @@
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
           <a-statistic
-            title="低危"
-            :value="stats.lowCount"
-            :value-style="{ color: '#52c41a' }"
-          />
-        </a-col>
-        <a-col :span="6">
-          <a-statistic
-            title="中危"
-            :value="stats.mediumCount"
-            :value-style="{ color: '#1890ff' }"
-          />
-        </a-col>
-        <a-col :span="6">
-          <a-statistic
-            title="高危"
-            :value="stats.highCount"
-            :value-style="{ color: '#faad14' }"
-          />
-        </a-col>
-        <a-col :span="6">
-          <a-statistic
             title="严重"
             :value="stats.criticalCount"
             :value-style="{ color: '#ff4d4f' }"
@@ -216,10 +195,10 @@
           {{ currentRecord.userId || '-' }}
         </a-descriptions-item>
         <a-descriptions-item label="触发时间">
-          {{ currentRecord.triggeredAt }}
+          {{ formatDateTime(currentRecord.triggeredAt) }}
         </a-descriptions-item>
         <a-descriptions-item label="解决时间">
-          {{ currentRecord.resolvedAt || '-' }}
+          {{ formatDateTime(currentRecord.resolvedAt) }}
         </a-descriptions-item>
         <a-descriptions-item label="报警内容">
           <div style="white-space: pre-wrap; word-break: break-all;">
@@ -228,11 +207,11 @@
         </a-descriptions-item>
         <a-descriptions-item label="元数据" v-if="currentRecord.metadata">
           <div style="white-space: pre-wrap; word-break: break-all;">
-            {{ JSON.stringify(currentRecord.metadata, null, 2) }}
+            {{ formatMetadata(currentRecord.metadata) }}
           </div>
         </a-descriptions-item>
         <a-descriptions-item label="创建时间">
-          {{ currentRecord.createdAt }}
+          {{ formatDateTime(currentRecord.createdAt) }}
         </a-descriptions-item>
       </a-descriptions>
       <div v-if="currentRecord" style="margin-top: 24px">
@@ -270,8 +249,10 @@ import {
 } from '@ant-design/icons-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import { alertApi } from '../../api/workspace'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
-import type { AlertRecord, AlertRecordStats } from '../../types/workspace'
+import type { AlertRecord } from '../../types/workspace'
 
 const authStore = useAuthStore()
 
@@ -289,14 +270,11 @@ const filterForm = reactive({
   dateRange: [] as string[]
 })
 
-const stats = reactive<AlertRecordStats>({
+const stats = reactive({
   total: 0,
   todayCount: 0,
   pendingCount: 0,
   processingCount: 0,
-  lowCount: 0,
-  mediumCount: 0,
-  highCount: 0,
   criticalCount: 0
 })
 
@@ -315,9 +293,21 @@ const columns = [
   { title: '严重级别', key: 'severity', dataIndex: 'severity', width: 100 },
   { title: '状态', key: 'status', dataIndex: 'status', width: 100 },
   { title: '请求路径', dataIndex: 'requestPath', key: 'requestPath', ellipsis: true },
-  { title: '触发时间', dataIndex: 'triggeredAt', key: 'triggeredAt', width: 180 },
+  { title: '触发时间', dataIndex: 'triggeredAt', key: 'triggeredAt', width: 180, customRender: ({ text }: { text: string }) => formatDateTime(text) },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 180 }
 ]
+
+const formatMetadata = (metadata: unknown) => {
+  if (!metadata) return '-'
+  if (typeof metadata === 'string') {
+    try {
+      return JSON.stringify(JSON.parse(metadata), null, 2)
+    } catch {
+      return metadata
+    }
+  }
+  return JSON.stringify(metadata, null, 2)
+}
 
 const severityMap: Record<string, { name: string; color: string }> = {
   low: { name: '低', color: 'green' },
@@ -378,8 +368,8 @@ const fetchRecords = async () => {
     const result = await alertApi.records.list(params) as any
     recordList.value = result.records || []
     pagination.total = result.total || 0
-  } catch (error: any) {
-    message.error(error.message || '获取报警记录失败')
+  } catch (error) {
+    message.error(`获取报警记录失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }
@@ -389,8 +379,8 @@ const fetchStats = async () => {
   try {
     const result = await alertApi.records.getStats(authStore.selectedTenantId || undefined) as any
     Object.assign(stats, result)
-  } catch (error: any) {
-    console.error('获取统计数据失败:', error)
+  } catch (error) {
+    message.error(`获取统计数据失败：${describeHttpError(error)}`)
   }
 }
 
@@ -426,8 +416,8 @@ const handleUpdateStatus = async (record: AlertRecord, status: string) => {
     message.success('状态更新成功')
     record.status = status as AlertRecord['status']
     fetchStats()
-  } catch (error: any) {
-    message.error(error.message || '状态更新失败')
+  } catch (error) {
+    message.error(`状态更新失败：${describeHttpError(error)}`)
   }
 }
 
@@ -443,8 +433,8 @@ const handleStatusUpdate = async () => {
     currentRecord.value.status = updateStatusValue.value as AlertRecord['status']
     fetchRecords()
     fetchStats()
-  } catch (error: any) {
-    message.error(error.message || '状态更新失败')
+  } catch (error) {
+    message.error(`状态更新失败：${describeHttpError(error)}`)
   } finally {
     statusUpdateLoading.value = false
   }

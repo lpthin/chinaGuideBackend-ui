@@ -334,7 +334,7 @@
                 <a-upload
                   list-type="picture-card"
                   :file-list="faviconFileList"
-                  :before-upload="beforeUpload"
+                  :before-upload="beforeFaviconUpload"
                   :max-count="1"
                   @change="handleFaviconChange"
                 >
@@ -391,7 +391,7 @@
           <a-card title="公司资质" :bordered="false" class="info-card">
             <a-upload
               v-model:file-list="certificateFileList"
-              :before-upload="beforeUpload"
+              :before-upload="beforeCertificateUpload"
               multiple
               list-type="picture-card"
             >
@@ -410,7 +410,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PlusOutlined,
@@ -421,10 +421,12 @@ import {
   GithubFilled,
 } from '@ant-design/icons-vue'
 import { companyInfoApi } from '@/api/portal'
+import { describeHttpError } from '@/api/http'
 import type { CompanyInfo, CompanyInfoForm } from '@/types/portal'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
+const tenantId = computed(() => auth.selectedTenantId || auth.tenantId)
 const loading = ref(false)
 const saving = ref(false)
 
@@ -600,17 +602,24 @@ function fillFormFromData(data: CompanyInfo) {
       url: data.faviconUrl
     }]
   }
+  const certificates = parseList(data.certificateUrls).filter(Boolean)
+  certificateFileList.value = certificates.map((url, index) => ({
+    uid: `certificate-${index}`,
+    name: `资质文件${index + 1}`,
+    status: 'done',
+    url
+  }))
 }
 
 async function loadCompanyInfo() {
   loading.value = true
   try {
-    const data = await companyInfoApi.get()
+    const data = await companyInfoApi.get(tenantId.value)
     if (data) {
       fillFormFromData(data)
     }
   } catch (error) {
-    message.error('加载企业信息失败')
+    message.error(`加载企业信息失败：${describeHttpError(error)}`)
     console.error(error)
   } finally {
     loading.value = false
@@ -636,11 +645,11 @@ async function handleSave() {
       seedKeywords: joinList(seedKeywordsList.value),
       excludedKeywords: joinList(excludedKeywordsList.value)
     }
-    await companyInfoApi.update(payload)
+    await companyInfoApi.update(payload, tenantId.value)
     message.success('保存成功')
     await loadCompanyInfo()
   } catch (error) {
-    message.error('保存失败')
+    message.error(`保存失败：${describeHttpError(error)}`)
     console.error(error)
   } finally {
     saving.value = false
@@ -652,33 +661,80 @@ function handleReset() {
   message.info('已重置表单')
 }
 
-function beforeUpload(file: any) {
-  const isImage = file.type.startsWith('image/')
-  if (!isImage) {
+function checkImage(file: File): boolean {
+  if (!file.type.startsWith('image/')) {
     message.error('只能上传图片文件')
     return false
   }
-  const isLt2M = file.size / 1024 / 1024 < 2
-  if (!isLt2M) {
+  if (file.size / 1024 / 1024 >= 2) {
     message.error('图片大小不能超过 2MB')
     return false
   }
+  return true
+}
+
+async function uploadCompanyImage(
+  kind: 'logo' | 'favicon' | 'certificate',
+  file: File,
+  onUploaded: (url: string) => void,
+  successText: string
+) {
+  try {
+    const res = await companyInfoApi.uploadImage(kind, file, tenantId.value) as any
+    onUploaded(res?.url || '')
+    message.success(successText)
+  } catch (error) {
+    message.error(`上传失败：${describeHttpError(error)}`)
+  }
+}
+
+function beforeUpload(file: File) {
+  if (!checkImage(file)) return false
+  uploadCompanyImage('logo', file, (url) => {
+    form.logoUrl = url
+    logoFileList.value = [{ uid: 'logo', name: file.name, status: 'done', url }]
+  }, 'Logo 上传成功')
+  return false
+}
+
+function beforeFaviconUpload(file: File) {
+  if (!checkImage(file)) return false
+  uploadCompanyImage('favicon', file, (url) => {
+    form.faviconUrl = url
+    faviconFileList.value = [{ uid: 'favicon', name: file.name, status: 'done', url }]
+  }, '网站图标上传成功')
+  return false
+}
+
+function beforeCertificateUpload(file: File) {
+  if (!checkImage(file)) return false
+  uploadCompanyImage('certificate', file, (url) => {
+    const existing = parseList(form.certificateUrls).filter(Boolean)
+    existing.push(url)
+    form.certificateUrls = existing.join(',')
+    certificateFileList.value = existing.map((item, index) => ({
+      uid: `certificate-${index}`,
+      name: `资质文件${index + 1}`,
+      status: 'done',
+      url: item
+    }))
+  }, '资质文件上传成功')
   return false
 }
 
 function handleLogoChange(info: any) {
   logoFileList.value = info.fileList
-  if (info.file.status === 'done') {
-    message.success('Logo上传成功')
-  }
+  if (!info.fileList.length) form.logoUrl = ''
 }
 
 function handleFaviconChange(info: any) {
   faviconFileList.value = info.fileList
-  if (info.file.status === 'done') {
-    message.success('网站图标上传成功')
-  }
+  if (!info.fileList.length) form.faviconUrl = ''
 }
+
+watch(tenantId, () => {
+  loadCompanyInfo()
+})
 
 onMounted(() => {
   loadCompanyInfo()

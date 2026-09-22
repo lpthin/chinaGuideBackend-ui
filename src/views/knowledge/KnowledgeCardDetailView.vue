@@ -16,23 +16,12 @@
       <a-row :gutter="24" style="margin-top: 16px">
         <a-col :span="18">
           <a-card :bordered="false">
-            <div v-if="card?.coverImage" class="cover-image">
-              <img :src="card.coverImage" alt="cover" />
-            </div>
-
             <div class="card-info">
               <a-space>
                 <a-tag color="blue">{{ categoryName }}</a-tag>
                 <span><EyeOutlined style="margin-right: 4px" /> {{ card?.viewCount }} 浏览</span>
-                <span><LikeOutlined style="margin-right: 4px" /> {{ card?.likeCount }} 点赞</span>
-                <span>更新于 {{ formatDate(card?.updatedAt || '') }}</span>
+                <span>更新于 {{ formatDateTime(card?.updatedAt) }}</span>
               </a-space>
-            </div>
-
-            <div v-if="card?.document" class="document-link">
-              <FileTextOutlined style="margin-right: 8px; color: #1890ff" />
-              <span>关联文档：</span>
-              <a @click="goToDocument(card.document.id)">{{ card.document.title }}</a>
             </div>
 
             <div class="card-tags">
@@ -60,9 +49,6 @@
 
           <a-card title="操作" style="margin-top: 16px" :bordered="false">
             <a-space direction="vertical" style="width: 100%">
-              <a-button type="primary" block @click="handleLike">
-                <LikeOutlined /> 点赞 ({{ card?.likeCount }})
-              </a-button>
               <a-button block @click="goToEdit">
                 <EditOutlined /> 编辑
               </a-button>
@@ -83,13 +69,13 @@ import { useRouter, useRoute } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import {
   EyeOutlined,
-  LikeOutlined,
   EditOutlined,
   DeleteOutlined,
-  FileTextOutlined,
 } from '@ant-design/icons-vue'
-import { knowledgeCardApi, knowledgeCategoryApi } from '../../api/knowledge'
-import type { KnowledgeCard, KnowledgeCategory } from '../../types/knowledge'
+import { knowledgeCardApi } from '../../api/knowledge'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime } from '../../utils/format'
+import type { KnowledgeCard } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
@@ -97,16 +83,11 @@ const route = useRoute()
 const auth = useAuthStore()
 const loading = ref(false)
 const card = ref<KnowledgeCard | null>(null)
-const categories = ref<KnowledgeCategory[]>([])
 const relatedCards = ref<KnowledgeCard[]>([])
 
 const cardId = computed(() => Number(route.params.id))
 
-const categoryName = computed(() => {
-  if (!card.value) return '-'
-  const category = categories.value.find(c => c.id === card.value!.categoryId)
-  return category?.name || '-'
-})
+const categoryName = computed(() => card.value?.categoryName || '-')
 
 const tagList = computed(() => {
   if (card.value?.tagList && card.value.tagList.length) return card.value.tagList
@@ -114,42 +95,16 @@ const tagList = computed(() => {
   return typeof card.value.tags === 'string' ? card.value.tags.split(',').filter(t => t) : []
 })
 
-function formatDate(dateStr: string): string {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
-
 function goBack() {
   router.back()
 }
 
 function goToEdit() {
-  router.push(`/knowledge/card/${cardId.value}/edit`)
+  router.push(`/workspace/knowledge/cards/edit/${cardId.value}`)
 }
 
 function goToDetail(id: number) {
-  router.push(`/knowledge/card/${id}`)
-}
-
-function goToDocument(docId: number) {
-  router.push(`/knowledge/document/${docId}`)
-}
-
-async function handleLike() {
-  try {
-    await knowledgeCardApi.like(cardId.value)
-    message.success('点赞成功')
-    if (card.value) {
-      card.value.likeCount += 1
-    }
-  } catch (error) {
-    message.error('点赞失败')
-    console.error(error)
-  }
+  router.push(`/workspace/knowledge/cards/${id}`)
 }
 
 async function handleDelete() {
@@ -162,23 +117,12 @@ async function handleDelete() {
       try {
         await knowledgeCardApi.delete(cardId.value)
         message.success('删除成功')
-        router.push('/knowledge/cards')
+        router.push('/workspace/knowledge/cards')
       } catch (error) {
-        message.error('删除失败')
-        console.error(error)
+        message.error(`删除失败：${describeHttpError(error)}`)
       }
     },
   })
-}
-
-async function loadCategories() {
-  try {
-    const result = await knowledgeCategoryApi.all(auth.selectedTenantId!)
-    categories.value = result
-  } catch (error) {
-    console.error(error)
-    message.error('加载分类列表失败')
-  }
 }
 
 async function loadCard() {
@@ -187,8 +131,7 @@ async function loadCard() {
     const result = await knowledgeCardApi.get(cardId.value)
     card.value = result
   } catch (error) {
-    console.error(error)
-    message.error('加载卡片详情失败')
+    message.error(`加载卡片详情失败：${describeHttpError(error)}`)
     card.value = null
   } finally {
     loading.value = false
@@ -209,8 +152,7 @@ async function loadRelatedCards() {
     })
     relatedCards.value = result.records.filter(c => c.id !== cardId.value).slice(0, 4)
   } catch (error) {
-    console.error(error)
-    message.error('加载相关推荐失败')
+    message.error(`加载相关推荐失败：${describeHttpError(error)}`)
     relatedCards.value = []
   }
 }
@@ -218,14 +160,12 @@ async function loadRelatedCards() {
 watch(
   () => auth.selectedTenantId,
   async () => {
-    await loadCategories()
     await loadCard()
     await loadRelatedCards()
   }
 )
 
 onMounted(async () => {
-  await loadCategories()
   await loadCard()
   await loadRelatedCards()
 })
@@ -236,41 +176,10 @@ onMounted(async () => {
   width: 100%;
 }
 
-.cover-image {
-  margin-bottom: 24px;
-  border-radius: 8px;
-  overflow: hidden;
-
-  img {
-    width: 100%;
-    max-height: 300px;
-    object-fit: cover;
-  }
-}
-
 .card-info {
   margin-bottom: 16px;
   color: #8c8c8c;
   font-size: 14px;
-}
-
-.document-link {
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: #e6f7ff;
-  border: 1px solid #91d5ff;
-  border-radius: 6px;
-  font-size: 14px;
-  color: #595959;
-
-  a {
-    color: #1890ff;
-    cursor: pointer;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
 }
 
 .card-tags {

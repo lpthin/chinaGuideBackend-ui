@@ -313,9 +313,9 @@
                   style="width: 240px"
                   enter-button
                 />
-                <a-button type="primary" @click="exportLogs">
+                <a-button type="primary" :disabled="!paginatedLogs.length" @click="exportLogs">
                   <template #icon><DownloadOutlined /></template>
-                  导出日志
+                  导出本页
                 </a-button>
               </a-space>
             </template>
@@ -349,11 +349,11 @@
               <a-pagination
                 v-model:current="logPagination.current"
                 v-model:pageSize="logPagination.pageSize"
-                :total="logPagination.total"
+                :total="logTotal"
                 show-size-changer
                 :page-size-options="['20', '50', '100']"
                 show-quick-jumper
-                :show-total="(total: number) => `共 ${total} 条`"
+                :show-total="(total: number) => localFilterActive ? `本页匹配 ${total} 条` : `共 ${total} 条`"
               />
             </div>
           </a-card>
@@ -474,9 +474,23 @@ const logPagination = reactive({
 
 const logList = ref<any[]>([])
 
+/** 后端 GET /ai/model/logs 只接受 tenantId/page/size，类型与关键词只能在已加载的本页数据里筛 */
+const localFilterActive = computed(() => Boolean(logFilter.type || logFilter.keyword.trim()))
+
 const paginatedLogs = computed(() => {
-  return logList.value
+  const kw = logFilter.keyword.trim().toLowerCase()
+  return logList.value.filter((row: any) => {
+    if (logFilter.type && String(row.type ?? '').toLowerCase() !== logFilter.type) return false
+    if (kw) {
+      const haystack = `${row.prompt ?? ''} ${row.model ?? ''}`.toLowerCase()
+      if (!haystack.includes(kw)) return false
+    }
+    return true
+  })
 })
+
+/** 本地筛选生效时不能继续显示接口返回的未筛选总数，否则「共 N 条」与表格对不上 */
+const logTotal = computed(() => (localFilterActive.value ? paginatedLogs.value.length : logPagination.total))
 
 const logColumns = [
   {
@@ -641,9 +655,8 @@ const loadLogs = async () => {
     const params = {
       ...getCommonParams(),
       page: logPagination.current,
-      pageSize: logPagination.pageSize,
-      type: logFilter.type,
-      keyword: logFilter.keyword || undefined,
+      // 后端分页参数名是 size，之前传 pageSize 会被忽略、每页固定返回 10 条
+      size: logPagination.pageSize,
     }
     const result = await aiModelApi.getLogs(params)
     logList.value = result.records ?? []
@@ -673,9 +686,70 @@ const fetchData = async () => {
   }
 }
 
-const exportLogs = () => {
-  message.info('正在导出日志...')
+const TYPE_LABELS: Record<string, string> = {
+  chat: '聊天',
+  embedding: '向量',
+  image: '图像',
 }
+
+function csvCell(value: unknown): string {
+  const s = value === null || value === undefined ? '' : String(value)
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+/**
+ * AI 接口没有导出端点，这里导出的是「本页已加载且经过类型/关键词筛选的行」，
+ * 不是全量日志，所以按钮叫「导出本页」、提示也带条数。
+ */
+function exportLogs() {
+  const rows = paginatedLogs.value
+  if (!rows.length) {
+    message.warning('本页没有可导出的日志')
+    return
+  }
+  const header = ['时间', '模型', '类型', '提示词', 'Token', '费用(元)', '耗时(ms)', '状态']
+  const lines = [header.map(csvCell).join(',')]
+  for (const row of rows) {
+    const type = String(row.type ?? '').toLowerCase()
+    lines.push([
+      row.createdAt ?? '',
+      row.model ?? '',
+      TYPE_LABELS[type] || row.type || '',
+      row.prompt ?? '',
+      row.tokens ?? '',
+      row.cost ?? '',
+      row.duration ?? '',
+      row.status === 'success' ? '成功' : '失败',
+    ].map(csvCell).join(','))
+  }
+  // \uFEFF BOM：没有它 Excel 会按本地编码解析，中文全成乱码
+  const blob = new Blob([`\uFEFF${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', `ai_call_logs_${dayjs().format('YYYYMMDD')}_p${logPagination.current}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+  message.success(`已导出本页 ${rows.length} 条日志`)
+}
+
+// 翻页要真的重新取数：原来只有 v-model 改 current，表格一直停在首次加载的那页
+watch(
+  () => [logPagination.current, logPagination.pageSize],
+  () => {
+    loadLogs()
+  },
+)
+
+// 本地筛选回看第 1 页，避免停在深页时匹配结果为空
+watch(
+  () => [logFilter.type, logFilter.keyword],
+  () => {
+    logPagination.current = 1
+  },
+)
 
 watch(
   () => authStore.selectedTenantId,

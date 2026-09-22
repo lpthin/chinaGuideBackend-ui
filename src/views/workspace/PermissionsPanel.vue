@@ -14,7 +14,6 @@
             >
               <a-select-option value="menu">菜单</a-select-option>
               <a-select-option value="button">按钮</a-select-option>
-              <a-select-option value="api">API</a-select-option>
             </a-select>
             <a-button type="primary" @click="handleAdd">
               <template #icon><PlusOutlined /></template>
@@ -37,10 +36,7 @@
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
-            <span>
-              <component :is="getIcon(record.icon)" style="margin-right: 8px" />
-              {{ record.name }}
-            </span>
+            <span>{{ record.name }}</span>
           </template>
           <template v-if="column.key === 'type'">
             <a-tag :color="getTypeColor(record.type)">
@@ -54,9 +50,6 @@
           </template>
           <template v-if="column.key === 'actions'">
             <a-space>
-              <a-button type="link" size="small" @click="handleAddChild(record)">
-                <PlusOutlined /> 子权限
-              </a-button>
               <a-button type="link" size="small" @click="handleEdit(record)">
                 <EditOutlined /> 编辑
               </a-button>
@@ -77,8 +70,9 @@
     <!-- 权限编辑弹窗 -->
     <a-modal
       v-model:open="modalVisible"
-      title="编辑权限"
+      :title="formState.id ? '编辑权限' : '新增权限'"
       width="600px"
+      :confirm-loading="submitting"
       @ok="handleSubmit"
       @cancel="handleModalCancel"
     >
@@ -88,9 +82,6 @@
         :rules="rules"
         layout="vertical"
       >
-        <a-form-item v-if="formState.parentId" label="父级权限">
-          <span>{{ getParentName(formState.parentId) }}</span>
-        </a-form-item>
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="权限名称" name="name">
@@ -103,42 +94,6 @@
             </a-form-item>
           </a-col>
         </a-row>
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="权限类型" name="type">
-              <a-select v-model:value="formState.type" placeholder="请选择类型">
-                <a-select-option value="menu">菜单</a-select-option>
-                <a-select-option value="button">按钮</a-select-option>
-                <a-select-option value="api">API</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="图标" name="icon">
-              <a-input v-model:value="formState.icon" placeholder="请输入图标名称" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-form-item v-if="formState.type === 'menu'" label="路由路径" name="path">
-          <a-input v-model:value="formState.path" placeholder="请输入路由路径" />
-        </a-form-item>
-        <a-form-item v-if="formState.type === 'api'" label="API地址" name="api">
-          <a-input v-model:value="formState.api" placeholder="请输入API地址" />
-        </a-form-item>
-        <a-form-item label="排序" name="sort">
-          <a-input-number
-            v-model:value="formState.sort"
-            :min="1"
-            :max="999"
-            style="width: 100%"
-          />
-        </a-form-item>
-        <a-form-item label="状态" name="status">
-          <a-radio-group v-model:value="formState.status">
-            <a-radio value="active">启用</a-radio>
-            <a-radio value="inactive">禁用</a-radio>
-          </a-radio-group>
-        </a-form-item>
       </a-form>
     </a-modal>
   </div>
@@ -151,45 +106,26 @@ import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  MenuOutlined,
-  AppstoreOutlined,
-  SettingOutlined,
-  SafetyOutlined,
-  UserOutlined,
-  TeamOutlined,
 } from '@ant-design/icons-vue'
 import { adminApi } from '../../api/workspace'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
 
 const loading = ref(false)
+const submitting = ref(false)
 const filterType = ref<string | undefined>()
 const modalVisible = ref(false)
 const formRef = ref()
-
-const iconMap: Record<string, any> = {
-  MenuOutlined,
-  AppstoreOutlined,
-  SettingOutlined,
-  SafetyOutlined,
-  UserOutlined,
-  TeamOutlined,
-}
 
 const permissions = ref<any[]>([])
 
 const formState = reactive({
   id: null as number | null,
-  parentId: null as number | string | null,
   name: '',
   code: '',
-  type: 'menu' as 'menu' | 'button' | 'api',
-  icon: '',
-  path: '',
-  api: '',
-  sort: 1,
-  status: 'active' as 'active' | 'inactive',
 })
 
 const rules = {
@@ -200,9 +136,6 @@ const rules = {
   code: [
     { required: true, message: '请输入权限编码', trigger: 'blur' },
     { max: 100, message: '权限编码长度不能超过 100 个字符', trigger: 'blur' },
-  ],
-  type: [
-    { required: true, message: '请选择权限类型', trigger: 'change' },
   ],
 }
 
@@ -245,6 +178,7 @@ const columns = [
     dataIndex: 'createdAt',
     key: 'createdAt',
     width: 180,
+    customRender: ({ text }: { text: string }) => formatDateTime(text),
   },
   {
     title: '操作',
@@ -253,13 +187,6 @@ const columns = [
     width: 220,
   },
 ]
-
-function getIcon(iconName?: string) {
-  if (!iconName || !iconMap[iconName]) {
-    return MenuOutlined
-  }
-  return iconMap[iconName]
-}
 
 function getTypeName(type: string): string {
   const nameMap: Record<string, string> = {
@@ -279,28 +206,6 @@ function getTypeColor(type: string): string {
   return colorMap[type] || 'default'
 }
 
-function findPermission(
-  list: any[],
-  id: number | string
-): any | null {
-  for (const item of list) {
-    if (item.id === id) {
-      return item
-    }
-    if (item.children) {
-      const found = findPermission(item.children, id)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-function getParentName(parentId: number | string | null): string {
-  if (!parentId) return '-'
-  const parent = findPermission(permissions.value, parentId)
-  return parent?.name || '-'
-}
-
 async function loadPermissions() {
   loading.value = true
   try {
@@ -312,8 +217,8 @@ async function loadPermissions() {
     }
     
     permissions.value = treeData
-  } catch (error: any) {
-    message.error(error.message || '加载权限列表失败')
+  } catch (error) {
+    message.error(`加载权限列表失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }
@@ -333,62 +238,49 @@ function filterTreeByType(tree: any[], type: string): any[] {
 
 function handleAdd() {
   formState.id = null
-  formState.parentId = null
   formState.name = ''
   formState.code = ''
-  formState.type = 'menu'
-  formState.icon = ''
-  formState.path = ''
-  formState.api = ''
-  formState.sort = 1
-  formState.status = 'active'
-  modalVisible.value = true
-}
-
-function handleAddChild(record: any) {
-  formState.id = null
-  formState.parentId = record.id
-  formState.name = ''
-  formState.code = ''
-  formState.type = 'button'
-  formState.icon = ''
-  formState.path = ''
-  formState.api = ''
-  formState.sort = 1
-  formState.status = 'active'
   modalVisible.value = true
 }
 
 function handleEdit(record: any) {
-  formState.id = typeof record.id === 'number' ? record.id : null
-  formState.parentId = record.parentId
+  if (typeof record.id !== 'number') {
+    message.warning('模块分组不是权限记录，无法编辑')
+    return
+  }
+  formState.id = record.id
   formState.name = record.name
   formState.code = record.code
-  formState.type = record.type || 'menu'
-  formState.icon = record.icon || ''
-  formState.path = record.path || ''
-  formState.api = record.api || ''
-  formState.sort = record.sort || 1
-  formState.status = record.status || 'active'
   modalVisible.value = true
 }
 
 async function handleSubmit() {
   try {
     await formRef.value?.validate()
-    
+    submitting.value = true
+
     if (formState.id) {
+      await adminApi.permissions.update(formState.id, {
+        name: formState.name,
+        code: formState.code,
+      })
       message.success('更新成功')
     } else {
+      await adminApi.permissions.create({
+        name: formState.name,
+        code: formState.code,
+      })
       message.success('创建成功')
     }
-    
+
     modalVisible.value = false
     loadPermissions()
   } catch (error: any) {
-    if (error.message && error.message !== '校验失败') {
-      message.error(error.message || '操作失败')
+    if (!error?.errorFields) {
+      message.error(`操作失败：${describeHttpError(error)}`)
     }
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -412,8 +304,8 @@ async function handleDelete(record: any) {
     await adminApi.permissions.delete(record.id)
     message.success('删除成功')
     loadPermissions()
-  } catch (error: any) {
-    message.error(error.message || '删除失败')
+  } catch (error) {
+    message.error(`删除失败：${describeHttpError(error)}`)
   }
 }
 

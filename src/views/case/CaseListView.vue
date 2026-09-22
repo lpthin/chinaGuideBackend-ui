@@ -9,7 +9,7 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalCases }}</div>
+                <div class="stat-value">{{ formatNumber(stats.total) }}</div>
                 <div class="stat-title">案例总数</div>
               </div>
             </div>
@@ -22,7 +22,7 @@
                 <CheckCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.publishedCases }}</div>
+                <div class="stat-value">{{ formatNumber(stats.published) }}</div>
                 <div class="stat-title">已发布</div>
               </div>
             </div>
@@ -32,11 +32,11 @@
           <a-card class="stat-card" hoverable>
             <div class="stat-content">
               <div class="stat-icon" style="background: linear-gradient(135deg, #eb2f96 0%, #ff85c0 100%)">
-                <EyeOutlined />
+                <EditOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ formatNumber(stats.totalViews) }}</div>
-                <div class="stat-title">总浏览量</div>
+                <div class="stat-value">{{ formatNumber(stats.draft) }}</div>
+                <div class="stat-title">草稿</div>
               </div>
             </div>
           </a-card>
@@ -45,11 +45,11 @@
           <a-card class="stat-card" hoverable>
             <div class="stat-content">
               <div class="stat-icon" style="background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%)">
-                <LikeOutlined />
+                <ClockCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ formatNumber(stats.totalLikes) }}</div>
-                <div class="stat-title">总点赞</div>
+                <div class="stat-value">{{ formatNumber(stats.pendingReview) }}</div>
+                <div class="stat-title">待审核</div>
               </div>
             </div>
           </a-card>
@@ -78,11 +78,7 @@
               @change="loadCases"
             >
               <a-select-option :value="CaseStatus.DRAFT">草稿</a-select-option>
-              <a-select-option :value="CaseStatus.REVIEWING">审核中</a-select-option>
-              <a-select-option :value="CaseStatus.APPROVED">已通过</a-select-option>
               <a-select-option :value="CaseStatus.PUBLISHED">已发布</a-select-option>
-              <a-select-option :value="CaseStatus.ARCHIVED">已归档</a-select-option>
-              <a-select-option :value="CaseStatus.REJECTED">已拒绝</a-select-option>
             </a-select>
             <a-select
               v-model:value="queryParams.type"
@@ -129,10 +125,6 @@
               <template #icon><DeleteOutlined /></template>
               批量删除
             </a-button>
-            <a-button @click="exportData">
-              <template #icon><DownloadOutlined /></template>
-              导出
-            </a-button>
           </a-space>
         </template>
 
@@ -169,15 +161,23 @@
               </a-tag>
             </template>
             <template v-if="column.key === 'status'">
-              <a-tag :color="getStatusColor(record.status)">
-                {{ getStatusName(record.status) }}
-              </a-tag>
+              <a-space direction="vertical" size="2">
+                <a-tag :color="getStatusColor(record.status)">
+                  {{ getStatusName(record.status) }}
+                </a-tag>
+                <a-tag v-if="record.reviewStatus" :color="getReviewStatusColor(record.reviewStatus)">
+                  {{ getReviewStatusName(record.reviewStatus) }}
+                </a-tag>
+              </a-space>
             </template>
             <template v-if="column.key === 'stats'">
               <div class="stats-cell">
-                <div><EyeOutlined /> {{ record.viewCount }}</div>
-                <div><LikeOutlined /> {{ record.likeCount }}</div>
+                <div><EyeOutlined /> {{ formatNumber(record.viewCount) }}</div>
+                <div><LikeOutlined /> {{ formatNumber(record.likeCount) }}</div>
               </div>
+            </template>
+            <template v-if="column.key === 'updatedAt'">
+              {{ formatDateTime(record.updatedAt) }}
             </template>
             <template v-if="column.key === 'tags'">
               <a-space size="small" wrap>
@@ -211,17 +211,11 @@
                       <a-menu-item @click="handleEdit(record)">
                         <EditOutlined /> 编辑
                       </a-menu-item>
-                      <a-menu-item v-if="record.status === CaseStatus.DRAFT" @click="handleSubmitReview(record)">
-                        <UploadOutlined /> 提交审核
-                      </a-menu-item>
                       <a-menu-item v-if="record.status === CaseStatus.PUBLISHED" @click="handleUnpublish(record)">
                         <StopOutlined /> 下架
                       </a-menu-item>
-                      <a-menu-item v-if="record.status !== CaseStatus.PUBLISHED && record.status !== CaseStatus.ARCHIVED" @click="handlePublish(record)">
+                      <a-menu-item v-if="record.status !== CaseStatus.PUBLISHED" @click="handlePublish(record)">
                         <CheckOutlined /> 发布
-                      </a-menu-item>
-                      <a-menu-item v-if="record.status !== CaseStatus.ARCHIVED" @click="handleArchive(record)">
-                        <InboxOutlined /> 归档
                       </a-menu-item>
                       <a-menu-divider />
                       <a-menu-item @click="handleCopy(record)">
@@ -243,14 +237,14 @@
     <CaseDetailDrawer
       v-model:open="drawerVisible"
       :case-id="currentCaseId"
-      @success="loadCases"
+      @success="reload"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import {
   FileTextOutlined,
   CheckCircleOutlined,
@@ -258,19 +252,19 @@ import {
   LikeOutlined,
   PlusOutlined,
   DeleteOutlined,
-  DownloadOutlined,
   DownOutlined,
   EditOutlined,
-  UploadOutlined,
   StopOutlined,
   CheckOutlined,
-  InboxOutlined,
   CopyOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons-vue'
 import { CaseStatus, CasePriority, CaseType } from '../../types/case'
-import type { Case, CaseCategory } from '../../types/case'
+import type { Case, CaseCategory, CaseForm } from '../../types/case'
 import CaseDetailDrawer from './CaseDetailDrawer.vue'
-import { caseApi } from '../../api/case'
+import { caseApi, caseCategoryApi } from '../../api/case'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime, formatNumber } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
@@ -282,10 +276,10 @@ const currentCaseId = ref<number | null>(null)
 const selectedRowKeys = ref<number[]>([])
 
 const stats = reactive({
-  totalCases: 0,
-  publishedCases: 0,
-  totalViews: 0,
-  totalLikes: 0,
+  total: null as number | null,
+  published: null as number | null,
+  draft: null as number | null,
+  pendingReview: null as number | null,
 })
 
 const queryParams = reactive({
@@ -318,7 +312,7 @@ const columns = [
   { title: '案例信息', key: 'title', width: 280 },
   { title: '类型', key: 'type', width: 120 },
   { title: '优先级', key: 'priority', width: 100 },
-  { title: '状态', key: 'status', width: 100 },
+  { title: '状态', key: 'status', width: 120 },
   { title: '统计', key: 'stats', width: 120 },
   { title: '标签', key: 'tags', width: 180 },
   { title: '作者', key: 'author', width: 120 },
@@ -332,13 +326,6 @@ const rowSelection = computed(() => ({
     selectedRowKeys.value = keys
   },
 }))
-
-function formatNumber(num: number): string {
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + 'w'
-  }
-  return num.toString()
-}
 
 function getTypeName(type: CaseType): string {
   const nameMap: Record<CaseType, string> = {
@@ -385,11 +372,7 @@ function getPriorityColor(priority: CasePriority): string {
 function getStatusName(status: CaseStatus): string {
   const nameMap: Record<CaseStatus, string> = {
     [CaseStatus.DRAFT]: '草稿',
-    [CaseStatus.REVIEWING]: '审核中',
-    [CaseStatus.APPROVED]: '已通过',
     [CaseStatus.PUBLISHED]: '已发布',
-    [CaseStatus.ARCHIVED]: '已归档',
-    [CaseStatus.REJECTED]: '已拒绝',
   }
   return nameMap[status] || status
 }
@@ -397,20 +380,56 @@ function getStatusName(status: CaseStatus): string {
 function getStatusColor(status: CaseStatus): string {
   const colorMap: Record<CaseStatus, string> = {
     [CaseStatus.DRAFT]: 'default',
-    [CaseStatus.REVIEWING]: 'processing',
-    [CaseStatus.APPROVED]: 'success',
     [CaseStatus.PUBLISHED]: 'green',
-    [CaseStatus.ARCHIVED]: 'default',
-    [CaseStatus.REJECTED]: 'red',
   }
   return colorMap[status] || 'default'
 }
 
-function updateStats(records: Case[] = caseList.value) {
-  stats.totalCases = pagination.total
-  stats.publishedCases = records.filter(c => c.status === CaseStatus.PUBLISHED).length
-  stats.totalViews = records.reduce((sum, c) => sum + (c.viewCount || 0), 0)
-  stats.totalLikes = records.reduce((sum, c) => sum + (c.likeCount || 0), 0)
+// reviewStatus 由后端原样大写返回：PENDING / APPROVED / REJECTED
+function getReviewStatusName(reviewStatus: string): string {
+  const nameMap: Record<string, string> = {
+    PENDING: '待审核',
+    APPROVED: '审核通过',
+    REJECTED: '审核拒绝',
+  }
+  return nameMap[reviewStatus] || reviewStatus
+}
+
+function getReviewStatusColor(reviewStatus: string): string {
+  const colorMap: Record<string, string> = {
+    PENDING: 'orange',
+    APPROVED: 'green',
+    REJECTED: 'red',
+  }
+  return colorMap[reviewStatus] || 'default'
+}
+
+async function loadStats() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  try {
+    const res = await caseApi.statistics(tenantId)
+    stats.total = res.total
+    stats.published = res.published
+    stats.draft = res.draft
+    stats.pendingReview = res.pendingReview
+  } catch (error) {
+    console.error('Failed to load case statistics:', error)
+    stats.total = null
+    stats.published = null
+    stats.draft = null
+    stats.pendingReview = null
+  }
+}
+
+async function loadCategories() {
+  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  try {
+    const res = await caseCategoryApi.list({ tenantId, status: 'ACTIVE' })
+    categories.value = res || []
+  } catch (error) {
+    console.error('Failed to load case categories:', error)
+    categories.value = []
+  }
 }
 
 async function loadCases() {
@@ -424,19 +443,24 @@ async function loadCases() {
     }
     if (queryParams.categoryId) params.categoryId = queryParams.categoryId
     if (queryParams.status) params.status = queryParams.status
+    if (queryParams.type) params.type = queryParams.type
+    if (queryParams.priority) params.priority = queryParams.priority
     if (queryParams.keyword) params.keyword = queryParams.keyword
 
     const res = await caseApi.list(params)
     caseList.value = res.records || []
     pagination.total = res.total || 0
-    updateStats(res.records || [])
   } catch (error) {
     console.error('Failed to load cases:', error)
-    message.error('加载案例列表失败')
+    message.error(`加载案例列表失败：${describeHttpError(error)}`)
     caseList.value = []
   } finally {
     tableLoading.value = false
   }
+}
+
+async function reload() {
+  await Promise.all([loadCases(), loadStats()])
 }
 
 function handleAdd() {
@@ -454,130 +478,118 @@ function handleEdit(record: Case) {
   drawerVisible.value = true
 }
 
-function handleSubmitReview(record: Case) {
-  message.success(`已提交审核：${record.title}`)
-}
-
-function handlePublish(record: Case) {
-  const item = caseList.value.find(c => c.id === record.id)
-  if (item) {
-    item.status = CaseStatus.PUBLISHED
-    stats.publishedCases += 1
+async function handlePublish(record: Case) {
+  try {
+    await caseApi.publish(record.id)
     message.success(`已发布：${record.title}`)
+    await reload()
+  } catch (error) {
+    message.error(`发布失败：${describeHttpError(error)}`)
   }
 }
 
-function handleUnpublish(record: Case) {
-  const item = caseList.value.find(c => c.id === record.id)
-  if (item) {
-    item.status = CaseStatus.DRAFT
-    stats.publishedCases -= 1
+async function handleUnpublish(record: Case) {
+  try {
+    await caseApi.unpublish(record.id)
     message.success(`已下架：${record.title}`)
+    await reload()
+  } catch (error) {
+    message.error(`下架失败：${describeHttpError(error)}`)
   }
 }
 
-function handleArchive(record: Case) {
-  const item = caseList.value.find(c => c.id === record.id)
-  if (item) {
-    const wasPublished = item.status === CaseStatus.PUBLISHED
-    item.status = CaseStatus.ARCHIVED
-    if (wasPublished) {
-      stats.publishedCases -= 1
+async function handleCopy(record: Case) {
+  try {
+    const detail = await caseApi.get(record.id)
+    const payload: CaseForm = {
+      tenantId: detail.tenantId,
+      siteId: detail.siteId,
+      categoryId: detail.categoryId,
+      title: `${detail.title}（副本）`,
+      subtitle: detail.subtitle,
+      summary: detail.summary,
+      content: detail.content,
+      customerName: detail.customerName,
+      customerIndustry: detail.customerIndustry,
+      customerScale: detail.customerScale,
+      type: detail.type,
+      priority: detail.priority,
+      tags: detail.tags,
+      coverImage: detail.coverImage,
+      bannerImage: detail.bannerImage,
+      caseDate: detail.caseDate,
+      projectDuration: detail.projectDuration,
+      projectBudget: detail.projectBudget,
+      difficultyLevel: detail.difficultyLevel,
+      sortOrder: detail.sortOrder,
+      status: CaseStatus.DRAFT,
+      isPublished: false,
+      seoTitle: detail.seoTitle,
+      seoKeywords: detail.seoKeywords,
+      seoDescription: detail.seoDescription,
+      seoUrl: detail.seoUrl,
+      templateType: detail.templateType,
     }
-    message.success(`已归档：${record.title}`)
+    await caseApi.create(payload)
+    message.success('复制成功')
+    await reload()
+  } catch (error) {
+    message.error(`复制失败：${describeHttpError(error)}`)
   }
-}
-
-function handleCopy(record: Case) {
-  const newCase: Case = {
-    ...record,
-    id: Date.now(),
-    title: `${record.title} (副本)`,
-    status: CaseStatus.DRAFT,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-  caseList.value.unshift(newCase)
-  pagination.total += 1
-  stats.totalCases += 1
-  message.success('复制成功')
 }
 
 function handleDelete(record: Case) {
-  const index = caseList.value.findIndex(c => c.id === record.id)
-  if (index > -1) {
-    const item = caseList.value[index]
-    stats.totalCases -= 1
-    stats.totalViews -= item.viewCount
-    stats.totalLikes -= item.likeCount
-    if (item.status === CaseStatus.PUBLISHED) {
-      stats.publishedCases -= 1
-    }
-    caseList.value.splice(index, 1)
-    pagination.total -= 1
-    message.success('删除成功')
-  }
+  Modal.confirm({
+    title: '确认删除',
+    content: `确定要删除案例“${record.title}”吗？`,
+    onOk: async () => {
+      try {
+        await caseApi.delete(record.id)
+        message.success('删除成功')
+        await reload()
+      } catch (error) {
+        message.error(`删除失败：${describeHttpError(error)}`)
+      }
+    },
+  })
 }
 
 function handleBatchDelete() {
-  if (selectedRowKeys.value.length === 0) {
+  const ids = [...selectedRowKeys.value]
+  if (ids.length === 0) {
     message.warning('请选择要删除的案例')
     return
   }
-  selectedRowKeys.value.forEach(id => {
-    const index = caseList.value.findIndex(c => c.id === id)
-    if (index > -1) {
-      const item = caseList.value[index]
-      stats.totalViews -= item.viewCount
-      stats.totalLikes -= item.likeCount
-      if (item.status === CaseStatus.PUBLISHED) {
-        stats.publishedCases -= 1
+  Modal.confirm({
+    title: '确认批量删除',
+    content: `确定要删除选中的 ${ids.length} 个案例吗？`,
+    onOk: async () => {
+      try {
+        const res = await caseApi.batchDelete(ids)
+        message.success(`已删除 ${res?.deleted ?? ids.length} 个案例`)
+        selectedRowKeys.value = []
+      } catch (error) {
+        message.error(`批量删除失败：${describeHttpError(error)}`)
+      } finally {
+        await reload()
       }
-      caseList.value.splice(index, 1)
-    }
+    },
   })
-  stats.totalCases -= selectedRowKeys.value.length
-  pagination.total -= selectedRowKeys.value.length
-  message.success(`已删除 ${selectedRowKeys.value.length} 个案例`)
-  selectedRowKeys.value = []
-}
-
-async function exportData() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
-  try {
-    const params: any = { tenantId }
-    if (queryParams.categoryId) params.categoryId = queryParams.categoryId
-    if (queryParams.status) params.status = queryParams.status
-    if (queryParams.keyword) params.keyword = queryParams.keyword
-
-    const res = await caseApi.export(params)
-    const url = window.URL.createObjectURL(new Blob([res as any]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `案例数据_${new Date().toISOString().slice(0, 10)}.xlsx`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    message.success('导出成功')
-  } catch (error: any) {
-    console.error('导出失败:', error)
-    message.error(error.message || '导出失败')
-  }
 }
 
 watch(
   () => authStore.selectedTenantId,
   () => {
     pagination.current = 1
-    loadCases()
+    loadCategories()
+    reload()
   }
 )
 
 onMounted(async () => {
   loading.value = true
   try {
-    await loadCases()
+    await Promise.all([loadCategories(), reload()])
   } finally {
     loading.value = false
   }

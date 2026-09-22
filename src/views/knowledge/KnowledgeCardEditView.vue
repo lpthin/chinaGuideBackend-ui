@@ -25,16 +25,6 @@
                 />
               </a-form-item>
 
-              <a-form-item label="摘要">
-                <a-textarea
-                  v-model:value="formData.summary"
-                  placeholder="请输入卡片摘要（可选）"
-                  :rows="3"
-                  show-count
-                  :maxlength="500"
-                />
-              </a-form-item>
-
               <a-form-item label="内容">
                 <div class="editor-wrapper">
                   <textarea
@@ -107,29 +97,6 @@
                 </a-select>
               </a-form-item>
 
-              <a-form-item label="封面图片">
-                <a-upload
-                  v-model:file-list="fileList"
-                  :before-upload="beforeUpload"
-                  list-type="picture-card"
-                  :max-count="1"
-                  accept="image/*"
-                >
-                  <div>
-                    <PlusOutlined />
-                    <div style="margin-top: 8px">上传</div>
-                  </div>
-                </a-upload>
-              </a-form-item>
-
-              <a-form-item label="排序">
-                <a-input-number
-                  v-model:value="formData.sort"
-                  :min="0"
-                  style="width: 100%"
-                />
-              </a-form-item>
-
               <a-form-item label="状态">
                 <a-radio-group v-model:value="formData.status">
                   <a-radio value="active">启用</a-radio>
@@ -178,12 +145,12 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
-  PlusOutlined,
   SaveOutlined,
   EyeOutlined,
   FileTextOutlined,
 } from '@ant-design/icons-vue'
-import { knowledgeCardApi, knowledgeCategoryApi, knowledgeTagApi, knowledgeDocumentApi } from '../../api/knowledge'
+import { knowledgeCardApi, knowledgeCategoryApi, knowledgeTagApi, knowledgeDocumentApi, flattenCategories } from '../../api/knowledge'
+import { describeHttpError } from '../../api/http'
 import type { KnowledgeCategory, KnowledgeCardForm, KnowledgeTag, KnowledgeDocument } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 
@@ -197,7 +164,6 @@ const saving = ref(false)
 const previewVisible = ref(false)
 const categories = ref<KnowledgeCategory[]>([])
 const tags = ref<KnowledgeTag[]>([])
-const fileList = ref<any[]>([])
 const selectedTags = ref<string[]>([])
 const documentOptions = ref<KnowledgeDocument[]>([])
 const docSearching = ref(false)
@@ -210,12 +176,9 @@ const formData = reactive<KnowledgeCardForm>({
   tenantId: getTenantId(),
   categoryId: null as any,
   title: '',
-  summary: '',
   content: '',
-  coverImage: '',
   tags: '',
-  documentId: null,
-  sort: 0,
+  documentId: undefined,
   status: 'active',
 })
 
@@ -247,7 +210,7 @@ async function handleDocumentSearch(keyword: string) {
       } as any)
       documentOptions.value = result.records || []
     } catch (error) {
-      console.error('搜索文档失败:', error)
+      message.error(`搜索文档失败：${describeHttpError(error)}`)
       documentOptions.value = []
     } finally {
       docSearching.value = false
@@ -262,20 +225,6 @@ function getCategoryName(categoryId: number): string {
 
 function goBack() {
   router.back()
-}
-
-function beforeUpload(file: any) {
-  const isImage = file.type.startsWith('image/')
-  if (!isImage) {
-    message.error('只能上传图片文件')
-    return false
-  }
-  const isLt2M = file.size / 1024 / 1024 < 2
-  if (!isLt2M) {
-    message.error('图片大小不能超过 2MB')
-    return false
-  }
-  return false
 }
 
 function handlePreview() {
@@ -301,10 +250,9 @@ async function handleSave() {
       await knowledgeCardApi.create(formData)
       message.success('创建成功')
     }
-    router.push('/knowledge/cards')
+    router.push('/workspace/knowledge/cards')
   } catch (error) {
-    message.error('保存失败')
-    console.error(error)
+    message.error(`保存失败：${describeHttpError(error)}`)
   } finally {
     saving.value = false
   }
@@ -313,10 +261,9 @@ async function handleSave() {
 async function loadCategories() {
   try {
     const result = await knowledgeCategoryApi.all(getTenantId())
-    categories.value = result
+    categories.value = flattenCategories(result)
   } catch (error) {
-    console.error('加载分类失败:', error)
-    message.error('加载分类失败')
+    message.error(`加载分类失败：${describeHttpError(error)}`)
     categories.value = []
   }
 }
@@ -326,7 +273,7 @@ async function loadTags() {
     const result = await knowledgeTagApi.list({ tenantId: getTenantId() })
     tags.value = Array.isArray(result) ? result : (result as any).records || []
   } catch (error) {
-    console.error(error)
+    message.error(`加载标签失败：${describeHttpError(error)}`)
     tags.value = []
   }
 }
@@ -340,12 +287,8 @@ async function loadCard() {
     Object.assign(formData, {
       categoryId: result.categoryId,
       title: result.title,
-      summary: result.summary,
       content: result.content,
-      coverImage: result.coverImage,
       tags: result.tags,
-      documentId: result.documentId || null,
-      sort: result.sort,
       status: result.status,
     })
     if (result.tagList && result.tagList.length) {
@@ -355,11 +298,8 @@ async function loadCard() {
     } else {
       selectedTags.value = []
     }
-    if (result.documentId && result.document) {
-      documentOptions.value = [result.document as any]
-    }
   } catch (error) {
-    console.error(error)
+    message.error(`加载卡片失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }

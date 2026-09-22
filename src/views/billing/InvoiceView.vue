@@ -118,14 +118,6 @@
                 <a-button type="link" size="small" @click="viewInvoice(record)">
                   详情
                 </a-button>
-                <a-button
-                  v-if="record.status === 'approved'"
-                  type="link"
-                  size="small"
-                  @click="handleDownload(record)"
-                >
-                  下载
-                </a-button>
               </a-space>
             </template>
           </template>
@@ -198,7 +190,7 @@
           <span class="amount">¥{{ formatAmount(currentInvoice.amount) }}</span>
         </a-descriptions-item>
         <a-descriptions-item label="接收邮箱" :span="2">{{ currentInvoice.email || '-' }}</a-descriptions-item>
-        <a-descriptions-item label="申请时间" :span="2">{{ currentInvoice.createdAt }}</a-descriptions-item>
+        <a-descriptions-item label="申请时间" :span="2">{{ formatDateTime(currentInvoice.createdAt) }}</a-descriptions-item>
         <a-descriptions-item v-if="currentInvoice.remark" label="备注" :span="2">{{ currentInvoice.remark }}</a-descriptions-item>
       </a-descriptions>
     </a-modal>
@@ -217,6 +209,7 @@ import {
   ExportOutlined,
 } from '@ant-design/icons-vue'
 import { invoiceApi } from '../../api/billing'
+import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
@@ -287,11 +280,6 @@ const applyForm = reactive({
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function formatDate(date: string): string {
-  if (!date) return '-'
-  return date.substring(0, 10)
 }
 
 function getStatusName(status: string): string {
@@ -399,24 +387,6 @@ async function viewInvoice(invoice: any) {
   } catch (error) {
     console.error('Failed to load invoice detail:', error)
     message.error('加载发票详情失败')
-  }
-}
-
-async function handleDownload(invoice: any) {
-  try {
-    const res = await invoiceApi.download(invoice.id)
-    const url = window.URL.createObjectURL(new Blob([res as any]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `${invoice.invoiceNo || 'invoice'}.pdf`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    message.success('下载成功')
-  } catch (error) {
-    console.error('Failed to download invoice:', error)
-    message.error('下载失败')
   }
 }
 

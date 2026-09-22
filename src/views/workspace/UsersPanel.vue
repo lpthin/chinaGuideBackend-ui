@@ -35,7 +35,6 @@
         :data-source="users"
         :pagination="pagination"
         :loading="loading"
-        :row-selection="rowSelection"
         row-key="id"
         @change="handleTableChange"
       >
@@ -51,8 +50,8 @@
             </a-space>
           </template>
           <template v-if="column.key === 'status'">
-            <a-tag :color="record.status === 'enabled' ? 'green' : 'red'">
-              {{ record.status === 'enabled' ? '启用' : '禁用' }}
+            <a-tag :color="statusMeta(record.status).color">
+              {{ statusMeta(record.status).label }}
             </a-tag>
           </template>
           <template v-if="column.key === 'actions'">
@@ -62,9 +61,6 @@
               </a-button>
               <a-button type="link" size="small" @click="handleAssignRoles(record)">
                 <SettingOutlined /> 角色
-              </a-button>
-              <a-button type="link" size="small" @click="handleResetPassword(record)">
-                <KeyOutlined /> 重置密码
               </a-button>
               <a-button
                 type="link"
@@ -146,43 +142,22 @@
         </a-space>
       </a-checkbox-group>
     </a-modal>
-
-    <!-- 重置密码弹窗 -->
-    <a-modal
-      v-model:open="passwordModalVisible"
-      title="重置密码"
-      width="500px"
-      @ok="handleResetPasswordSubmit"
-    >
-      <a-form
-        ref="passwordFormRef"
-        :model="passwordFormState"
-        :rules="passwordRules"
-        layout="vertical"
-      >
-        <a-form-item label="新密码" name="newPassword">
-          <a-input-password v-model:value="passwordFormState.newPassword" placeholder="请输入新密码" />
-        </a-form-item>
-        <a-form-item label="确认密码" name="confirmPassword">
-          <a-input-password v-model:value="passwordFormState.confirmPassword" placeholder="请再次输入新密码" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PlusOutlined,
   EditOutlined,
   SettingOutlined,
-  KeyOutlined,
 } from '@ant-design/icons-vue'
 import { adminApi } from '../../api/workspace'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
-import type { UserInfo, Role } from '../../types'
+import type { Role } from '../../types'
 
 const authStore = useAuthStore()
 
@@ -191,10 +166,7 @@ const searchKeyword = ref('')
 const filterStatus = ref<string | undefined>()
 const modalVisible = ref(false)
 const roleModalVisible = ref(false)
-const passwordModalVisible = ref(false)
 const formRef = ref()
-const passwordFormRef = ref()
-const selectedRowKeys = ref<number[]>([])
 const currentUserId = ref<number | null>(null)
 
 const users = ref<any[]>([])
@@ -220,11 +192,6 @@ const formState = reactive({
   status: 'enabled' as 'enabled' | 'disabled',
 })
 
-const passwordFormState = reactive({
-  newPassword: '',
-  confirmPassword: '',
-})
-
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
@@ -246,23 +213,14 @@ const rules = {
   ],
 }
 
-const passwordRules = {
-  newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度为 6-32 个字符', trigger: 'blur' },
-  ],
-  confirmPassword: [
-    { required: true, message: '请再次输入新密码', trigger: 'blur' },
-    {
-      validator: (_rule: any, value: string) => {
-        if (value !== passwordFormState.newPassword) {
-          return Promise.reject('两次输入的密码不一致')
-        }
-        return Promise.resolve()
-      },
-      trigger: 'blur',
-    },
-  ],
+const USER_STATUS: Record<string, { label: string; color: string }> = {
+  enabled: { label: '启用', color: 'green' },
+  disabled: { label: '禁用', color: 'red' },
+}
+
+function statusMeta(status?: string) {
+  const meta = status ? USER_STATUS[status] : undefined
+  return meta || { label: status || '-', color: 'default' }
 }
 
 const columns = [
@@ -311,6 +269,7 @@ const columns = [
     dataIndex: 'createdAt',
     key: 'createdAt',
     width: 180,
+    customRender: ({ text }: { text: string }) => formatDateTime(text),
   },
   {
     title: '操作',
@@ -319,13 +278,6 @@ const columns = [
     width: 250,
   },
 ]
-
-const rowSelection = computed(() => ({
-  selectedRowKeys: selectedRowKeys.value,
-  onChange: (keys: number[]) => {
-    selectedRowKeys.value = keys
-  },
-}))
 
 async function loadUsers() {
   loading.value = true
@@ -338,8 +290,8 @@ async function loadUsers() {
     })
     users.value = result.records || []
     pagination.total = result.total || 0
-  } catch (error: any) {
-    message.error(error.message || '加载用户列表失败')
+  } catch (error) {
+    message.error(`加载用户列表失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }
@@ -349,8 +301,8 @@ async function loadRoles() {
   try {
     const result = await adminApi.roles.all()
     roleList.value = result || []
-  } catch (error: any) {
-    message.error(error.message || '加载角色列表失败')
+  } catch (error) {
+    message.error(`加载角色列表失败：${describeHttpError(error)}`)
   }
 }
 
@@ -358,8 +310,8 @@ async function loadUserRoles(userId: number) {
   try {
     const roleIds = await adminApi.users.getRoles(userId)
     selectedRoleIds.value = roleIds || []
-  } catch (error: any) {
-    message.error(error.message || '加载用户角色失败')
+  } catch (error) {
+    message.error(`加载用户角色失败：${describeHttpError(error)}`)
   }
 }
 
@@ -416,9 +368,8 @@ async function handleSubmit() {
     modalVisible.value = false
     loadUsers()
   } catch (error: any) {
-    if (error.message && error.message !== '校验失败') {
-      message.error(error.message || '操作失败')
-    }
+    if (error?.errorFields) return
+    message.error(`操作失败：${describeHttpError(error)}`)
   }
 }
 
@@ -441,30 +392,8 @@ async function handleRoleSubmit() {
     message.success('角色分配成功')
     roleModalVisible.value = false
     loadUsers()
-  } catch (error: any) {
-    message.error(error.message || '角色分配失败')
-  }
-}
-
-function handleResetPassword(record: any) {
-  currentUserId.value = record.id
-  passwordFormState.newPassword = ''
-  passwordFormState.confirmPassword = ''
-  passwordModalVisible.value = true
-}
-
-async function handleResetPasswordSubmit() {
-  try {
-    await passwordFormRef.value?.validate()
-    
-    if (!currentUserId.value) return
-    
-    message.success('密码重置成功')
-    passwordModalVisible.value = false
-  } catch (error: any) {
-    if (error.message && error.message !== '校验失败') {
-      message.error(error.message || '密码重置失败')
-    }
+  } catch (error) {
+    message.error(`角色分配失败：${describeHttpError(error)}`)
   }
 }
 
@@ -474,8 +403,8 @@ async function handleToggleStatus(record: any) {
     await adminApi.users.updateStatus(record.id, newStatus)
     message.success(`已${newStatus === 'enabled' ? '启用' : '禁用'}用户`)
     loadUsers()
-  } catch (error: any) {
-    message.error(error.message || '操作失败')
+  } catch (error) {
+    message.error(`操作失败：${describeHttpError(error)}`)
   }
 }
 

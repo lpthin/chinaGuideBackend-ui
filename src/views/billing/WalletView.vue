@@ -185,6 +185,7 @@ import {
   FileTextOutlined,
 } from '@ant-design/icons-vue'
 import { walletApi } from '../../api/billing'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
@@ -241,11 +242,6 @@ const rechargeForm = reactive({
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function formatDateTime(date: string): string {
-  if (!date) return '-'
-  return date
 }
 
 function getTypeName(type: string): string {
@@ -380,7 +376,7 @@ async function handleExport() {
     const url = window.URL.createObjectURL(new Blob([res as any]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `交易记录_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    link.setAttribute('download', `交易记录_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

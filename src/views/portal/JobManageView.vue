@@ -107,11 +107,11 @@
                   {{ record.status === 'active' ? '招聘中' : '已下架' }}
                 </a-tag>
               </template>
+              <template v-if="column.key === 'createdAt'">
+                {{ formatDateTime(record.createdAt) }}
+              </template>
               <template v-if="column.key === 'actions'">
                 <a-space>
-                  <a-button type="link" size="small" @click="viewApplications(record.id)">
-                    简历
-                  </a-button>
                   <a-button type="link" size="small" @click="toggleStatus(record)">
                     {{ record.status === 'active' ? '下架' : '上架' }}
                   </a-button>
@@ -230,6 +230,7 @@ import {
 } from '@ant-design/icons-vue'
 import { jobPostApi } from '../../api/portal'
 import type { JobPost, JobPostQuery } from '../../types/portal'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
@@ -369,10 +370,6 @@ async function toggleStatus(record: JobPost) {
     message.error('操作失败')
     console.error(error)
   }
-}
-
-function viewApplications(id: number) {
-  message.info(`查看简历 ${id}`)
 }
 
 async function handleDelete(id: number) {

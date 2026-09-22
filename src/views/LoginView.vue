@@ -43,32 +43,9 @@
           </a-input-password>
         </a-form-item>
 
-        <a-form-item v-if="showCaptcha" name="captcha">
-          <a-row :gutter="8">
-            <a-col :span="16">
-              <a-input
-                v-model:value="formState.captcha"
-                placeholder="验证码"
-                size="large"
-              >
-                <template #prefix>
-                  <SafetyOutlined />
-                </template>
-              </a-input>
-            </a-col>
-            <a-col :span="8">
-              <div class="captcha-image" @click="refreshCaptcha">
-                <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
-                <div v-else class="captcha-placeholder">点击刷新</div>
-              </div>
-            </a-col>
-          </a-row>
-        </a-form-item>
-
         <a-form-item>
           <a-space class="form-options" :size="16">
-            <a-checkbox v-model:checked="formState.rememberMe">记住我</a-checkbox>
-            <a @click="handleForgotPassword">忘记密码？</a>
+            <span class="form-hint">请联系管理员重置密码</span>
           </a-space>
         </a-form-item>
 
@@ -85,59 +62,18 @@
           </a-button>
         </a-form-item>
       </a-form>
-
-      <div class="login-footer">
-        <p>
-          还没有账户？
-          <a @click="handleRegister">立即注册</a>
-        </p>
-      </div>
     </div>
-
-    <!-- 忘记密码弹窗 -->
-    <a-modal v-model:open="showForgotModal" title="忘记密码" width="480px" @ok="handleResetPassword" :confirm-loading="resetLoading">
-      <a-form :model="forgotForm" layout="vertical">
-        <a-form-item label="用户名">
-          <a-input v-model:value="forgotForm.username" placeholder="请输入用户名" />
-        </a-form-item>
-        <a-form-item label="新密码">
-          <a-input-password v-model:value="forgotForm.newPassword" placeholder="请输入新密码" />
-        </a-form-item>
-        <a-form-item label="确认密码">
-          <a-input-password v-model:value="forgotForm.confirmPassword" placeholder="请再次输入密码" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <!-- 注册弹窗 -->
-    <a-modal v-model:open="showRegisterModal" title="注册账户" width="480px" @ok="handleConfirmRegister" :confirm-loading="registerLoading">
-      <a-form :model="registerForm" layout="vertical">
-        <a-form-item label="用户名">
-          <a-input v-model:value="registerForm.username" placeholder="请输入用户名" />
-        </a-form-item>
-        <a-form-item label="邮箱">
-          <a-input v-model:value="registerForm.email" placeholder="请输入邮箱" />
-        </a-form-item>
-        <a-form-item label="密码">
-          <a-input-password v-model:value="registerForm.password" placeholder="请输入密码" />
-        </a-form-item>
-        <a-form-item label="确认密码">
-          <a-input-password v-model:value="registerForm.confirmPassword" placeholder="请再次输入密码" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
   RobotOutlined,
   UserOutlined,
   LockOutlined,
-  SafetyOutlined,
 } from '@ant-design/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { authApi } from '../api'
@@ -148,32 +84,10 @@ const authStore = useAuthStore()
 
 const formRef = ref()
 const loading = ref(false)
-const showCaptcha = ref(false)
-const captchaImage = ref('')
-const captchaKey = ref('')
-const showForgotModal = ref(false)
-const showRegisterModal = ref(false)
-const resetLoading = ref(false)
-const registerLoading = ref(false)
 
 const formState = reactive<LoginRequest>({
   username: '',
   password: '',
-  rememberMe: false,
-  captcha: '',
-})
-
-const forgotForm = reactive({
-  username: '',
-  newPassword: '',
-  confirmPassword: '',
-})
-
-const registerForm = reactive({
-  username: '',
-  email: '',
-  password: '',
-  confirmPassword: '',
 })
 
 const rules = {
@@ -185,20 +99,6 @@ const rules = {
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, max: 32, message: '密码长度为 6-32 个字符', trigger: 'blur' },
   ],
-  captcha: showCaptcha.value
-    ? [{ required: true, message: '请输入验证码', trigger: 'blur' }]
-    : [],
-}
-
-async function refreshCaptcha() {
-  try {
-    const response = await fetch('/api/auth/captcha')
-    const data = await response.json()
-    captchaImage.value = data.image
-    captchaKey.value = data.key
-  } catch (error) {
-    console.error('Failed to load captcha:', error)
-  }
 }
 
 async function handleLogin() {
@@ -229,15 +129,12 @@ async function handleLogin() {
       roles: resp?.roles || [],
       permissions: resp?.permissions || [],
       status: 'enabled' as const,
-      createdAt: new Date().toISOString(),
     }
 
     // 先保存 token，再调用 /me 接口拉取真实用户信息（含 avatar/roles/permissions）
     authStore.accessToken = accessToken
-    authStore.refreshToken = ''
     authStore.user = baseUserInfo as any
     localStorage.setItem('access_token', accessToken)
-    localStorage.setItem('refresh_token', '')
     localStorage.setItem('user_info', JSON.stringify(baseUserInfo))
 
     // 同步更新 geocms 旧版 key（兼容 v1 代码）
@@ -279,89 +176,6 @@ async function handleLogin() {
     loading.value = false
   }
 }
-
-function handleForgotPassword() {
-  showForgotModal.value = true
-}
-
-function handleRegister() {
-  showRegisterModal.value = true
-}
-
-async function handleResetPassword() {
-  if (!forgotForm.username) {
-    message.warning('请输入用户名')
-    return
-  }
-  if (!forgotForm.newPassword) {
-    message.warning('请输入新密码')
-    return
-  }
-  if (forgotForm.newPassword !== forgotForm.confirmPassword) {
-    message.warning('两次输入的密码不一致')
-    return
-  }
-  resetLoading.value = true
-  try {
-    await authApi.resetPassword({
-      email: forgotForm.username,
-    })
-    message.success('密码重置成功')
-    showForgotModal.value = false
-    forgotForm.username = ''
-    forgotForm.newPassword = ''
-    forgotForm.confirmPassword = ''
-  } catch (error: any) {
-    message.error(error.message || '密码重置失败')
-  } finally {
-    resetLoading.value = false
-  }
-}
-
-async function handleConfirmRegister() {
-  if (!registerForm.username) {
-    message.warning('请输入用户名')
-    return
-  }
-  if (!registerForm.email) {
-    message.warning('请输入邮箱')
-    return
-  }
-  if (!registerForm.password) {
-    message.warning('请输入密码')
-    return
-  }
-  if (registerForm.password !== registerForm.confirmPassword) {
-    message.warning('两次输入的密码不一致')
-    return
-  }
-  registerLoading.value = true
-  try {
-    await authApi.register({
-      username: registerForm.username,
-      email: registerForm.email,
-      password: registerForm.password,
-      confirmPassword: registerForm.confirmPassword,
-      nickname: registerForm.username,
-    })
-    message.success('注册成功，请登录')
-    showRegisterModal.value = false
-    registerForm.username = ''
-    registerForm.email = ''
-    registerForm.password = ''
-    registerForm.confirmPassword = ''
-  } catch (error: any) {
-    message.error(error.message || '注册失败')
-  } finally {
-    registerLoading.value = false
-  }
-}
-
-onMounted(() => {
-  if (showCaptcha.value) {
-    refreshCaptcha()
-  }
-})
 </script>
 
 <style scoped lang="less">
@@ -426,41 +240,8 @@ onMounted(() => {
   border-radius: 8px;
 }
 
-.captcha-image {
-  height: 40px;
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
-  overflow: hidden;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fafafa;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  &:hover {
-    border-color: #40a9ff;
-  }
-}
-
-.captcha-placeholder {
-  font-size: 12px;
-  color: #bfbfbf;
-}
-
-.login-footer {
-  margin-top: 24px;
-  text-align: center;
+.form-hint {
   font-size: 14px;
   color: #8c8c8c;
-
-  p {
-    margin: 0;
-  }
 }
 </style>

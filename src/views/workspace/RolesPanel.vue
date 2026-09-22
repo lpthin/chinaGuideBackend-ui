@@ -40,8 +40,8 @@
             </a-space>
           </template>
           <template v-if="column.key === 'status'">
-            <a-tag :color="record.status === 'active' ? 'green' : 'default'">
-              {{ record.status === 'active' ? '启用' : '禁用' }}
+            <a-tag :color="statusMeta(record.status).color">
+              {{ statusMeta(record.status).label }}
             </a-tag>
           </template>
           <template v-if="column.key === 'actions'">
@@ -92,14 +92,6 @@
             </a-form-item>
           </a-col>
         </a-row>
-        <a-form-item label="排序" name="sort">
-          <a-input-number
-            v-model:value="formState.sort"
-            :min="1"
-            :max="999"
-            style="width: 100%"
-          />
-        </a-form-item>
         <a-form-item label="描述" name="description">
           <a-textarea
             v-model:value="formState.description"
@@ -144,6 +136,8 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons-vue'
 import { adminApi } from '../../api/workspace'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { Role } from '../../types'
 
@@ -174,9 +168,18 @@ const formState = reactive({
   name: '',
   code: '',
   description: '',
-  sort: 1,
   status: 'active' as 'active' | 'inactive',
 })
+
+const ROLE_STATUS: Record<string, { label: string; color: string }> = {
+  active: { label: '启用', color: 'green' },
+  inactive: { label: '禁用', color: 'default' },
+}
+
+function statusMeta(status?: string) {
+  const meta = status ? ROLE_STATUS[status] : undefined
+  return meta || { label: status || '-', color: 'default' }
+}
 
 const rules = {
   name: [
@@ -211,12 +214,6 @@ const columns = [
     width: 350,
   },
   {
-    title: '排序',
-    dataIndex: 'sort',
-    key: 'sort',
-    width: 80,
-  },
-  {
     title: '状态',
     key: 'status',
     width: 100,
@@ -232,6 +229,7 @@ const columns = [
     dataIndex: 'createdAt',
     key: 'createdAt',
     width: 180,
+    customRender: ({ text }: { text: string }) => formatDateTime(text),
   },
   {
     title: '操作',
@@ -251,8 +249,8 @@ async function loadRoles() {
     })
     roles.value = result.records || []
     pagination.total = result.total || 0
-  } catch (error: any) {
-    message.error(error.message || '加载角色列表失败')
+  } catch (error) {
+    message.error(`加载角色列表失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }
@@ -262,8 +260,8 @@ async function loadPermissionTree() {
   try {
     const result = await adminApi.permissions.tree()
     permissionTree.value = result || []
-  } catch (error: any) {
-    message.error(error.message || '加载权限树失败')
+  } catch (error) {
+    message.error(`加载权限树失败：${describeHttpError(error)}`)
   }
 }
 
@@ -271,8 +269,8 @@ async function loadRolePermissions(roleId: number) {
   try {
     const permissionIds = await adminApi.roles.getPermissions(roleId)
     checkedPermissionKeys.value = permissionIds || []
-  } catch (error: any) {
-    message.error(error.message || '加载角色权限失败')
+  } catch (error) {
+    message.error(`加载角色权限失败：${describeHttpError(error)}`)
   }
 }
 
@@ -287,7 +285,6 @@ function handleAdd() {
   formState.name = ''
   formState.code = ''
   formState.description = ''
-  formState.sort = 1
   formState.status = 'active'
   modalVisible.value = true
 }
@@ -297,7 +294,6 @@ function handleEdit(record: Role) {
   formState.name = record.name
   formState.code = record.code
   formState.description = record.description || ''
-  formState.sort = record.sort
   formState.status = record.status
   modalVisible.value = true
 }
@@ -311,7 +307,6 @@ async function handleSubmit() {
         name: formState.name,
         code: formState.code,
         description: formState.description,
-        sort: formState.sort,
         status: formState.status,
       })
       message.success('更新成功')
@@ -320,7 +315,6 @@ async function handleSubmit() {
         name: formState.name,
         code: formState.code,
         description: formState.description,
-        sort: formState.sort,
         status: formState.status,
       })
       message.success('创建成功')
@@ -329,9 +323,8 @@ async function handleSubmit() {
     modalVisible.value = false
     loadRoles()
   } catch (error: any) {
-    if (error.message && error.message !== '校验失败') {
-      message.error(error.message || '操作失败')
-    }
+    if (error?.errorFields) return
+    message.error(`操作失败：${describeHttpError(error)}`)
   }
 }
 
@@ -358,8 +351,8 @@ async function handlePermissionSubmit() {
     message.success('权限分配成功')
     permissionModalVisible.value = false
     loadRoles()
-  } catch (error: any) {
-    message.error(error.message || '权限分配失败')
+  } catch (error) {
+    message.error(`权限分配失败：${describeHttpError(error)}`)
   }
 }
 
@@ -373,8 +366,8 @@ async function handleDelete(record: Role) {
     await adminApi.roles.delete(record.id)
     message.success('删除成功')
     loadRoles()
-  } catch (error: any) {
-    message.error(error.message || '删除失败')
+  } catch (error) {
+    message.error(`删除失败：${describeHttpError(error)}`)
   }
 }
 

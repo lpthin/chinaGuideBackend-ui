@@ -269,10 +269,9 @@
                 type="primary" 
                 @click="startGenerateCards" 
                 :loading="cardGenerating"
-                :disabled="cardGenerationStatus === 'PROCESSING'"
               >
                 <template #icon><FileSearchOutlined /></template>
-                {{ cardGenerationStatus === 'PROCESSING' ? '生成中...' : '生成知识卡片' }}
+                {{ cardGenerating ? '生成中...' : '生成知识卡片' }}
               </a-button>
               <a-button type="primary" @click="downloadCurrentDoc">
                 <template #icon><DownloadOutlined /></template>
@@ -406,14 +405,9 @@
               </a-tag>
             </div>
 
-            <!-- 生成状态和进度 -->
+            <!-- 生成状态 -->
             <div v-if="cardGenerationStatus && cardGenerationStatus !== 'COMPLETED'" class="status-info">
-              <a-progress 
-                v-if="cardGenerationStatus === 'PROCESSING'" 
-                :percent="cardGenerationProgress" 
-                status="active"
-                style="margin-bottom: 12px"
-              />
+              <a-spin v-if="cardGenerating" size="small" style="margin-bottom: 12px" />
               <div v-if="cardGenerationMessage" class="status-item">
                 <span class="status-text">{{ cardGenerationMessage }}</span>
               </div>
@@ -550,6 +544,7 @@ import {
   ExclamationCircleOutlined,
 } from '@ant-design/icons-vue'
 import { knowledgeDocumentApi, knowledgeCategoryApi, knowledgeTagApi, knowledgeCardApi } from '../../api/knowledge'
+import { describeHttpError } from '../../api/http'
 import type { KnowledgeCategory, KnowledgeTag, KnowledgeCard, KnowledgeDocument } from '../../types/knowledge'
 import { formatTime as formatAbsoluteTime } from '@/utils/format'
 import { useAuthStore } from '../../stores/auth'
@@ -591,13 +586,10 @@ const pagination = ref({
 
 // 卡片生成相关状态
 const cardGenerating = ref(false)
-const cardGenerationTaskId = ref<string | null>(null)
-const cardGenerationStatus = ref<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null>(null)
-const cardGenerationProgress = ref(0)
+const cardGenerationStatus = ref<'RUNNING' | 'COMPLETED' | 'FAILED' | null>(null)
 const cardGenerationMessage = ref('')
 const cardGenerationError = ref('')
 const generatedCards = ref<KnowledgeCard[]>([])
-let cardGenerationPollingTimer: ReturnType<typeof setInterval> | null = null
 
 const previewLoading = ref(false)
 
@@ -928,7 +920,7 @@ function goToCardDetail(cardId: number) {
   window.open(`/knowledge/card/${cardId}`, '_blank')
 }
 
-// 开始生成知识卡片
+// 生成知识卡片：后端同步返回卡片数组，没有异步任务，因此不做轮询
 async function startGenerateCards() {
   const docId = previewDocData.value?.id || previewMediaData.value?.id
   if (!docId) {
@@ -938,74 +930,38 @@ async function startGenerateCards() {
 
   // 重置状态
   cardGenerating.value = true
-  cardGenerationStatus.value = 'PENDING'
-  cardGenerationProgress.value = 0
-  cardGenerationMessage.value = '正在准备生成卡片...'
+  cardGenerationStatus.value = 'RUNNING'
+  cardGenerationMessage.value = '正在分析文档内容并提取知识卡片，请稍候...'
   cardGenerationError.value = ''
   generatedCards.value = []
 
   try {
-    const result = await knowledgeDocumentApi.generateCards(docId) as any
-    cardGenerationTaskId.value = result.taskId
-    cardGenerationStatus.value = 'PROCESSING'
-    cardGenerationMessage.value = '正在分析文档内容并提取知识卡片...'
-    
-    // 开始轮询状态
-    startCardGenerationPolling(docId, result.taskId)
+    const cards = await knowledgeDocumentApi.generateCards(docId) as any
+    generatedCards.value = cards || []
+    cardGenerating.value = false
+    if (generatedCards.value.length > 0) {
+      cardGenerationStatus.value = 'COMPLETED'
+      cardGenerationMessage.value = ''
+      message.success(`成功生成 ${generatedCards.value.length} 张知识卡片`)
+      loadRelatedCards(docId)
+    } else {
+      cardGenerationStatus.value = 'FAILED'
+      cardGenerationError.value = '模型未返回可用卡片，可能全部与已有卡片重复或校验不通过'
+      message.warning('未能生成知识卡片，请检查文档内容或稍后重试')
+    }
   } catch (e: any) {
-    console.error('触发卡片生成失败:', e)
+    console.error('生成卡片失败:', e)
     cardGenerating.value = false
     cardGenerationStatus.value = 'FAILED'
-    cardGenerationError.value = e.response?.data?.message || e.message || '触发卡片生成失败'
-    message.error('触发卡片生成失败')
-  }
-}
-
-// 开始轮询卡片生成状态
-function startCardGenerationPolling(docId: number, taskId: string) {
-  if (cardGenerationPollingTimer) {
-    clearInterval(cardGenerationPollingTimer)
-  }
-
-  cardGenerationPollingTimer = setInterval(async () => {
-    try {
-      const result = await knowledgeDocumentApi.getCardsGenerationStatus(docId, taskId) as any
-      cardGenerationStatus.value = result.status
-      cardGenerationProgress.value = result.progress || 0
-      cardGenerationMessage.value = result.message || ''
-      
-      if (result.status === 'COMPLETED') {
-        // 生成完成
-        cardGenerating.value = false
-        generatedCards.value = result.cards || []
-        stopCardGenerationPolling()
-        message.success(`成功生成 ${generatedCards.value.length} 张知识卡片`)
-      } else if (result.status === 'FAILED') {
-        // 生成失败
-        cardGenerating.value = false
-        cardGenerationError.value = result.error || '卡片生成失败'
-        stopCardGenerationPolling()
-        message.error('卡片生成失败')
-      }
-    } catch (e: any) {
-      console.error('获取卡片生成状态失败:', e)
-    }
-  }, 2000) // 每2秒轮询一次
-}
-
-// 停止轮询卡片生成状态
-function stopCardGenerationPolling() {
-  if (cardGenerationPollingTimer) {
-    clearInterval(cardGenerationPollingTimer)
-    cardGenerationPollingTimer = null
+    cardGenerationError.value = describeHttpError(e)
+    message.error(cardGenerationError.value)
   }
 }
 
 // 获取卡片生成状态颜色
 function getCardGenerationStatusColor(status: string | null): string {
   const map: Record<string, string> = {
-    PENDING: 'default',
-    PROCESSING: 'processing',
+    RUNNING: 'processing',
     COMPLETED: 'success',
     FAILED: 'error'
   }
@@ -1015,8 +971,7 @@ function getCardGenerationStatusColor(status: string | null): string {
 // 获取卡片生成状态文本
 function getCardGenerationStatusText(status: string | null): string {
   const map: Record<string, string> = {
-    PENDING: '待处理',
-    PROCESSING: '生成中',
+    RUNNING: '生成中',
     COMPLETED: '已完成',
     FAILED: '失败'
   }
@@ -1025,11 +980,8 @@ function getCardGenerationStatusText(status: string | null): string {
 
 // 重置卡片生成状态（关闭预览弹窗时调用）
 function resetCardGenerationState() {
-  stopCardGenerationPolling()
   cardGenerating.value = false
-  cardGenerationTaskId.value = null
   cardGenerationStatus.value = null
-  cardGenerationProgress.value = 0
   cardGenerationMessage.value = ''
   cardGenerationError.value = ''
   generatedCards.value = []

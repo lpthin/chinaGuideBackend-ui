@@ -151,8 +151,8 @@ function resetForm(site?: Site) {
 async function load() {
   loading.value = true
   try {
-    const res = await siteApi.list({})
-    sites.value = res.records || []
+    const res = await siteApi.list()
+    sites.value = res || []
   } catch (e) {
     message.error('加载站点列表失败')
   } finally {

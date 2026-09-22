@@ -207,7 +207,9 @@ import {
   EyeOutlined,
   ClockCircleOutlined
 } from '@ant-design/icons-vue'
-import { knowledgeSearchApi, knowledgeCategoryApi } from '../../api/knowledge'
+import { knowledgeSearchApi, knowledgeCategoryApi, flattenCategories } from '../../api/knowledge'
+import { describeHttpError } from '../../api/http'
+import { formatTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { KnowledgeSearchResultItem, KnowledgeSearchQuery } from '../../types/knowledge'
 
@@ -243,11 +245,10 @@ const loadCategories = async () => {
     const res: any = await knowledgeCategoryApi.all(tenantId)
     const data = res?.data ?? res
     if (Array.isArray(data)) {
-      categories.value = data.map((cat: any) => ({ id: cat.id, name: cat.name }))
+      categories.value = flattenCategories(data).map((cat: any) => ({ id: cat.id, name: cat.name }))
     }
   } catch (error) {
-    message.error('加载分类失败')
-    console.error('加载分类失败:', error)
+    message.error(`加载分类失败：${describeHttpError(error)}`)
   }
 }
 
@@ -354,30 +355,13 @@ const quickSearch = (keyword: string) => {
   handleSearch()
 }
 
-const getTypeLabel = (type: string) => {
-  const labels: Record<string, string> = {
-    document: '文档',
-    card: '卡片',
-    entity: '实体'
-  }
-  return labels[type] || type
+const typeLabels: Record<string, string> = {
+  document: '文档',
+  card: '知识卡片',
+  entity: '实体',
 }
 
-const formatTime = (time: string) => {
-  if (!time) return ''
-  const date = new Date(time)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (days < 1) {
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    if (hours < 1) return '刚刚'
-    return `${hours}小时前`
-  }
-  if (days < 7) return `${days}天前`
-  return date.toLocaleDateString()
-}
+const getTypeLabel = (type: string) => typeLabels[type] || type
 
 const handleResultClick = (item: KnowledgeSearchResultItem) => {
   if (item.type === 'document') {

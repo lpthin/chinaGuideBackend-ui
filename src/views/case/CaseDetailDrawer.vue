@@ -10,7 +10,7 @@
     <template #extra>
       <a-space>
         <a-button @click="handleClose">取消</a-button>
-        <a-button type="primary" @click="handleSave">保存</a-button>
+        <a-button type="primary" :loading="saving" @click="handleSave">保存</a-button>
       </a-space>
     </template>
 
@@ -84,10 +84,7 @@
                 :disabled="isReadonly"
               >
                 <a-select-option :value="CaseStatus.DRAFT">草稿</a-select-option>
-                <a-select-option :value="CaseStatus.REVIEWING">审核中</a-select-option>
-                <a-select-option :value="CaseStatus.APPROVED">已通过</a-select-option>
                 <a-select-option :value="CaseStatus.PUBLISHED">已发布</a-select-option>
-                <a-select-option :value="CaseStatus.ARCHIVED">已归档</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -193,19 +190,23 @@
         <a-divider v-if="caseData">统计信息</a-divider>
 
         <a-row v-if="caseData" :gutter="24">
-          <a-col :span="6">
-            <a-statistic title="浏览量" :value="caseData.viewCount" />
+          <a-col :span="8">
+            <a-statistic title="浏览量" :value="formatNumber(caseData.viewCount)" />
           </a-col>
-          <a-col :span="6">
-            <a-statistic title="点赞数" :value="caseData.likeCount" />
+          <a-col :span="8">
+            <a-statistic title="点赞数" :value="formatNumber(caseData.likeCount)" />
           </a-col>
-          <a-col :span="6">
-            <a-statistic title="分享数" :value="caseData.shareCount" />
-          </a-col>
-          <a-col :span="6">
-            <a-statistic title="下载数" :value="caseData.downloadCount" />
+          <a-col :span="8">
+            <a-statistic title="分享数" :value="formatNumber(caseData.shareCount)" />
           </a-col>
         </a-row>
+
+        <a-descriptions v-if="caseData" :column="2" size="small" style="margin-top: 16px">
+          <a-descriptions-item label="创建时间">{{ formatDateTime(caseData.createdAt) }}</a-descriptions-item>
+          <a-descriptions-item label="更新时间">{{ formatDateTime(caseData.updatedAt) }}</a-descriptions-item>
+          <a-descriptions-item label="发布时间">{{ formatDateTime(caseData.publishedAt) }}</a-descriptions-item>
+          <a-descriptions-item label="所属分类">{{ caseData.categoryName || '-' }}</a-descriptions-item>
+        </a-descriptions>
       </a-form>
     </a-spin>
   </a-drawer>
@@ -216,8 +217,10 @@ import { ref, reactive, watch, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { CaseStatus, CasePriority, CaseType } from '../../types/case'
-import type { Case, CaseCategory, CaseTag } from '../../types/case'
+import type { Case, CaseCategory, CaseForm, CaseTag } from '../../types/case'
 import { caseApi, caseCategoryApi, caseTagApi } from '../../api/case'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime, formatNumber } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
@@ -233,6 +236,7 @@ const emit = defineEmits<{
 }>()
 
 const loading = ref(false)
+const saving = ref(false)
 const formRef = ref()
 const caseData = ref<Case | null>(null)
 
@@ -297,9 +301,9 @@ async function loadInitialData() {
 async function loadCategories(tenantId: number) {
   try {
     const res = await caseCategoryApi.list({ tenantId, status: 'ACTIVE' })
-    categories.value = res as any || []
-  } catch (error: any) {
-    message.error(error.message || '加载分类失败')
+    categories.value = res || []
+  } catch (error) {
+    message.error(`加载分类失败：${describeHttpError(error)}`)
     console.error(error)
   }
 }
@@ -307,7 +311,7 @@ async function loadCategories(tenantId: number) {
 async function loadHotTags(tenantId: number) {
   try {
     const res = await caseTagApi.hot(tenantId, 10)
-    hotTags.value = (res as any)?.map((tag: CaseTag) => tag.name) || []
+    hotTags.value = res?.map((tag: CaseTag) => tag.name) || []
   } catch (error) {
     console.error('加载热门标签失败', error)
   }
@@ -335,7 +339,7 @@ function resetForm() {
 async function loadCaseData(id: number) {
   loading.value = true
   try {
-    const caseInfo = await caseApi.get(id) as any
+    const caseInfo = await caseApi.get(id)
     caseData.value = caseInfo
     formState.tenantId = caseInfo.tenantId || getTenantId()
     formState.categoryId = caseInfo.categoryId || (categories.value.length > 0 ? categories.value[0].id : 0)
@@ -350,9 +354,9 @@ async function loadCaseData(id: number) {
     formState.customerScale = caseInfo.customerScale || ''
     formState.coverImage = caseInfo.coverImage || ''
     formState.tags = caseInfo.tags || ''
-    selectedTags.value = caseInfo.tags ? caseInfo.tags.split(',').filter((t: string) => t) : []
-  } catch (error: any) {
-    message.error(error.message || '加载案例详情失败')
+    selectedTags.value = caseInfo.tagList || []
+  } catch (error) {
+    message.error(`加载案例详情失败：${describeHttpError(error)}`)
     console.error(error)
   } finally {
     loading.value = false
@@ -363,12 +367,41 @@ function handleClose() {
   emit('update:open', false)
 }
 
-function handleSave() {
-  formRef.value?.validate().then(() => {
-    message.success(props.caseId ? '更新成功' : '创建成功')
+async function handleSave() {
+  try {
+    await formRef.value?.validate()
+  } catch (error) {
+    return
+  }
+  const payload: CaseForm = {
+    tenantId: formState.tenantId,
+    categoryId: formState.categoryId,
+    title: formState.title,
+    summary: formState.summary,
+    content: formState.content,
+    customerName: formState.customerName,
+    customerIndustry: formState.customerIndustry,
+    customerScale: formState.customerScale,
+    coverImage: formState.coverImage,
+    tags: JSON.stringify(selectedTags.value),
+    status: formState.status,
+  }
+  saving.value = true
+  try {
+    if (props.caseId) {
+      await caseApi.update(props.caseId, payload)
+      message.success('更新成功')
+    } else {
+      await caseApi.create(payload)
+      message.success('创建成功')
+    }
     emit('success')
     emit('update:open', false)
-  })
+  } catch (error) {
+    message.error(`保存失败：${describeHttpError(error)}`)
+  } finally {
+    saving.value = false
+  }
 }
 
 function handlePreview(file: any) {

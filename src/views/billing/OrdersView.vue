@@ -117,22 +117,6 @@
                 <a-button type="link" size="small" @click="showOrderDetail(record)">
                   详情
                 </a-button>
-                <a-button
-                  v-if="record.status === 'pending'"
-                  type="link"
-                  size="small"
-                  @click="handlePay(record)"
-                >
-                  支付
-                </a-button>
-                <a-button
-                  v-if="record.status === 'paid'"
-                  type="link"
-                  size="small"
-                  @click="handleRefund(record)"
-                >
-                  退款
-                </a-button>
               </a-space>
             </template>
           </template>
@@ -162,8 +146,8 @@
           <span class="amount">¥{{ formatAmount(currentOrder.paidAmount || 0) }}</span>
         </a-descriptions-item>
         <a-descriptions-item label="支付方式">{{ getPaymentMethodName(currentOrder.paymentMethod) }}</a-descriptions-item>
-        <a-descriptions-item label="创建时间">{{ currentOrder.createdAt }}</a-descriptions-item>
-        <a-descriptions-item label="支付时间" :span="2">{{ currentOrder.paidAt || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="创建时间">{{ formatDateTime(currentOrder.createdAt) }}</a-descriptions-item>
+        <a-descriptions-item label="支付时间" :span="2">{{ formatDateTime(currentOrder.paidAt) }}</a-descriptions-item>
         <a-descriptions-item label="备注" :span="2">{{ currentOrder.remark || '-' }}</a-descriptions-item>
       </a-descriptions>
     </a-modal>
@@ -172,7 +156,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
-import { message, Modal } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import {
   FileTextOutlined,
   ClockCircleOutlined,
@@ -181,6 +165,7 @@ import {
   ExportOutlined,
 } from '@ant-design/icons-vue'
 import { orderApi } from '../../api/billing'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
@@ -244,11 +229,6 @@ function handleSearch() {
 
 function formatAmount(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function formatDateTime(date: string): string {
-  if (!date) return '-'
-  return date
 }
 
 function getStatusName(status: string): string {
@@ -329,41 +309,6 @@ async function showOrderDetail(order: any) {
     console.error('Failed to load order detail:', error)
     message.error('加载订单详情失败')
   }
-}
-
-function handlePay(order: any) {
-  Modal.confirm({
-    title: '确认支付',
-    content: `确定要支付订单 ${order.orderNo} 吗？金额：¥${formatAmount(order.amount)}`,
-    onOk: async () => {
-      try {
-        await orderApi.pay(order.id, 'balance')
-        message.success('支付成功')
-        loadOrderList()
-      } catch (error) {
-        console.error('Failed to pay order:', error)
-        message.error('支付失败')
-      }
-    },
-  })
-}
-
-function handleRefund(order: any) {
-  Modal.confirm({
-    title: '确认退款',
-    content: `确定要退款订单 ${order.orderNo} 吗？金额：¥${formatAmount(order.amount)}`,
-    okType: 'danger',
-    onOk: async () => {
-      try {
-        await orderApi.refund(order.id, order.amount)
-        message.success('退款成功')
-        loadOrderList()
-      } catch (error) {
-        console.error('Failed to refund order:', error)
-        message.error('退款失败')
-      }
-    },
-  })
 }
 
 async function handleExport() {

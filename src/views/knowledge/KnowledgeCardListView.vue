@@ -18,32 +18,6 @@
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
             <div class="stat-content">
-              <div class="stat-icon" style="background: linear-gradient(135deg, #722ed1 0%, #b37feb 100%)">
-                <EyeOutlined />
-              </div>
-              <div class="stat-info">
-                <div class="stat-value">{{ pagination.total }}</div>
-                <div class="stat-title">总浏览</div>
-              </div>
-            </div>
-          </a-card>
-        </a-col>
-        <a-col :span="6">
-          <a-card class="stat-card" hoverable>
-            <div class="stat-content">
-              <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                <LikeOutlined />
-              </div>
-              <div class="stat-info">
-                <div class="stat-value">{{ pagination.total }}</div>
-                <div class="stat-title">总点赞</div>
-              </div>
-            </div>
-          </a-card>
-        </a-col>
-        <a-col :span="6">
-          <a-card class="stat-card" hoverable>
-            <div class="stat-content">
               <div class="stat-icon" style="background: linear-gradient(135deg, #fa8c16 0%, #ffec3d 100%)">
                 <FolderOpenOutlined />
               </div>
@@ -132,9 +106,6 @@
                   <div @click.stop>
                     <EyeOutlined /> {{ card.viewCount }}
                   </div>
-                  <div @click.stop>
-                    <LikeOutlined /> {{ card.likeCount }}
-                  </div>
                   <a-dropdown @click.stop>
                     <template #overlay>
                       <a-menu>
@@ -150,7 +121,7 @@
                   </a-dropdown>
                 </template>
 
-                <a-card-meta :title="card.title" :description="card.summary">
+                <a-card-meta>
                   <template #title>
                     <div class="card-title">
                       <span>{{ card.title }}</span>
@@ -167,7 +138,7 @@
 
                 <div class="card-footer">
                   <span>{{ getCategoryName(card.categoryId) }}</span>
-                  <span>{{ formatDate(card.updatedAt) }}</span>
+                  <span>{{ formatDateTime(card.updatedAt) }}</span>
                 </div>
               </a-card>
             </a-col>
@@ -202,6 +173,9 @@
               <a-tag :color="record.status === 'active' ? 'green' : 'default'">
                 {{ record.status === 'active' ? '启用' : '停用' }}
               </a-tag>
+            </template>
+            <template v-if="column.key === 'updatedAt'">
+              {{ formatDateTime(record.updatedAt) }}
             </template>
             <template v-if="column.key === 'actions'">
               <a-space>
@@ -293,18 +267,18 @@
 import { ref, reactive, onMounted, h, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
-import dayjs from 'dayjs'
 import {
   FileTextOutlined,
   EyeOutlined,
-  LikeOutlined,
   FolderOpenOutlined,
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   EllipsisOutlined,
 } from '@ant-design/icons-vue'
-import { knowledgeCardApi, knowledgeCategoryApi, knowledgeTagApi } from '../../api/knowledge'
+import { knowledgeCardApi, knowledgeCategoryApi, knowledgeTagApi, flattenCategories } from '../../api/knowledge'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime } from '../../utils/format'
 import type { KnowledgeCard, KnowledgeCategory, KnowledgeTag } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 
@@ -347,7 +321,6 @@ const columns = [
   { title: '分类', key: 'category', width: 120 },
   { title: '标签', key: 'tags', width: 200 },
   { title: '浏览', dataIndex: 'viewCount', key: 'viewCount', width: 80 },
-  { title: '点赞', dataIndex: 'likeCount', key: 'likeCount', width: 80 },
   { title: '状态', key: 'status', width: 100 },
   { title: '更新时间', dataIndex: 'updatedAt', key: 'updatedAt', width: 180 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 150 },
@@ -361,11 +334,6 @@ const rowSelection = {
 }
 
 function renderCover(card: KnowledgeCard) {
-  if (card.coverImage) {
-    return h('div', { class: 'card-cover' }, [
-      h('img', { src: card.coverImage, alt: card.title })
-    ])
-  }
   return h('div', { class: 'card-cover-placeholder' }, [
     h(FileTextOutlined)
   ])
@@ -381,19 +349,15 @@ function getTagColor(tagName: string): string {
   return tag?.color || 'blue'
 }
 
-function formatDate(dateStr: string): string {
-  return dayjs(dateStr).format('YYYY-MM-DD HH:mm')
-}
-
 function goToDetail(id: number) {
   router.push(`/workspace/knowledge/cards/${id}`)
 }
 
 function goToEdit(id?: number) {
   if (id) {
-    router.push(`/knowledge/card/${id}/edit`)
+    router.push(`/workspace/knowledge/cards/edit/${id}`)
   } else {
-    router.push('/knowledge/card/new')
+    router.push('/workspace/knowledge/cards/edit')
   }
 }
 
@@ -409,8 +373,7 @@ async function handleDelete(id: number) {
         message.success('删除成功')
         await loadData()
       } catch (error) {
-        message.error('删除失败')
-        console.error(error)
+        message.error(`删除失败：${describeHttpError(error)}`)
       }
     },
   })
@@ -430,8 +393,7 @@ async function batchDelete() {
         selectedRowKeys.value = []
         await loadData()
       } catch (error) {
-        message.error('批量删除失败')
-        console.error(error)
+        message.error(`批量删除失败：${describeHttpError(error)}`)
       }
     },
   })
@@ -466,8 +428,7 @@ async function handleBatchSetCategory() {
     selectedRowKeys.value = []
     await loadData()
   } catch (error) {
-    message.error('批量设置分类失败')
-    console.error(error)
+    message.error(`批量设置分类失败：${describeHttpError(error)}`)
   } finally {
     batchCategoryLoading.value = false
   }
@@ -483,8 +444,7 @@ async function handleBatchSetTags() {
     selectedRowKeys.value = []
     await loadData()
   } catch (error) {
-    message.error('批量设置标签失败')
-    console.error(error)
+    message.error(`批量设置标签失败：${describeHttpError(error)}`)
   } finally {
     batchTagLoading.value = false
   }
@@ -492,12 +452,11 @@ async function handleBatchSetTags() {
 
 async function loadCategories() {
   try {
-    const result = await knowledgeCategoryApi.all(auth.selectedTenantId!)
+    const result = flattenCategories(await knowledgeCategoryApi.all(auth.selectedTenantId!))
     categories.value = result
     stats.totalCategories = result.length
   } catch (error) {
-    console.error(error)
-    message.error('加载分类列表失败')
+    message.error(`加载分类列表失败：${describeHttpError(error)}`)
     categories.value = []
     stats.totalCategories = 0
   }
@@ -508,7 +467,7 @@ async function loadTags() {
     const result = await knowledgeTagApi.list({ tenantId: auth.selectedTenantId! })
     tags.value = Array.isArray(result) ? result : (result as any).records || []
   } catch (error) {
-    console.error(error)
+    message.error(`加载标签列表失败：${describeHttpError(error)}`)
     tags.value = []
   }
 }
@@ -526,8 +485,7 @@ async function loadData() {
     cardList.value = result.records
     pagination.total = result.total
   } catch (error) {
-    console.error(error)
-    message.error('加载知识卡片列表失败')
+    message.error(`加载知识卡片列表失败：${describeHttpError(error)}`)
     cardList.value = []
     pagination.total = 0
   } finally {

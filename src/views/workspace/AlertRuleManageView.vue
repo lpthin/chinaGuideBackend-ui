@@ -143,6 +143,9 @@
               @change="(checked: boolean) => handleToggleActive(record, checked)"
             />
           </template>
+          <template v-if="column.key === 'createdAt'">
+            {{ formatDateTime(record.createdAt) }}
+          </template>
           <template v-if="column.key === 'actions'">
             <a-space>
               <a-button type="link" size="small" @click="handleEdit(record)">
@@ -256,6 +259,7 @@ import type { TablePaginationConfig } from 'ant-design-vue'
 import { alertApi } from '../../api/workspace'
 import { useAuthStore } from '../../stores/auth'
 import type { AlertRule, AlertRuleForm } from '../../types/workspace'
+import { formatDateTime } from '../../utils/format'
 
 const authStore = useAuthStore()
 

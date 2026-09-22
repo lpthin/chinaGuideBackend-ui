@@ -14,33 +14,18 @@
             style="width: 150px"
             allowClear
           >
-            <a-select-option value="login">登录</a-select-option>
-            <a-select-option value="logout">登出</a-select-option>
             <a-select-option value="create">创建</a-select-option>
             <a-select-option value="update">更新</a-select-option>
             <a-select-option value="delete">删除</a-select-option>
-            <a-select-option value="export">导出</a-select-option>
-            <a-select-option value="import">导入</a-select-option>
-            <a-select-option value="approve">审批</a-select-option>
-            <a-select-option value="reject">驳回</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="操作模块">
-          <a-select
-            v-model:value="filterForm.module"
-            placeholder="请选择操作模块"
+        <a-form-item label="资源">
+          <a-input
+            v-model:value="filterForm.resource"
+            placeholder="如 cases、admin/users"
             style="width: 150px"
             allowClear
-          >
-            <a-select-option value="user">用户管理</a-select-option>
-            <a-select-option value="role">角色管理</a-select-option>
-            <a-select-option value="permission">权限管理</a-select-option>
-            <a-select-option value="article">文章管理</a-select-option>
-            <a-select-option value="knowledge">知识库</a-select-option>
-            <a-select-option value="system">系统设置</a-select-option>
-            <a-select-option value="billing">计费管理</a-select-option>
-            <a-select-option value="workflow">工作流</a-select-option>
-          </a-select>
+          />
         </a-form-item>
         <a-form-item label="操作人">
           <a-input
@@ -76,40 +61,31 @@
 
       <!-- 统计卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
-        <a-col :span="6">
+        <a-col :span="8">
           <a-statistic
-            title="今日操作总数"
-            :value="stats.todayTotal"
+            title="操作总数"
+            :value="stats.total"
             :value-style="{ color: '#1890ff' }"
           >
             <template #prefix><FileTextOutlined /></template>
           </a-statistic>
         </a-col>
-        <a-col :span="6">
+        <a-col :span="8">
           <a-statistic
-            title="登录次数"
-            :value="stats.loginCount"
+            title="今日操作数"
+            :value="stats.todayTotal"
             :value-style="{ color: '#52c41a' }"
           >
-            <template #prefix><LoginOutlined /></template>
+            <template #prefix><FileTextOutlined /></template>
           </a-statistic>
         </a-col>
-        <a-col :span="6">
+        <a-col :span="8">
           <a-statistic
             title="异常操作"
             :value="stats.errorCount"
             :value-style="{ color: '#ff4d4f' }"
           >
             <template #prefix><WarningOutlined /></template>
-          </a-statistic>
-        </a-col>
-        <a-col :span="6">
-          <a-statistic
-            title="敏感操作"
-            :value="stats.sensitiveCount"
-            :value-style="{ color: '#faad14' }"
-          >
-            <template #prefix><LockOutlined /></template>
           </a-statistic>
         </a-col>
       </a-row>
@@ -130,11 +106,21 @@
               {{ getActionName(record.action) }}
             </a-tag>
           </template>
-          <template v-if="column.key === 'module'">
-            {{ getModuleName(record.module) }}
+          <template v-if="column.key === 'resource'">
+            <a-tooltip :title="record.resource">
+              {{ resourceMap[record.resource] || record.resource }}
+            </a-tooltip>
           </template>
-          <template v-if="column.key === 'ip'">
-            <a-typography-text copyable>{{ record.ip }}</a-typography-text>
+          <template v-if="column.key === 'ipAddress'">
+            <a-typography-text copyable>{{ record.ipAddress }}</a-typography-text>
+          </template>
+          <template v-if="column.key === 'responseStatus'">
+            <a-tag :color="String(record.responseStatus || '').startsWith('2') ? 'success' : 'error'">
+              {{ record.responseStatus || '-' }}
+            </a-tag>
+          </template>
+          <template v-if="column.key === 'createdAt'">
+            {{ formatDateTime(record.createdAt) }}
           </template>
           <template v-if="column.key === 'actions'">
             <a-button type="link" size="small" @click="viewDetail(record)">
@@ -158,16 +144,23 @@
             {{ getActionName(currentLog.action) }}
           </a-tag>
         </a-descriptions-item>
-        <a-descriptions-item label="操作模块">
-          {{ getModuleName(currentLog.module) }}
+        <a-descriptions-item label="资源">
+          {{ currentLog.resource || '-' }}
+          <span v-if="currentLog.resourceId">（ID: {{ currentLog.resourceId }}）</span>
         </a-descriptions-item>
-        <a-descriptions-item label="操作详情">{{ currentLog.detail || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="请求方法">{{ currentLog.method || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="请求参数">{{ currentLog.requestParams || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="响应状态">{{ currentLog.responseStatus || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="耗时">
+          {{ currentLog.duration === null || currentLog.duration === undefined ? '-' : currentLog.duration + ' ms' }}
+        </a-descriptions-item>
+        <a-descriptions-item label="错误信息">{{ currentLog.errorMessage || '-' }}</a-descriptions-item>
         <a-descriptions-item label="操作人">{{ currentLog.username }}</a-descriptions-item>
         <a-descriptions-item label="用户ID">{{ currentLog.userId }}</a-descriptions-item>
         <a-descriptions-item label="租户ID">{{ currentLog.tenantId }}</a-descriptions-item>
-        <a-descriptions-item label="IP地址">{{ currentLog.ip }}</a-descriptions-item>
+        <a-descriptions-item label="IP地址">{{ currentLog.ipAddress }}</a-descriptions-item>
         <a-descriptions-item label="浏览器/设备">{{ currentLog.userAgent }}</a-descriptions-item>
-        <a-descriptions-item label="操作时间">{{ currentLog.createdAt }}</a-descriptions-item>
+        <a-descriptions-item label="操作时间">{{ formatDateTime(currentLog.createdAt) }}</a-descriptions-item>
       </a-descriptions>
     </a-drawer>
   </div>
@@ -181,12 +174,11 @@ import {
   ReloadOutlined,
   DownloadOutlined,
   FileTextOutlined,
-  LoginOutlined,
-  WarningOutlined,
-  LockOutlined
+  WarningOutlined
 } from '@ant-design/icons-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import { adminApi } from '../../api/workspace'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { AuditLog, AuditLogStats } from '../../types/workspace'
 
@@ -199,7 +191,7 @@ const logList = ref<AuditLog[]>([])
 
 const filterForm = reactive({
   action: undefined as string | undefined,
-  module: undefined as string | undefined,
+  resource: undefined as string | undefined,
   username: '',
   dateRange: [] as string[]
 })
@@ -207,9 +199,7 @@ const filterForm = reactive({
 const stats = reactive<AuditLogStats>({
   total: 0,
   todayTotal: 0,
-  loginCount: 0,
-  errorCount: 0,
-  sensitiveCount: 0
+  errorCount: 0
 })
 
 const pagination = reactive<TablePaginationConfig>({
@@ -223,36 +213,35 @@ const pagination = reactive<TablePaginationConfig>({
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
-  { title: '操作类型', key: 'action', width: 100 },
-  { title: '操作模块', key: 'module', dataIndex: 'module', width: 120 },
-  { title: '操作详情', dataIndex: 'detail', key: 'detail', ellipsis: true },
+  { title: '操作', key: 'action', width: 100 },
+  { title: '资源', key: 'resource', dataIndex: 'resource', width: 160 },
+  { title: '请求方法', dataIndex: 'method', key: 'method', width: 100 },
+  { title: '响应状态', key: 'responseStatus', dataIndex: 'responseStatus', width: 100 },
   { title: '操作人', dataIndex: 'username', key: 'username', width: 120 },
-  { title: 'IP地址', key: 'ip', dataIndex: 'ip', width: 140 },
+  { title: 'IP地址', key: 'ipAddress', dataIndex: 'ipAddress', width: 140 },
   { title: '操作时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 100 }
 ]
 
 const actionMap: Record<string, { name: string; color: string }> = {
-  login: { name: '登录', color: 'blue' },
-  logout: { name: '登出', color: 'default' },
   create: { name: '创建', color: 'green' },
   update: { name: '更新', color: 'cyan' },
-  delete: { name: '删除', color: 'red' },
-  export: { name: '导出', color: 'purple' },
-  import: { name: '导入', color: 'orange' },
-  approve: { name: '审批', color: 'success' },
-  reject: { name: '驳回', color: 'error' }
+  delete: { name: '删除', color: 'red' }
 }
 
-const moduleMap: Record<string, string> = {
-  user: '用户管理',
-  role: '角色管理',
-  permission: '权限管理',
+// 资源名直接来自请求路径，只给常见的几段配上中文；未命中的原样展示路径片段
+const resourceMap: Record<string, string> = {
+  'admin/users': '用户管理',
+  'admin/roles': '角色管理',
+  'admin/permissions': '权限管理',
+  'admin/tenants': '租户管理',
+  'admin/sites': '站点管理',
   article: '文章管理',
+  articles: '文章管理',
+  cases: '案例管理',
   knowledge: '知识库',
-  system: '系统设置',
   billing: '计费管理',
-  workflow: '工作流'
+  user: '个人中心'
 }
 
 const getActionColor = (action: string) => {
@@ -261,10 +250,6 @@ const getActionColor = (action: string) => {
 
 const getActionName = (action: string) => {
   return actionMap[action]?.name || action
-}
-
-const getModuleName = (module: string) => {
-  return moduleMap[module] || module
 }
 
 const fetchLogs = async () => {
@@ -282,8 +267,8 @@ const fetchLogs = async () => {
     if (filterForm.action) {
       params.action = filterForm.action
     }
-    if (filterForm.module) {
-      params.module = filterForm.module
+    if (filterForm.resource) {
+      params.resource = filterForm.resource
     }
     if (filterForm.username) {
       params.username = filterForm.username
@@ -319,7 +304,7 @@ const handleSearch = () => {
 
 const handleReset = () => {
   filterForm.action = undefined
-  filterForm.module = undefined
+  filterForm.resource = undefined
   filterForm.username = ''
   filterForm.dateRange = []
   pagination.current = 1
@@ -336,8 +321,8 @@ const handleExport = () => {
     if (filterForm.action) {
       params.action = filterForm.action
     }
-    if (filterForm.module) {
-      params.module = filterForm.module
+    if (filterForm.resource) {
+      params.resource = filterForm.resource
     }
     if (filterForm.username) {
       params.username = filterForm.username
@@ -348,7 +333,7 @@ const handleExport = () => {
     }
 
     adminApi.auditLogs.export(params)
-    message.success('导出任务已开始，请稍候...')
+    message.success('已开始下载，请留意浏览器下载列表')
   } catch (error: any) {
     message.error(error.message || '导出失败')
   }

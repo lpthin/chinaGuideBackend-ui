@@ -96,9 +96,9 @@
             size="middle"
           >
             <a-table-column title="关键词" data-index="keyword" />
-            <a-table-column title="搜索引擎" data-index="searchEngine" :width="120">
+            <a-table-column title="搜索引擎" :width="120">
               <template #default="{ text }">
-                <a-tag>{{ text }}</a-tag>
+                <a-tag>{{ searchEngineName(text) }}</a-tag>
               </template>
             </a-table-column>
             <a-table-column title="排名变化" :width="220">
@@ -223,6 +223,12 @@ function getScoreColor(score: number): string {
   if (score < 40) return '#ff4d4f'
   if (score < 70) return '#faad14'
   return '#52c41a'
+}
+
+function searchEngineName(engine: string): string {
+  if (engine === 'google') return 'Google'
+  if (engine === 'baidu') return '百度'
+  return engine || '-'
 }
 
 // 排名变化颜色: 数字越小排名越靠前，因此 currentRank < previousRank 为提升（绿色）

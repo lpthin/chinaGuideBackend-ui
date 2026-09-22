@@ -31,19 +31,6 @@
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
             <div class="stat-content">
-              <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                <EyeOutlined />
-              </div>
-              <div class="stat-info">
-                <div class="stat-value">{{ stats.totalViews }}</div>
-                <div class="stat-title">总浏览量</div>
-              </div>
-            </div>
-          </a-card>
-        </a-col>
-        <a-col :span="6">
-          <a-card class="stat-card" hoverable>
-            <div class="stat-content">
               <div class="stat-icon" style="background: linear-gradient(135deg, #fa8c16 0%, #ffec3d 100%)">
                 <ArrowUpOutlined />
               </div>
@@ -243,7 +230,6 @@ import { message, Modal } from 'ant-design-vue'
 import {
   ApartmentOutlined,
   FileTextOutlined,
-  EyeOutlined,
   ArrowUpOutlined,
   PlusOutlined,
   DownOutlined,
@@ -253,7 +239,8 @@ import {
   BookOutlined,
   StarOutlined,
 } from '@ant-design/icons-vue'
-import { knowledgeCategoryApi } from '../../api/knowledge'
+import { knowledgeCategoryApi, flattenCategories } from '../../api/knowledge'
+import { describeHttpError } from '../../api/http'
 import type { KnowledgeCategoryStats } from '../../api/knowledge'
 import type { KnowledgeCategory, KnowledgeCategoryForm } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
@@ -269,7 +256,6 @@ const editingCategory = ref<KnowledgeCategory | null>(null)
 const stats = reactive({
   totalCategories: 0,
   totalCards: 0,
-  totalViews: 0,
   maxLevel: 0,
 })
 
@@ -321,7 +307,7 @@ function getCategoryStats(id: number): KnowledgeCategoryStats | undefined {
 
 function buildTree(list: KnowledgeCategory[], parentId: number | null): any[] {
   return list
-    .filter(item => item.parentId === parentId)
+    .filter(item => (item.parentId || 0) === (parentId || 0))
     .sort((a, b) => (a.sort || 0) - (b.sort || 0))
     .map(item => {
       const stats = getCategoryStats(item.id)
@@ -343,7 +329,7 @@ function buildTree(list: KnowledgeCategory[], parentId: number | null): any[] {
 
 function buildSelectTree(list: KnowledgeCategory[], parentId: number | null): any[] {
   return list
-    .filter(item => item.parentId === parentId)
+    .filter(item => (item.parentId || 0) === (parentId || 0))
     .sort((a, b) => (a.sort || 0) - (b.sort || 0))
     .map(item => ({
       title: item.name,
@@ -436,8 +422,7 @@ async function onDrop(info: any) {
   } catch (error) {
     // 回滚拖拽操作
     dragItem.parentId = oldParentId
-    message.error('移动分类失败，已回滚')
-    console.error(error)
+    message.error(`移动分类失败，已回滚：${describeHttpError(error)}`)
   }
 }
 
@@ -479,8 +464,7 @@ async function deleteCategory(key: string) {
         message.success('删除成功')
         await loadData()
       } catch (error) {
-        message.error('删除失败')
-        console.error(error)
+        message.error(`删除失败：${describeHttpError(error)}`)
       }
     },
   })
@@ -503,8 +487,7 @@ async function handleModalOk() {
     showModal.value = false
     await loadData()
   } catch (error) {
-    message.error('操作失败')
-    console.error(error)
+    message.error(`操作失败：${describeHttpError(error)}`)
   } finally {
     saving.value = false
   }
@@ -521,8 +504,7 @@ async function saveCategory() {
     message.success('保存成功')
     await loadData()
   } catch (error) {
-    message.error('保存失败')
-    console.error(error)
+    message.error(`保存失败：${describeHttpError(error)}`)
   } finally {
     saving.value = false
   }
@@ -542,30 +524,27 @@ async function loadData() {
   loading.value = true
   try {
     const [categoriesResult, statsResult] = await Promise.all([
-      knowledgeCategoryApi.all(1),
-      knowledgeCategoryApi.stats(1)
+      knowledgeCategoryApi.all(getTenantId()),
+      knowledgeCategoryApi.stats(getTenantId())
     ])
-    categories.value = categoriesResult
+    // /categories/all 返回树形结构，本地按 parentId 组树需要平铺列表
+    const list = flattenCategories(categoriesResult)
+    categories.value = list
     categoryStats.value = statsResult
-    stats.totalCategories = categoriesResult.length
-    const totalDocs = statsResult.reduce((sum, s) => sum + (s.documentCount || 0), 0)
-    const totalCards = statsResult.reduce((sum, s) => sum + (s.cardCount || 0), 0)
-    stats.totalCards = totalDocs + totalCards
-    stats.totalViews = 0
-    stats.maxLevel = getMaxLevel(categoriesResult)
-    if (categoriesResult.length && !selectedKeys.value.length) {
-      selectedKeys.value = [String(categoriesResult[0].id)]
-      currentCategory.value = { ...categoriesResult[0] }
+    stats.totalCategories = list.length
+    stats.totalCards = statsResult.reduce((sum, s) => sum + (s.cardCount || 0), 0)
+    stats.maxLevel = getMaxLevel(list)
+    if (list.length && !selectedKeys.value.length) {
+      selectedKeys.value = [String(list[0].id)]
+      currentCategory.value = { ...list[0] }
     }
   } catch (error) {
-    console.error(error)
     categories.value = []
     categoryStats.value = []
     stats.totalCategories = 0
     stats.totalCards = 0
-    stats.totalViews = 0
     stats.maxLevel = 0
-    message.error('加载分类数据失败')
+    message.error(`加载分类数据失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }

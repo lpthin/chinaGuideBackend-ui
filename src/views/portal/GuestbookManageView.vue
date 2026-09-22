@@ -103,6 +103,12 @@
                   {{ getStatusName(record.status) }}
                 </a-tag>
               </template>
+              <template v-if="column.key === 'createdAt'">
+                {{ formatDateTime(record.createdAt) }}
+              </template>
+              <template v-if="column.key === 'replyAt'">
+                {{ formatDateTime(record.replyAt) }}
+              </template>
               <template v-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="handleReply(record)">
@@ -162,13 +168,13 @@
           <div style="white-space: pre-wrap">{{ currentRecord?.content }}</div>
         </a-descriptions-item>
         <a-descriptions-item label="留言时间">
-          {{ currentRecord?.createdAt }}
+          {{ formatDateTime(currentRecord?.createdAt) }}
         </a-descriptions-item>
         <a-descriptions-item v-if="currentRecord?.reply" label="回复内容">
           <div style="white-space: pre-wrap">{{ currentRecord?.reply }}</div>
         </a-descriptions-item>
         <a-descriptions-item v-if="currentRecord?.replyAt" label="回复时间">
-          {{ currentRecord?.replyAt }}
+          {{ formatDateTime(currentRecord?.replyAt) }}
         </a-descriptions-item>
       </a-descriptions>
 
@@ -201,6 +207,7 @@ import {
 } from '@ant-design/icons-vue'
 import { guestbookApi } from '../../api/portal'
 import type { Guestbook, GuestbookQuery } from '../../types/portal'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()

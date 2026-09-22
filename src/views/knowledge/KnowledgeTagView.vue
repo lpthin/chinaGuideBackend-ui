@@ -87,11 +87,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
-import dayjs from 'dayjs'
 import { knowledgeTagApi } from '../../api/knowledge'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime } from '../../utils/format'
 import type { KnowledgeTag, KnowledgeTagForm } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 
@@ -149,22 +150,30 @@ const paginationConfig = reactive({
   },
 })
 
-// 前端分页：基于 tagList 切片当前页数据
+// 后端 /knowledge/tags 只按 status 过滤，关键字在前端过滤
+const filteredList = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase()
+  if (!kw) return tagList.value
+  return tagList.value.filter(t => (t.name || '').toLowerCase().includes(kw))
+})
+
+// 前端分页：基于过滤结果切片当前页数据
 const pagedList = computed(() => {
   const start = (paginationConfig.current - 1) * paginationConfig.pageSize
   const end = start + paginationConfig.pageSize
-  return tagList.value.slice(start, end)
+  return filteredList.value.slice(start, end)
 })
 
-function formatDateTime(value: string): string {
-  if (!value) return '-'
-  const d = dayjs(value)
-  return d.isValid() ? d.format('YYYY-MM-DD HH:mm') : value
-}
+watch(filteredList, (list) => {
+  paginationConfig.total = list.length
+  const maxPage = Math.max(1, Math.ceil(list.length / paginationConfig.pageSize))
+  if (paginationConfig.current > maxPage) {
+    paginationConfig.current = maxPage
+  }
+})
 
 function onSearch() {
   paginationConfig.current = 1
-  loadData()
 }
 
 function showAddModal() {
@@ -187,8 +196,7 @@ async function handleDelete(id: number) {
     message.success('删除成功')
     await loadData()
   } catch (error) {
-    message.error('删除失败')
-    console.error(error)
+    message.error(`删除失败：${describeHttpError(error)}`)
   }
 }
 
@@ -210,8 +218,7 @@ async function handleModalOk() {
     modalVisible.value = false
     await loadData()
   } catch (error) {
-    message.error('保存失败')
-    console.error(error)
+    message.error(`保存失败：${describeHttpError(error)}`)
   } finally {
     saving.value = false
   }
@@ -220,22 +227,16 @@ async function handleModalOk() {
 async function loadData() {
   loading.value = true
   try {
-    // 后端过滤：仅传 keyword（API 支持），不传 page/size 以获取完整结果集
-    const result = await knowledgeTagApi.list({
-      tenantId: getTenantId(),
-      keyword: searchKeyword.value,
-    })
+    const result = await knowledgeTagApi.list({ tenantId: getTenantId() })
     const list = Array.isArray(result) ? result : (result as any).records || []
     tagList.value = list
     paginationConfig.total = list.length
-    // 修正越界：搜索/删除后若当前页超出范围，回退到最后一页
     const maxPage = Math.max(1, Math.ceil(list.length / paginationConfig.pageSize))
     if (paginationConfig.current > maxPage) {
       paginationConfig.current = maxPage
     }
   } catch (error) {
-    console.error(error)
-    message.error('加载标签列表失败')
+    message.error(`加载标签列表失败：${describeHttpError(error)}`)
     tagList.value = []
     paginationConfig.total = 0
   } finally {

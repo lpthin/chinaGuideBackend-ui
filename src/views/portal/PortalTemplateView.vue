@@ -4,6 +4,10 @@
       <a-page-header title="门户模板管理" sub-title="选择和定制您的门户网站风格">
         <template #extra>
           <a-space>
+            <a-button @click="showCreateModal = true">
+              <template #icon><PlusOutlined /></template>
+              新建模板
+            </a-button>
             <a-button type="primary" @click="refreshTemplates">
               <template #icon><ReloadOutlined /></template>
               刷新
@@ -14,6 +18,15 @@
     </div>
 
     <div class="content-wrapper">
+      <a-alert
+        v-if="!auth.selectedTenantId"
+        type="warning"
+        show-icon
+        message="请先在右上角选择租户"
+        description="门户模板归属于具体租户，未选择租户时无法加载与应用模板。"
+        style="margin-bottom: 16px"
+      />
+
       <a-row :gutter="16" class="stats-row">
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
@@ -86,6 +99,7 @@
         </a-space>
       </a-card>
 
+      <a-spin :spinning="loading">
       <a-row :gutter="[24, 24]" class="templates-grid">
         <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="tpl in templates" :key="tpl.id">
           <a-card
@@ -119,21 +133,43 @@
               </template>
             </a-card-meta>
             <div class="template-actions">
-              <a-button
-                v-if="!isCurrentTemplate(tpl)"
-                type="primary"
-                block
-                @click="applyTemplate(tpl)"
-              >
-                <CheckOutlined /> 应用模板
-              </a-button>
-              <a-button v-else type="primary" disabled block>
-                <CheckCircleOutlined /> 已应用
-              </a-button>
+              <a-space style="width: 100%">
+                <a-button
+                  v-if="!isCurrentTemplate(tpl)"
+                  type="primary"
+                  @click="applyTemplate(tpl)"
+                >
+                  <CheckOutlined /> 应用模板
+                </a-button>
+                <a-button v-else type="primary" disabled>
+                  <CheckCircleOutlined /> 已应用
+                </a-button>
+                <a-button v-if="!tpl.isSystem" @click="editTemplate(tpl)">
+                  <SettingOutlined /> 配置
+                </a-button>
+                <a-popconfirm
+                  v-if="!tpl.isSystem"
+                  title="删除后不可恢复，确认删除该模板？"
+                  ok-text="删除"
+                  cancel-text="取消"
+                  @confirm="removeTemplate(tpl)"
+                >
+                  <a-button danger>
+                    <DeleteOutlined />
+                  </a-button>
+                </a-popconfirm>
+              </a-space>
             </div>
           </a-card>
         </a-col>
       </a-row>
+
+      <a-empty
+        v-if="!loading && templates.length === 0 && auth.selectedTenantId"
+        description="没有匹配的模板"
+        style="margin: 40px 0"
+      />
+      </a-spin>
 
       <div class="pagination-wrapper">
         <a-pagination
@@ -323,22 +359,20 @@
         <a-form-item label="模板描述">
           <a-textarea v-model:value="createForm.description" placeholder="请输入模板描述" :rows="3" />
         </a-form-item>
-        <a-form-item label="基于模板复制">
-          <a-select v-model:value="createForm.baseTemplateId" allow-clear placeholder="选择基础模板（可选）">
-            <a-select-option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}</a-select-option>
-          </a-select>
-        </a-form-item>
       </a-form>
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   ReloadOutlined,
   AppstoreOutlined,
+  PlusOutlined,
+  SettingOutlined,
+  DeleteOutlined,
   SafetyOutlined,
   EditOutlined,
   CheckCircleOutlined,
@@ -349,8 +383,7 @@ import {
   MobileOutlined
 } from '@ant-design/icons-vue'
 import { portalTemplateApi } from '../../api/portal'
-import type { PortalTemplate, PortalTemplateForm } from '../../types/portal'
-import type { Tenant } from '../../types/workspace'
+import type { PortalTemplate } from '../../types/portal'
 import TemplatePreview from './TemplatePreview.vue'
 import { useAuthStore } from '../../stores/auth'
 
@@ -409,9 +442,13 @@ const configForm = reactive({
 const createForm = reactive({
   name: '',
   type: 'tech' as string,
-  description: '',
-  baseTemplateId: undefined as number | undefined
+  description: ''
 })
+
+const tenantId = () => auth.selectedTenantId ?? undefined
+
+const errMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback
 
 const getTypeName = (type: string) => {
   const names: Record<string, string> = {
@@ -432,11 +469,18 @@ const getTypeColor = (type: string) => {
 }
 
 const loadTemplates = async () => {
+  if (!auth.selectedTenantId) {
+    templates.value = []
+    pagination.total = 0
+    updateStats({})
+    return false
+  }
   loading.value = true
   try {
     const params: Record<string, any> = {
       page: pagination.page,
-      size: pagination.size
+      size: pagination.size,
+      tenantId: auth.selectedTenantId
     }
     if (filterType.value !== 'all') {
       params.type = filterType.value
@@ -447,35 +491,41 @@ const loadTemplates = async () => {
     const result = await portalTemplateApi.list(params)
     templates.value = result.records || []
     pagination.total = result.total || 0
-    updateStats(templates.value)
+    updateStats(result.typeCounts || {})
+    return true
   } catch (error) {
-    message.error('加载模板失败')
+    message.error(errMessage(error, '加载模板失败'))
+    return false
   } finally {
     loading.value = false
   }
 }
 
 const loadCurrentTemplate = async () => {
-  if (!auth.selectedTenantId) return
+  if (!auth.selectedTenantId) return false
   try {
-    const result = await portalTemplateApi.getCurrentTemplate(auth.selectedTenantId)
-    currentTemplate.value = result
+    currentTemplate.value = await portalTemplateApi.getCurrentTemplate(auth.selectedTenantId)
+    return true
   } catch (error) {
     currentTemplate.value = null
+    message.error(errMessage(error, '加载当前模板失败'))
+    return false
   }
 }
 
-const updateStats = (tplList: PortalTemplate[]) => {
-  stats.totalTemplates = tplList.length
-  stats.techTemplates = tplList.filter(t => t.type === 'tech').length
-  stats.marketingTemplates = tplList.filter(t => t.type === 'marketing').length
-  stats.minimalTemplates = tplList.filter(t => t.type === 'minimal').length
+const updateStats = (typeCounts: Record<string, number>) => {
+  stats.totalTemplates = pagination.total
+  stats.techTemplates = typeCounts.tech || 0
+  stats.marketingTemplates = typeCounts.marketing || 0
+  stats.minimalTemplates = typeCounts.minimal || 0
 }
 
 const refreshTemplates = async () => {
   pagination.page = 1
-  await Promise.all([loadTemplates(), loadCurrentTemplate()])
-  message.success('模板列表已刷新')
+  const results = await Promise.all([loadTemplates(), loadCurrentTemplate()])
+  if (results.every(Boolean)) {
+    message.success('模板列表已刷新')
+  }
 }
 
 const handleFilterChange = () => {
@@ -531,18 +581,17 @@ const applyTemplate = async (template: PortalTemplate) => {
   try {
     message.loading({ content: '正在应用模板...', key: 'apply' })
     await portalTemplateApi.apply(template.id, auth.selectedTenantId)
-    currentTemplate.value = template
     showPreviewModal.value = false
     message.success({ content: `已成功应用「${template.name}」`, key: 'apply' })
+    await Promise.all([loadTemplates(), loadCurrentTemplate()])
   } catch (error) {
-    message.error('应用模板失败')
+    message.error({ content: errMessage(error, '应用模板失败'), key: 'apply' })
   }
 }
 
 const saveTemplateConfig = async () => {
   if (!editingTemplate.value) return
   try {
-    message.loading({ content: '正在保存配置...', key: 'save' })
     const configJson = JSON.stringify({
       colorConfig: configForm.colorConfig,
       fontConfig: configForm.fontConfig,
@@ -550,24 +599,29 @@ const saveTemplateConfig = async () => {
     })
     await portalTemplateApi.update(editingTemplate.value.id, {
       name: configForm.name,
+      type: configForm.type,
       description: configForm.description,
       configJson
-    })
+    }, tenantId())
     showConfigModal.value = false
-    message.success({ content: '模板配置已保存', key: 'save' })
+    message.success('模板配置已保存')
     loadTemplates()
+    loadCurrentTemplate()
   } catch (error) {
-    message.error('保存配置失败')
+    message.error(errMessage(error, '保存配置失败'))
   }
 }
 
 const createTemplate = async () => {
+  if (!auth.selectedTenantId) {
+    message.warning('请先选择租户')
+    return
+  }
   if (!createForm.name) {
     message.warning('请输入模板名称')
     return
   }
   try {
-    message.loading({ content: '正在创建模板...', key: 'create' })
     await portalTemplateApi.create({
       name: createForm.name,
       type: createForm.type,
@@ -577,25 +631,36 @@ const createTemplate = async () => {
         fontConfig: configForm.fontConfig,
         layoutConfig: configForm.layoutConfig
       })
-    })
+    }, tenantId())
     showCreateModal.value = false
     createForm.name = ''
     createForm.description = ''
-    message.success({ content: '模板创建成功', key: 'create' })
+    message.success('模板创建成功')
     loadTemplates()
   } catch (error) {
-    message.error('创建模板失败')
+    message.error(errMessage(error, '创建模板失败'))
   }
 }
 
-onMounted(() => {
-  const storedTenantId = localStorage.getItem('geocms_tenant_id')
-  if (storedTenantId) {
-    auth.selectedTenantId = Number(storedTenantId)
-    loadTemplates()
-    loadCurrentTemplate()
+const removeTemplate = async (template: PortalTemplate) => {
+  try {
+    await portalTemplateApi.delete(template.id, tenantId())
+    message.success('模板已删除')
+    await Promise.all([loadTemplates(), loadCurrentTemplate()])
+  } catch (error) {
+    message.error(errMessage(error, '删除模板失败'))
   }
-})
+}
+
+const reloadAll = () => {
+  pagination.page = 1
+  loadTemplates()
+  loadCurrentTemplate()
+}
+
+onMounted(reloadAll)
+
+watch(() => auth.selectedTenantId, reloadAll)
 </script>
 
 <style lang="less" scoped>

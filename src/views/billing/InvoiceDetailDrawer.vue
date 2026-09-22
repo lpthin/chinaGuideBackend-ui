@@ -69,20 +69,11 @@
         </div>
 
         <!-- 操作按钮 -->
+        <!-- 后端 /billing/invoices/{id}/download 只返回一个拼出来的文件路径、不产出任何文件，
+             账单/发票下载没有真实接口，故此处只保留可用的支付动作，不再放假按钮 -->
         <div class="action-buttons" v-if="invoice.status === InvoiceStatus.PENDING">
-          <a-button type="primary" size="large" @click="handlePay">
+          <a-button type="primary" size="large" :loading="paying" @click="handlePay">
             立即支付
-          </a-button>
-          <a-button size="large" @click="handleDownload">
-            下载账单
-          </a-button>
-        </div>
-        <div class="action-buttons" v-else-if="invoice.status === InvoiceStatus.PAID">
-          <a-button type="primary" size="large" @click="handleDownload">
-            下载发票
-          </a-button>
-          <a-button size="large" @click="handleDownload">
-            下载账单
           </a-button>
         </div>
       </div>
@@ -92,10 +83,12 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { InvoiceStatus, PaymentMethod, Currency, ProductType } from '../../types/billing'
 import type { Invoice, InvoiceItem } from '../../types/billing'
 import { invoiceApi } from '../../api/billing'
+import { describeHttpError } from '../../api/http'
+import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const props = defineProps<{
@@ -105,10 +98,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
+  (e: 'paid'): void
 }>()
 
 const authStore = useAuthStore()
 const loading = ref(false)
+const paying = ref(false)
 const invoice = ref<Invoice | null>(null)
 
 const itemColumns = [
@@ -163,20 +158,6 @@ function mapProductType(type?: string): ProductType {
     SUBSCRIPTION: ProductType.SUBSCRIPTION,
   }
   return typeMap[type.toUpperCase()] || ProductType.SUBSCRIPTION
-}
-
-function formatDateTime(val: any): string {
-  if (!val) return ''
-  if (typeof val === 'string') return val
-  if (val instanceof Date) return val.toISOString().replace('T', ' ').substring(0, 19)
-  return String(val)
-}
-
-function formatDate(val: any): string {
-  if (!val) return ''
-  if (typeof val === 'string') return val.length >= 10 ? val.substring(0, 10) : val
-  if (val instanceof Date) return val.toISOString().substring(0, 10)
-  return String(val)
 }
 
 function adaptItems(items: any[], invoiceId: number): InvoiceItem[] {
@@ -246,16 +227,31 @@ function handleClose() {
   emit('update:open', false)
 }
 
+/**
+ * 真实调用 POST /billing/invoices/{id}/pay。
+ * 后端请求体只有一个可选 paymentMethod，缺省即按余额支付（BALANCE）落库，
+ * 这里不替用户编造支付方式，交给后端默认值。
+ */
 function handlePay() {
-  if (invoice.value) {
-    message.success(`支付账单：${invoice.value.invoiceNo}`)
-  }
-}
-
-function handleDownload() {
-  if (invoice.value) {
-    message.success(`下载账单：${invoice.value.invoiceNo}`)
-  }
+  const target = invoice.value
+  if (!target) return
+  Modal.confirm({
+    title: '确认支付',
+    content: `确认支付账单「${target.invoiceNo}」¥${formatAmount(target.amount - (target.discountAmount || 0))}？后端将按余额支付方式记为已支付。`,
+    onOk: async () => {
+      paying.value = true
+      try {
+        await invoiceApi.pay(target.id)
+        message.success('支付成功')
+        emit('paid')
+        await loadInvoiceDetail(target.id)
+      } catch (error) {
+        message.error(`支付失败：${describeHttpError(error)}`)
+      } finally {
+        paying.value = false
+      }
+    },
+  })
 }
 
 function formatAmount(amount: number): string {

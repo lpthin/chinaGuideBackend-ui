@@ -110,7 +110,7 @@
                       <div class="progress-bar">
                         <div
                           class="progress-inner"
-                          :style="{ width: `${topServicesData[0] ? (item.amount / topServicesData[0].amount) * 100 : 0}%` }"
+                          :style="{ width: `${Math.min(100, Math.max(0, item.percent || 0))}%` }"
                         ></div>
                       </div>
                     </div>
@@ -461,7 +461,9 @@ async function loadBillingStats() {
       statsData.totalAmount = statsRes.thisMonthExpense || 0
       statsData.growthRate = statsRes.monthOverMonthGrowth || 0
       statsData.lastMonthAmount = statsRes.lastMonthExpense || 0
-      statsData.pendingAmount = 0
+      statsData.pendingInvoices = statsRes.pendingInvoices || 0
+      statsData.pendingAmount = statsRes.pendingAmount || 0
+      statsData.lastMonthInvoices = statsRes.lastMonthInvoices || 0
       statsData.averageDailyAmount = statsData.totalAmount / new Date().getDate()
       statsData.projectedMonthAmount = statsData.totalAmount * (30 / new Date().getDate())
     }
@@ -477,11 +479,7 @@ async function loadTopServices() {
 
   try {
     const res = await topServicesApi.getTopServices(tenantId)
-    topServicesData.value = (res || []).map((item: any) => ({
-      ...item,
-      usage: 0,
-      unit: '次',
-    }))
+    topServicesData.value = res || []
   } catch (error) {
     console.error('Failed to load top services:', error)
     message.error('加载Top服务数据失败')

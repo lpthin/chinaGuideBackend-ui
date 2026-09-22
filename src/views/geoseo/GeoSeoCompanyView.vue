@@ -122,13 +122,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { companyInfoApi } from '@/api/portal'
+import { describeHttpError } from '@/api/http'
+import { useAuthStore } from '@/stores/auth'
 import type { CompanyInfo, CompanyInfoForm } from '@/types/portal'
 
 const loading = ref(false)
 const saving = ref(false)
+const auth = useAuthStore()
+const tenantId = computed(() => auth.selectedTenantId || auth.tenantId)
 const activeTab = ref('basic')
 
 const defaultForm = (): CompanyInfoForm => ({
@@ -176,12 +180,12 @@ function fillFormFromData(data: CompanyInfo) {
 async function loadCompanyInfo() {
   loading.value = true
   try {
-    const data = await companyInfoApi.get()
+    const data = await companyInfoApi.get(tenantId.value)
     if (data) {
       fillFormFromData(data)
     }
   } catch (error) {
-    message.error('加载企业信息失败')
+    message.error(`加载企业信息失败：${describeHttpError(error)}`)
     console.error(error)
   } finally {
     loading.value = false
@@ -195,16 +199,20 @@ async function handleSave() {
   }
   saving.value = true
   try {
-    await companyInfoApi.update(form)
+    await companyInfoApi.update(form, tenantId.value)
     message.success('保存成功')
     await loadCompanyInfo()
   } catch (error) {
-    message.error('保存失败')
+    message.error(`保存失败：${describeHttpError(error)}`)
     console.error(error)
   } finally {
     saving.value = false
   }
 }
+
+watch(tenantId, () => {
+  loadCompanyInfo()
+})
 
 onMounted(() => {
   loadCompanyInfo()

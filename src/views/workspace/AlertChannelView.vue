@@ -220,6 +220,8 @@ import {
 } from '@ant-design/icons-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import { alertApi } from '../../api/workspace'
+import { describeHttpError } from '../../api/http'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { AlertChannelConfig } from '../../types/workspace'
 
@@ -294,7 +296,7 @@ const columns = [
   { title: '渠道名称', dataIndex: 'name', key: 'name', ellipsis: true },
   { title: '渠道类型', key: 'channelType', dataIndex: 'channelType', width: 120 },
   { title: '是否默认', key: 'isDefault', dataIndex: 'isDefault', width: 100 },
-  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
+  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180, customRender: ({ text }: { text: string }) => formatDateTime(text) },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 220 }
 ]
 
@@ -327,8 +329,8 @@ const fetchChannels = async () => {
     const result = await alertApi.channels.list(params) as any
     channelList.value = result.records || []
     pagination.total = result.total || 0
-  } catch (error: any) {
-    message.error(error.message || '获取通知渠道失败')
+  } catch (error) {
+    message.error(`获取通知渠道失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }
@@ -380,17 +382,18 @@ const handleAdd = () => {
 
 const handleEdit = (record: AlertChannelConfig) => {
   isEdit.value = true
+  const savedConfig = parseChannelConfig(record.config)
   Object.assign(formData, {
     ...record,
-    config: { ...record.config }
+    config: savedConfig
   })
 
   if (record.channelType === 'webhook') {
-    Object.assign(webhookConfig, record.config || {})
+    Object.assign(webhookConfig, savedConfig)
   } else if (record.channelType === 'sms') {
-    Object.assign(smsConfig, record.config || {})
+    Object.assign(smsConfig, savedConfig)
   } else if (record.channelType === 'email') {
-    Object.assign(emailConfig, record.config || {})
+    Object.assign(emailConfig, savedConfig)
   }
 
   modalVisible.value = true
@@ -399,6 +402,18 @@ const handleEdit = (record: AlertChannelConfig) => {
 const handleCancel = () => {
   modalVisible.value = false
   formRef.value?.resetFields()
+}
+
+const parseChannelConfig = (raw: unknown): Record<string, any> => {
+  if (!raw) return {}
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return {}
+    }
+  }
+  return raw as Record<string, any>
 }
 
 const buildConfigData = () => {
@@ -417,9 +432,9 @@ const handleSubmit = async () => {
     await formRef.value?.validate()
     submitLoading.value = true
 
-    const data: Partial<AlertChannelConfig> = {
+    const data: any = {
       ...formData,
-      config: buildConfigData()
+      config: JSON.stringify(buildConfigData())
     }
 
     if (authStore.selectedTenantId) {
@@ -437,10 +452,10 @@ const handleSubmit = async () => {
     modalVisible.value = false
     fetchChannels()
   } catch (error: any) {
-    if (error.errorFields) {
+    if (error?.errorFields) {
       return
     }
-    message.error(error.message || '操作失败')
+    message.error(`操作失败：${describeHttpError(error)}`)
   } finally {
     submitLoading.value = false
   }
@@ -451,8 +466,8 @@ const handleDelete = async (id: number) => {
     await alertApi.channels.delete(id)
     message.success('删除成功')
     fetchChannels()
-  } catch (error: any) {
-    message.error(error.message || '删除失败')
+  } catch (error) {
+    message.error(`删除失败：${describeHttpError(error)}`)
   }
 }
 
@@ -461,8 +476,8 @@ const handleSetDefault = async (record: AlertChannelConfig) => {
     await alertApi.channels.update(record.id, { isDefault: true })
     message.success('已设为默认')
     fetchChannels()
-  } catch (error: any) {
-    message.error(error.message || '操作失败')
+  } catch (error) {
+    message.error(`设为默认失败：${describeHttpError(error)}`)
   }
 }
 

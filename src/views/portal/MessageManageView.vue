@@ -115,6 +115,9 @@
                   {{ !record.isRead ? '未读' : '已读' }}
                 </a-tag>
               </template>
+              <template v-if="column.key === 'createdAt'">
+                {{ formatDateTime(record.createdAt) }}
+              </template>
               <template v-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="viewDetail(record)">查看</a-button>
@@ -165,6 +168,20 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-modal v-model:open="detailVisible" title="消息详情" :footer="null" width="640px">
+      <a-descriptions bordered :column="1" size="small">
+        <a-descriptions-item label="标题">{{ currentMessage?.title }}</a-descriptions-item>
+        <a-descriptions-item label="类型">
+          <a-tag :color="getTypeColor(currentMessage?.type)">{{ getTypeName(currentMessage?.type) }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item label="发件人">{{ currentMessage?.senderId ?? '-' }}</a-descriptions-item>
+        <a-descriptions-item label="发送时间">{{ formatDateTime(currentMessage?.createdAt) }}</a-descriptions-item>
+        <a-descriptions-item label="内容">
+          <div style="white-space: pre-wrap">{{ currentMessage?.content || '-' }}</div>
+        </a-descriptions-item>
+      </a-descriptions>
+    </a-modal>
   </div>
 </template>
 
@@ -182,12 +199,15 @@ import { portalMessageApi } from '../../api/portal'
 import type { PortalMessage, PortalMessageStats, PortalMessageBroadcast } from '../../types/portal'
 import type { Tenant } from '../../types/workspace'
 import TenantSelect from '../../components/TenantSelect.vue'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
 const loading = ref(false)
 const sending = ref(false)
 const showSendModal = ref(false)
+const detailVisible = ref(false)
+const currentMessage = ref<PortalMessage | null>(null)
 
 const stats = reactive<PortalMessageStats>({
   totalMessages: 0,
@@ -239,22 +259,22 @@ const sendForm = reactive<PortalMessageBroadcast>({
   type: 'SYSTEM',
 })
 
-function getTypeColor(type: string): string {
+function getTypeColor(type?: string): string {
   const colorMap: Record<string, string> = {
     SYSTEM: 'blue',
     NOTICE: 'green',
     OTHER: 'default',
   }
-  return colorMap[type] || 'default'
+  return colorMap[type || ''] || 'default'
 }
 
-function getTypeName(type: string): string {
+function getTypeName(type?: string): string {
   const nameMap: Record<string, string> = {
     SYSTEM: '系统通知',
     NOTICE: '公告',
     OTHER: '其他',
   }
-  return nameMap[type] || type
+  return nameMap[type || ''] || type || '-'
 }
 
 async function loadStats() {
@@ -313,6 +333,8 @@ function handleTableChange(pagination: any) {
 }
 
 async function viewDetail(record: PortalMessage) {
+  currentMessage.value = record
+  detailVisible.value = true
   if (!record.isRead && queryParams.type === 'inbox') {
     try {
       await portalMessageApi.markRead(record.id)
@@ -323,7 +345,6 @@ async function viewDetail(record: PortalMessage) {
       console.error('标记已读失败:', error)
     }
   }
-  message.info(`查看消息：${record.title}`)
 }
 
 async function handleDelete(id: number) {

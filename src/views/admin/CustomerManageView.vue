@@ -147,8 +147,8 @@
             {{ getStatusName(currentCustomer.status) }}
           </a-tag>
         </a-descriptions-item>
-        <a-descriptions-item label="注册时间">{{ currentCustomer.registeredAt }}</a-descriptions-item>
-        <a-descriptions-item label="最后登录">{{ currentCustomer.lastLoginAt || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="注册时间">{{ formatDateTime(currentCustomer.registeredAt) }}</a-descriptions-item>
+        <a-descriptions-item label="最后登录">{{ formatDateTime(currentCustomer.lastLoginAt) }}</a-descriptions-item>
         <a-descriptions-item label="备注" :span="2">{{ currentCustomer.remark || '-' }}</a-descriptions-item>
       </a-descriptions>
     </a-modal>
@@ -199,6 +199,7 @@ import {
   ExclamationCircleOutlined,
 } from '@ant-design/icons-vue'
 import { customerApi } from '../../api/billing'
+import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
@@ -268,11 +269,6 @@ const editForm = reactive({
   level: 'normal',
   remark: '',
 })
-
-function formatDate(date: string): string {
-  if (!date) return '-'
-  return date.substring(0, 10)
-}
 
 function getStatusName(status: string): string {
   const map: Record<string, string> = {

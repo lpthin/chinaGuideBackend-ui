@@ -203,6 +203,7 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined, ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons-vue'
 import { geoKeywordApi } from '../../api/geoseo'
 import type { GeoSeoKeywordRank } from '../../types/geoseo'
+import { formatDateTime } from '../../utils/format'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -279,14 +280,6 @@ function getRankChange(record: GeoSeoKeywordRank): RankChange | null {
   }
   // 数字变大 = 排名下降 = 退步（红色）
   return { direction: 'up', text: String(cur - prev), cls: 'change-declined' }
-}
-
-function formatDateTime(value: string): string {
-  if (!value) return '-'
-  const d = new Date(value)
-  if (isNaN(d.getTime())) return value
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function resetForm() {

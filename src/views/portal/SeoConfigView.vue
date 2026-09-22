@@ -19,45 +19,6 @@
               </div>
             </a-card>
           </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                  <ArrowUpOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ stats.avgScore }}</div>
-                  <div class="stat-title">平均SEO分数</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #eb2f96 0%, #ff85c0 100%)">
-                  <LinkOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ stats.totalLinks }}</div>
-                  <div class="stat-title">内链总数</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%)">
-                  <PictureOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ stats.optimizedImages }}</div>
-                  <div class="stat-title">已优化图片</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
         </a-row>
 
         <a-card :bordered="false">
@@ -81,7 +42,7 @@
                 placeholder="搜索页面标题/URL"
                 style="width: 280px"
                 enter-button
-                @search="loadData"
+                @search="handleSearch"
               />
               <a-button type="primary" @click="showAddModal">
                 <template #icon><PlusOutlined /></template>
@@ -93,23 +54,26 @@
           <a-table
             :scroll="{ x: 'max-content' }"
             :columns="columns"
-            :data-source="configList"
+            :data-source="pagedList"
             :pagination="false"
             :row-key="(record: any) => record.id"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'page'">
-                <div class="page-title">{{ record.pageTitle }}</div>
+                <div class="page-title">{{ record.seoTitle }}</div>
                 <div class="page-url">{{ record.pageKey }}</div>
               </template>
-              <template v-if="column.key === 'status'">
-                <a-tag :color="record.status === 'active' ? 'green' : 'default'">
-                  {{ record.status === 'active' ? '已启用' : '已禁用' }}
-                </a-tag>
+              <template v-if="column.key === 'keywordCount'">
+                {{ getKeywordCount(record) }}
+              </template>
+              <template v-if="column.key === 'pageType'">
+                {{ pageTypeName(record.pageType) }}
+              </template>
+              <template v-if="column.key === 'updatedAt'">
+                {{ formatDateTime(record.updatedAt) }}
               </template>
               <template v-if="column.key === 'actions'">
                 <a-space>
-                  <a-button type="link" size="small" @click="viewDetail(record)">详情</a-button>
                   <a-button type="link" size="small" @click="editConfig(record)">编辑</a-button>
                   <a-popconfirm
                     title="确定要删除这个SEO配置吗？"
@@ -149,9 +113,9 @@
       <a-form layout="vertical" :model="formData">
         <a-row :gutter="24">
           <a-col :span="12">
-            <a-form-item label="页面标题" required>
+            <a-form-item label="SEO标题" required>
               <a-input
-                v-model:value="formData.pageTitle"
+                v-model:value="formData.seoTitle"
                 placeholder="请输入页面标题"
                 :maxlength="60"
                 show-count
@@ -169,9 +133,19 @@
           </a-col>
         </a-row>
 
+        <a-form-item label="页面类型" required>
+          <a-select v-model:value="formData.pageType" placeholder="选择页面类型" style="width: 240px">
+            <a-select-option value="home">首页</a-select-option>
+            <a-select-option value="category">分类页</a-select-option>
+            <a-select-option value="article">文章页</a-select-option>
+            <a-select-option value="case">案例页</a-select-option>
+            <a-select-option value="custom">自定义页</a-select-option>
+          </a-select>
+        </a-form-item>
+
         <a-form-item label="Meta描述">
           <a-textarea
-            v-model:value="formData.metaDescription"
+            v-model:value="formData.seoDescription"
             :rows="3"
             placeholder="请输入页面Meta描述"
             :maxlength="160"
@@ -190,34 +164,9 @@
           <div class="form-tip">建议数量：5-10个关键词</div>
         </a-form-item>
 
-        <a-divider orientation="left">高级配置</a-divider>
+        <a-divider orientation="left">社交媒体（Open Graph）</a-divider>
 
-        <a-row :gutter="24">
-          <a-col :span="12">
-            <a-form-item label="Canonical标签">
-              <a-input
-                v-model:value="formData.canonicalUrl"
-                placeholder="请输入规范URL"
-              />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="Robots指令">
-              <a-select
-                v-model:value="formData.robotsContent"
-                style="width: 100%"
-                placeholder="选择Robots指令"
-              >
-                <a-select-option value="index,follow">index, follow</a-select-option>
-                <a-select-option value="noindex,follow">noindex, follow</a-select-option>
-                <a-select-option value="index,nofollow">index, nofollow</a-select-option>
-                <a-select-option value="noindex,nofollow">noindex, nofollow</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-        </a-row>
-
-        <a-form-item label="OG标题（社交媒体）">
+        <a-form-item label="OG标题">
           <a-input
             v-model:value="formData.ogTitle"
             placeholder="Open Graph标题，用于社交媒体分享"
@@ -226,7 +175,7 @@
           />
         </a-form-item>
 
-        <a-form-item label="OG描述（社交媒体）">
+        <a-form-item label="OG描述">
           <a-textarea
             v-model:value="formData.ogDescription"
             :rows="2"
@@ -235,24 +184,28 @@
             show-count
           />
         </a-form-item>
+
+        <a-form-item label="OG图片">
+          <a-input
+            v-model:value="formData.ogImage"
+            placeholder="Open Graph图片URL，用于社交媒体分享"
+          />
+        </a-form-item>
       </a-form>
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   FileSearchOutlined,
-  ArrowUpOutlined,
-  LinkOutlined,
-  PictureOutlined,
   PlusOutlined,
-  UploadOutlined,
 } from '@ant-design/icons-vue'
 import { seoConfigApi } from '../../api/portal'
 import type { SeoConfig, SeoConfigForm } from '../../types/portal'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
@@ -263,9 +216,6 @@ const editingRecord = ref<SeoConfig | null>(null)
 
 const stats = reactive({
   totalPages: 0,
-  avgScore: 0,
-  totalLinks: 0,
-  optimizedImages: 0,
 })
 
 const queryParams = reactive({
@@ -284,42 +234,61 @@ const configList = ref<SeoConfig[]>([])
 const metaKeywordsList = ref<string[]>([])
 
 const formData = reactive<SeoConfigForm>({
-  tenantId: 0,
+  pageType: 'custom',
   pageKey: '',
-  pageTitle: '',
-  metaKeywords: '',
-  metaDescription: '',
+  seoTitle: '',
+  seoKeywords: '',
+  seoDescription: '',
+  ogImage: '',
   ogTitle: '',
   ogDescription: '',
-  robotsContent: 'index,follow',
-  canonicalUrl: '',
 })
 
 const columns = [
   { title: '页面信息', key: 'page', width: 300 },
+  { title: '页面类型', key: 'pageType', width: 120 },
   { title: '关键词数', key: 'keywordCount', width: 100, align: 'center' as const },
-  { title: '状态', key: 'status', width: 100 },
   { title: '更新时间', dataIndex: 'updatedAt', key: 'updatedAt', width: 180 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 200 },
 ]
 
+const PAGE_TYPE_NAMES: Record<string, string> = {
+  home: '首页',
+  category: '分类页',
+  article: '文章页',
+  case: '案例页',
+  custom: '自定义页',
+}
+
+function pageTypeName(pageType?: string) {
+  return pageType ? PAGE_TYPE_NAMES[pageType] || pageType : '-'
+}
+
+const pagedList = computed(() => {
+  const start = (pagination.page - 1) * pagination.size
+  return configList.value.slice(start, start + pagination.size)
+})
+
 function getKeywordCount(config: SeoConfig): number {
-  return config.metaKeywords ? config.metaKeywords.split(',').filter(Boolean).length : 0
+  return config.seoKeywords ? config.seoKeywords.split(',').filter(Boolean).length : 0
+}
+
+function resetFormData() {
+  Object.assign(formData, {
+    pageType: 'custom',
+    pageKey: '',
+    seoTitle: '',
+    seoKeywords: '',
+    seoDescription: '',
+    ogImage: '',
+    ogTitle: '',
+    ogDescription: '',
+  })
 }
 
 function showAddModal() {
   editingRecord.value = null
-  Object.assign(formData, {
-    tenantId: auth.selectedTenantId || 0,
-    pageKey: '',
-    pageTitle: '',
-    metaKeywords: '',
-    metaDescription: '',
-    ogTitle: '',
-    ogDescription: '',
-    robotsContent: 'index,follow',
-    canonicalUrl: '',
-  })
+  resetFormData()
   metaKeywordsList.value = []
   modalVisible.value = true
 }
@@ -327,27 +296,26 @@ function showAddModal() {
 function editConfig(record: SeoConfig) {
   editingRecord.value = record
   Object.assign(formData, {
-    tenantId: record.tenantId,
+    pageType: record.pageType || 'custom',
     pageKey: record.pageKey,
-    pageTitle: record.pageTitle,
-    metaKeywords: record.metaKeywords,
-    metaDescription: record.metaDescription,
+    seoTitle: record.seoTitle,
+    seoKeywords: record.seoKeywords,
+    seoDescription: record.seoDescription,
+    ogImage: record.ogImage,
     ogTitle: record.ogTitle,
     ogDescription: record.ogDescription,
-    robotsContent: record.robotsContent,
-    canonicalUrl: record.canonicalUrl,
   })
-  metaKeywordsList.value = record.metaKeywords ? record.metaKeywords.split(',').filter(Boolean) : []
+  metaKeywordsList.value = record.seoKeywords ? record.seoKeywords.split(',').filter(Boolean) : []
   modalVisible.value = true
 }
 
-function viewDetail(record: SeoConfig) {
-  message.info(`查看SEO配置详情：${record.pageTitle}`)
-}
-
 async function handleModalOk() {
-  if (!formData.pageTitle) {
-    message.error('请输入页面标题')
+  if (!auth.selectedTenantId) {
+    message.error('请先选择租户')
+    return
+  }
+  if (!formData.seoTitle) {
+    message.error('请输入SEO标题')
     return
   }
   if (!formData.pageKey) {
@@ -359,10 +327,10 @@ async function handleModalOk() {
   try {
     const payload: SeoConfigForm = {
       ...formData,
-      tenantId: auth.selectedTenantId || 0,
-      metaKeywords: metaKeywordsList.value.join(','),
+      tenantId: auth.selectedTenantId,
+      seoKeywords: metaKeywordsList.value.join(','),
     }
-    
+
     if (editingRecord.value) {
       await seoConfigApi.update(editingRecord.value.id, payload)
       message.success('更新成功')
@@ -373,8 +341,7 @@ async function handleModalOk() {
     modalVisible.value = false
     await loadData()
   } catch (error) {
-    message.error('操作失败')
-    console.error(error)
+    message.error(error instanceof Error ? error.message : '操作失败')
   } finally {
     saving.value = false
   }
@@ -386,36 +353,49 @@ async function handleDelete(id: number) {
     message.success('删除成功')
     await loadData()
   } catch (error) {
-    message.error('删除失败')
-    console.error(error)
+    message.error(error instanceof Error ? error.message : '删除失败')
   }
 }
 
 async function loadData() {
-  if (!auth.selectedTenantId) return
+  if (!auth.selectedTenantId) {
+    configList.value = []
+    pagination.total = 0
+    stats.totalPages = 0
+    return
+  }
   loading.value = true
   try {
-    const result = await seoConfigApi.list(auth.selectedTenantId)
+    const result = await seoConfigApi.list({
+      tenantId: auth.selectedTenantId,
+      pageType: queryParams.pageType,
+      keyword: queryParams.keyword || undefined,
+    })
     configList.value = result || []
     pagination.total = configList.value.length
     stats.totalPages = configList.value.length
   } catch (error) {
-    message.error('加载SEO配置失败')
-    console.error(error)
+    message.error(error instanceof Error ? error.message : '加载SEO配置失败')
   } finally {
     loading.value = false
   }
 }
 
+function handleSearch() {
+  pagination.page = 1
+  loadData()
+}
+
 function handleSizeChange(_current: number, size: number) {
   pagination.page = 1
   pagination.size = size
-  loadData()
 }
 
 onMounted(() => {
   loadData()
 })
+
+watch(() => auth.selectedTenantId, loadData)
 </script>
 
 <style scoped lang="less">

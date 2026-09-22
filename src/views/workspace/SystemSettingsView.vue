@@ -204,6 +204,7 @@
               <a-time-picker
                 v-model:value="workflowForm.publishTime"
                 format="HH:mm"
+                value-format="HH:mm"
                 style="width: 100%"
               />
             </a-form-item>
@@ -229,6 +230,8 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import type { UploadProps } from 'ant-design-vue'
 import { adminApi } from '../../api/workspace'
+import { imageLibraryApi } from '../../api/article'
+import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
 import type { SiteSettings, AiSettings, WorkflowSettings } from '../../types/workspace'
 
@@ -285,6 +288,21 @@ const siteRules = {
   ]
 }
 
+// 已保存的 0 / false 是合法值，不能用 `x || 默认值` 回显
+function pickNumber(value: any, fallback: number): number {
+  if (value === null || value === undefined || value === '') return fallback
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function pickBoolean(value: any, fallback: boolean): boolean {
+  if (value === null || value === undefined || value === '') return fallback
+  if (typeof value === 'string') return value === 'true' || value === '1'
+  return Boolean(value)
+}
+
+const uploadingLogo = ref(false)
+
 const beforeUploadLogo: UploadProps['beforeUpload'] = (file) => {
   const isImage = file.type.startsWith('image/')
   if (!isImage) {
@@ -296,7 +314,28 @@ const beforeUploadLogo: UploadProps['beforeUpload'] = (file) => {
     message.error('图片大小不能超过 2MB')
     return false
   }
+  uploadLogo(file)
   return false
+}
+
+const uploadLogo = async (file: File) => {
+  const tenantId = authStore.selectedTenantId
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('category', 'logo')
+  if (tenantId) formData.append('tenantId', String(tenantId))
+  uploadingLogo.value = true
+  try {
+    const res = await imageLibraryApi.upload(formData) as any
+    siteForm.logo = res?.url || ''
+    logoFileList.value = [{ uid: String(Date.now()), name: file.name, status: 'done', url: siteForm.logo }]
+    message.success('Logo 上传成功')
+  } catch (error) {
+    logoFileList.value = []
+    message.error(`Logo 上传失败：${describeHttpError(error)}`)
+  } finally {
+    uploadingLogo.value = false
+  }
 }
 
 const fetchSettings = async () => {
@@ -309,6 +348,9 @@ const fetchSettings = async () => {
       siteForm.siteName = site.name || site.siteName || ''
       siteForm.siteDescription = site.description || site.siteDescription || ''
       siteForm.logo = site.logo || ''
+      logoFileList.value = siteForm.logo
+        ? [{ uid: 'current-logo', name: '站点Logo', status: 'done', url: siteForm.logo }]
+        : []
       siteForm.contactEmail = site.contactEmail || ''
       siteForm.contactPhone = site.contactPhone || ''
       siteForm.icp = site.icp || ''
@@ -320,23 +362,23 @@ const fetchSettings = async () => {
       aiForm.defaultModel = ai.defaultModel || ai.default_model || 'gpt-4'
       aiForm.apiKey = ai.apiKey || ai.api_key || ''
       aiForm.apiBaseUrl = ai.apiBaseUrl || ai.api_base_url || 'https://api.openai.com/v1'
-      aiForm.temperature = Number(ai.temperature) || 0.7
-      aiForm.maxTokens = Number(ai.maxTokens) || 4096
-      aiForm.streamEnabled = Boolean(ai.streamEnabled) || Boolean(ai.stream_enabled) || true
+      aiForm.temperature = pickNumber(ai.temperature, 0.7)
+      aiForm.maxTokens = pickNumber(ai.maxTokens, 4096)
+      aiForm.streamEnabled = pickBoolean(ai.streamEnabled ?? ai.stream_enabled, false)
       aiForm.systemPrompt = ai.systemPrompt || ai.system_prompt || ''
     }
 
     if (result.workflow) {
       const wf = result.workflow as any
       workflowForm.keywordCrawlInterval = wf.keywordCrawlInterval || wf.keyword_crawl_interval || 'daily'
-      workflowForm.keywordCrawlLimit = Number(wf.keywordCrawlLimit) || Number(wf.keyword_crawl_limit) || 100
-      workflowForm.autoCrawlEnabled = Boolean(wf.autoCrawlEnabled) || Boolean(wf.auto_crawl_enabled) || true
-      workflowForm.clusterThreshold = Number(wf.clusterThreshold) || Number(wf.cluster_threshold) || 0.7
-      workflowForm.minClusterSize = Number(wf.minClusterSize) || Number(wf.min_cluster_size) || 5
-      workflowForm.autoGenerateEnabled = Boolean(wf.autoGenerateEnabled) || Boolean(wf.auto_generate_enabled) || false
-      workflowForm.dailyGenerateLimit = Number(wf.dailyGenerateLimit) || Number(wf.daily_generate_limit) || 10
-      workflowForm.autoReviewEnabled = Boolean(wf.autoReviewEnabled) || Boolean(wf.auto_review_enabled) || true
-      workflowForm.autoPublishEnabled = Boolean(wf.autoPublishEnabled) || Boolean(wf.auto_publish_enabled) || false
+      workflowForm.keywordCrawlLimit = pickNumber(wf.keywordCrawlLimit ?? wf.keyword_crawl_limit, 100)
+      workflowForm.autoCrawlEnabled = pickBoolean(wf.autoCrawlEnabled ?? wf.auto_crawl_enabled, false)
+      workflowForm.clusterThreshold = pickNumber(wf.clusterThreshold ?? wf.cluster_threshold, 0.7)
+      workflowForm.minClusterSize = pickNumber(wf.minClusterSize ?? wf.min_cluster_size, 5)
+      workflowForm.autoGenerateEnabled = pickBoolean(wf.autoGenerateEnabled ?? wf.auto_generate_enabled, false)
+      workflowForm.dailyGenerateLimit = pickNumber(wf.dailyGenerateLimit ?? wf.daily_generate_limit, 10)
+      workflowForm.autoReviewEnabled = pickBoolean(wf.autoReviewEnabled ?? wf.auto_review_enabled, false)
+      workflowForm.autoPublishEnabled = pickBoolean(wf.autoPublishEnabled ?? wf.auto_publish_enabled, false)
       workflowForm.publishTime = wf.publishTime || wf.publish_time || undefined
     }
   } catch (error: any) {
