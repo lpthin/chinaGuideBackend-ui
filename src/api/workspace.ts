@@ -127,6 +127,8 @@ export const clusterApi = {
       preview?: boolean
       distillSource?: 'ai_model' | 'rule_fallback' | 'empty'
       usedRuleFallback?: boolean
+      processedKeywords?: number
+      remainingKeywords?: number
     }>('/workspace/clusters/distill', null, { params }),
 
   // 两阶段蒸馏：确认 preview 中选中的聚类，落库

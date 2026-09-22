@@ -389,9 +389,9 @@
               type="info"
               show-icon
               :message="
-                distillSource === 'rule_fallback'
+                (distillSource === 'rule_fallback'
                   ? '当前未配置 AI 模型，已按规则聚类生成预览。管理员配置 AI 模型后，可获得更精准的语义聚类。'
-                  : '蒸馏完成！请勾选要保存的聚类（默认已全选），然后点击右下角「确认保存」合并到下方列表。'
+                  : '蒸馏完成！请勾选要保存的聚类（默认已全选），然后点击右下角「确认保存」合并到下方列表。') + distillBatchHint
               "
             />
           </div>
@@ -619,6 +619,7 @@ const distilling = ref(false)
 const distillDrawerOpen = ref(false)
 const distillPhase = ref<'loading' | 'ready' | 'confirming'>('loading')
 const distillSource = ref<'ai_model' | 'rule_fallback' | 'empty' | ''>('')
+const distillBatchHint = ref('')
 const previewClusters = ref<KeywordCluster[]>([])
 const previewSelectedRowKeys = ref<string[]>([])
 const previewSearch = ref('')
@@ -871,6 +872,7 @@ async function distillAll() {
   distillDrawerOpen.value = true
   distillPhase.value = 'loading'
   distillSource.value = ''
+  distillBatchHint.value = ''
   previewClusters.value = []
   previewSelectedRowKeys.value = []
   distillError.value = ''
@@ -887,6 +889,9 @@ async function distillAll() {
     distillProgress.value = 90
     previewClusters.value = res.clusters || []
     distillSource.value = (res.distillSource as any) || (res.usedRuleFallback ? 'rule_fallback' : 'ai_model')
+    distillBatchHint.value = res.remainingKeywords
+      ? `本批只处理了 ${res.processedKeywords ?? 0} 个待聚类词，剩余 ${res.remainingKeywords} 个仍是待处理状态，再点一次「一键智能蒸馏」可继续。`
+      : ''
     if (res.clusterCount === 0 || previewClusters.value.length === 0) {
       distillError.value = '没有可蒸馏的关键词，请先去「热词管理」做一次采集，或在「关键词」里导入待处理词。'
       distillPhase.value = 'ready'
