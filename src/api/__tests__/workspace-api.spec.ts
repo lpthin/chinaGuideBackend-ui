@@ -19,6 +19,7 @@ vi.mock('../http', () => ({
     put: vi.fn().mockResolvedValue({}),
     delete: vi.fn().mockResolvedValue({}),
   },
+  AI_REQUEST_TIMEOUT: 180000,
 }))
 
 async function httpMock() {
@@ -84,7 +85,11 @@ describe('Workspace API Module', () => {
 
     it('distill should call correct endpoint', async () => {
       await clusterApi.distill({ preview: true })
-      expect((await httpMock()).post).toHaveBeenCalledWith('/workspace/clusters/distill', null, { params: { preview: true } })
+      // 蒸馏一次 AI 调用要一分多钟，必须带放长的超时，否则 axios 30s 默认值先报错
+      expect((await httpMock()).post).toHaveBeenCalledWith('/workspace/clusters/distill', null, {
+        params: { preview: true },
+        timeout: 180000,
+      })
     })
   })
 
@@ -120,6 +125,12 @@ describe('Workspace API Module', () => {
       await reviewApi.reject(1, 'Needs improvement')
       expect((await httpMock()).post).toHaveBeenCalledWith(
         '/workspace/reviews/1/reject', { reason: 'Needs improvement' }, { params: { tenantId: undefined } })
+    })
+
+    it('preReview should hit the ai-prereview endpoint with the long timeout', async () => {
+      await reviewApi.preReview(61, 15)
+      expect((await httpMock()).post).toHaveBeenCalledWith(
+        '/workspace/articles/61/ai-prereview', null, { params: { tenantId: 15 }, timeout: 180000 })
     })
   })
 

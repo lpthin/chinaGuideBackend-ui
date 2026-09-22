@@ -48,10 +48,36 @@ interface HttpClient {
   defaults: AxiosInstance['defaults']
 }
 
+/** 给用户看的错误文案：axios/网关的英文原文（如 Request failed with status code 502）不能直接抛到界面上 */
+export function describeHttpError(error: unknown): string {
+  const axiosError = error as AxiosError<{ message?: string }>
+  const bizMessage = axiosError?.response?.data?.message
+  if (bizMessage) return bizMessage
+  if (axiosError?.code === 'ECONNABORTED') return '请求超时，服务处理时间较长，请稍后重试'
+  const status = axiosError?.response?.status
+  if (!status) return '无法连接服务器，请确认后端已启动'
+  switch (status) {
+    case 400: return '请求参数有误，请检查后重试'
+    case 401: return '登录状态已失效，请重新登录'
+    case 403: return '没有权限执行该操作'
+    case 404: return '请求的内容不存在或已被删除'
+    case 409: return '数据已被他人修改，请刷新后重试'
+    case 429: return '操作过于频繁，请稍后再试'
+    case 500: return '服务器处理失败，请稍后重试或联系管理员'
+    case 502: return '后端服务不可用（网关 502），请确认服务已启动'
+    case 503: return '服务暂时不可用，请稍后重试'
+    case 504: return '后端响应超时（网关 504），请稍后重试'
+    default: return `请求失败（HTTP ${status}）`
+  }
+}
+
 const http = axios.create({
   baseURL: '/api',
   timeout: 30000
 }) as unknown as HttpClient
+
+/** 蒸馏、批量建议等一次 AI 调用就要一分多钟，30s 默认超时会让前端先于后端放弃 */
+export const AI_REQUEST_TIMEOUT = 180000
 
 export function currentAuthToken(): string | null {
   const auth = useAuthStore()
@@ -132,7 +158,7 @@ http.interceptors.response.use(
     if (error.response?.status === 401) {
       handleUnauthorized()
     }
-    return Promise.reject(new Error(error.response?.data?.message || error.message || '网络请求失败'))
+    return Promise.reject(new Error(describeHttpError(error)))
   }
 )
 

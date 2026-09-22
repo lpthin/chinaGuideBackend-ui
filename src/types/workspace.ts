@@ -96,6 +96,13 @@ export interface ReviewItem {
   reviewer?: string
   reviewedAt?: string
   createdAt: string
+  /** 以下来自最新一条 article_ai_review，未预审时后端不返回 */
+  originalScore?: number | null
+  qualityScore?: number | null
+  aiVerdict?: string | null
+  aiOpinion?: string | null
+  aiRiskFlags?: string[]
+  aiReviewedAt?: string
 }
 
 // 待发布队列记录（后端 PublishQueueDTO）

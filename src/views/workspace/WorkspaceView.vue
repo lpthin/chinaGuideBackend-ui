@@ -381,7 +381,7 @@
                 <template #icon><UploadOutlined /></template>
                 导入数据
               </a-button>
-              <a-button @click="refresh">
+              <a-button :loading="refreshing" @click="refresh">
                 <template #icon><ReloadOutlined /></template>
                 刷新
               </a-button>
@@ -393,7 +393,7 @@
         <div class="workspace-area">
           <router-view v-slot="{ Component }">
             <transition name="fade" mode="out-in">
-              <component :is="Component" />
+              <component :is="Component" :key="pageKey" />
             </transition>
           </router-view>
         </div>
@@ -456,6 +456,7 @@ import {
   ShoppingOutlined
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
+import { describeHttpError } from '../../api/http'
 
 const router = useRouter()
 const route = useRoute()
@@ -464,7 +465,8 @@ const auth = useAuthStore()
 const collapsed = ref(false)
 const openKeys = ref<string[]>(['content', 'articleManage', 'knowledge', 'system', 'alert'])
 
-const refreshCallback = ref<(() => void) | null>(null)
+const pageKey = ref(0)
+const refreshing = ref(false)
 const startTaskCallback = ref<(() => void) | null>(null)
 const importCallback = ref<(() => void) | null>(null)
 
@@ -621,13 +623,23 @@ const openDashboard = () => {
   message.info('打开统计面板')
 }
 
-const refresh = () => {
-  if (refreshCallback.value) {
-    refreshCallback.value()
-  } else {
-    message.success('已刷新')
-    router.replace(route.path)
+/**
+ * 刷新要能报错：以前只是 router.replace(同一路径) 再无条件弹「已刷新」，
+ * 后端整体 502 时用户看到的仍是成功提示。现在先探活，再重挂载当前页让子组件重新拉数据。
+ */
+const refresh = async () => {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    await auth.fetchCurrentUser()
+  } catch (e) {
+    message.error(`刷新失败：${describeHttpError(e)}`)
+    refreshing.value = false
+    return
   }
+  pageKey.value += 1
+  message.success('已刷新')
+  refreshing.value = false
 }
 
 const startTask = () => {
@@ -693,10 +705,6 @@ const handleLogout = async () => {
 }
 
 // 提供给子组件的方法
-provide('setRefreshCallback', (callback: () => void) => {
-  refreshCallback.value = callback
-})
-
 provide('setStartTaskCallback', (callback: () => void) => {
   startTaskCallback.value = callback
 })
@@ -717,7 +725,6 @@ watch(
 onMounted(() => {
   // 路由变化时清除回调
   const unregisterRouter = router.afterEach(() => {
-    refreshCallback.value = null
     startTaskCallback.value = null
     importCallback.value = null
   })

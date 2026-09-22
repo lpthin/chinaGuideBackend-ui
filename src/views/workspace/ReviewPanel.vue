@@ -145,16 +145,19 @@
                     <ClockCircleOutlined /> {{ formatTime(article.createdAt) }}
                   </span>
                   <div class="mini-scores">
-                    <a-tooltip :title="`原创度: ${article.originalScore}%`">
-                      <span class="mini-score" :style="{ color: getScoreColor(article.originalScore) }">
-                        <CopyOutlined /> {{ article.originalScore }}%
-                      </span>
-                    </a-tooltip>
-                    <a-tooltip :title="`质量分: ${article.qualityScore}分`">
-                      <span class="mini-score" :style="{ color: getScoreColor(article.qualityScore) }">
-                        <StarOutlined /> {{ article.qualityScore }}
-                      </span>
-                    </a-tooltip>
+                    <template v-if="article.originalScore != null || article.qualityScore != null">
+                      <a-tooltip v-if="article.originalScore != null" :title="`原创度: ${article.originalScore}%`">
+                        <span class="mini-score" :style="{ color: getScoreColor(article.originalScore) }">
+                          <CopyOutlined /> {{ article.originalScore }}%
+                        </span>
+                      </a-tooltip>
+                      <a-tooltip v-if="article.qualityScore != null" :title="`质量分: ${article.qualityScore}分`">
+                        <span class="mini-score" :style="{ color: getScoreColor(article.qualityScore) }">
+                          <StarOutlined /> {{ article.qualityScore }}
+                        </span>
+                      </a-tooltip>
+                    </template>
+                    <span v-else class="mini-score mini-score-empty">未预审</span>
                   </div>
                 </div>
               </div>
@@ -192,7 +195,7 @@
               </div>
             </a-card>
 
-            <!-- AI预审建议 -->
+            <!-- AI预审建议：评分/结论/风险点全部来自 article_ai_review，未预审时不再显示空白或假数据 -->
             <a-card class="ai-suggestion-card" :bordered="false">
               <template #title>
                 <div class="card-title-small">
@@ -200,101 +203,101 @@
                   <span>AI 预审建议</span>
                 </div>
               </template>
-              <a-row :gutter="16">
-                <a-col :xs="12" :md="8">
-                  <div class="score-card">
-                    <div class="score-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                      <CopyOutlined />
-                    </div>
-                    <div class="score-info">
-                      <div class="score-label">原创度</div>
-                      <div class="score-num" :style="{ color: getScoreColor(currentArticle.originalScore) }">
-                        {{ currentArticle.originalScore }}%
+              <template #extra>
+                <a-button size="small" :loading="preReviewing" @click="runPreReview">
+                  {{ hasPreReview(currentArticle) ? '重新预审' : '开始预审' }}
+                </a-button>
+              </template>
+
+              <a-alert
+                v-if="!hasPreReview(currentArticle)"
+                type="info"
+                show-icon
+                message="尚未预审"
+                description="AI 预审会给出原创度、质量分与风险点，供人工审核参考；评分由模型判断，不等同于查重结果。"
+              />
+
+              <template v-else>
+                <a-row :gutter="16">
+                  <a-col :xs="12" :md="8">
+                    <div class="score-card">
+                      <div class="score-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
+                        <CopyOutlined />
+                      </div>
+                      <div class="score-info">
+                        <div class="score-label">原创度</div>
+                        <div class="score-num" :style="{ color: getScoreColor(currentArticle.originalScore) }">
+                          {{ scoreText(currentArticle.originalScore, '%') }}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </a-col>
-                <a-col :xs="12" :md="8">
-                  <div class="score-card">
-                    <div class="score-icon" style="background: linear-gradient(135deg, #722ed1 0%, #b37feb 100%)">
-                      <StarOutlined />
-                    </div>
-                    <div class="score-info">
-                      <div class="score-label">质量评分</div>
-                      <div class="score-num" :style="{ color: getScoreColor(currentArticle.qualityScore) }">
-                        {{ currentArticle.qualityScore }}分
+                  </a-col>
+                  <a-col :xs="12" :md="8">
+                    <div class="score-card">
+                      <div class="score-icon" style="background: linear-gradient(135deg, #722ed1 0%, #b37feb 100%)">
+                        <StarOutlined />
+                      </div>
+                      <div class="score-info">
+                        <div class="score-label">质量评分</div>
+                        <div class="score-num" :style="{ color: getScoreColor(currentArticle.qualityScore) }">
+                          {{ scoreText(currentArticle.qualityScore, '分') }}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </a-col>
-                <a-col :xs="12" :md="8">
-                  <div class="score-card">
-                    <div class="score-icon" :style="currentArticle.compliance ? 'background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)' : 'background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%)'">
-                      <SafetyOutlined />
-                    </div>
-                    <div class="score-info">
-                      <div class="score-label">合规检查</div>
-                      <div class="score-num" :style="{ color: currentArticle.compliance ? '#52c41a' : '#ff4d4f' }">
-                        {{ currentArticle.compliance ? '通过' : '风险' }}
+                  </a-col>
+                  <a-col :xs="12" :md="8">
+                    <div class="score-card">
+                      <div class="score-icon" :style="verdictStyle(currentArticle.aiVerdict)">
+                        <SafetyOutlined />
+                      </div>
+                      <div class="score-info">
+                        <div class="score-label">预审结论</div>
+                        <div class="score-num" :style="{ color: verdictColor(currentArticle.aiVerdict) }">
+                          {{ verdictText(currentArticle.aiVerdict) }}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </a-col>
-              </a-row>
+                  </a-col>
+                </a-row>
 
-              <!-- 敏感词检测 -->
-              <div class="sensitive-section">
-                <div class="section-subtitle">
-                  <AlertOutlined /> 敏感词检测
+                <!-- 风险点：预审给出的具体问题，没有风险时不占版面 -->
+                <div v-if="currentArticle.aiRiskFlags?.length" class="sensitive-section">
+                  <div class="section-subtitle">
+                    <AlertOutlined /> 风险点
+                  </div>
+                  <div class="sensitive-words">
+                    <a-tag v-for="(flag, i) in currentArticle.aiRiskFlags" :key="i" color="warning" class="sensitive-tag">
+                      {{ flag }}
+                    </a-tag>
+                  </div>
                 </div>
-                <div v-if="!currentArticle.sensitiveWords?.length" class="sensitive-safe">
-                  <CheckCircleOutlined /> 未检测到敏感词
-                </div>
-                <div v-else class="sensitive-words">
-                  <a-tag v-for="(w, i) in currentArticle.sensitiveWords" :key="i" color="error" class="sensitive-tag">
-                    {{ w.word }}
-                    <span class="count">({{ w.count }}处)</span>
-                  </a-tag>
-                </div>
-              </div>
 
-              <!-- 原创度评分进度条 -->
-              <div class="progress-section">
-                <div class="section-subtitle">
-                  <CopyOutlined /> 原创度评分
-                </div>
-                <div class="score-progress-item">
-                  <div class="score-progress-label">
-                    <span>原创度</span>
-                    <span class="score-progress-value" :style="{ color: getScoreColor(currentArticle.originalScore) }">{{ currentArticle.originalScore }}%</span>
+                <!-- 评分进度条 -->
+                <div class="progress-section">
+                  <div class="score-progress-item">
+                    <div class="score-progress-label">
+                      <span>原创度</span>
+                      <span class="score-progress-value" :style="{ color: getScoreColor(currentArticle.originalScore) }">{{ scoreText(currentArticle.originalScore, '%') }}</span>
+                    </div>
+                    <a-progress :percent="currentArticle.originalScore || 0" :show-info="false" :stroke-color="getScoreColor(currentArticle.originalScore)" size="small" />
                   </div>
-                  <a-progress :percent="currentArticle.originalScore" :show-info="false" :stroke-color="getScoreColor(currentArticle.originalScore)" size="small" />
-                </div>
-                <div class="score-progress-item">
-                  <div class="score-progress-label">
-                    <span>质量分</span>
-                    <span class="score-progress-value" :style="{ color: getScoreColor(currentArticle.qualityScore) }">{{ currentArticle.qualityScore }}分</span>
+                  <div class="score-progress-item">
+                    <div class="score-progress-label">
+                      <span>质量分</span>
+                      <span class="score-progress-value" :style="{ color: getScoreColor(currentArticle.qualityScore) }">{{ scoreText(currentArticle.qualityScore, '分') }}</span>
+                    </div>
+                    <a-progress :percent="currentArticle.qualityScore || 0" :show-info="false" :stroke-color="getScoreColor(currentArticle.qualityScore)" size="small" />
                   </div>
-                  <a-progress :percent="currentArticle.qualityScore" show-info="false" :stroke-color="getScoreColor(currentArticle.qualityScore)" size="small" />
                 </div>
-                <div class="score-progress-item">
-                  <div class="score-progress-label">
-                    <span>合规性</span>
-                    <span class="score-progress-value" :style="{ color: currentArticle.compliance ? '#52c41a' : '#ff4d4f' }">{{ currentArticle.compliance ? '合规' : '风险' }}</span>
-                  </div>
-                  <a-progress :percent="currentArticle.compliance ? 100 : 30" show-info="false" :stroke-color="currentArticle.compliance ? '#52c41a' : '#ff4d4f'" size="small" />
-                </div>
-              </div>
 
-              <!-- 优化建议 -->
-              <div v-if="currentArticle.aiSuggestions?.length" class="suggestions-section">
-                <div class="section-subtitle">
-                  <BulbOutlined /> 优化建议
+                <!-- 预审意见 -->
+                <div v-if="currentArticle.aiOpinion" class="suggestions-section">
+                  <div class="section-subtitle">
+                    <BulbOutlined /> 预审意见
+                  </div>
+                  <p class="opinion-text">{{ currentArticle.aiOpinion }}</p>
                 </div>
-                <ul class="suggestion-list">
-                  <li v-for="(s, i) in currentArticle.aiSuggestions" :key="i">{{ s }}</li>
-                </ul>
-              </div>
+              </template>
             </a-card>
 
             <!-- 文章内容预览 -->
@@ -543,6 +546,51 @@ function getScoreColor(score?: number) {
 function formatTime(time?: string) {
   if (!time) return '-'
   return new Date(time).toLocaleString()
+}
+
+/** 预审分数是模型给出的估计，缺结果时显示占位而不是 0 分 */
+function scoreText(score?: number | null, suffix = '') {
+  return score == null || score === undefined ? '-' : `${score}${suffix}`
+}
+
+const VERDICT_TEXT: Record<string, string> = { pass: '建议通过', caution: '需关注', reject: '建议驳回' }
+const VERDICT_COLOR: Record<string, string> = { pass: '#52c41a', caution: '#faad14', reject: '#ff4d4f' }
+
+function verdictText(verdict?: string | null) {
+  return (verdict && VERDICT_TEXT[verdict]) || '无结论'
+}
+
+function verdictColor(verdict?: string | null) {
+  return (verdict && VERDICT_COLOR[verdict]) || '#8c8c8c'
+}
+
+function verdictStyle(verdict?: string | null) {
+  const color = verdictColor(verdict)
+  return `background: linear-gradient(135deg, ${color} 0%, ${color}99 100%)`
+}
+
+function hasPreReview(article: any) {
+  return !!article && (article.originalScore != null || article.qualityScore != null)
+}
+
+const preReviewing = ref(false)
+
+async function runPreReview() {
+  const article = currentArticle.value
+  if (!article) {
+    message.warning('请先选择一篇文章')
+    return
+  }
+  preReviewing.value = true
+  try {
+    const result = await reviewApi.preReview(articleIdOf(article), authStore.selectedTenantId ?? undefined) as any
+    Object.assign(article, result)
+    message.success('AI 预审完成')
+  } catch (e: any) {
+    message.error(`AI 预审失败：${e?.message || '未知错误'}`)
+  } finally {
+    preReviewing.value = false
+  }
 }
 
 function selectArticle(article: any) {
@@ -1250,16 +1298,15 @@ onUnmounted(() => {
   }
 }
 
-.suggestion-list {
+.opinion-text {
   margin: 0;
-  padding-left: 20px;
+  font-size: 13px;
+  color: #595959;
+  line-height: 1.6;
+}
 
-  li {
-    font-size: 13px;
-    color: #595959;
-    margin-bottom: 6px;
-    line-height: 1.6;
-  }
+.mini-score-empty {
+  color: #bfbfbf;
 }
 
 .article-preview {

@@ -338,7 +338,7 @@
                     </div>
                   </template>
                   <template v-else-if="column.key === 'category'">
-                    <a-tag color="blue">{{ record.categoryName || '未分类' }}</a-tag>
+                    <a-tag color="blue">{{ categoryNameOf(record) }}</a-tag>
                   </template>
                   <template v-else-if="column.key === 'status'">
                     <a-tag :color="getStatusColor(record.status)">
@@ -350,6 +350,9 @@
                     <span class="views-cell">
                       <EyeOutlined /> {{ record.views || 0 }}
                     </span>
+                  </template>
+                  <template v-else-if="column.key === 'publishTime'">
+                    {{ formatTime(record.publishedAt) }}
                   </template>
                   <template v-else-if="column.key === 'action'">
                     <a-space size="small">
@@ -572,11 +575,11 @@
             <a-descriptions-item label="状态">
               <a-tag :color="getStatusColor(previewArticle.status)">{{ getStatusText(previewArticle.status) }}</a-tag>
             </a-descriptions-item>
-            <a-descriptions-item label="栏目">{{ previewArticle.categoryName || '未分类' }}</a-descriptions-item>
+            <a-descriptions-item label="栏目">{{ categoryNameOf(previewArticle) }}</a-descriptions-item>
             <a-descriptions-item label="作者">{{ previewArticle.authorName || '-' }}</a-descriptions-item>
             <a-descriptions-item label="浏览量">{{ previewArticle.views || 0 }}</a-descriptions-item>
-            <a-descriptions-item label="创建时间">{{ previewArticle.createdAt }}</a-descriptions-item>
-            <a-descriptions-item label="更新时间">{{ previewArticle.updatedAt }}</a-descriptions-item>
+            <a-descriptions-item label="创建时间">{{ formatTime(previewArticle.createdAt) }}</a-descriptions-item>
+            <a-descriptions-item label="更新时间">{{ formatTime(previewArticle.updatedAt) }}</a-descriptions-item>
           </a-descriptions>
           <div v-if="previewArticle.summary" style="margin-bottom: 12px; color: #666; font-style: italic;">{{ previewArticle.summary }}</div>
           <a-divider />
@@ -726,6 +729,7 @@ import {
   ClockCircleOutlined,
 } from '@ant-design/icons-vue'
 import { articleManageApi, categoryApi, userApi } from '../../api'
+import { formatTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
@@ -847,6 +851,14 @@ const tablePagination = computed(() => ({
 }))
 
 const categoryTreeData = computed(() => buildTree(categories.value, null))
+
+/** 列表接口只返回 categoryId，栏目名要用本页已加载的栏目表补齐，否则整列都是「未分类」 */
+const categoryNames = computed(() => new Map(categories.value.map((c: any) => [c.id, c.name])))
+
+function categoryNameOf(record: any) {
+  if (record?.categoryName) return record.categoryName
+  return categoryNames.value.get(record?.categoryId) || '未分类'
+}
 
 const tableColumns = [
   { title: '标题', dataIndex: 'title', key: 'title', width: 280, ellipsis: true },

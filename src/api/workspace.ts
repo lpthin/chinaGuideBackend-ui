@@ -1,5 +1,5 @@
 // Workspace 模块 API - 统一工作台接口
-import http, { currentAuthToken } from './http'
+import http, { currentAuthToken, AI_REQUEST_TIMEOUT } from './http'
 import type {
   DashboardStats,
   KeywordCluster,
@@ -129,7 +129,7 @@ export const clusterApi = {
       usedRuleFallback?: boolean
       processedKeywords?: number
       remainingKeywords?: number
-    }>('/workspace/clusters/distill', null, { params }),
+    }>('/workspace/clusters/distill', null, { params, timeout: AI_REQUEST_TIMEOUT }),
 
   // 两阶段蒸馏：确认 preview 中选中的聚类，落库
   confirmDistill: (body: { clusters: KeywordCluster[] }, params?: { tenantId?: number }) =>
@@ -137,7 +137,7 @@ export const clusterApi = {
 
   // 生成聚类内容建议
   generateSuggestions: (clusterId: number, params?: { tenantId?: number }) =>
-    http.post<KeywordContentSuggestion[]>('/workspace/clusters/' + clusterId + '/generate-suggestions', null, { params }),
+    http.post<KeywordContentSuggestion[]>('/workspace/clusters/' + clusterId + '/generate-suggestions', null, { params, timeout: AI_REQUEST_TIMEOUT }),
 }
 
 // ==================== 内容建议 API ====================
@@ -280,6 +280,21 @@ export const reviewApi = {
       rejectedCount: number
       approvedCount: number
     }>('/workspace/reviews/stats', tenantId ? { params: { tenantId } } : {}),
+
+  // 单篇 AI 预审：模型给出原创度/质量分与风险点，结果落库后由待审列表返回
+  preReview: (articleId: number, tenantId?: number) =>
+    http.post<{
+      articleId: number
+      versionId: number
+      originalScore: number | null
+      qualityScore: number | null
+      aiVerdict: string | null
+      aiOpinion: string | null
+      aiRiskFlags: string[]
+      aiReviewedAt: string
+      provider?: string
+      model?: string
+    }>(`/workspace/articles/${articleId}/ai-prereview`, null, { params: { tenantId }, timeout: AI_REQUEST_TIMEOUT }),
 }
 
 // ==================== 发布 API ====================
