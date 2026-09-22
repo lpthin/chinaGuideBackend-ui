@@ -15,12 +15,15 @@ export interface TemplateVariable {
 
 export interface TemplateVersion {
   id: number
+  name: string
   version: string
+  description: string
   content: string
-  variables: TemplateVariable[]
-  changelog: string
+  versionNote: string
+  status: 'active' | 'inactive'
+  useCount: number
   createdAt: string
-  createdBy: string
+  updatedAt: string
 }
 
 export interface ArticleTemplate {
@@ -65,6 +68,18 @@ export interface TemplateStats {
   customCount: number
 }
 
+function toTemplatePayload(form: ArticleTemplateForm) {
+  return {
+    name: form.name,
+    description: form.description,
+    templateType: form.type,
+    category: form.category,
+    content: form.content,
+    variables: JSON.stringify(form.variables || []),
+    status: form.status,
+  }
+}
+
 export const articleTemplateApi = {
   list: (params: ArticleTemplateQuery) =>
     http.get<PageResult<ArticleTemplate>>('/article-templates', { params }),
@@ -73,10 +88,10 @@ export const articleTemplateApi = {
     http.get<ArticleTemplate>(`/article-templates/${id}`),
 
   create: (data: ArticleTemplateForm) =>
-    http.post<ArticleTemplate>('/article-templates', data),
+    http.post<ArticleTemplate>('/article-templates', toTemplatePayload(data)),
 
   update: (id: number, data: ArticleTemplateForm) =>
-    http.put<ArticleTemplate>(`/article-templates/${id}`, data),
+    http.put<ArticleTemplate>(`/article-templates/${id}`, toTemplatePayload(data)),
 
   delete: (id: number) =>
     http.delete(`/article-templates/${id}`),
@@ -101,9 +116,6 @@ export const articleTemplateApi = {
 
   stats: () =>
     http.get<TemplateStats>('/article-templates/stats'),
-
-  batchDelete: (ids: number[]) =>
-    http.delete('/article-templates/batch', { data: ids }),
 }
 
 export default articleTemplateApi

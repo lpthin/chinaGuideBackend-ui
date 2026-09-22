@@ -11,8 +11,8 @@ export const useSiteStore = defineStore('site', () => {
   async function loadSites() {
     loading.value = true
     try {
-      const res = await siteApi.list({})
-      sites.value = res.records || []
+      const res = await siteApi.list()
+      sites.value = res || []
       if (sites.value.length > 0 && !currentSite.value) {
         currentSite.value = sites.value[0]
       }

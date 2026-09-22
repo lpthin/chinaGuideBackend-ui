@@ -70,6 +70,15 @@ export interface PortalTemplateQuery {
   size?: number
 }
 
+export interface PortalTemplateListResult {
+  records: PortalTemplate[]
+  total: number
+  page: number
+  size: number
+  /** 各类型模板总数（不受类型筛选影响，用于统计卡片） */
+  typeCounts?: Record<string, number>
+}
+
 // Banner
 export interface Banner {
   id: number
@@ -113,22 +122,6 @@ export interface JobPost {
   status: string
   viewCount: number
   creatorId: number
-  createdAt: string
-  updatedAt: string
-}
-
-// 职位申请
-export interface JobApplication {
-  id: number
-  tenantId: number
-  jobPostId: number
-  name: string
-  phone: string
-  email: string
-  resumeUrl: string
-  selfIntroduction: string
-  status: string
-  remark: string
   createdAt: string
   updatedAt: string
 }
@@ -237,15 +230,16 @@ export interface CompanyInfo {
 export interface SeoConfig {
   id: number
   tenantId: number
+  siteId?: number
+  pageType: string
   pageKey: string
-  pageTitle: string
-  metaKeywords: string
-  metaDescription: string
+  seoTitle: string
+  seoKeywords: string
+  seoDescription: string
+  ogImage: string
   ogTitle: string
   ogDescription: string
-  robotsContent: string
-  canonicalUrl: string
-  createdAt: string
+  structuredData: string
   updatedAt: string
 }
 
@@ -372,15 +366,17 @@ export interface CompanyInfoForm {
 
 export interface SeoConfigForm {
   id?: number
-  tenantId: number
+  tenantId?: number
+  siteId?: number
+  pageType?: string
   pageKey: string
-  pageTitle?: string
-  metaKeywords?: string
-  metaDescription?: string
+  seoTitle?: string
+  seoKeywords?: string
+  seoDescription?: string
+  ogImage?: string
   ogTitle?: string
   ogDescription?: string
-  robotsContent?: string
-  canonicalUrl?: string
+  structuredData?: string
 }
 
 // 分页结果

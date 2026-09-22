@@ -3,10 +3,10 @@ import http from './http'
 import type {
   PortalTemplate,
   PortalTemplateForm,
+  PortalTemplateListResult,
   PortalTemplateQuery,
   Banner,
   JobPost,
-  JobApplication,
   PortalMessage,
   PortalMessageStats,
   PortalMessageBroadcast,
@@ -45,11 +45,7 @@ export const bannerApi = {
 
   // 删除Banner
   delete: (id: number) =>
-    http.delete(`/portal/banners/${id}`),
-
-  // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete('/portal/banners/batch', { data: ids })
+    http.delete(`/portal/banners/${id}`)
 }
 
 // 职位管理 API
@@ -72,38 +68,7 @@ export const jobPostApi = {
 
   // 删除职位
   delete: (id: number) =>
-    http.delete(`/portal/jobs/${id}`),
-
-  // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete('/portal/jobs/batch', { data: ids })
-}
-
-// 职位申请 API
-export const jobApplicationApi = {
-  // 获取申请列表
-  list: (tenantId: number, params?: { page?: number; size?: number; status?: string }) =>
-    http.get<PageResult<JobApplication>>('/portal/job-applications', { params: { tenantId, ...params } }),
-
-  // 获取职位的申请列表
-  getByJobId: (jobId: number, params?: { page?: number; size?: number }) =>
-    http.get<PageResult<JobApplication>>(`/portal/job-applications/job/${jobId}`, { params }),
-
-  // 获取申请详情
-  get: (id: number) =>
-    http.get<JobApplication>(`/portal/job-applications/${id}`),
-
-  // 提交申请
-  submit: (data: Partial<JobApplication>) =>
-    http.post<JobApplication>('/portal/job-applications', data),
-
-  // 更新申请状态
-  updateStatus: (id: number, status: string, remark?: string) =>
-    http.put<JobApplication>(`/portal/job-applications/${id}/status`, { status, remark }),
-
-  // 删除申请
-  delete: (id: number) =>
-    http.delete(`/portal/job-applications/${id}`)
+    http.delete(`/portal/jobs/${id}`)
 }
 
 // 站内信 API
@@ -146,11 +111,7 @@ export const portalMessageApi = {
 
   // 删除消息
   delete: (id: number) =>
-    http.delete(`/messages/${id}`),
-
-  // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete('/messages/batch', { data: ids })
+    http.delete(`/messages/${id}`)
 }
 
 // 留言板 API
@@ -171,37 +132,35 @@ export const guestbookApi = {
   reply: (id: number, reply: string) =>
     http.put<Guestbook>(`/guestbook/${id}/reply`, { reply }),
 
-  // 审核通过
-  approve: (id: number) =>
-    http.put<Guestbook>(`/guestbook/${id}/approve`),
-
   // 删除留言
   delete: (id: number) =>
-    http.delete(`/guestbook/${id}`),
-
-  // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete('/guestbook/batch', { data: ids })
+    http.delete(`/guestbook/${id}`)
 }
 
 // 企业信息 API
 export const companyInfoApi = {
-  get: () =>
-    http.get<CompanyInfo>('/company/info'),
+  get: (tenantId?: number | null) =>
+    http.get<CompanyInfo>('/company/info', { params: tenantId ? { tenantId } : {} }),
 
-  update: (data: CompanyInfoForm) =>
-    http.put<CompanyInfo>('/company/info', data)
+  update: (data: CompanyInfoForm, tenantId?: number | null) =>
+    http.put<CompanyInfo>('/company/info', data, { params: tenantId ? { tenantId } : {} }),
+
+  // 品牌标识图片上传，返回 { url }
+  uploadImage: (kind: 'logo' | 'favicon' | 'certificate', file: File, tenantId?: number | null) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return http.post<{ url: string }>(`/company/${kind}`, formData, {
+      params: tenantId ? { tenantId } : {},
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
 }
 
 // SEO配置 API
 export const seoConfigApi = {
   // 获取SEO配置列表
-  list: (tenantId: number) =>
-    http.get<SeoConfig[]>('/portal/seo', { params: { tenantId } }),
-
-  // 获取页面SEO配置
-  getByPageKey: (tenantId: number, pageKey: string) =>
-    http.get<SeoConfig>('/portal/seo/page', { params: { tenantId, pageKey } }),
+  list: (params: { tenantId?: number; siteId?: number; pageType?: string; keyword?: string } = {}) =>
+    http.get<SeoConfig[]>('/portal/seo', { params }),
 
   // 获取SEO配置详情
   get: (id: number) =>
@@ -222,33 +181,25 @@ export const seoConfigApi = {
 
 // 门户模板 API
 export const portalTemplateApi = {
-  // 获取模板列表
+  // 获取模板列表（系统预设 + 当前租户自建）
   list: (params: PortalTemplateQuery) =>
-    http.get<PageResult<PortalTemplate>>('/portal/templates', { params }),
-
-  // 获取系统预设模板
-  systemTemplates: () =>
-    http.get<PortalTemplate[]>('/portal/templates/system'),
+    http.get<PortalTemplateListResult>('/portal/templates', { params }),
 
   // 获取模板详情
   get: (id: number) =>
     http.get<PortalTemplate>(`/portal/templates/${id}`),
 
   // 创建自定义模板
-  create: (data: PortalTemplateForm) =>
-    http.post<PortalTemplate>('/portal/templates', data),
+  create: (data: PortalTemplateForm, tenantId?: number) =>
+    http.post<PortalTemplate>('/portal/templates', data, { params: { tenantId } }),
 
   // 更新模板
-  update: (id: number, data: PortalTemplateForm) =>
-    http.put<PortalTemplate>(`/portal/templates/${id}`, data),
+  update: (id: number, data: PortalTemplateForm, tenantId?: number) =>
+    http.put<PortalTemplate>(`/portal/templates/${id}`, data, { params: { tenantId } }),
 
   // 删除模板
-  delete: (id: number) =>
-    http.delete(`/portal/templates/${id}`),
-
-  // 复制模板
-  copy: (id: number) =>
-    http.post<PortalTemplate>(`/portal/templates/${id}/copy`),
+  delete: (id: number, tenantId?: number) =>
+    http.delete(`/portal/templates/${id}`, { params: { tenantId } }),
 
   // 应用模板到租户
   apply: (id: number, tenantId: number) =>
@@ -256,18 +207,13 @@ export const portalTemplateApi = {
 
   // 获取租户当前使用的模板
   getCurrentTemplate: (tenantId: number) =>
-    http.get<PortalTemplate>('/portal/templates/current', { params: { tenantId } }),
-
-  // 预览模板
-  preview: (id: number, config?: Partial<PortalTemplateForm>) =>
-    http.post<string>(`/portal/templates/${id}/preview`, config)
+    http.get<PortalTemplate>('/portal/templates/current', { params: { tenantId } })
 }
 
 export default {
   template: portalTemplateApi,
   banner: bannerApi,
   jobPost: jobPostApi,
-  jobApplication: jobApplicationApi,
   message: portalMessageApi,
   guestbook: guestbookApi,
   companyInfo: companyInfoApi,

@@ -96,15 +96,6 @@ export interface Site {
   status: string
 }
 
-// 仪表盘统计数据
-export interface DashboardStats {
-  totalArticles: number
-  totalKeywords: number
-  totalViews: number
-  pendingReview: number
-  todayCount: number
-}
-
 // Prompt 模板
 export interface PromptTemplate {
   id?: number
@@ -113,5 +104,5 @@ export interface PromptTemplate {
   version: string
   templateText: string
   enabled: boolean
-  isSystem: boolean
+  isSystem?: boolean
 }

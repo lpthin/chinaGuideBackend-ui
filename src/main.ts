@@ -4,6 +4,8 @@ import { createPinia } from 'pinia'
 import { createHead } from '@vueuse/head'
 import Antd from 'ant-design-vue'
 import 'ant-design-vue/dist/reset.css'
+import dayjs from 'dayjs'
+import 'dayjs/locale/zh-cn'
 import './styles/global.less'
 import App from './App.vue'
 import { router } from './router'
@@ -21,6 +23,9 @@ keyMigration.forEach(([oldK, newK]) => {
   if (val && !localStorage.getItem(newK)) localStorage.setItem(newK, val)
   if (val) localStorage.removeItem(oldK)
 })
+
+// 日期选择器的星期/月份跟随中文界面
+dayjs.locale('zh-cn')
 
 const app = createApp(App)
 const head = createHead()

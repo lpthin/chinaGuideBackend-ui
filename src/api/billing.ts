@@ -11,7 +11,6 @@ import type {
   InvoiceQuery,
   PaymentQuery,
   TransactionQuery,
-  InvoiceStatus,
   PageResult,
 } from '../types/billing'
 
@@ -33,41 +32,9 @@ export const invoiceApi = {
   create: (data: Partial<Invoice>) =>
     http.post<Invoice>('/billing/invoices', data),
 
-  // 更新账单
-  update: (id: number, data: Partial<Invoice>) =>
-    http.put<Invoice>(`/billing/invoices/${id}`, data),
-
-  // 删除账单
-  delete: (id: number) =>
-    http.delete(`/billing/invoices/${id}`),
-
-  // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete('/billing/invoices/batch', { data: ids }),
-
-  // 更新账单状态
-  updateStatus: (id: number, status: InvoiceStatus) =>
-    http.patch(`/billing/invoices/${id}/status`, { status }),
-
   // 支付账单
   pay: (id: number, data?: { paymentMethod?: string }) =>
     http.post(`/billing/invoices/${id}/pay`, data),
-
-  // 发送账单
-  send: (id: number, email?: string) =>
-    http.post(`/billing/invoices/${id}/send`, { email }),
-
-  // 下载账单
-  download: (id: number) =>
-    http.get(`/billing/invoices/${id}/download`, {
-      responseType: 'blob',
-    }),
-
-  // 获取账单PDF
-  getPdf: (id: number) =>
-    http.get(`/billing/invoices/${id}/pdf`, {
-      responseType: 'blob',
-    }),
 
   // 导出发票列表
   export: (params: { tenantId: number; status?: string; paymentStatus?: string; startDate?: string; endDate?: string }) =>
@@ -269,22 +236,6 @@ export const orderApi = {
   get: (id: number) =>
     http.get<any>(`/billing/orders/${id}`),
 
-  // 创建订单
-  create: (data: any) =>
-    http.post<any>('/billing/orders', data),
-
-  // 取消订单
-  cancel: (id: number) =>
-    http.post(`/billing/orders/${id}/cancel`),
-
-  // 支付订单
-  pay: (id: number, paymentMethod: string) =>
-    http.post(`/billing/orders/${id}/pay`, { paymentMethod }),
-
-  // 退款
-  refund: (id: number, amount: number, reason?: string) =>
-    http.post(`/billing/orders/${id}/refund`, { amount, reason }),
-
   // 导出订单
   export: (params: { tenantId: number; status?: string; startDate?: string; endDate?: string }) =>
     http.get('/billing/orders/export', {
@@ -309,7 +260,7 @@ export const walletApi = {
 
   // 导出交易记录
   exportTransactions: (params: any) =>
-    http.get('/billing/wallet/transactions/export', { params, responseType: 'blob' }),
+    http.get('/billing/transactions/export', { params, responseType: 'blob' }),
 }
 
 // 客户管理 API

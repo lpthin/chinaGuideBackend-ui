@@ -18,11 +18,26 @@ import type {
   DeviceDistributionItem
 } from '../types/operation'
 
+// 客户案例服务端统计（GET /operation/cases/statistics）
+export interface CustomerCaseStatistics {
+  total: number
+  published: number
+  draft: number
+  totalViews: number
+  industryCount: number
+}
+
 // 客户案例 API
 export const customerCaseApi = {
   // 获取案例列表
   list: (params: CustomerCaseQuery) =>
     http.get<PageResult<CustomerCase>>('/operation/cases', { params }),
+
+  // 获取全量统计（非当前页汇总）
+  statistics: (tenantId?: number | null) =>
+    http.get<CustomerCaseStatistics>('/operation/cases/statistics', {
+      params: tenantId ? { tenantId } : {}
+    }),
 
   // 获取案例详情
   get: (id: number) =>
@@ -88,33 +103,6 @@ export const dataReportApi = {
 }
 
 // 运营统计 API
-export const operationStatsApi = {
-  // 获取概览统计
-  overview: (tenantId: number, startDate?: string, endDate?: string) =>
-    http.get<{
-      totalViews: number
-      totalLikes: number
-      totalShares: number
-      totalArticles: number
-      totalCases: number
-      totalJobPosts: number
-      newUsers: number
-    }>('/operation/stats/overview', { params: { tenantId, startDate, endDate } }),
-
-  // 获取趋势数据
-  trend: (tenantId: number, days: number = 7, type: 'views' | 'likes' | 'shares' = 'views') =>
-    http.get<{ date: string; value: number }[]>('/operation/stats/trend', { params: { tenantId, days, type } }),
-
-  // 获取热门文章排行
-  topArticles: (tenantId: number, limit: number = 10) =>
-    http.get<{ id: number; title: string; views: number; likes: number; shares: number }[]>('/operation/stats/top-articles', { params: { tenantId, limit } }),
-
-  // 获取热门案例排行
-  topCases: (tenantId: number, limit: number = 10) =>
-    http.get<{ id: number; title: string; views: number }[]>('/operation/stats/top-cases', { params: { tenantId, limit } })
-}
-
-// 运营统计 API
 export const operationApi = {
   // 获取基础统计数据
   getStats: (tenantId: number, startDate?: string, endDate?: string) =>
@@ -173,6 +161,5 @@ export const operationApi = {
 export default {
   customerCase: customerCaseApi,
   dataReport: dataReportApi,
-  stats: operationStatsApi,
   operation: operationApi
 }

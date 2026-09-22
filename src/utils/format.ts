@@ -42,7 +42,7 @@ export function formatTime(time: string | Date | undefined): string {
  * 格式化文件大小
  */
 export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
+  if (!bytes || bytes <= 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
@@ -52,6 +52,39 @@ export function formatFileSize(bytes: number): string {
 /**
  * 格式化数字（千分位）
  */
-export function formatNumber(num: number): string {
-  return num.toLocaleString('zh-CN')
+export function formatNumber(num: number | null | undefined): string {
+  if (num === null || num === undefined || Number.isNaN(Number(num))) return '-'
+  return Number(num).toLocaleString('zh-CN')
+}
+
+/**
+ * 绝对时间：后端 LocalDateTime 直出的 ISO 串不能直接渲染
+ */
+export function formatDateTime(time: string | Date | number | undefined | null, withSeconds = false): string {
+  if (!time) return '-'
+  const date = typeof time === 'number' ? new Date(time) : typeof time === 'string' ? new Date(time) : time
+  if (Number.isNaN(date.getTime())) return '-'
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const base = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return withSeconds ? `${base}:${pad(date.getSeconds())}` : base
+}
+
+/** 只到日期，不含时分 */
+export function formatDate(time: string | Date | number | undefined | null): string {
+  return formatDateTime(time).slice(0, 10)
+}
+
+/**
+ * 百分比：入参既可能是 0~1 的比例，也可能是已经乘过 100 的百分数
+ */
+export function formatPercent(value: number | null | undefined, digits = 1, alreadyPercent = false): string {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
+  const pct = alreadyPercent ? Number(value) : Number(value) * 100
+  return `${pct.toFixed(digits)}%`
+}
+
+/** 保留小数，空值返回占位符而不是 NaN */
+export function formatDecimal(value: number | null | undefined, digits = 2): string {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
+  return Number(value).toFixed(digits)
 }

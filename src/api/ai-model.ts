@@ -3,7 +3,6 @@ import http from './http'
 import type {
   AIModel,
   ModelConfig,
-  ModelPurposeMapping,
   VectorDatabaseConfig,
   EmbeddingConfig,
   ModelConnectionTestResult,
@@ -12,8 +11,6 @@ import type {
   ModelConfigForm,
   VectorDatabaseForm,
   EmbeddingConfigForm,
-  ModelProvider,
-  ModelPurpose,
   ArticleTemplate,
   ArticleTemplateForm,
   ArticleTemplateQueryParams,
@@ -31,10 +28,6 @@ export const modelApi = {
   // 获取模型详情（复用 modelConfigApi）
   get: (id: number) =>
     http.get<AIModel>(`/ai/model-configs/${id}`),
-
-  // 按提供商获取模型
-  getByProvider: (provider: ModelProvider) =>
-    http.get<AIModel[]>(`/ai/models/provider/${provider}`),
 
   // 测试模型连接
   testConnection: (configId: number) =>
@@ -87,25 +80,6 @@ export const modelConfigApi = {
   // 立即巡检全部模型（与每日定时任务同一逻辑，不通过会写健康列并报警）
   checkAllHealth: () =>
     http.post<ModelHealthCheckSummary>('/ai/model-configs/health/check-all'),
-}
-
-// 模型用途映射 API
-export const modelPurposeApi = {
-  // 获取所有用途映射
-  list: (tenantId: number) =>
-    http.get<ModelPurposeMapping[]>(`/ai/model-purposes`, { params: { tenantId } }),
-
-  // 获取特定用途配置
-  getByPurpose: (tenantId: number, purpose: ModelPurpose) =>
-    http.get<ModelPurposeMapping>(`/ai/model-purposes/${purpose}`, { params: { tenantId } }),
-
-  // 创建/更新用途配置
-  set: (tenantId: number, purpose: ModelPurpose, modelConfigId: number) =>
-    http.post<ModelPurposeMapping>('/ai/model-purposes', { tenantId, purpose, modelConfigId }),
-
-  // 批量设置用途配置
-  batchSet: (tenantId: number, mappings: { purpose: ModelPurpose; modelConfigId: number }[]) =>
-    http.post<ModelPurposeMapping[]>('/ai/model-purposes/batch', { tenantId, mappings }),
 }
 
 // 向量数据库配置 API
@@ -172,19 +146,19 @@ export const usageApi = {
 // AI模型使用统计 API
 export const aiModelApi = {
   // 获取统计总览
-  getStats: (params?: { tenantId?: number; startDate?: string; endDate?: string }) =>
+  getStats: (params?: { tenantId?: number }) =>
     http.get<any>('/ai/model/stats', { params }),
 
   // 按模型统计
-  getUsageByModel: (params?: { tenantId?: number; startDate?: string; endDate?: string }) =>
+  getUsageByModel: (params?: { tenantId?: number }) =>
     http.get<any[]>('/ai/model/usage', { params }),
 
   // 按日期统计趋势
-  getUsageTrend: (params?: { tenantId?: number; startDate?: string; endDate?: string }) =>
+  getUsageTrend: (params?: { tenantId?: number }) =>
     http.get<any[]>('/ai/model/trend', { params }),
 
   // 获取调用日志列表
-  getLogs: (params?: { tenantId?: number; page?: number; pageSize?: number; type?: string; keyword?: string }) =>
+  getLogs: (params?: { tenantId?: number; page?: number; size?: number }) =>
     http.get<{
       records: any[]
       total: number
@@ -228,6 +202,7 @@ export const articleTemplateApi = {
 // AI 生成 API
 export const aiGenerateApi = {
   generateSeo: (data: {
+    tenantId?: number | null
     title?: string
     content?: string
     keywords?: string
@@ -269,7 +244,6 @@ export const adminAiStatsApi = {
 export default {
   model: modelApi,
   config: modelConfigApi,
-  purpose: modelPurposeApi,
   vectorDb: vectorDbApi,
   embedding: embeddingConfigApi,
   usage: usageApi,

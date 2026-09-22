@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authApi } from '../api'
-import type { UserInfo, LoginRequest, LoginResponse } from '../types'
+import type { UserInfo } from '../types'
 
 // Storage keys
 const TOKEN_KEY = 'access_token'
@@ -13,10 +13,6 @@ const SELECTED_TENANT_CODE_KEY = 'selected_tenant_code'
 
 function getStoredToken(): string {
   return localStorage.getItem(TOKEN_KEY) || ''
-}
-
-function getStoredRefreshToken(): string {
-  return localStorage.getItem(REFRESH_TOKEN_KEY) || ''
 }
 
 function getStoredUser(): UserInfo | null {
@@ -48,7 +44,6 @@ const SUPER_ADMIN_ROLE = 'SUPER_ADMIN'
 export const useAuthStore = defineStore('auth', () => {
   // State
   const accessToken = ref<string>(getStoredToken())
-  const refreshToken = ref<string>(getStoredRefreshToken())
   const user = ref<UserInfo | null>(getStoredUser())
   const selectedTenantId = ref<number | null>(getStoredSelectedTenantId())
   const selectedTenantCode = ref<string | null>(getStoredSelectedTenantCode())
@@ -65,27 +60,6 @@ export const useAuthStore = defineStore('auth', () => {
   const permissions = computed(() => user.value?.permissions || [])
 
   // Actions
-  async function login(credentials: LoginRequest): Promise<LoginResponse> {
-    loading.value = true
-    try {
-      const response = await authApi.login(credentials)
-      
-      // Store tokens
-      accessToken.value = response.accessToken
-      refreshToken.value = response.refreshToken
-      localStorage.setItem(TOKEN_KEY, response.accessToken)
-      localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken)
-      
-      // Store user info
-      user.value = response.user
-      localStorage.setItem(USER_KEY, JSON.stringify(response.user))
-      
-      return response
-    } finally {
-      loading.value = false
-    }
-  }
-
   async function logout(): Promise<void> {
     try {
       await authApi.logout()
@@ -94,7 +68,6 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       // Clear local state regardless of API success
       accessToken.value = ''
-      refreshToken.value = ''
       user.value = null
       selectedTenantId.value = null
       selectedTenantCode.value = null
@@ -117,17 +90,6 @@ export const useAuthStore = defineStore('auth', () => {
     if (!user.value) return
     user.value = { ...user.value, ...updates }
     localStorage.setItem(USER_KEY, JSON.stringify(user.value))
-  }
-
-  async function refreshAccessToken(): Promise<string> {
-    if (!refreshToken.value) {
-      throw new Error('No refresh token available')
-    }
-    
-    const response = await authApi.refreshToken({ refreshToken: refreshToken.value })
-    accessToken.value = response.accessToken
-    localStorage.setItem(TOKEN_KEY, response.accessToken)
-    return response.accessToken
   }
 
   function hasPermission(permissionCode: string): boolean {
@@ -170,7 +132,6 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     // State
     accessToken,
-    refreshToken,
     user,
     selectedTenantId,
     selectedTenantCode,
@@ -187,11 +148,9 @@ export const useAuthStore = defineStore('auth', () => {
     permissions,
     
     // Actions
-    login,
     logout,
     fetchCurrentUser,
     updateUserInfo,
-    refreshAccessToken,
     hasPermission,
     hasAnyPermission,
     hasRole,

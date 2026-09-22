@@ -37,6 +37,20 @@ export interface KnowledgeCategoryStats {
   totalCount: number
 }
 
+/** /knowledge/categories 与 /all 返回的是树（子分类在 children 里），下拉框需要平铺列表 */
+export function flattenCategories(list: KnowledgeCategory[]): KnowledgeCategory[] {
+  const flat: KnowledgeCategory[] = []
+  const walk = (nodes: KnowledgeCategory[]) => {
+    for (const node of nodes) {
+      flat.push(node)
+      const children = (node as any).children as KnowledgeCategory[] | undefined
+      if (children && children.length) walk(children)
+    }
+  }
+  walk(list || [])
+  return flat
+}
+
 // 知识分类 API
 export const knowledgeCategoryApi = {
   // 获取分类列表（分页）
@@ -55,21 +69,17 @@ export const knowledgeCategoryApi = {
   get: (id: number) =>
     http.get<KnowledgeCategory>(`/knowledge/categories/${id}`),
 
-  // 创建分类
+  // 创建分类（后端实体字段是 sortOrder）
   create: (data: KnowledgeCategoryForm) =>
-    http.post<KnowledgeCategory>('/knowledge/categories', data),
+    http.post<KnowledgeCategory>('/knowledge/categories', { ...data, sortOrder: data.sort }),
 
   // 更新分类
   update: (id: number, data: KnowledgeCategoryForm) =>
-    http.put<KnowledgeCategory>(`/knowledge/categories/${id}`, data),
+    http.put<KnowledgeCategory>(`/knowledge/categories/${id}`, { ...data, sortOrder: data.sort }),
 
   // 删除分类
   delete: (id: number) =>
-    http.delete(`/knowledge/categories/${id}`),
-
-  // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete('/knowledge/categories/batch', { data: ids })
+    http.delete(`/knowledge/categories/${id}`)
 }
 
 // 知识卡片 API
@@ -77,10 +87,6 @@ export const knowledgeCardApi = {
   // 获取卡片列表（分页）
   list: (params: KnowledgeCardQuery) =>
     http.get<PageResult<KnowledgeCard>>('/knowledge/cards', { params }),
-
-  // 搜索卡片
-  search: (params: KnowledgeCardQuery) =>
-    http.get<PageResult<KnowledgeCard>>('/knowledge/cards/search', { params }),
 
   // 获取卡片详情
   get: (id: number) =>
@@ -108,11 +114,7 @@ export const knowledgeCardApi = {
 
   // 批量设置标签
   batchSetTags: (ids: number[], tags: string) =>
-    http.post<{ success: boolean; count: number }>('/knowledge/cards/batch/tags', { ids, tags }),
-
-  // 点赞卡片
-  like: (id: number) =>
-    http.post(`/knowledge/cards/${id}/like`)
+    http.post<{ success: boolean; count: number }>('/knowledge/cards/batch/tags', { ids, tags })
 }
 
 // 知识标签 API
@@ -120,10 +122,6 @@ export const knowledgeTagApi = {
   // 获取标签列表
   list: (params: KnowledgeTagQuery) =>
     http.get<KnowledgeTag[]>('/knowledge/tags', { params }),
-
-  // 获取热门标签
-  popular: (tenantId: number, limit: number = 10) =>
-    http.get<KnowledgeTag[]>('/knowledge/tags/popular', { params: { tenantId, limit } }),
 
   // 创建标签
   create: (data: KnowledgeTagForm) =>
@@ -135,22 +133,7 @@ export const knowledgeTagApi = {
 
   // 删除标签
   delete: (id: number) =>
-    http.delete(`/knowledge/tags/${id}`),
-
-  // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete('/knowledge/tags/batch', { data: ids })
-}
-
-// 阅读记录 API
-export const knowledgeReadRecordApi = {
-  // 获取用户阅读记录
-  userRecords: (userId: number, params?: { page?: number; size?: number }) =>
-    http.get(`/knowledge/read-records/user/${userId}`, { params }),
-
-  // 获取卡片阅读统计
-  cardStats: (cardId: number) =>
-    http.get(`/knowledge/read-records/card/${cardId}`)
+    http.delete(`/knowledge/tags/${id}`)
 }
 
 // 知识文档 API
@@ -191,25 +174,9 @@ export const knowledgeDocumentApi = {
   parse: (id: number, config?: DocumentParseConfig) =>
     http.post<KnowledgeDocument>(`/knowledge/documents/${id}/parse`, config),
 
-  // 批量解析
-  batchParse: (ids: number[], config?: DocumentParseConfig) =>
-    http.post('/knowledge/documents/batch-parse', { ids, config }),
-
-  // 获取解析状态
-  parseStatus: (id: number) =>
-    http.get<{ status: string; progress: number; error?: string }>(`/knowledge/documents/${id}/parse-status`),
-
   // 向量化文档
   vectorize: (id: number, model?: string) =>
     http.post<KnowledgeDocument>(`/knowledge/documents/${id}/vectorize`, { model }),
-
-  // 批量向量化
-  batchVectorize: (ids: number[], model?: string) =>
-    http.post('/knowledge/documents/batch-vectorize', { ids, model }),
-
-  // 下载文档
-  download: (id: number) =>
-    http.get(`/knowledge/documents/${id}/download`, { responseType: 'blob' }),
 
   // 预览文档
   preview: (id: number) =>
@@ -244,35 +211,14 @@ export const knowledgeDocumentApi = {
 
   // 生成知识卡片
   generateCards: (id: number) =>
-    http.post<{ taskId: string; status: string }>(`/knowledge/documents/${id}/generate-cards`),
-
-  // 获取卡片生成状态
-  getCardsGenerationStatus: (id: number, taskId: string) =>
-    http.get<{
-      taskId: string
-      status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
-      progress: number
-      total?: number
-      completed?: number
-      message?: string
-      error?: string
-      cards?: KnowledgeCard[]
-    }>(`/knowledge/documents/${id}/generate-cards/status`, { params: { taskId } })
+    http.post<KnowledgeCard[]>(`/knowledge/documents/${id}/generate-cards`)
 }
 
 // 向量搜索 API
 export const vectorSearchApi = {
   // 语义搜索
   search: (params: VectorSearchQuery) =>
-    http.post<VectorSearchResult[]>('/knowledge/vector-search', params),
-
-  // 相似文档推荐
-  similar: (documentId: number, topK?: number) =>
-    http.get<VectorSearchResult[]>(`/knowledge/vector-search/similar/${documentId}`, { params: { topK } }),
-
-  // 问答检索
-  qa: (tenantId: number, question: string, topK?: number) =>
-    http.post<{ answer: string; sources: VectorSearchResult[] }>('/knowledge/vector-search/qa', { tenantId, question, topK })
+    http.post<VectorSearchResult[]>('/knowledge/vector-search', params)
 }
 
 export interface StreamQAReference {
@@ -483,11 +429,7 @@ export const knowledgeRelationApi = {
 
   // 删除关系
   delete: (id: number) =>
-    http.delete(`/knowledge/relations/${id}`),
-
-  // 从文档提取关系
-  extractFromDocument: (documentId: number) =>
-    http.post<KnowledgeRelation[]>(`/knowledge/relations/extract/${documentId}`)
+    http.delete(`/knowledge/relations/${id}`)
 }
 
 // 知识图谱 API
@@ -549,7 +491,6 @@ export default {
   category: knowledgeCategoryApi,
   card: knowledgeCardApi,
   tag: knowledgeTagApi,
-  readRecord: knowledgeReadRecordApi,
   document: knowledgeDocumentApi,
   vectorSearch: vectorSearchApi,
   smartQA: smartQAApi,

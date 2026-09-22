@@ -4,8 +4,6 @@
 export interface LoginRequest {
   username: string
   password: string
-  rememberMe?: boolean
-  captcha?: string
 }
 
 // 登录响应
@@ -48,12 +46,6 @@ export interface ChangePasswordRequest {
   oldPassword: string
   newPassword: string
   confirmPassword: string
-}
-
-// 重置密码请求
-export interface ResetPasswordRequest {
-  email: string
-  captcha?: string
 }
 
 // 角色

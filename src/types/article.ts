@@ -60,18 +60,16 @@ export interface Article {
   source: string
   authorId?: number
   authorName?: string
-  views?: number
   viewCount: number
   likeCount: number
-  shareCount: number
   sort: number
   sortOrder?: number
   status: string
   isTop?: boolean
   isRecommend?: boolean
-  publishAt: string
-  createdAt: string
-  updatedAt: string
+  publishedAt?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 // 图片库
@@ -171,9 +169,10 @@ export interface ArticleForm {
   isRecommend?: boolean
 }
 
+/** 发布参数：后端只认 scheduledTime/priority，给了未来时间即入队，否则立即发布 */
 export interface ArticlePublish {
-  id: number
-  scheduledAt?: string
+  scheduledTime?: string
+  priority?: number
 }
 
 // 分页结果

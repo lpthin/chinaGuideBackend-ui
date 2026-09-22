@@ -569,26 +569,22 @@ export const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach((to) => {
   const authStore = useAuthStore()
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth !== false)
 
   if (requiresAuth && !authStore.isLoggedIn) {
-    next({
-      name: 'login',
-      query: { redirect: to.fullPath }
-    })
-  } else if (to.name === 'login' && authStore.isLoggedIn) {
-    next({ name: 'workspace-dashboard' })
-  } else {
-    const requiresSuperAdmin = to.matched.some(record => record.meta.requiresSuperAdmin === true)
-    if (requiresSuperAdmin && !authStore.isSuperAdmin) {
-      message.error('无权限访问该页面')
-      next({ name: 'workspace-dashboard' })
-      return
-    }
-    next()
+    return { name: 'login', query: { redirect: to.fullPath } }
   }
+  if (to.name === 'login' && authStore.isLoggedIn) {
+    return { name: 'workspace-dashboard' }
+  }
+  const requiresSuperAdmin = to.matched.some(record => record.meta.requiresSuperAdmin === true)
+  if (requiresSuperAdmin && !authStore.isSuperAdmin) {
+    message.error('无权限访问该页面')
+    return { name: 'workspace-dashboard' }
+  }
+  return true
 })
 
 export default router

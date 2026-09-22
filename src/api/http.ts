@@ -12,7 +12,6 @@ function handleUnauthorized() {
   try {
     const auth = useAuthStore()
     auth.accessToken = ''
-    auth.refreshToken = ''
     auth.user = null
   } catch (e) {}
   localStorage.removeItem('access_token')
@@ -55,7 +54,12 @@ export function describeHttpError(error: unknown): string {
   if (bizMessage) return bizMessage
   if (axiosError?.code === 'ECONNABORTED') return '请求超时，服务处理时间较长，请稍后重试'
   const status = axiosError?.response?.status
-  if (!status) return '无法连接服务器，请确认后端已启动'
+  if (!status) {
+    // axios 自身的技术错误（Network Error 等）不能直接抛给界面；
+    // 拦截器转抛的纯 Error 里带的是后端返回的中文业务文案，原样透出。
+    if (axiosError?.isAxiosError) return '无法连接服务器，请确认后端已启动'
+    return (error as Error | null)?.message || '无法连接服务器，请确认后端已启动'
+  }
   switch (status) {
     case 400: return '请求参数有误，请检查后重试'
     case 401: return '登录状态已失效，请重新登录'

@@ -152,13 +152,6 @@ export interface KnowledgeStats {
     name: string
     count: number
   }[]
-  recentActivities: {
-    id: number
-    type: string
-    title: string
-    time: string
-    userName: string
-  }[]
 }
 
 // 查询参数扩展

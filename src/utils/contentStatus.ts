@@ -8,6 +8,7 @@ export type ArticleStatus =
   | 'approved'
   | 'scheduled'
   | 'published'
+  | 'offline'
 
 export type QueueStatus =
   | 'pending'
@@ -28,6 +29,7 @@ export const ARTICLE_STATUS: Record<ArticleStatus, StatusMeta> = {
   approved: { label: '审核通过', color: 'success' },
   scheduled: { label: '已排期', color: 'warning' },
   published: { label: '已发布', color: 'success' },
+  offline: { label: '已下架', color: 'warning' },
 }
 
 export const QUEUE_STATUS: Record<QueueStatus, StatusMeta> = {

@@ -2,6 +2,7 @@
 import http, { currentAuthToken, AI_REQUEST_TIMEOUT } from './http'
 import type {
   DashboardStats,
+  DashboardCharts,
   KeywordCluster,
   KeywordContentSuggestion,
   GeneratedContent,
@@ -36,9 +37,11 @@ export const dashboardApi = {
   getStats: (tenantId?: number) =>
     http.get<DashboardStats>('/workspace/dashboard/stats', tenantId !== undefined ? { params: { tenantId } } : {}),
 
-  // 获取图表数据
-  getCharts: (tenantId?: number) =>
-    http.get<any>('/workspace/dashboard/charts', tenantId !== undefined ? { params: { tenantId } } : {}),
+  // 获取图表数据（days: 7 / 30 / 180）
+  getCharts: (tenantId?: number, days = 7) =>
+    http.get<DashboardCharts>('/workspace/dashboard/charts', {
+      params: tenantId !== undefined ? { tenantId, days } : { days }
+    }),
 
   // 获取最近文章
   getRecentArticles: () =>
@@ -65,11 +68,7 @@ export const keywordApi = {
 
   // 批量删除
   batchDelete: (ids: number[], tenantId?: number) =>
-    http.delete<{ deleted: number }>('/workspace/keywords/batch-delete', { data: ids, params: { tenantId } }),
-
-  // 获取关键词统计
-  getStats: (tenantId?: number) =>
-    http.get<{ total: number; pending: number; distilled: number }>('/workspace/keywords/stats', { params: { tenantId } }),
+    http.post<{ deleted: number }>('/workspace/keywords/batch-delete', { ids }, { params: { tenantId } }),
 
   // 获取关键词图表数据（趋势图和来源分布）
   getKeywordStats: (tenantId?: number) =>
@@ -232,10 +231,6 @@ export const articleApi = {
   // 删除文章
   delete: (id: number, tenantId?: number) =>
     http.delete<void>(`/workspace/articles/${id}`, { params: { tenantId } }),
-
-  // 批量删除
-  batchDelete: (ids: number[], tenantId?: number) =>
-    http.delete<void>('/workspace/articles/batch', { data: ids, params: { tenantId } }),
 
   // 提交审核
   submitReview: (id: number, tenantId?: number) =>
@@ -449,23 +444,19 @@ export const adminApi = {
     getRoles: (id: number) =>
       http.get<number[]>(`/admin/users/${id}/roles`),
     assignRoles: (id: number, roleIds: number[]) =>
-      http.put<void>(`/admin/users/${id}/roles`, roleIds),
-    resetPassword: (id: number) =>
-      http.post<{ newPassword: string }>(`/admin/users/${id}/reset-password`),
+      http.post<void>(`/admin/users/${id}/roles`, { roleIds }),
   },
 
   // 站点管理
   sites: {
-    list: (params: { page?: number; size?: number; status?: string }) =>
-      http.get<PageResult<any>>('/admin/sites', { params }),
+    list: () =>
+      http.get<any[]>('/admin/sites'),
     get: (id: number) =>
       http.get<any>(`/admin/sites/${id}`),
     create: (data: any) =>
       http.post<any>('/admin/sites', data),
     update: (id: number, data: any) =>
       http.put<any>(`/admin/sites/${id}`, data),
-    delete: (id: number) =>
-      http.delete<void>(`/admin/sites/${id}`),
   },
 
   // 角色管理
@@ -619,8 +610,6 @@ export const categoryApi = {
     http.put<any>(`/article/categories/${id}`, data),
   delete: (id: number) =>
     http.delete<void>(`/article/categories/${id}`),
-  getStats: () =>
-    http.get<any>('/article/categories/stats'),
 }
 
 // 统一导出

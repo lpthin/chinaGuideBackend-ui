@@ -169,6 +169,9 @@ export interface ConsumptionStats {
   thisMonthExpense?: number
   lastMonthExpense?: number
   monthOverMonthGrowth?: number
+  pendingInvoices?: number
+  pendingAmount?: number
+  lastMonthInvoices?: number
   breakdown: {
     productType: ProductType
     productName: string

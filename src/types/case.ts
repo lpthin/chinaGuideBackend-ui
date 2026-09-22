@@ -1,13 +1,11 @@
 // 案例管理模块类型定义
 
 // 案例状态枚举
+// 后端 case_info 写路径只会产生这两个值：create 默认 DRAFT、publish 置 PUBLISHED、
+// unpublish 回 DRAFT（入库大写、DTO 转小写）。审核进度由独立的 reviewStatus 表达。
 export enum CaseStatus {
   DRAFT = 'draft',
-  REVIEWING = 'reviewing',
-  APPROVED = 'approved',
-  PUBLISHED = 'published',
-  ARCHIVED = 'archived',
-  REJECTED = 'rejected'
+  PUBLISHED = 'published'
 }
 
 // 案例优先级枚举
@@ -53,171 +51,87 @@ export interface CaseCategory {
   children?: CaseCategory[]
 }
 
-// 案例附件
-export interface CaseAttachment {
-  id: number
-  caseId: number
-  fileName: string
-  fileUrl: string
-  fileSize: number
-  fileType: string
-  uploadedBy: number
-  uploadedByName?: string
-  createdAt: string
-}
-
-// 案例评论
-export interface CaseComment {
-  id: number
-  caseId: number
-  userId: number
-  userName: string
-  userAvatar?: string
-  content: string
-  parentId?: number
-  createdAt: string
-}
-
-// 案例版本记录
-export interface CaseVersion {
-  id: number
-  caseId: number
-  version: string
-  title: string
-  changeLog: string
-  createdBy: number
-  createdByName?: string
-  createdAt: string
-}
-
 // 案例
 export interface Case {
   id: number
-  tenantId: number
+  tenantId?: number
+  siteId?: number
+  caseNo?: string
   categoryId: number
   categoryName?: string
   title: string
+  subtitle?: string
   summary: string
   content: string
-  coverImage?: string
-  type: CaseType
-  status: CaseStatus
-  priority: CasePriority
   customerName?: string
   customerIndustry?: string
   customerScale?: string
   tags: string
   tagList?: string[]
+  coverImage?: string
+  bannerImage?: string
+  caseDate?: string
+  projectDuration?: string
+  projectBudget?: number
+  difficultyLevel?: string
+  sortOrder?: number
   viewCount: number
   likeCount: number
   shareCount: number
-  downloadCount: number
-  authorId: number
-  authorName?: string
+  status: CaseStatus
+  reviewStatus?: string
   reviewerId?: number
   reviewerName?: string
+  reviewTime?: string
+  reviewComment?: string
+  version?: number
+  isPublished?: boolean
   publishedAt?: string
+  seoTitle?: string
+  seoKeywords?: string
+  seoDescription?: string
+  seoUrl?: string
+  templateType?: string
   createdAt: string
   updatedAt: string
-  attachments?: CaseAttachment[]
-  comments?: CaseComment[]
-  versions?: CaseVersion[]
+  type?: CaseType
+  priority?: CasePriority
+  authorId?: number
+  authorName?: string
 }
 
-// 案例统计
-export interface CaseStats {
-  totalCases: number
-  publishedCases: number
-  draftCases: number
-  reviewingCases: number
-  totalViews: number
-  totalLikes: number
-  totalShares: number
-  weeklyGrowth: {
-    cases: number
-    views: number
-    percentage: number
-  }
-  topCategories: {
-    id: number
-    name: string
-    count: number
-  }[]
-  topTags: {
-    id: number
-    name: string
-    count: number
-  }[]
-  recentActivities: {
-    id: number
-    type: string
-    title: string
-    time: string
-    userName: string
-  }[]
-  statusDistribution: {
-    status: CaseStatus
-    count: number
-    label: string
-  }[]
-  typeDistribution: {
-    type: CaseType
-    count: number
-    label: string
-  }[]
+// 案例统计（GET /cases/statistics）
+export interface CaseStatistics {
+  total: number
+  published: number
+  draft: number
+  pendingReview: number
 }
 
 // 列表查询参数
 export interface CaseQuery {
-  tenantId: number
+  tenantId?: number
+  siteId?: number
   categoryId?: number | null
   status?: CaseStatus
+  reviewStatus?: string
   type?: CaseType
   priority?: CasePriority
-  authorId?: number
   keyword?: string
-  startDate?: string
-  endDate?: string
   page?: number
   size?: number
 }
 
 export interface CaseCategoryQuery {
-  tenantId: number
-  parentId?: number | null
+  tenantId?: number
+  siteId?: number
   status?: string
-  page?: number
-  size?: number
-}
-
-export interface CaseTagQuery {
-  tenantId: number
-  keyword?: string
-  page?: number
-  size?: number
-}
-
-// 创建/更新表单
-export interface CaseForm {
-  id?: number
-  tenantId: number
-  categoryId: number
-  title: string
-  summary?: string
-  content: string
-  coverImage?: string
-  type: CaseType
-  priority: CasePriority
-  customerName?: string
-  customerIndustry?: string
-  customerScale?: string
-  tags?: string
-  status?: CaseStatus
 }
 
 export interface CaseCategoryForm {
   id?: number
-  tenantId: number
+  tenantId?: number
+  siteId?: number
   parentId?: number | null
   name: string
   icon?: string
@@ -226,18 +140,40 @@ export interface CaseCategoryForm {
   status?: string
 }
 
-export interface CaseTagForm {
+// 创建/更新表单
+export interface CaseForm {
   id?: number
-  tenantId: number
-  name: string
-  color?: string
-}
-
-// 审核表单
-export interface CaseReviewForm {
-  caseId: number
-  status: CaseStatus.APPROVED | CaseStatus.REJECTED
-  comment?: string
+  tenantId?: number
+  siteId?: number
+  caseNo?: string
+  categoryId?: number | null
+  title: string
+  subtitle?: string
+  summary?: string
+  content?: string
+  customerName?: string
+  customerIndustry?: string
+  customerScale?: string
+  type?: CaseType | string
+  priority?: CasePriority | string
+  authorId?: number | null
+  coverImage?: string
+  bannerImage?: string
+  caseDate?: string
+  projectDuration?: string
+  projectBudget?: number
+  difficultyLevel?: string
+  sortOrder?: number
+  tags?: string
+  status?: CaseStatus | string
+  reviewStatus?: string
+  isPublished?: boolean
+  publishedAt?: string
+  seoTitle?: string
+  seoKeywords?: string
+  seoDescription?: string
+  seoUrl?: string
+  templateType?: string
 }
 
 // 分页结果
@@ -246,5 +182,5 @@ export interface PageResult<T> {
   total: number
   page: number
   size: number
-  pages: number
+  pages?: number
 }

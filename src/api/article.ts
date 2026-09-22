@@ -51,10 +51,6 @@ export const articleManageApi = {
   list: (params: ArticleQuery) =>
     http.get<PageResult<Article>>('/articles', { params }),
 
-  // 搜索文章
-  search: (params: ArticleQuery) =>
-    http.get<PageResult<Article>>('/articles/search', { params }),
-
   // 获取文章详情
   get: (id: number) =>
     http.get<Article>(`/articles/${id}`),
@@ -77,15 +73,7 @@ export const articleManageApi = {
 
   // 发布文章
   publish: (id: number, data?: ArticlePublish) =>
-    http.put<Article>(`/articles/${id}/publish`, data || {}),
-
-  // 点赞文章
-  like: (id: number) =>
-    http.post(`/articles/${id}/like`),
-
-  // 分享文章（增加统计）
-  share: (id: number) =>
-    http.post(`/articles/${id}/share`)
+    http.put<Article>(`/articles/${id}/publish`, data || {})
 }
 
 // 图片库 API

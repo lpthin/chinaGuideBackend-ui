@@ -18,4 +18,4 @@ export * from './workspace'
 
 // 认证模块
 export * from './auth'
-export { authApi, userApi, roleApi, permissionApi, profileApi } from './auth'
+export { authApi, profileApi } from './auth'

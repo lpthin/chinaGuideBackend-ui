@@ -23,10 +23,27 @@ export interface DashboardStats {
   draftCount: number
   totalViews: number
   todayCount: number
+  monthCount: number
   pendingReview: number
   totalKeywords: number
   totalClusters: number
-  avgScore: number
+  articlesWeek: number
+  keywordsWeek: number
+  viewsWeek: number
+  pendingWeek: number
+}
+
+export interface DashboardTrend {
+  dates: string[]
+  articles: number[]
+  keywords: number[]
+  views: number[]
+  days: number
+}
+
+export interface DashboardCharts {
+  articleTrend: DashboardTrend
+  categoryDistribution: { name: string; value: number }[]
 }
 
 // 关键词聚类
@@ -228,10 +245,15 @@ export interface AuditLog {
   userId: number
   username: string
   action: string
-  module: string
-  ip: string
+  resource: string
+  resourceId: string
+  method: string
+  ipAddress: string
   userAgent: string
-  detail: string
+  requestParams: string
+  responseStatus: string
+  errorMessage: string
+  duration: number
   createdAt: string
 }
 
@@ -241,7 +263,7 @@ export interface AuditLogQuery {
   size?: number
   tenantId?: number
   action?: string
-  module?: string
+  resource?: string
   username?: string
   startDate?: string
   endDate?: string
@@ -251,9 +273,7 @@ export interface AuditLogQuery {
 export interface AuditLogStats {
   total: number
   todayTotal: number
-  loginCount: number
   errorCount: number
-  sensitiveCount: number
 }
 
 // 系统设置

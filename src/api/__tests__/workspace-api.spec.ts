@@ -48,7 +48,12 @@ describe('Workspace API Module', () => {
 
     it('getCharts should call correct endpoint', async () => {
       await dashboardApi.getCharts(1)
-      expect((await httpMock()).get).toHaveBeenCalledWith('/workspace/dashboard/charts', { params: { tenantId: 1 } })
+      expect((await httpMock()).get).toHaveBeenCalledWith('/workspace/dashboard/charts', { params: { tenantId: 1, days: 7 } })
+    })
+
+    it('getCharts should pass the selected window', async () => {
+      await dashboardApi.getCharts(1, 30)
+      expect((await httpMock()).get).toHaveBeenCalledWith('/workspace/dashboard/charts', { params: { tenantId: 1, days: 30 } })
     })
   })
 
@@ -168,8 +173,8 @@ describe('Workspace API Module', () => {
 
   describe('adminApi', () => {
     it('sites.list should call correct endpoint', async () => {
-      await adminApi.sites.list({ status: 'ACTIVE' })
-      expect((await httpMock()).get).toHaveBeenCalledWith('/admin/sites', { params: { status: 'ACTIVE' } })
+      await adminApi.sites.list()
+      expect((await httpMock()).get).toHaveBeenCalledWith('/admin/sites')
     })
 
     it('roles.all should call correct endpoint', async () => {
