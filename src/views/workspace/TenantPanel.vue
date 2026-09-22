@@ -2,7 +2,7 @@
   <div class="tenant-panel">
     <!-- 统计卡片区域 -->
     <a-row :gutter="16" style="margin-bottom: 16px">
-      <a-col :span="6">
+      <a-col :span="8">
         <a-card class="stat-card">
           <div class="stat-content">
             <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
@@ -15,7 +15,7 @@
           </div>
         </a-card>
       </a-col>
-      <a-col :span="6">
+      <a-col :span="8">
         <a-card class="stat-card">
           <div class="stat-content">
             <div class="stat-icon" style="background: linear-gradient(135deg, #13c2c2 0%, #08979c 100%)">
@@ -28,20 +28,7 @@
           </div>
         </a-card>
       </a-col>
-      <a-col :span="6">
-        <a-card class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%)">
-              <UserOutlined />
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ stats.totalUsers }}</div>
-              <div class="stat-label">总用户数</div>
-            </div>
-          </div>
-        </a-card>
-      </a-col>
-      <a-col :span="6">
+      <a-col :span="8">
         <a-card class="stat-card">
           <div class="stat-content">
             <div class="stat-icon" style="background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%)">
@@ -77,8 +64,8 @@
           >
             <a-select-option value="all">全部</a-select-option>
             <a-select-option value="active">活跃</a-select-option>
-            <a-select-option value="inactive">停用</a-select-option>
-            <a-select-option value="expired">已过期</a-select-option>
+            <a-select-option value="paused">暂停</a-select-option>
+            <a-select-option value="cancelled">注销</a-select-option>
           </a-select>
           <a-button type="primary" @click="showCreateModal">
             <template #icon><PlusOutlined /></template>
@@ -102,11 +89,6 @@
               {{ getStatusText(record.status) }}
             </a-tag>
           </template>
-          <template v-if="column.key === 'expiryDate'">
-            <span :class="{ 'text-warning': isExpiringSoon(record.expiryDate) }">
-              {{ record.expiryDate }}
-            </span>
-          </template>
           <template v-if="column.key === 'action'">
             <a-space>
               <a-button type="link" size="small" @click="viewDetail(record)">
@@ -114,9 +96,6 @@
               </a-button>
               <a-button type="link" size="small" @click="editTenant(record)">
                 编辑
-              </a-button>
-              <a-button type="link" size="small" @click="manageUsers(record)">
-                用户
               </a-button>
               <a-popconfirm
                 title="确定要删除该租户吗？"
@@ -175,6 +154,18 @@
               />
             </a-form-item>
           </a-col>
+          <template v-if="!isEdit">
+            <a-col :span="12">
+              <a-form-item label="管理员账号" name="adminUsername" extra="留空则自动使用 租户代码_admin">
+                <a-input v-model:value="formData.adminUsername" placeholder="例如 jingtian_admin" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="初始密码" name="adminPassword" extra="至少 6 位，交付后请让客户尽快修改">
+                <a-input-password v-model:value="formData.adminPassword" placeholder="管理员登录密码" autocomplete="new-password" />
+              </a-form-item>
+            </a-col>
+          </template>
         </a-row>
       </a-form>
     </a-modal>
@@ -197,70 +188,27 @@
         <a-descriptions-item label="联系邮箱">{{ currentTenant.contactEmail }}</a-descriptions-item>
         <a-descriptions-item label="联系电话">{{ currentTenant.contactPhone }}</a-descriptions-item>
         <a-descriptions-item label="官网">{{ currentTenant.website || '-' }}</a-descriptions-item>
-        <a-descriptions-item label="创建时间">{{ currentTenant.createdAt }}</a-descriptions-item>
-        <a-descriptions-item label="更新时间">{{ currentTenant.updatedAt }}</a-descriptions-item>
+        <a-descriptions-item label="创建时间">{{ formatDateTime(currentTenant.createdAt) }}</a-descriptions-item>
+        <a-descriptions-item label="更新时间">{{ formatDateTime(currentTenant.updatedAt) }}</a-descriptions-item>
         <a-descriptions-item label="描述" :span="2">{{ currentTenant.description || '-' }}</a-descriptions-item>
       </a-descriptions>
     </a-drawer>
 
-    <!-- 用户管理弹窗 -->
-    <a-modal
-      v-model:open="userModalVisible"
-      title="租户用户管理"
-      width="800px"
-      :footer="null"
-    >
-      <template v-if="currentTenant">
-        <a-card size="small" style="margin-bottom: 16px">
-          <template #title>租户: {{ currentTenant.name }}</template>
-          <template #extra>
-            <a-button type="primary" size="small">
-              <template #icon><PlusOutlined /></template>
-              添加用户
-            </a-button>
-          </template>
-          <a-table
-            :scroll="{ x: 'max-content' }"
-            :columns="userColumns"
-            :data-source="tenantUsers"
-            :pagination="false"
-            size="small"
-            row-key="id"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'status'">
-                <a-tag :color="record.status === 'active' ? 'success' : 'default'">
-                  {{ record.status === 'active' ? '正常' : '禁用' }}
-                </a-tag>
-              </template>
-              <template v-if="column.key === 'action'">
-                <a-space>
-                  <a-button type="link" size="small">编辑</a-button>
-                  <a-popconfirm title="确定要移除该用户吗？">
-                    <a-button type="link" size="small" danger>移除</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
-        </a-card>
-      </template>
-    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
-import { message } from 'ant-design-vue'
+import { ref, reactive, onMounted, h } from 'vue'
+import { message, Modal } from 'ant-design-vue'
 import {
   ApartmentOutlined,
   CheckCircleOutlined,
-  UserOutlined,
   RiseOutlined,
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import type { TableProps } from 'ant-design-vue'
-import http from '@/api/http'
+import http, { describeHttpError } from '@/api/http'
+import { formatDateTime } from '@/utils/format'
 
 interface Tenant {
   id: number
@@ -281,16 +229,14 @@ const searchText = ref('')
 const statusFilter = ref('all')
 const modalVisible = ref(false)
 const detailVisible = ref(false)
-const userModalVisible = ref(false)
 const isEdit = ref(false)
 const currentTenant = ref<Tenant | null>(null)
 const editingId = ref<number | null>(null)
 
 const stats = reactive({
-  totalTenants: 156,
-  activeTenants: 142,
-  totalUsers: 892,
-  newToday: 8
+  totalTenants: 0,
+  activeTenants: 0,
+  newToday: 0
 })
 
 const pagination = reactive({
@@ -309,22 +255,17 @@ const columns = [
   { title: '联系邮箱', dataIndex: 'contactEmail', key: 'contactEmail', width: 180 },
   { title: '联系电话', dataIndex: 'contactPhone', key: 'contactPhone', width: 130 },
   { title: '状态', key: 'status', width: 80 },
-  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
+  {
+    title: '创建时间',
+    dataIndex: 'createdAt',
+    key: 'createdAt',
+    width: 180,
+    customRender: ({ text }: { text: string }) => formatDateTime(text)
+  },
   { title: '操作', key: 'action', width: 180, fixed: 'right' }
 ]
 
-const userColumns = [
-  { title: '用户ID', dataIndex: 'id', key: 'id', width: 80 },
-  { title: '用户名', dataIndex: 'username', key: 'username', width: 120 },
-  { title: '邮箱', dataIndex: 'email', key: 'email', width: 180 },
-  { title: '角色', dataIndex: 'role', key: 'role', width: 100 },
-  { title: '状态', key: 'status', width: 80 },
-  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 160 },
-  { title: '操作', key: 'action', width: 120 }
-]
-
 const tenantList = ref<Tenant[]>([])
-const tenantUsers = ref<any[]>([])
 
 const formData = reactive({
   name: '',
@@ -334,19 +275,31 @@ const formData = reactive({
   website: '',
   description: '',
   status: 1,
+  adminUsername: '',
+  adminPassword: '',
 })
+
+interface ProvisionedTenant {
+  id: number
+  name: string
+  code: string
+  planId: number
+  adminUsername: string
+  contactEmail: string
+}
 
 const formRules = {
   name: [{ required: true, message: '请输入租户名称' }],
   code: [{ required: true, message: '请输入租户代码' }],
   contactEmail: [{ required: true, message: '请输入联系邮箱' }],
+  adminPassword: [{ required: true, message: '请设置管理员初始密码，至少 6 位' }],
 }
 
 const getStatusColor = (status: number) => {
   const colorMap: Record<number, string> = {
     1: 'success',
-    0: 'default',
-    2: 'error'
+    2: 'warning',
+    3: 'default'
   }
   return colorMap[status] || 'default'
 }
@@ -354,18 +307,10 @@ const getStatusColor = (status: number) => {
 const getStatusText = (status: number) => {
   const textMap: Record<number, string> = {
     1: '活跃',
-    0: '停用',
-    2: '已过期'
+    2: '暂停',
+    3: '注销'
   }
   return textMap[status] || String(status)
-}
-
-const isExpiringSoon = (date: string) => {
-  if (!date) return false
-  const expiryDate = new Date(date)
-  const now = new Date()
-  const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  return diffDays <= 30 && diffDays > 0
 }
 
 const loadData = async () => {
@@ -381,8 +326,8 @@ const loadData = async () => {
     if (statusFilter.value !== 'all') {
       const statusMap: Record<string, number> = {
         active: 1,
-        inactive: 0,
-        expired: 2
+        paused: 2,
+        cancelled: 3
       }
       filtered = filtered.filter(t => t.status === statusMap[statusFilter.value])
     }
@@ -398,8 +343,8 @@ const loadData = async () => {
       const today = new Date()
       return created.toDateString() === today.toDateString()
     }).length
-  } catch (e: any) {
-    message.error(e.message || '加载失败')
+  } catch (e) {
+    message.error(`加载租户列表失败：${describeHttpError(e)}`)
   } finally {
     loading.value = false
   }
@@ -426,6 +371,8 @@ const showCreateModal = () => {
     website: '',
     description: '',
     status: 1,
+    adminUsername: '',
+    adminPassword: '',
   })
   modalVisible.value = true
 }
@@ -445,6 +392,19 @@ const editTenant = (record: Tenant) => {
   modalVisible.value = true
 }
 
+const showProvisionResult = (created: ProvisionedTenant) => {
+  Modal.success({
+    title: '租户已开通',
+    width: 460,
+    content: h('div', {}, [
+      h('p', {}, `租户：${created.name}（${created.code}）`),
+      h('p', {}, '管理员登录账号：'),
+      h('p', { style: 'font-weight:600;font-family:monospace' }, created.adminUsername),
+      h('p', { style: 'color:#888' }, '初始密码即上面填写的密码，请交付客户后提醒其尽快修改。'),
+    ]),
+  })
+}
+
 const submitTenant = async () => {
   try {
     if (isEdit.value) {
@@ -457,20 +417,26 @@ const submitTenant = async () => {
       })
       message.success('租户信息已更新')
     } else {
-      await http.post('/admin/tenants', {
+      if (!formData.adminPassword || formData.adminPassword.length < 6) {
+        message.error('请设置管理员初始密码，至少 6 位')
+        return
+      }
+      const created = await http.post<ProvisionedTenant>('/admin/tenants', {
         name: formData.name,
         code: formData.code,
         contactEmail: formData.contactEmail,
         contactPhone: formData.contactPhone,
         website: formData.website,
         description: formData.description,
+        adminUsername: formData.adminUsername || undefined,
+        adminPassword: formData.adminPassword || undefined,
       })
-      message.success('租户创建成功')
+      showProvisionResult(created)
     }
     modalVisible.value = false
     loadData()
-  } catch (e: any) {
-    message.error(e.message || '操作失败')
+  } catch (e) {
+    message.error(`操作失败：${describeHttpError(e)}`)
   }
 }
 
@@ -479,19 +445,14 @@ const deleteTenant = async (id: number) => {
     await http.delete(`/admin/tenants/${id}`)
     message.success('删除成功')
     loadData()
-  } catch (e: any) {
-    message.error(e.message || '删除失败')
+  } catch (e) {
+    message.error(`删除失败：${describeHttpError(e)}`)
   }
 }
 
 const viewDetail = (record: Tenant) => {
   currentTenant.value = record
   detailVisible.value = true
-}
-
-const manageUsers = (record: Tenant) => {
-  currentTenant.value = record
-  userModalVisible.value = true
 }
 
 onMounted(() => {
@@ -535,11 +496,6 @@ onMounted(() => {
         margin-top: 4px;
       }
     }
-  }
-  
-  .text-warning {
-    color: #fa8c16;
-    font-weight: 500;
   }
 }
 </style>
