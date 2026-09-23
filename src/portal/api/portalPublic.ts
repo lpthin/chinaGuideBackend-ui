@@ -176,6 +176,8 @@ export interface RenderedPage {
   seo: RenderedPageSeo | null
   blocks: RenderedBlock[] | null
   skippedBlocks: string[] | null
+  /** 只有预览令牌那条路会填；访客正常访问永远是 undefined，界面据此显示「这是预览页」提示条 */
+  reviewLabel?: string | null
 }
 
 export class PortalApiError extends Error {
@@ -189,15 +191,21 @@ export class PortalApiError extends Error {
   }
 }
 
-async function get<T>(path: string, params: Record<string, unknown> = {}): Promise<T> {
+async function request<T>(method: 'get' | 'post', path: string, payload: Record<string, unknown> = {}): Promise<T> {
   const site = resolveSiteCode()
+  const params = { ...(site ? { site } : {}) }
   try {
-    const response = await axios.get(path, { params: { ...(site ? { site } : {}), ...params } })
+    const response = method === 'get'
+      ? await axios.get(path, { params: { ...params, ...payload } })
+      : await axios.post(path, payload, { params })
     const body = response.data
-    if (body && body.success && body.data !== undefined) {
-      return body.data as T
+    if (body && typeof body.success === 'boolean') {
+      // 判成功的唯一依据是 success：/tickets 这类无返回值端点的 data 就是 null，
+      // 拿 data!==undefined 当成功条件会把一次正常的提交报成失败。
+      if (body.success) return body.data as T
+      throw new PortalApiError(body.message || '门户数据获取失败', response.status, body.code || 'ERROR')
     }
-    throw new PortalApiError(body?.message || '门户数据获取失败', response.status, body?.code || 'ERROR')
+    throw new PortalApiError('门户返回了无法识别的数据结构', response.status, 'BAD_PAYLOAD')
   } catch (error) {
     if (error instanceof PortalApiError) {
       throw error
@@ -207,6 +215,20 @@ async function get<T>(path: string, params: Record<string, unknown> = {}): Promi
     const message = axios.isAxiosError(error) ? error.response?.data?.message : undefined
     throw new PortalApiError(message || '门户数据获取失败', status, code)
   }
+}
+
+function get<T>(path: string, params: Record<string, unknown> = {}): Promise<T> {
+  return request<T>('get', path, params)
+}
+
+/**
+ * 访客侧唯一的写路径：预览令牌下的改版工单。
+ *
+ * 后端对「令牌无效」也返回 success:true 且什么都不落库（不给探测者区分无效/过期/内容非法的信号），
+ * 所以调用方不能只看状态码判断「已提交」，必须带一句「已收到，运营会处理」这种不承诺结果的文案。
+ */
+function post<T>(path: string, payload: Record<string, unknown> = {}): Promise<T> {
+  return request<T>('post', path, payload)
 }
 
 export function fetchSiteShell(): Promise<PortalSiteShell> {
@@ -256,4 +278,38 @@ export function fetchJobs(params: { page?: number; size?: number } = {}) {
  */
 export function fetchPublicPage(slug: string): Promise<RenderedPage> {
   return get<RenderedPage>(`${BASE}/p/${encodeURIComponent(slug)}`)
+}
+
+/**
+ * 预览链接访客侧：用令牌取这一页（草稿状态也能看到，这正是令牌存在的理由）。
+ * 令牌无效/过期时后端回 404 + 中文「预览链接无效或已过期」，这里原样抛错，界面显示一句人话即可。
+ */
+export function fetchReviewPage(token: string): Promise<RenderedPage> {
+  return get<RenderedPage>(`${BASE}/review/${encodeURIComponent(token)}/page`)
+}
+
+/**
+ * 提交一条改版工单。字段严格限制在后端白名单内：
+ * blockInstanceId / blockKey / path / viewport / clientText / intent。
+ * path 只是给人看的定位线索，后端认的是令牌里的页面 id，所以这里不传 pageId。
+ */
+export interface ReviewTicketPayload {
+  blockInstanceId?: string | null
+  blockKey?: string | null
+  path?: string | null
+  viewport?: string | null
+  clientText?: string | null
+  intent?: string | null
+}
+
+export function submitReviewTicket(token: string, payload: ReviewTicketPayload): Promise<void> {
+  return post<void>(`${BASE}/review/${encodeURIComponent(token)}/tickets`, payload as Record<string, unknown>)
+}
+
+/**
+ * 采集器的动作枚举词表（值 → 中文标签），来自后端白名单。
+ * 令牌无效时后端回空对象，界面就不显示下拉——不猜、不在 TS 里抄一份兜底。
+ */
+export function fetchReviewIntentOptions(token: string): Promise<Record<string, string>> {
+  return get<Record<string, string>>(`${BASE}/review/${encodeURIComponent(token)}/options`)
 }

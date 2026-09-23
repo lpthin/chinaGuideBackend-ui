@@ -154,7 +154,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
   }
 }
 
-@media (max-width: 900px) {
+@container portal-viewport (max-width: 900px) {
   .pb-header {
     &__nav {
       display: none;

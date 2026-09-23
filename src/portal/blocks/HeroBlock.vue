@@ -149,7 +149,7 @@ const hasContent = computed(() => Boolean(title.value || subtitle.value || descr
   }
 }
 
-@media (max-width: 640px) {
+@container portal-viewport (max-width: 640px) {
   .pb-hero {
     min-height: 420px;
 

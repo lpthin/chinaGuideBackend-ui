@@ -133,7 +133,7 @@
   color: var(--portal-color-primary);
 }
 
-@media (max-width: 1024px) {
+@container portal-viewport (max-width: 1024px) {
   /* 列数是区块配置，但窄屏必须压过它：4 列在手机上一屏放不下，宁可上下堆叠 */
   .pb-grid,
   .pb-grid--2,
@@ -143,7 +143,7 @@
   }
 }
 
-@media (max-width: 640px) {
+@container portal-viewport (max-width: 640px) {
   .pb-grid,
   .pb-grid--2,
   .pb-grid--3,

@@ -10,6 +10,7 @@ import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { fetchSiteShell } from './api/portalPublic'
 import { slugOfPath } from './portalPath'
+import { reviewTokenOf } from './useReviewMode'
 import PortalDynamicPage from './PortalDynamicPage.vue'
 
 const TechTemplate = defineAsyncComponent(() =>
@@ -57,6 +58,14 @@ function applyRenderKey(value: string | null | undefined) {
  * ?template= 仅用于后台「预览门户」链接指定旧样式，此时强制走模板分支，方便逐块比对是否视觉回归。
  */
 async function decide() {
+  // 预览链接只服务于页面模型那一套（工单要 blockInstanceId），所以带令牌时不进旧模板分支。
+  // 不这么做的话：站点还没打开 page_model_enabled 时，客户点开的是一张旧模板页，
+  // 底部工具条却承诺「点哪块改哪块」——那就是假通。
+  const token = reviewTokenOf(route.query)
+  if (token) {
+    pageModel.value = true
+    return
+  }
   const preview = route.query.template
   if (typeof preview === 'string' && preview in templates) {
     pageModel.value = false
@@ -75,7 +84,7 @@ async function decide() {
 
 onMounted(decide)
 // /about → /services 复用同一组件实例，开关状态要跟着地址重算
-watch(() => [route.path, route.query.template], decide)
+watch(() => [route.path, route.query.template, route.query.reviewToken], decide)
 </script>
 
 <style scoped lang="less">
