@@ -18,7 +18,7 @@
             </a-tag>
           </a-descriptions-item>
           <a-descriptions-item label="账单标题">{{ invoice.title }}</a-descriptions-item>
-          <a-descriptions-item label="账期">{{ invoice.billingStartDate }} ~ {{ invoice.billingEndDate }}</a-descriptions-item>
+          <a-descriptions-item label="账期">{{ formatDate(invoice.billingStartDate) }} ~ {{ formatDate(invoice.billingEndDate) }}</a-descriptions-item>
           <a-descriptions-item label="应付金额">
             <span class="amount-highlight">¥{{ formatAmount(invoice.amount) }}</span>
           </a-descriptions-item>
@@ -27,9 +27,9 @@
             <span v-else>-</span>
           </a-descriptions-item>
           <a-descriptions-item label="支付方式">{{ getPaymentMethodName(invoice.paymentMethod) }}</a-descriptions-item>
-          <a-descriptions-item label="到期日">{{ invoice.dueDate }}</a-descriptions-item>
-          <a-descriptions-item label="支付时间" :span="1">{{ invoice.paidAt || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="创建时间" :span="1">{{ invoice.createdAt }}</a-descriptions-item>
+          <a-descriptions-item label="到期日">{{ formatDate(invoice.dueDate) }}</a-descriptions-item>
+          <a-descriptions-item label="支付时间" :span="1">{{ invoice.paidAt ? formatDateTime(invoice.paidAt, true) : '-' }}</a-descriptions-item>
+          <a-descriptions-item label="创建时间" :span="1">{{ formatDateTime(invoice.createdAt, true) }}</a-descriptions-item>
         </a-descriptions>
 
         <!-- 账单明细 -->

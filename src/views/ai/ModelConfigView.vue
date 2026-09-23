@@ -305,6 +305,7 @@ import {
 import { modelConfigApi, usageApi } from '../../api/ai-model'
 import type { ModelConfig } from '../../types/ai-model'
 import { useAuthStore } from '../../stores/auth'
+import { formatDateTime } from '../../utils/format'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
@@ -375,7 +376,13 @@ const columns = [
   { title: '默认配置', key: 'isDefault', width: 100, align: 'center' as const },
   { title: '状态', key: 'isActive', width: 100, align: 'center' as const },
   { title: '测试结果', key: 'healthStatus', width: 170 },
-  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
+  {
+    title: '创建时间',
+    dataIndex: 'createdAt',
+    key: 'createdAt',
+    width: 180,
+    customRender: ({ text }: { text: string }) => formatDateTime(text),
+  },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 200 },
 ]
 
@@ -414,10 +421,6 @@ function healthTooltip(record: ModelConfig) {
       : '通过'
   }
   return '尚未探测 · 点击「测试」或「立即巡检」，每日 03:30 也会自动巡检'
-}
-
-function formatDateTime(value?: string) {
-  return value ? String(value).replace('T', ' ').slice(0, 19) : ''
 }
 
 function getProviderIcon(provider: string) {

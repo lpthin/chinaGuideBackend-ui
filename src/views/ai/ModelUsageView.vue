@@ -380,6 +380,7 @@ import {
 } from '@ant-design/icons-vue'
 import { aiModelApi } from '../../api/ai-model'
 import { useAuthStore } from '../../stores/auth'
+import { formatDateTime } from '../../utils/format'
 
 const authStore = useAuthStore()
 
@@ -498,6 +499,7 @@ const logColumns = [
     dataIndex: 'createdAt',
     key: 'createdAt',
     width: 180,
+    customRender: ({ text }: { text: string }) => formatDateTime(text, true),
   },
   {
     title: '模型',

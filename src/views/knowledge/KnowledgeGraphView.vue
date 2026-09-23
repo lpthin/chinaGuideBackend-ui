@@ -300,7 +300,7 @@
           </a-descriptions-item>
           <a-descriptions-item label="关联数量">{{ selectedNode.value }}</a-descriptions-item>
           <a-descriptions-item label="来源文档">{{ selectedNode.sourceDocument || '—' }}</a-descriptions-item>
-          <a-descriptions-item label="首次提取时间">{{ selectedNode.extractTime || '—' }}</a-descriptions-item>
+          <a-descriptions-item label="首次提取时间">{{ formatDateTime(selectedNode.extractTime) }}</a-descriptions-item>
         </a-descriptions>
 
         <a-divider>关联实体</a-divider>
@@ -354,6 +354,7 @@ import {
 import { knowledgeGraphApi, knowledgeEntityApi, knowledgeDocumentApi } from '../../api/knowledge'
 import type { ExtractionResult, ExtractedEntity, ExtractedRelation } from '../../api/knowledge'
 import type { KnowledgeDocument, KnowledgeEntity, KnowledgeRelation, KnowledgeGraphData } from '../../types/knowledge'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()

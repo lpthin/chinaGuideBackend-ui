@@ -546,7 +546,7 @@ import {
 import { knowledgeDocumentApi, knowledgeCategoryApi, knowledgeTagApi, knowledgeCardApi } from '../../api/knowledge'
 import { describeHttpError } from '../../api/http'
 import type { KnowledgeCategory, KnowledgeTag, KnowledgeCard, KnowledgeDocument } from '../../types/knowledge'
-import { formatTime as formatAbsoluteTime } from '@/utils/format'
+import { formatTime as formatAbsoluteTime, formatFileSize } from '@/utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 // ==================== 知识库文档相关状态 ====================
@@ -1060,15 +1060,6 @@ async function handleBatchSetCategory() {
 }
 
 // ==================== 工具方法 ====================
-const formatFileSize = (bytes?: number | null): string => {
-  if (bytes == null) return '0 B'
-  if (!bytes) return '0 B'
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-  return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB'
-}
-
 function isImage(mimeType: string): boolean {
   return mimeType?.startsWith('image/') ?? false
 }

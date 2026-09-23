@@ -20,7 +20,7 @@
               <component :is="stat.icon" />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ stat.value }}</div>
+              <div class="stat-value">{{ formatNumber(stat.value) }}</div>
               <div class="stat-label">{{ stat.label }}</div>
             </div>
           </a-card>
@@ -201,6 +201,7 @@ import { knowledgeStatsApi, knowledgeCategoryApi, knowledgeDocumentApi, smartQAA
 import type { StreamQAReference, KnowledgeCategoryStats } from '../../api/knowledge'
 import type { Dayjs } from 'dayjs'
 import { useAuthStore } from '../../stores/auth'
+import { formatNumber } from '../../utils/format'
 
 const router = useRouter()
 const auth = useAuthStore()
