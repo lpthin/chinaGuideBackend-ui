@@ -2,6 +2,7 @@ import { config } from '@vue/test-utils'
 import { vi } from 'vitest'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { createPinia, setActivePinia } from 'pinia'
+import { createHead } from '@vueuse/head'
 
 setActivePinia(createPinia())
 
@@ -10,7 +11,8 @@ const router = createRouter({
   routes: [],
 })
 
-config.global.plugins = [router]
+// 门户组件里用了 useHead（页面标题/meta），不装插件的话每个用例都会喷 injection 警告
+config.global.plugins = [router, createHead()]
 config.global.stubs = {
   'router-link': true,
   'router-view': true,

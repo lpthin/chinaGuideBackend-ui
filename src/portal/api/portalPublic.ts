@@ -54,6 +54,8 @@ export interface PortalSiteShell {
   seo: PortalSeo | null
   template: PortalTemplateInfo
   nav: PortalNavItem[]
+  /** 站点是否走「区块白名单页面模型」；false/undefined 时门户仍用旧模板渲染（灰度开关，见 site.page_model_enabled） */
+  pageModelEnabled?: boolean | null
 }
 
 export interface PortalArticleItem {
@@ -82,7 +84,6 @@ export interface PortalArticleDetail {
   title: string | null
   summary: string | null
   contentMd: string | null
-  contentHtml: string | null
   coverImage: string | null
   publishedAt: string | null
   categoryName: string | null
@@ -146,6 +147,37 @@ export interface PortalPage<T> {
   size: number
 }
 
+/**
+ * 页面模型：访客拿到的区块序列（后端 RenderedPage）。
+ *
+ * props 里的 {"$data":...} 已在服务端解析完，前端拿不到也不需要知道数据从哪来；
+ * rendererKey 只允许命中 src/portal/blocks/registry.ts 里登记的组件，命不中就整块不渲染。
+ */
+export interface RenderedBlock {
+  instanceId: string
+  blockKey: string
+  rendererKey: string
+  props: Record<string, unknown>
+}
+
+export interface RenderedPageSeo {
+  title: string | null
+  description: string | null
+  keywords: string | null
+}
+
+export interface RenderedPage {
+  id: number
+  slug: string | null
+  path: string | null
+  title: string | null
+  pageKind: string | null
+  theme: Record<string, string | number> | null
+  seo: RenderedPageSeo | null
+  blocks: RenderedBlock[] | null
+  skippedBlocks: string[] | null
+}
+
 export class PortalApiError extends Error {
   readonly status: number
   readonly code: string
@@ -181,10 +213,6 @@ export function fetchSiteShell(): Promise<PortalSiteShell> {
   return get<PortalSiteShell>(`${BASE}/site`)
 }
 
-export function fetchTemplate(): Promise<PortalTemplateInfo> {
-  return get<PortalTemplateInfo>(`${BASE}/template`)
-}
-
 export function fetchArticles(params: { category?: string; page?: number; size?: number } = {}) {
   return get<PortalPage<PortalArticleItem>>(`${BASE}/articles`, params)
 }
@@ -218,4 +246,14 @@ export function fetchCategories(): Promise<PortalCategoryNode[]> {
 
 export function fetchJobs(params: { page?: number; size?: number } = {}) {
   return get<PortalPage<PortalJobItem>>(`${BASE}/jobs`, params)
+}
+
+/**
+ * 取一个已发布页面的区块序列。slug 用 PortalUrls.slugOfPath 从访客地址反推：
+ * / → home、/about → about、/p/my-page → my-page。
+ * 未发布或不存在的页面后端返回 404 + 中文消息，这里原样抛 PortalApiError，不做「返回首页」的降级
+ * ——把 404 变成首页会让爬虫以为站点内容错位，也会掩盖站点没建页面这个真实问题。
+ */
+export function fetchPublicPage(slug: string): Promise<RenderedPage> {
+  return get<RenderedPage>(`${BASE}/p/${encodeURIComponent(slug)}`)
 }

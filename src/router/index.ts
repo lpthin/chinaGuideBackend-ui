@@ -50,6 +50,7 @@ const OrdersView = () => import('../views/billing/OrdersView.vue')
 
 // 🏢 门户网站模块
 const PortalHome = () => import('../portal/PortalHome.vue')
+const PortalDynamicPage = () => import('../portal/PortalDynamicPage.vue')
 const PortalArticleDetail = () => import('../portal/PortalArticleDetail.vue')
 const PortalCaseDetail = () => import('../portal/PortalCaseDetail.vue')
 const BannerManageView = () => import('../views/portal/BannerManageView.vue')
@@ -144,6 +145,14 @@ const routes: RouteRecordRaw[] = [
     name: 'portal-contact',
     component: PortalHome,
     meta: { title: '联系我们', requiresAuth: false }
+  },
+  // 租户自定义页：路径由后端 PortalUrls.page() 生成（内置页仍走上面六个原路径，不搬家）
+  {
+    path: '/p/:slug',
+    name: 'portal-page',
+    component: PortalDynamicPage,
+    props: route => ({ slug: String(route.params.slug ?? '') }),
+    meta: { title: '页面', requiresAuth: false }
   },
   // 详情页：路径与后端 PortalUrls（sitemap / llms.txt / 门户列表返回的 link）完全一致，
   // 少了这两条路由，爬虫按 sitemap 抓过来全是 404，访客点新闻列表也是 404。
