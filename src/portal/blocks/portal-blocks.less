@@ -1,0 +1,161 @@
+/**
+ * 区块共用的排版原语（只有一份，由 PortalDynamicPage.vue 以非 scoped 方式引入）。
+ *
+ * 为什么不做成 scoped + 每个组件 @import：less 的 @import 会把规则原样展开进每个组件，
+ * 15 个区块就是 15 份同样的 CSS；这些类只服务门户，前缀 pb- 足够避免与管理后台冲突。
+ * 尺寸全部走 portal-tokens.less 的变量，fontScale / spacingScale 在这里统一生效。
+ */
+
+.pb-container {
+  width: 100%;
+  max-width: var(--portal-section-max-width);
+  margin: 0 auto;
+  padding: 0 calc(24px * var(--portal-spacing-scale));
+}
+
+.pb-section {
+  padding: calc(100px * var(--portal-spacing-scale)) 0;
+  background: var(--portal-color-bg);
+  color: var(--portal-color-text);
+  font-size: calc(16px * var(--portal-font-scale));
+
+  &--tight {
+    padding: calc(64px * var(--portal-spacing-scale)) 0;
+  }
+
+  &--muted {
+    background: #f7f8fb;
+  }
+}
+
+.pb-section-header {
+  text-align: center;
+  margin-bottom: calc(48px * var(--portal-spacing-scale));
+}
+
+.pb-section-tag {
+  display: inline-block;
+  padding: 6px 16px;
+  margin-bottom: 14px;
+  border-radius: 20px;
+  font-size: calc(13px * var(--portal-font-scale));
+  color: var(--portal-color-primary);
+  background: color-mix(in srgb, var(--portal-color-primary) 12%, transparent);
+}
+
+.pb-section-title {
+  margin: 0;
+  font-size: calc(34px * var(--portal-font-scale));
+  font-weight: 700;
+  color: var(--portal-color-text);
+}
+
+.pb-grid {
+  display: grid;
+  gap: calc(24px * var(--portal-spacing-scale));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  &--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  &--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  &--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.pb-card {
+  display: block;
+  padding: calc(28px * var(--portal-spacing-scale));
+  background: var(--portal-color-bg);
+  border: 1px solid var(--portal-color-border);
+  border-radius: var(--portal-radius);
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 30px rgba(15, 12, 41, 0.08);
+  }
+}
+
+.pb-card-title {
+  margin: 0 0 10px;
+  font-size: calc(18px * var(--portal-font-scale));
+  font-weight: 600;
+  color: var(--portal-color-text);
+}
+
+.pb-card-text {
+  margin: 0;
+  font-size: calc(14px * var(--portal-font-scale));
+  line-height: 1.7;
+  color: var(--portal-color-muted);
+}
+
+.pb-cover {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: calc(var(--portal-radius) - 4px);
+  margin-bottom: 16px;
+  display: block;
+}
+
+.pb-muted {
+  color: var(--portal-color-muted);
+}
+
+.pb-primary-btn {
+  display: inline-block;
+  padding: 12px 28px;
+  border: none;
+  border-radius: calc(var(--portal-radius) - 2px);
+  background: var(--portal-color-primary);
+  color: #fff;
+  font-size: calc(15px * var(--portal-font-scale));
+  cursor: pointer;
+
+  &:hover {
+    filter: brightness(1.08);
+  }
+}
+
+.pb-ghost-btn {
+  .pb-primary-btn();
+  background: transparent;
+  border: 1px solid var(--portal-color-primary);
+  color: var(--portal-color-primary);
+}
+
+@media (max-width: 1024px) {
+  /* 列数是区块配置，但窄屏必须压过它：4 列在手机上一屏放不下，宁可上下堆叠 */
+  .pb-grid,
+  .pb-grid--2,
+  .pb-grid--3,
+  .pb-grid--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .pb-grid,
+  .pb-grid--2,
+  .pb-grid--3,
+  .pb-grid--4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pb-section {
+    padding: calc(56px * var(--portal-spacing-scale)) 0;
+  }
+
+  .pb-section-title {
+    font-size: calc(24px * var(--portal-font-scale));
+  }
+}

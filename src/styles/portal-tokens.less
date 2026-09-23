@@ -1,0 +1,23 @@
+/**
+ * 门户区块的运行时设计变量（唯一一处）。
+ *
+ * 默认值逐个抄自旧 Tech 模板的十六进制常量，保证「进页面模型」不等于「改版式」。
+ * 站点在 portal_page.theme_json 里覆盖的值由 PortalDynamicPage.vue 写成内联 style，
+ * 内联优先级高于这里的 :root，所以运行时换肤只有那一个入口；
+ * 区块组件一律只消费变量，不再各自硬编码色值（决策 D4）。
+ *
+ * 键名必须与后端 LayoutValidator 的白名单一致：
+ * colorPrimary / colorBg / colorText / colorMuted / radius / sectionMaxWidth / fontScale / spacingScale
+ */
+:root {
+  --portal-color-primary: #6366f1;
+  --portal-color-bg: #ffffff;
+  --portal-color-text: #1a1a2e;
+  --portal-color-muted: #64748b;
+  /* 以下三项不在 theme_json 白名单里：它们是排版用的固定值，不让站点随便改 */
+  --portal-color-border: #eef0f3;
+  --portal-radius: 12px;
+  --portal-section-max-width: 1200px;
+  --portal-font-scale: 1;
+  --portal-spacing-scale: 1;
+}
