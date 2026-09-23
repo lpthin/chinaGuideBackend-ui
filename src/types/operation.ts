@@ -66,7 +66,10 @@ export interface CustomerCase {
   tagList?: string[]
   viewCount: number
   sort: number
+  /** DRAFT / PUBLISHED，后端存储与返回都是大写 */
   status: string
+  /** 演示内容包生成的行：门户只列 PUBLISHED 且非演示 */
+  isDemo?: boolean
   createdAt: string
   updatedAt: string
 }

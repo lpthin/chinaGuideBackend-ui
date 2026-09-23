@@ -11,6 +11,7 @@ import type {
   ArticleCategoryForm,
   ArticleForm,
   ArticlePublish,
+  ArticleUnpublishResult,
   PageResult
 } from '../types/article'
 
@@ -73,7 +74,11 @@ export const articleManageApi = {
 
   // 发布文章
   publish: (id: number, data?: ArticlePublish) =>
-    http.put<Article>(`/articles/${id}/publish`, data || {})
+    http.put<Article>(`/articles/${id}/publish`, data || {}),
+
+  // 撤回发布：内容从门户下架并在发布记录上留下撤回时间
+  unpublish: (id: number) =>
+    http.post<ArticleUnpublishResult>(`/articles/${id}/unpublish`, {})
 }
 
 // 图片库 API

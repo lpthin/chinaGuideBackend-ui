@@ -64,9 +64,8 @@
               placeholder="状态"
               allowClear
             >
-              <a-select-option value="published">已发布</a-select-option>
-              <a-select-option value="draft">草稿</a-select-option>
-              <a-select-option value="archived">已归档</a-select-option>
+              <a-select-option value="PUBLISHED">已发布</a-select-option>
+              <a-select-option value="DRAFT">草稿</a-select-option>
             </a-select>
             <a-input-search
               v-model:value="queryParams.keyword"
@@ -95,7 +94,7 @@
                 <img v-if="record.customerLogo" :src="record.customerLogo" class="case-logo" />
                 <div class="case-logo-placeholder" v-else>{{ record.customerName?.charAt(0) }}</div>
                 <div style="flex: 1; margin-left: 12px">
-                  <div class="case-title">{{ record.title }}</div>
+                  <div class="case-title">{{ record.title }} <DemoFlag :is-demo="record.isDemo" /></div>
                   <div class="case-client">{{ record.customerName }}</div>
                 </div>
               </div>
@@ -183,9 +182,8 @@
           <a-col :span="12">
             <a-form-item label="状态">
               <a-select v-model:value="editForm.status">
-                <a-select-option value="draft">草稿</a-select-option>
-                <a-select-option value="published">已发布</a-select-option>
-                <a-select-option value="archived">已归档</a-select-option>
+                <a-select-option value="PUBLISHED">已发布</a-select-option>
+                <a-select-option value="DRAFT">草稿</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -237,6 +235,7 @@ import { customerCaseApi } from '../../api/operation'
 import type { CustomerCase, CustomerCaseForm } from '../../types/operation'
 import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime, formatNumber } from '../../utils/format'
+import DemoFlag from '../../components/DemoFlag.vue'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
@@ -313,19 +312,18 @@ function getIndustryName(industry: string): string {
 }
 
 function getStatusColor(status: string): string {
+  // 后端落库前统一转大写，这里必须按大写匹配，否则表格里永远显示原始码值
   const colorMap: Record<string, string> = {
-    published: 'green',
-    draft: 'default',
-    archived: 'orange',
+    PUBLISHED: 'green',
+    DRAFT: 'default',
   }
   return colorMap[status] || 'default'
 }
 
 function getStatusName(status: string): string {
   const nameMap: Record<string, string> = {
-    published: '已发布',
-    draft: '草稿',
-    archived: '已归档',
+    PUBLISHED: '已发布',
+    DRAFT: '草稿',
   }
   return nameMap[status] || status
 }

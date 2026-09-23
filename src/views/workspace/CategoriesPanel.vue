@@ -100,9 +100,10 @@
                   <FolderOpenOutlined v-if="!isLeaf" />
                   <FileOutlined v-else />
                 </template>
-                <template #title="{ key, title, status, icon, articleCount }">
+                <template #title="{ key, title, status, articleCount, isDemo }">
                   <div class="tree-node">
                     <span class="node-title">{{ title }}</span>
+                    <DemoFlag :is-demo="isDemo" />
                     <a-tag v-if="status === 'disabled'" color="default">停用</a-tag>
                     <span class="node-count">{{ articleCount || 0 }}篇</span>
                     <div class="node-actions">
@@ -178,24 +179,6 @@
                       <a-col :xs="24" :md="12">
                         <a-form-item label="排序号">
                           <a-input-number v-model:value="currentCategory.sortOrder" :min="0" style="width: 100%" />
-                        </a-form-item>
-                      </a-col>
-                      <a-col :xs="24" :md="12">
-                        <a-form-item label="栏目图标">
-                          <a-select v-model:value="currentCategory.icon" style="width: 100%" placeholder="选择图标">
-                            <a-select-option value="folder">
-                              <FolderOutlined /> 文件夹
-                            </a-select-option>
-                            <a-select-option value="file">
-                              <FileOutlined /> 文件
-                            </a-select-option>
-                            <a-select-option value="book">
-                              <BookOutlined /> 书籍
-                            </a-select-option>
-                            <a-select-option value="news">
-                              <NotificationOutlined /> 新闻
-                            </a-select-option>
-                          </a-select>
                         </a-form-item>
                       </a-col>
                       <a-col :xs="24" :md="12">
@@ -453,6 +436,7 @@
 import { ref, computed, reactive, onMounted, nextTick, h } from 'vue'
 import * as echarts from 'echarts'
 import { message, Modal } from 'ant-design-vue'
+import DemoFlag from '../../components/DemoFlag.vue'
 import {
   ApartmentOutlined,
   FileTextOutlined,
@@ -460,11 +444,8 @@ import {
   PlusOutlined,
   DownOutlined,
   UpOutlined,
-  FolderOutlined,
   FolderOpenOutlined,
   FileOutlined,
-  BookOutlined,
-  NotificationOutlined,
   EditOutlined,
   DeleteOutlined,
   SettingOutlined,
@@ -541,7 +522,7 @@ function buildTree(list: any[], parentId: number | null): any[] {
       title: item.name || '-',
       key: String(item.id),
       status: item.status,
-      icon: item.icon,
+      isDemo: item.isDemo,
       articleCount: item.articleCount || 0,
       children: buildTree(list, item.id),
     }))

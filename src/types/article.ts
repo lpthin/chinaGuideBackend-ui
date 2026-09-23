@@ -6,10 +6,15 @@ export interface ArticleCategory {
   tenantId: number
   parentId: number | null
   name: string
+  /** 站点内唯一，编辑器要能读回来 */
+  code?: string
+  slug?: string
   icon: string
   description: string
   sort: number
   status: string
+  /** 演示内容包生成的栏目：门户与统计不算它 */
+  isDemo?: boolean
   createdAt: string
   updatedAt: string
   children?: ArticleCategory[]
@@ -62,8 +67,8 @@ export interface Article {
   authorName?: string
   viewCount: number
   likeCount: number
-  sort: number
-  sortOrder?: number
+  /** 演示内容包生成的行：门户、sitemap 与统计都不算它 */
+  isDemo?: boolean
   status: string
   isTop?: boolean
   isRecommend?: boolean
@@ -162,8 +167,6 @@ export interface ArticleForm {
   tags?: string[]
   source?: string
   authorId?: number
-  sort?: number
-  sortOrder?: number
   status?: string
   isTop?: boolean
   isRecommend?: boolean
@@ -173,6 +176,14 @@ export interface ArticleForm {
 export interface ArticlePublish {
   scheduledTime?: string
   priority?: number
+}
+
+/** 撤回发布的返回：jobId 指向那条被撤回的发布记录 */
+export interface ArticleUnpublishResult {
+  articleId: number
+  jobId: number
+  status: string
+  unpublishedAt: string
 }
 
 // 分页结果

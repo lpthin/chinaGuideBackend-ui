@@ -364,7 +364,7 @@
         <div class="preview-meta">
           <span>{{ articleForm.author || '作者' }}</span>
           <span>{{ getCategoryName(articleForm.categoryId) }}</span>
-          <span>{{ new Date().toLocaleDateString() }}</span>
+          <span>{{ formatDate(Date.now()) }}</span>
         </div>
         <div class="preview-summary" v-if="articleForm.summary">
           {{ articleForm.summary }}
@@ -436,6 +436,7 @@ import { caseTagApi } from '../../api/case'
 import { aiGenerateApi } from '../../api/ai-model'
 import { marked } from 'marked'
 import { articleStatusMeta, type ArticleStatus } from '../../utils/contentStatus'
+import { formatDate } from '../../utils/format'
 
 const router = useRouter()
 const route = useRoute()
@@ -682,8 +683,9 @@ async function handleSaveDraft() {
       message.success('草稿保存成功（新建模式）')
     }
     articleForm.status = 'draft'
-  } catch (error) {
-    message.error('保存失败')
+  } catch (error: any) {
+    // 后端会给出中文原因（例如结构化数据不是合法 JSON），吞成「保存失败」用户就不知道该改哪里
+    message.error(error?.message || '保存失败')
   } finally {
     savingDraft.value = false
   }
@@ -849,10 +851,10 @@ async function loadArticleDetail() {
       seoKeywords.value = article.seoKeywords
     }
 
-    geoForm.llmsSummary = (article as any).llmsSummary || ''
-    geoForm.geoCitationSummary = (article as any).geoCitationSummary || ''
-    geoForm.schemaJson = (article as any).schemaJson || ''
-    geoForm.faqJson = (article as any).faqJson || ''
+    geoForm.llmsSummary = article.llmsSummary || ''
+    geoForm.geoCitationSummary = article.geoCitationSummary || ''
+    geoForm.schemaJson = article.schemaJson || ''
+    geoForm.faqJson = article.faqJson || ''
   } catch (error) {
     message.error('加载文章详情失败')
   } finally {

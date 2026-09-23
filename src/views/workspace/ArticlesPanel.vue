@@ -321,7 +321,10 @@
                         </div>
                       </div>
                       <div class="article-title-info">
-                        <div class="title">{{ record.title }}</div>
+                        <div class="title">
+                          {{ record.title }}
+                          <DemoFlag :is-demo="record.isDemo" />
+                        </div>
                         <div class="subtitle">{{ record.subtitle || '-' }}</div>
                       </div>
                     </div>
@@ -624,12 +627,6 @@
                     <a-select-option v-for="a in authors" :key="a.id" :value="a.id">{{ a.name }}</a-select-option>
                   </a-select>
                 </a-form-item>
-                <a-form-item label="发布时间">
-                  <a-date-picker v-model:value="articleForm.publishTime" show-time style="width: 100%" />
-                </a-form-item>
-                <a-form-item label="排序号">
-                  <a-input-number v-model:value="articleForm.sortOrder" style="width: 100%" placeholder="排序号，数字越大越靠前" />
-                </a-form-item>
                 <a-row :gutter="12">
                   <a-col :span="12">
                     <a-form-item label="置顶">
@@ -703,7 +700,8 @@ import {
   ClockCircleOutlined,
 } from '@ant-design/icons-vue'
 import { adminApi, articleManageApi, categoryApi } from '../../api'
-import { formatTime } from '../../utils/format'
+import { formatTime, formatDate } from '../../utils/format'
+import DemoFlag from '../../components/DemoFlag.vue'
 import { articleStatusMeta as statusMeta } from '../../utils/contentStatus'
 import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
@@ -776,8 +774,6 @@ const articleForm = reactive({
   coverImage: '',
   tags: [] as string[],
   authorId: undefined as number | undefined,
-  publishTime: null as any,
-  sortOrder: 0,
   isTop: false,
   isRecommend: false,
 })
@@ -904,11 +900,6 @@ function getStatusIcon(status?: string) {
   }
 }
 
-function formatDate(date: string) {
-  if (!date) return '-'
-  return new Date(date).toLocaleDateString()
-}
-
 function changeViewMode() {
 }
 
@@ -977,8 +968,6 @@ async function editArticle(article: any) {
       coverImage: detail.coverImage || '',
       tags: detail.tags || [],
       authorId: detail.authorId,
-      publishTime: null,
-      sortOrder: detail.sortOrder || 0,
       isTop: !!detail.isTop,
       isRecommend: !!detail.isRecommend,
     })
@@ -1067,14 +1056,14 @@ async function publishArticle(article: any) {
 async function offlineArticle(article: any) {
   Modal.confirm({
     title: '确认下架',
-    content: `确定要下架文章"${article.title}"吗？`,
+    content: `确定要下架文章"${article.title}"吗？下架后门户不再展示，重新发布需要先回到审核流程。`,
     onOk: async () => {
       try {
-        await articleManageApi.update(article.id, { status: 'offline' } as any)
-        message.success('已下架')
+        await articleManageApi.unpublish(article.id)
+        message.success('已撤回发布')
         loadData()
       } catch (e) {
-        message.error(`下架失败：${describeHttpError(e)}`)
+        message.error(`撤回失败：${describeHttpError(e)}`)
       }
     },
   })
