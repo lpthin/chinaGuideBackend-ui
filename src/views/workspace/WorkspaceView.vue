@@ -209,6 +209,10 @@
               <template #icon><CommentOutlined /></template>
               改版工单
             </a-menu-item>
+            <a-menu-item key="portal/reference-sites" v-if="auth.hasPermission('portal:reference:use')">
+              <template #icon><GlobalOutlined /></template>
+              参考站摄取
+            </a-menu-item>
             <a-menu-item key="portal/banners">
               <template #icon><PictureOutlined /></template>
               Banner管理
@@ -508,6 +512,7 @@ const menuLabels: Record<string, string> = {
   'portal/templates': '模板管理',
   'portal/pages': '页面搭建',
   'portal/tickets': '改版工单',
+  'portal/reference-sites': '参考站摄取',
   'portal/banners': 'Banner管理',
   'portal/jobs': '招聘管理',
   'portal/messages': '站内信',
@@ -579,6 +584,7 @@ const currentParentMenu = computed(() => {
     'portal/templates': '门户网站',
     'portal/pages': '门户网站',
     'portal/tickets': '门户网站',
+    'portal/reference-sites': '门户网站',
     'portal/banners': '门户网站',
     'portal/jobs': '门户网站',
     'portal/messages': '门户网站',

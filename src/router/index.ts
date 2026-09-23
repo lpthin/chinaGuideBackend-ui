@@ -62,6 +62,7 @@ const SeoConfigView = () => import('../views/portal/SeoConfigView.vue')
 const PortalTemplateView = () => import('../views/portal/PortalTemplateView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
+const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
 const PortalAnalyticsView = () => import('../views/analytics/PortalAnalyticsView.vue')
 const PortalLaunchView = () => import('../views/onboarding/PortalLaunchView.vue')
 
@@ -435,6 +436,18 @@ const routes: RouteRecordRaw[] = [
           icon: 'message',
           breadcrumb: ['首页', '门户网站', '改版工单'],
           requiredPermission: 'portal:review:manage'
+        }
+      },
+      {
+        path: 'portal/reference-sites',
+        name: 'workspace-portal-reference-sites',
+        component: ReferenceSiteView,
+        // 摄取别人站点这条路的入口权限（V81 已发）：菜单显隐、路由守卫、后端 @RequirePermission 同一个码
+        meta: {
+          title: '参考站摄取',
+          icon: 'global',
+          breadcrumb: ['首页', '门户网站', '参考站摄取'],
+          requiredPermission: 'portal:reference:use'
         }
       },
       {
