@@ -62,13 +62,7 @@ const article = ref<PortalArticleDetail | null>(null)
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
 
-const bodyHtml = computed(() => {
-  if (!article.value) {
-    return ''
-  }
-  // 后端有渲染好的 HTML 就用，没有才把 Markdown 过一遍白名单再渲染
-  return article.value.contentHtml || renderMarkdown(article.value.contentMd)
-})
+const bodyHtml = computed(() => renderMarkdown(article.value?.contentMd))
 
 const categoryLink = computed(() => `/news?category=${encodeURIComponent(article.value?.categorySlug || '')}`)
 
