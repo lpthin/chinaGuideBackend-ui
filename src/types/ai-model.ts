@@ -15,8 +15,9 @@ export const enum ModelProvider {
 // 模型类型枚举
 export const enum ModelType {
   CHAT = 'chat',                  // 聊天模型
+  VISION = 'vision',              // 视觉模型（能看图的多模态模型）
   EMBEDDING = 'embedding',        // 向量化模型
-  IMAGE = 'image',                // 图像模型
+  IMAGE = 'image',                // 图像模型（生成图片，不能看图）
   AUDIO = 'audio',                // 语音模型
 }
 

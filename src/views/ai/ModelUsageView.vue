@@ -304,6 +304,7 @@
                   allowClear
                 >
                   <a-select-option value="chat">聊天模型</a-select-option>
+                  <a-select-option value="vision">视觉模型</a-select-option>
                   <a-select-option value="embedding">向量模型</a-select-option>
                   <a-select-option value="image">图像模型</a-select-option>
                 </a-select>

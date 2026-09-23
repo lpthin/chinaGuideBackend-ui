@@ -79,6 +79,7 @@
               allowClear
             >
               <a-select-option value="chat">聊天模型</a-select-option>
+              <a-select-option value="vision">视觉模型</a-select-option>
               <a-select-option value="embedding">向量化模型</a-select-option>
               <a-select-option value="image">图像模型</a-select-option>
               <a-select-option value="audio">语音模型</a-select-option>
@@ -192,9 +193,14 @@
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item label="模型类型" required>
+            <a-form-item
+              label="模型类型"
+              required
+              extra="「视觉模型」是能看图的多模态模型（参考站截图摄取要用它）；「图像模型」是生成图片的，收不到图片"
+            >
               <a-select v-model:value="configForm.modelType" style="width: 100%">
                 <a-select-option value="chat">聊天模型</a-select-option>
+                <a-select-option value="vision">视觉模型</a-select-option>
                 <a-select-option value="embedding">向量化模型</a-select-option>
                 <a-select-option value="image">图像模型</a-select-option>
                 <a-select-option value="audio">语音模型</a-select-option>
@@ -467,6 +473,7 @@ function getProviderName(provider: string) {
 function getModelTypeName(type: string) {
   const map: Record<string, string> = {
     chat: '聊天模型',
+    vision: '视觉模型',
     embedding: '向量化模型',
     image: '图像模型',
     audio: '语音模型',
