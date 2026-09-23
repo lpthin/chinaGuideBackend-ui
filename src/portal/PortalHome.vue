@@ -1,41 +1,13 @@
 <template>
   <div class="portal-home">
-    <div class="template-switcher">
-      <div class="switcher-label">切换模板：</div>
-      <div class="switcher-buttons">
-        <a-button
-          :type="currentTemplate === 'tech' ? 'primary' : 'default'"
-          size="small"
-          @click="switchTemplate('tech')"
-        >
-          科技型
-        </a-button>
-        <a-button
-          :type="currentTemplate === 'service' ? 'primary' : 'default'"
-          size="small"
-          @click="switchTemplate('service')"
-        >
-          服务型
-        </a-button>
-        <a-button
-          :type="currentTemplate === 'simple' ? 'primary' : 'default'"
-          size="small"
-          @click="switchTemplate('simple')"
-        >
-          简约型
-        </a-button>
-      </div>
-    </div>
-
-    <transition name="fade" mode="out-in">
-      <component :is="activeTemplate" :key="currentTemplate" />
-    </transition>
+    <component :is="activeTemplate" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { fetchTemplate } from './api/portalPublic'
 
 const TechTemplate = defineAsyncComponent(() =>
   import('./templates/TechTemplate.vue')
@@ -57,26 +29,38 @@ const templates = {
   simple: SimpleTemplate
 }
 
-const currentTemplate = ref<'tech' | 'service' | 'simple'>('tech')
+type RenderKey = keyof typeof templates
+
+/** 站点没配模板时的展示层默认；内容字段一律不用默认值兜底 */
+const currentTemplate = ref<RenderKey>('tech')
 
 const activeTemplate = computed(() => {
   return templates[currentTemplate.value]
 })
 
-const switchTemplate = (template: 'tech' | 'service' | 'simple') => {
-  currentTemplate.value = template
-  localStorage.setItem('portal-template', template)
+function applyRenderKey(value: string | null | undefined) {
+  if (value && value in templates) {
+    currentTemplate.value = value as RenderKey
+  }
 }
 
-onMounted(() => {
-  const savedTemplate = localStorage.getItem('portal-template') as 'tech' | 'service' | 'simple' | null
-  if (savedTemplate && templates[savedTemplate]) {
-    currentTemplate.value = savedTemplate
+/**
+ * 用哪套模板由后台的站点/模板配置决定（portal_template.render_key，见接口 /api/portal/public/template）。
+ * 历史上这里是三套词表各说各话：库里的 code 是 tech-pro/marketing-growth/minimal-elegance，
+ * 前端组件叫 tech/service/simple，租户换模板门户毫无变化。现在前端只认后端给的渲染键。
+ * ?template= 仅用于后台「预览门户」链接指定样式，访客页面上没有切换入口。
+ */
+onMounted(async () => {
+  const preview = route.query.template
+  if (typeof preview === 'string' && preview in templates) {
+    currentTemplate.value = preview as RenderKey
+    return
   }
-
-  const templateParam = route.query.template as string
-  if (templateParam && templates[templateParam as keyof typeof templates]) {
-    currentTemplate.value = templateParam as 'tech' | 'service' | 'simple'
+  try {
+    const template = await fetchTemplate()
+    applyRenderKey(template?.renderKey)
+  } catch {
+    // 模板配置取不到就保持默认样式，不给访客弹错误
   }
 })
 </script>
@@ -85,66 +69,5 @@ onMounted(() => {
 .portal-home {
   min-height: 100vh;
   position: relative;
-}
-
-.template-switcher {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 9999;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  padding: 12px 16px;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-
-  .switcher-label {
-    font-size: 12px;
-    color: #666;
-    font-weight: 500;
-  }
-
-  .switcher-buttons {
-    display: flex;
-    gap: 8px;
-  }
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-@media (max-width: 768px) {
-  .template-switcher {
-    top: auto;
-    bottom: 20px;
-    right: 20px;
-    left: 20px;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-
-    .switcher-label {
-      display: none;
-    }
-
-    .switcher-buttons {
-      flex: 1;
-      justify-content: center;
-
-      .ant-btn {
-        flex: 1;
-      }
-    }
-  }
 }
 </style>

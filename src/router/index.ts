@@ -50,6 +50,8 @@ const OrdersView = () => import('../views/billing/OrdersView.vue')
 
 // 🏢 门户网站模块
 const PortalHome = () => import('../portal/PortalHome.vue')
+const PortalArticleDetail = () => import('../portal/PortalArticleDetail.vue')
+const PortalCaseDetail = () => import('../portal/PortalCaseDetail.vue')
 const BannerManageView = () => import('../views/portal/BannerManageView.vue')
 const JobManageView = () => import('../views/portal/JobManageView.vue')
 const MessageManageView = () => import('../views/portal/MessageManageView.vue')
@@ -57,6 +59,8 @@ const GuestbookManageView = () => import('../views/portal/GuestbookManageView.vu
 const CompanyInfoView = () => import('../views/portal/CompanyInfoView.vue')
 const SeoConfigView = () => import('../views/portal/SeoConfigView.vue')
 const PortalTemplateView = () => import('../views/portal/PortalTemplateView.vue')
+const PortalAnalyticsView = () => import('../views/analytics/PortalAnalyticsView.vue')
+const PortalLaunchView = () => import('../views/onboarding/PortalLaunchView.vue')
 
 // 🔍 SEO & GEO 模块
 const GeoSeoDashboardView = () => import('../views/geoseo/GeoSeoDashboardView.vue')
@@ -140,6 +144,20 @@ const routes: RouteRecordRaw[] = [
     name: 'portal-contact',
     component: PortalHome,
     meta: { title: '联系我们', requiresAuth: false }
+  },
+  // 详情页：路径与后端 PortalUrls（sitemap / llms.txt / 门户列表返回的 link）完全一致，
+  // 少了这两条路由，爬虫按 sitemap 抓过来全是 404，访客点新闻列表也是 404。
+  {
+    path: '/news/:idOrSlug',
+    name: 'portal-article-detail',
+    component: PortalArticleDetail,
+    meta: { title: '文章详情', requiresAuth: false }
+  },
+  {
+    path: '/cases/:id',
+    name: 'portal-case-detail',
+    component: PortalCaseDetail,
+    meta: { title: '案例详情', requiresAuth: false }
   },
   // 登录页面
   {
@@ -336,10 +354,17 @@ const routes: RouteRecordRaw[] = [
 
       // ===== 🏢 门户网站 =====
       {
+        path: 'portal/launch',
+        name: 'workspace-portal-launch',
+        component: PortalLaunchView,
+        meta: { title: '门户上线', icon: 'rocket', breadcrumb: ['首页', '门户网站', '门户上线'] }
+      },
+      {
         path: 'portal/templates',
         name: 'workspace-portal-templates',
         component: PortalTemplateView,
-        meta: { title: '模板管理', icon: 'template', breadcrumb: ['首页', '门户网站', '模板管理'], requiresSuperAdmin: true }
+        // 挑模板是租户的日常运营动作，之前被 requiresSuperAdmin 挡死，租户看不到也换不了
+        meta: { title: '模板管理', icon: 'template', breadcrumb: ['首页', '门户网站', '模板管理'] }
       },
       {
         path: 'portal/banners',
@@ -376,6 +401,12 @@ const routes: RouteRecordRaw[] = [
         name: 'workspace-portal-seo',
         component: SeoConfigView,
         meta: { title: 'SEO配置', icon: 'seo', breadcrumb: ['首页', '门户网站', 'SEO配置'] }
+      },
+      {
+        path: 'portal/analytics',
+        name: 'workspace-portal-analytics',
+        component: PortalAnalyticsView,
+        meta: { title: '访问统计', icon: 'chart', breadcrumb: ['首页', '门户网站', '访问统计'] }
       },
 
       // ===== 🔍 SEO & GEO =====

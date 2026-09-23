@@ -79,21 +79,28 @@ export interface PortalTemplateListResult {
   typeCounts?: Record<string, number>
 }
 
-// Banner
+// Banner：字段以后端 PortalBannerDTO 为准，接口没返回的字段不写进类型
 export interface Banner {
   id: number
   tenantId: number
-  position: string
+  siteId: number
   title: string
-  subtitle: string
+  subtitle?: string
   imageUrl: string
-  linkUrl: string
-  linkTarget: string
-  description: string
+  linkUrl?: string
+  /** 跳转方式，后端新建时默认 NONE */
+  linkType?: string
+  /** 读取用 DTO 的字段名，写回后端时是 sortOrder */
   sort: number
-  clickCount: number
+  /** ENABLED / DISABLED，门户只渲染 ENABLED */
   status: string
-  creatorId: number
+  publishStart?: string
+  publishEnd?: string
+  targetType?: string
+  targetId?: number
+  description?: string
+  /** 演示内容包生成的行 */
+  isDemo?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -102,26 +109,28 @@ export interface Banner {
 export interface JobPost {
   id: number
   tenantId: number
+  siteId: number
   title: string
-  department: string
-  jobType: string
-  location: string
-  minSalary: number
-  maxSalary: number
-  salaryUnit: string
-  experienceRequirement: string
-  educationRequirement: string
-  description: string
-  responsibilities: string
-  requirements: string
-  benefits: string
-  contactName: string
-  contactPhone: string
-  contactEmail: string
+  department?: string
+  jobType?: string
+  location?: string
+  salaryMin?: number
+  salaryMax?: number
+  salaryUnit?: string
+  experienceReq?: string
+  educationReq?: string
+  description?: string
+  requirements?: string
+  benefits?: string
   sort: number
+  /** OPEN / CLOSED，门户招聘页只列 OPEN */
   status: string
-  viewCount: number
-  creatorId: number
+  viewCount?: number
+  applyCount?: number
+  publishAt?: string
+  closeAt?: string
+  /** 演示内容包生成的行 */
+  isDemo?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -245,17 +254,16 @@ export interface SeoConfig {
 
 // 查询参数
 export interface BannerQuery {
-  tenantId: number
-  position?: string
+  siteId?: number
   status?: string
   page?: number
   size?: number
 }
 
 export interface JobPostQuery {
-  tenantId: number
-  jobType?: string
   status?: string
+  jobType?: string
+  department?: string
   keyword?: string
   page?: number
   size?: number
@@ -276,42 +284,35 @@ export interface GuestbookQuery {
   size?: number
 }
 
-// 创建/更新表单
+// 创建/更新表单：写接口收的是后端实体，排序字段名是 sortOrder（读取时 DTO 给的是 sort）
 export interface BannerForm {
   id?: number
-  tenantId: number
-  position: string
-  title?: string
+  title: string
   subtitle?: string
   imageUrl: string
   linkUrl?: string
-  linkTarget?: string
+  linkType?: string
+  sortOrder?: number
   description?: string
-  sort?: number
-  status?: string
+  publishStart?: string
+  publishEnd?: string
 }
 
 export interface JobPostForm {
   id?: number
-  tenantId: number
   title: string
   department?: string
   jobType?: string
   location?: string
-  minSalary?: number
-  maxSalary?: number
+  salaryMin?: number
+  salaryMax?: number
   salaryUnit?: string
-  experienceRequirement?: string
-  educationRequirement?: string
+  experienceReq?: string
+  educationReq?: string
   description?: string
-  responsibilities?: string
   requirements?: string
   benefits?: string
-  contactName?: string
-  contactPhone?: string
-  contactEmail?: string
-  sort?: number
-  status?: string
+  sortOrder?: number
 }
 
 export interface GuestbookReply {

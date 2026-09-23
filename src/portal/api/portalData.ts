@@ -127,29 +127,43 @@ export interface PortalDataResponse {
   featureProjects?: ApiFeatureProject[] | null
 }
 
-/** 门户是公开页面，租户身份靠 X-Tenant-Id 头传递，取自管理端登录/切换租户时写入的 localStorage。 */
-export function resolvePortalTenantId(): string {
-  return (
-    localStorage.getItem('selected_tenant_id') ||
-    localStorage.getItem('geocms_tenant_id') ||
-    localStorage.getItem('tenantId') ||
-    ''
-  )
+/**
+ * 门户属于哪个站点由访问域名决定，前端不再声明租户身份。
+ * 本地/预览用 ?site={租户代码} 显式指定，该参数只在后端开启
+ * app.portal.allow-site-param 时才生效（生产关闭）。
+ *
+ * <p>?site= 只会出现在入口那一个 URL 上，点进内页后地址栏就没有了；缓存一份到本次会话，
+ * 否则访客从首页进详情页就变成「查不到站点」。生产环境后端根本不读这个参数，留着无害。</p>
+ */
+const SITE_SESSION_KEY = 'portal.site'
+
+export function resolveSiteCode(): string {
+  const fromUrl = new URLSearchParams(window.location.search).get('site')
+  if (fromUrl) {
+    try {
+      sessionStorage.setItem(SITE_SESSION_KEY, fromUrl)
+    } catch {
+      // 隐私模式下写不进去，这一页还能用，下一页退回按域名解析
+    }
+    return fromUrl
+  }
+  try {
+    return sessionStorage.getItem(SITE_SESSION_KEY) || ''
+  } catch {
+    return ''
+  }
 }
 
+/**
+ * 首页聚合走公开端点：访客没有登录态，旧的 /api/portal/data 依赖管理员浏览器里的
+ * 租户身份，所以那边已改成按域名解析，前端切到这里后不再使用它。
+ */
 export async function getPortalData(): Promise<PortalDataResponse> {
-  const tenantId = resolvePortalTenantId()
-
-  if (!tenantId) {
-    throw new Error('无法确定站点所属租户，请先在管理端选择租户')
-  }
+  const siteCode = resolveSiteCode()
+  const params = siteCode ? { site: siteCode } : undefined
 
   try {
-    const response = await axios.get('/api/portal/data', {
-      headers: {
-        'X-Tenant-Id': tenantId
-      }
-    })
+    const response = await axios.get('/api/portal/public/home', { params })
 
     // 后端返回 { success, code, message, data }，取 data 字段
     const body = response.data
