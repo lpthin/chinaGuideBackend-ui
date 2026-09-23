@@ -195,9 +195,19 @@
               <template #icon><RocketOutlined /></template>
               门户上线
             </a-menu-item>
-            <a-menu-item key="portal/templates" v-if="auth.isSuperAdmin">
+            <!-- 模板是租户自己的资产（后端按登录租户隔离），以前挂 isSuperAdmin 让租户看不见也换不了，
+                 与早已放开的路由不一致；这里改回不挡权限。 -->
+            <a-menu-item key="portal/templates">
               <template #icon><LayoutOutlined /></template>
               模板管理
+            </a-menu-item>
+            <a-menu-item key="portal/pages" v-if="auth.hasPermission('portal:page:manage')">
+              <template #icon><AppstoreOutlined /></template>
+              页面搭建
+            </a-menu-item>
+            <a-menu-item key="portal/tickets" v-if="auth.hasPermission('portal:review:manage')">
+              <template #icon><CommentOutlined /></template>
+              改版工单
             </a-menu-item>
             <a-menu-item key="portal/banners">
               <template #icon><PictureOutlined /></template>
@@ -444,6 +454,8 @@ import {
   ProjectOutlined,
   AccountBookOutlined,
   LayoutOutlined,
+  AppstoreOutlined,
+  CommentOutlined,
   MessageOutlined,
   FormOutlined,
   BankOutlined,
@@ -494,6 +506,8 @@ const menuLabels: Record<string, string> = {
   'billing/stats': '消费统计',
   'portal/launch': '门户上线',
   'portal/templates': '模板管理',
+  'portal/pages': '页面搭建',
+  'portal/tickets': '改版工单',
   'portal/banners': 'Banner管理',
   'portal/jobs': '招聘管理',
   'portal/messages': '站内信',
@@ -563,6 +577,8 @@ const currentParentMenu = computed(() => {
     'billing/stats': '计费系统',
     'portal/launch': '门户网站',
     'portal/templates': '门户网站',
+    'portal/pages': '门户网站',
+    'portal/tickets': '门户网站',
     'portal/banners': '门户网站',
     'portal/jobs': '门户网站',
     'portal/messages': '门户网站',

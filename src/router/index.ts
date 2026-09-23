@@ -60,6 +60,8 @@ const GuestbookManageView = () => import('../views/portal/GuestbookManageView.vu
 const CompanyInfoView = () => import('../views/portal/CompanyInfoView.vue')
 const SeoConfigView = () => import('../views/portal/SeoConfigView.vue')
 const PortalTemplateView = () => import('../views/portal/PortalTemplateView.vue')
+const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
+const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const PortalAnalyticsView = () => import('../views/analytics/PortalAnalyticsView.vue')
 const PortalLaunchView = () => import('../views/onboarding/PortalLaunchView.vue')
 
@@ -412,6 +414,30 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'SEO配置', icon: 'seo', breadcrumb: ['首页', '门户网站', 'SEO配置'] }
       },
       {
+        path: 'portal/pages',
+        name: 'workspace-portal-pages',
+        component: PageBuilderView,
+        // 菜单显隐与这里的判断用同一个权限码（后端 @RequirePermission 也是它）：
+        // 只藏菜单不挡路由，等于「看不见但敲地址就能进」，那样权限只是装饰。
+        meta: {
+          title: '页面搭建',
+          icon: 'template',
+          breadcrumb: ['首页', '门户网站', '页面搭建'],
+          requiredPermission: 'portal:page:manage'
+        }
+      },
+      {
+        path: 'portal/tickets',
+        name: 'workspace-portal-tickets',
+        component: RevisionTicketView,
+        meta: {
+          title: '改版工单',
+          icon: 'message',
+          breadcrumb: ['首页', '门户网站', '改版工单'],
+          requiredPermission: 'portal:review:manage'
+        }
+      },
+      {
         path: 'portal/analytics',
         name: 'workspace-portal-analytics',
         component: PortalAnalyticsView,
@@ -621,6 +647,15 @@ router.beforeEach((to) => {
   }
   const requiresSuperAdmin = to.matched.some(record => record.meta.requiresSuperAdmin === true)
   if (requiresSuperAdmin && !authStore.isSuperAdmin) {
+    message.error('无权限访问该页面')
+    return { name: 'workspace-dashboard' }
+  }
+  // 细粒度权限：与菜单显隐、后端 @RequirePermission 用同一个 permission.code 字符串。
+  // 后端仍是唯一的执法者，这里只是不让用户敲地址进了一个满屏 403 的页面。
+  const permissionCodes = to.matched
+    .map(record => record.meta.requiredPermission as string | undefined)
+    .filter((code): code is string => !!code)
+  if (permissionCodes.some(code => !authStore.hasPermission(code))) {
     message.error('无权限访问该页面')
     return { name: 'workspace-dashboard' }
   }
