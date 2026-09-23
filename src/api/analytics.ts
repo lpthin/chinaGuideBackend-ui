@@ -113,6 +113,7 @@ export const PAGE_TYPE_LABELS: Record<string, string> = {
   case: '案例详情',
   list: '列表页',
   category: '栏目页',
+  page: '自定义页面',
   about: '关于我们',
   services: '服务页',
   contact: '联系页',
