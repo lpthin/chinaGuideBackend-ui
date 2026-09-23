@@ -191,6 +191,10 @@
           <a-sub-menu key="portal">
             <template #icon><GlobalOutlined /></template>
             <template #title>门户网站</template>
+            <a-menu-item key="portal/launch">
+              <template #icon><RocketOutlined /></template>
+              门户上线
+            </a-menu-item>
             <a-menu-item key="portal/templates" v-if="auth.isSuperAdmin">
               <template #icon><LayoutOutlined /></template>
               模板管理
@@ -218,6 +222,10 @@
             <a-menu-item key="portal/seo">
               <template #icon><SearchOutlined /></template>
               SEO配置
+            </a-menu-item>
+            <a-menu-item key="portal/analytics">
+              <template #icon><BarChartOutlined /></template>
+              访问统计
             </a-menu-item>
           </a-sub-menu>
 
@@ -484,6 +492,7 @@ const menuLabels: Record<string, string> = {
   'case/list': '案例列表',
   'billing/manage': '账单管理',
   'billing/stats': '消费统计',
+  'portal/launch': '门户上线',
   'portal/templates': '模板管理',
   'portal/banners': 'Banner管理',
   'portal/jobs': '招聘管理',
@@ -491,6 +500,7 @@ const menuLabels: Record<string, string> = {
   'portal/guestbook': '留言管理',
   'portal/company': '企业信息',
   'portal/seo': 'SEO配置',
+  'portal/analytics': '访问统计',
   'geoseo/dashboard': '总览仪表盘',
   'geoseo/config': '站点配置',
   'geoseo/pages': '页面SEO',
@@ -551,6 +561,7 @@ const currentParentMenu = computed(() => {
     'case/list': '案例管理',
     'billing/manage': '计费系统',
     'billing/stats': '计费系统',
+    'portal/launch': '门户网站',
     'portal/templates': '门户网站',
     'portal/banners': '门户网站',
     'portal/jobs': '门户网站',
@@ -558,6 +569,7 @@ const currentParentMenu = computed(() => {
     'portal/guestbook': '门户网站',
     'portal/company': '门户网站',
     'portal/seo': '门户网站',
+    'portal/analytics': '门户网站',
     'geoseo/dashboard': 'SEO & GEO',
     'geoseo/config': 'SEO & GEO',
     'geoseo/pages': 'SEO & GEO',
