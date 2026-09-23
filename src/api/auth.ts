@@ -28,16 +28,12 @@ export const profileApi = {
     http.get<any>('/user/profile'),
 
   // 更新个人信息
-  updateProfile: (data: { nickname?: string; email?: string; avatar?: string }) =>
+  updateProfile: (data: { nickname?: string; email?: string; phone?: string; avatar?: string }) =>
     http.put<void>('/user/profile', data),
 
   // 修改密码
   changePassword: (data: { oldPassword: string; newPassword: string; confirmPassword: string }) =>
     http.put<void>('/user/password', data),
-
-  // 绑定手机号
-  bindPhone: (data: { phone: string; code: string }) =>
-    http.put<void>('/user/phone', data),
 
   // 获取登录日志
   getLoginLogs: (params?: { page?: number; size?: number }) =>

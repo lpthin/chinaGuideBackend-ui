@@ -45,7 +45,14 @@ export const bannerApi = {
 
   // 删除Banner
   delete: (id: number) =>
-    http.delete(`/portal/banners/${id}`)
+    http.delete(`/portal/banners/${id}`),
+
+  // 上架/下架：门户只渲染 ENABLED 的 Banner，状态只能走这两个动作
+  enable: (id: number) =>
+    http.post<Banner>(`/portal/banners/${id}/enable`),
+
+  disable: (id: number) =>
+    http.post<Banner>(`/portal/banners/${id}/disable`)
 }
 
 // 职位管理 API
@@ -68,7 +75,14 @@ export const jobPostApi = {
 
   // 删除职位
   delete: (id: number) =>
-    http.delete(`/portal/jobs/${id}`)
+    http.delete(`/portal/jobs/${id}`),
+
+  // 上架/下架：门户招聘页只列 OPEN 职位
+  publish: (id: number) =>
+    http.post<JobPost>(`/portal/jobs/${id}/publish`),
+
+  close: (id: number) =>
+    http.post<JobPost>(`/portal/jobs/${id}/close`)
 }
 
 // 站内信 API
@@ -89,10 +103,6 @@ export const portalMessageApi = {
   broadcast: (data: PortalMessageBroadcast) =>
     http.post<{ count: number }>('/messages/broadcast', data),
 
-  // 获取未读消息数
-  unreadCount: (receiverId: number) =>
-    http.get<{ count: number }>('/messages/unread-count', { params: { receiverId } }),
-
   // 获取消息详情
   get: (id: number) =>
     http.get<PortalMessage>(`/messages/${id}`),
@@ -104,10 +114,6 @@ export const portalMessageApi = {
   // 标记已读
   markRead: (id: number) =>
     http.put(`/messages/${id}/read`),
-
-  // 批量标记已读
-  batchMarkRead: (ids: number[]) =>
-    http.put('/messages/batch-read', { ids }),
 
   // 删除消息
   delete: (id: number) =>
@@ -129,8 +135,8 @@ export const guestbookApi = {
     http.post<Guestbook>('/guestbook', data),
 
   // 回复留言
-  reply: (id: number, reply: string) =>
-    http.put<Guestbook>(`/guestbook/${id}/reply`, { reply }),
+  reply: (id: number, replyContent: string, replierName?: string) =>
+    http.put<Guestbook>(`/guestbook/${id}/reply`, { replyContent, replierName }),
 
   // 删除留言
   delete: (id: number) =>

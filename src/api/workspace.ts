@@ -601,7 +601,7 @@ export const systemPromptApi = adminApi.prompts
 // ==================== 分类管理 API ====================
 export const categoryApi = {
   list: (params: any) =>
-    http.get<any>('/article/categories', { params: { all: true, ...params } }),
+    http.get<any>('/article/categories', { params }),
   get: (id: number) =>
     http.get<any>(`/article/categories/${id}`),
   create: (data: any) =>

@@ -43,7 +43,6 @@ export const geoKeywordApi = {
   create: (data: GeoSeoKeywordRank) => http.post<GeoSeoKeywordRank>('/geoseo/keywords', data),
   update: (id: number, data: GeoSeoKeywordRank) => http.put<GeoSeoKeywordRank>(`/geoseo/keywords/${id}`, data),
   delete: (id: number) => http.delete<void>(`/geoseo/keywords/${id}`),
-  check: (id: number) => http.post<GeoSeoKeywordRank>(`/geoseo/keywords/${id}/check`),
 }
 
 // ==================== GEO仪表盘 API ====================

@@ -1,59 +1,46 @@
 <template>
   <div class="banner-manage-page">
-    <a-page-header title="Banner管理" sub-title="管理门户网站的轮播图和横幅广告">
+    <a-page-header title="Banner管理" sub-title="管理门户首页轮播与横幅">
     </a-page-header>
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">
         <a-row :gutter="16" style="margin-bottom: 16px">
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
+          <a-col :span="8">
+            <a-card class="stat-card">
               <div class="stat-content">
                 <div class="stat-icon" style="background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)">
                   <PictureOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.totalBanners }}</div>
+                  <div class="stat-value">{{ formatNumber(stats.totalBanners) }}</div>
                   <div class="stat-title">Banner 总数</div>
                 </div>
               </div>
             </a-card>
           </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #722ed1 0%, #b37feb 100%)">
-                  <EyeOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ stats.totalViews }}</div>
-                  <div class="stat-title">总点击</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
+          <a-col :span="8">
+            <a-card class="stat-card">
               <div class="stat-content">
                 <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                  <PushpinOutlined />
+                  <CheckCircleOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.activeCount }}</div>
-                  <div class="stat-title">展示中</div>
+                  <div class="stat-value">{{ formatNumber(stats.enabledCount) }}</div>
+                  <div class="stat-title">展示中（门户可见）</div>
                 </div>
               </div>
             </a-card>
           </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
+          <a-col :span="8">
+            <a-card class="stat-card">
               <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #fa8c16 0%, #ffec3d 100%)">
-                  <ClockCircleOutlined />
+                <div class="stat-icon" style="background: linear-gradient(135deg, #8c8c8c 0%, #bfbfbf 100%)">
+                  <StopOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.scheduledCount }}</div>
-                  <div class="stat-title">待发布</div>
+                  <div class="stat-value">{{ formatNumber(stats.disabledCount) }}</div>
+                  <div class="stat-title">已停用</div>
                 </div>
               </div>
             </a-card>
@@ -62,26 +49,18 @@
 
         <a-card :bordered="false">
           <template #title>
-            <a-space>
+            <a-space class="toolbar-fill" wrap>
               <a-select
                 v-model:value="queryParams.status"
-                style="width: 120px"
+                style="width: 140px"
                 placeholder="选择状态"
-                @change="loadData"
                 allowClear
+                @change="loadData"
               >
-                <a-select-option value="active">展示中</a-select-option>
-                <a-select-option value="scheduled">待发布</a-select-option>
-                <a-select-option value="disabled">已下架</a-select-option>
+                <a-select-option value="ENABLED">展示中</a-select-option>
+                <a-select-option value="DISABLED">已停用</a-select-option>
               </a-select>
-              <a-input-search
-                v-model:value="queryParams.keyword"
-                placeholder="搜索标题"
-                style="width: 280px"
-                @search="loadData"
-                enter-button
-              />
-              <a-button type="primary" @click="showAddModal">
+              <a-button type="primary" @click="openCreate">
                 <template #icon><PlusOutlined /></template>
                 新建 Banner
               </a-button>
@@ -97,21 +76,18 @@
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'image'">
-                <img 
-                  v-if="record.imageUrl" 
-                  :src="record.imageUrl" 
-                  class="banner-thumbnail" 
+                <img
+                  v-if="record.imageUrl"
+                  :src="record.imageUrl"
+                  class="banner-thumbnail"
                   @error="handleImageError"
                 />
+                <span v-else class="banner-missing">未配图</span>
               </template>
               <template v-if="column.key === 'title'">
-                <div class="banner-title">{{ record.title }}</div>
+                <div class="banner-title">{{ record.title }} <DemoFlag :is-demo="record.isDemo" /></div>
                 <div class="banner-subtitle" v-if="record.subtitle">{{ record.subtitle }}</div>
-              </template>
-              <template v-if="column.key === 'position'">
-                <a-tag :color="getPositionColor(record.position)">
-                  {{ getPositionText(record.position) }}
-                </a-tag>
+                <div class="banner-subtitle" v-if="record.linkUrl">跳转到 {{ record.linkUrl }}</div>
               </template>
               <template v-if="column.key === 'status'">
                 <a-tag :color="getStatusColor(record.status)">
@@ -127,7 +103,9 @@
               <template v-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="handlePreview(record)">预览</a-button>
-                  <a-button type="link" size="small" @click="goToEdit(record.id)">编辑</a-button>
+                  <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+                  <a-button v-if="record.status !== 'ENABLED'" type="link" size="small" @click="toggleStatus(record, true)">上架</a-button>
+                  <a-button v-else type="link" size="small" @click="toggleStatus(record, false)">下架</a-button>
                   <a-popconfirm
                     title="确定要删除这个 Banner 吗？"
                     @confirm="handleDelete(record.id)"
@@ -156,59 +134,103 @@
       </a-spin>
     </div>
 
-    <a-modal
-      v-model:open="previewVisible"
-      title="预览 Banner"
-      width="800px"
-      :footer="null"
-    >
+    <a-modal v-model:open="previewVisible" title="预览 Banner" width="800px" :footer="null">
       <div v-if="previewBanner" class="banner-preview">
-        <img :src="previewBanner.imageUrl" style="width: 100%" />
+        <img v-if="previewBanner.imageUrl" :src="previewBanner.imageUrl" style="width: 100%" />
+        <p v-else class="banner-missing">这条 Banner 还没有配图，门户上不会显示出来。</p>
         <div style="margin-top: 16px">
           <h3>{{ previewBanner.title }}</h3>
           <p v-if="previewBanner.subtitle">{{ previewBanner.subtitle }}</p>
-          <p>跳转链接: <a :href="previewBanner.linkUrl" target="_blank">{{ previewBanner.linkUrl || '无' }}</a></p>
-          <p>位置: {{ getPositionText(previewBanner.position) }}</p>
+          <p>跳转链接: <a v-if="previewBanner.linkUrl" :href="previewBanner.linkUrl" target="_blank">{{ previewBanner.linkUrl }}</a><span v-else>不跳转</span></p>
           <p>排序: {{ previewBanner.sort }}</p>
+          <p>状态: {{ getStatusText(previewBanner.status) }}</p>
         </div>
       </div>
+    </a-modal>
+
+    <a-modal
+      v-model:open="formVisible"
+      :title="editingId ? '编辑 Banner' : '新建 Banner'"
+      width="640px"
+      :confirm-loading="saving"
+      @ok="handleSave"
+    >
+      <a-form :model="form" layout="vertical">
+        <a-form-item label="主标题" required>
+          <a-input v-model:value="form.title" placeholder="一句话说清这条横幅想表达什么" />
+        </a-form-item>
+        <a-form-item label="副标题">
+          <a-input v-model:value="form.subtitle" placeholder="可选，补充一句具体信息" />
+        </a-form-item>
+        <a-form-item label="图片地址" required>
+          <a-input v-model:value="form.imageUrl" placeholder="/uploads/... 或完整图片地址">
+            <template #addonAfter>
+              <a-upload :show-upload-list="false" accept="image/*" :custom-request="handleUpload">
+                上传
+              </a-upload>
+            </template>
+          </a-input>
+        </a-form-item>
+        <a-form-item label="跳转链接">
+          <a-input v-model:value="form.linkUrl" placeholder="留空表示这张 Banner 不跳转" />
+        </a-form-item>
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="排序">
+              <a-input-number v-model:value="form.sortOrder" :min="0" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-form-item label="备注说明">
+          <a-textarea v-model:value="form.description" :rows="3" placeholder="给自己看的投放说明，不会出现在门户上" />
+        </a-form-item>
+      </a-form>
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PictureOutlined,
-  EyeOutlined,
-  PushpinOutlined,
-  ClockCircleOutlined,
+  CheckCircleOutlined,
+  StopOutlined,
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import { bannerApi } from '../../api/portal'
-import type { Banner, BannerQuery } from '../../types/portal'
-import { useAuthStore } from '../../stores/auth'
-import { formatDateTime } from '../../utils/format'
+import http from '../../api/http'
+import type { Banner, BannerForm, BannerQuery } from '../../types/portal'
+import { formatDateTime, formatNumber } from '../../utils/format'
+import DemoFlag from '../../components/DemoFlag.vue'
 
-const router = useRouter()
-const auth = useAuthStore()
 const loading = ref(false)
+const saving = ref(false)
 const bannerList = ref<Banner[]>([])
 const previewVisible = ref(false)
 const previewBanner = ref<Banner | null>(null)
+const formVisible = ref(false)
+const editingId = ref<number | null>(null)
+
+// 后端 portal_banner 只有 ENABLED / DISABLED 两态，门户聚合查询只取 ENABLED
+function getStatusColor(status: string): string {
+  return status === 'ENABLED' ? 'green' : 'default'
+}
+
+function getStatusText(status: string): string {
+  if (status === 'ENABLED') return '展示中'
+  if (status === 'DISABLED') return '已停用'
+  return status
+}
 
 const stats = reactive({
   totalBanners: 0,
-  totalViews: 0,
-  activeCount: 0,
-  scheduledCount: 0,
+  enabledCount: 0,
+  disabledCount: 0,
 })
 
 const queryParams = reactive({
   status: undefined as string | undefined,
-  keyword: '',
 })
 
 const pagination = reactive({
@@ -218,55 +240,28 @@ const pagination = reactive({
 })
 
 const columns = [
-  { title: '图片', key: 'image', width: 120 },
-  { title: '标题', key: 'title', width: 250 },
-  { title: '位置', key: 'position', width: 120 },
+  { title: '图片', key: 'image', width: 140 },
+  { title: '标题', key: 'title', width: 320 },
   { title: '排序', dataIndex: 'sort', key: 'sort', width: 80, align: 'center' as const },
-  { title: '点击量', dataIndex: 'clickCount', key: 'clickCount', width: 100, align: 'center' as const },
   { title: '状态', key: 'status', width: 100 },
   { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
   { title: '更新时间', dataIndex: 'updatedAt', key: 'updatedAt', width: 180 },
-  { title: '操作', key: 'actions', fixed: 'right' as const, width: 200 },
+  { title: '操作', key: 'actions', fixed: 'right' as const, width: 240 },
 ]
 
-function getPositionColor(position: string): string {
-  const colorMap: Record<string, string> = {
-    home: 'blue',
-    top: 'green',
-    middle: 'orange',
-    bottom: 'purple',
-    sidebar: 'cyan',
-  }
-  return colorMap[position] || 'default'
-}
+const emptyForm = (): BannerForm => ({
+  title: '',
+  subtitle: '',
+  imageUrl: '',
+  linkUrl: '',
+  sortOrder: 0,
+  description: '',
+})
 
-function getPositionText(position: string): string {
-  const textMap: Record<string, string> = {
-    home: '首页轮播',
-    top: '顶部横幅',
-    middle: '中部横幅',
-    bottom: '底部横幅',
-    sidebar: '侧边栏',
-  }
-  return textMap[position] || position
-}
+const form = reactive<BannerForm>(emptyForm())
 
-function getStatusColor(status: string): string {
-  const colorMap: Record<string, string> = {
-    active: 'green',
-    scheduled: 'orange',
-    disabled: 'default',
-  }
-  return colorMap[status] || 'default'
-}
-
-function getStatusText(status: string): string {
-  const textMap: Record<string, string> = {
-    active: '展示中',
-    scheduled: '待发布',
-    disabled: '已下架',
-  }
-  return textMap[status] || status
+function handleImageError(event: Event) {
+  (event.target as HTMLImageElement).style.display = 'none'
 }
 
 function handlePreview(record: Banner) {
@@ -274,17 +269,76 @@ function handlePreview(record: Banner) {
   previewVisible.value = true
 }
 
-function handleImageError(event: Event) {
-  const target = event.target as HTMLImageElement
-  target.style.display = 'none'
+function openCreate() {
+  editingId.value = null
+  Object.assign(form, emptyForm())
+  formVisible.value = true
 }
 
-function showAddModal() {
-  router.push('/portal/banner/new')
+function openEdit(record: Banner) {
+  editingId.value = record.id
+  Object.assign(form, {
+    title: record.title ?? '',
+    subtitle: record.subtitle ?? '',
+    imageUrl: record.imageUrl ?? '',
+    linkUrl: record.linkUrl ?? '',
+    sortOrder: record.sort ?? 0,
+    description: record.description ?? '',
+  })
+  formVisible.value = true
 }
 
-function goToEdit(id: number) {
-  router.push(`/portal/banner/${id}/edit`)
+async function handleUpload(options: any) {
+  const formData = new FormData()
+  formData.append('file', options.file)
+  try {
+    const result = await http.post<{ url: string }>('/media/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    form.imageUrl = (result as any).url
+    message.success('图片已上传')
+  } catch (error: any) {
+    message.error(error?.message || '图片上传失败')
+  }
+}
+
+async function handleSave() {
+  if (!form.title?.trim()) {
+    message.warning('请填写主标题')
+    return
+  }
+  if (!form.imageUrl?.trim()) {
+    message.warning('Banner 必须有图片，否则门户上是一片空白')
+    return
+  }
+  saving.value = true
+  try {
+    const payload: BannerForm = { ...form, linkType: form.linkUrl?.trim() ? 'URL' : 'NONE' }
+    if (editingId.value) {
+      await bannerApi.update(editingId.value, payload)
+      message.success('Banner 已更新')
+    } else {
+      await bannerApi.create(payload)
+      message.success('Banner 已保存，点「上架」后门户才会展示')
+    }
+    formVisible.value = false
+    await loadData()
+  } catch (error: any) {
+    message.error(error?.message || '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function toggleStatus(record: Banner, toEnabled: boolean) {
+  try {
+    await (toEnabled ? bannerApi.enable(record.id) : bannerApi.disable(record.id))
+    record.status = toEnabled ? 'ENABLED' : 'DISABLED'
+    message.success(toEnabled ? '已上架，门户现在会展示它' : '已下架')
+    loadStats()
+  } catch (error: any) {
+    message.error(error?.message || '操作失败')
+  }
 }
 
 async function handleDelete(id: number) {
@@ -292,9 +346,8 @@ async function handleDelete(id: number) {
     await bannerApi.delete(id)
     message.success('删除成功')
     await loadData()
-  } catch (error) {
-    message.error('删除失败')
-    console.error(error)
+  } catch (error: any) {
+    message.error(error?.message || '删除失败')
   }
 }
 
@@ -302,7 +355,6 @@ async function loadData() {
   loading.value = true
   try {
     const params: BannerQuery = {
-      tenantId: auth.selectedTenantId || auth.tenantId,
       page: pagination.page,
       size: pagination.size,
       status: queryParams.status || undefined,
@@ -310,15 +362,26 @@ async function loadData() {
     const result = await bannerApi.list(params)
     bannerList.value = result.records || []
     pagination.total = result.total || 0
-    stats.totalBanners = result.total || 0
-    stats.totalViews = bannerList.value.reduce((sum, b) => sum + (b.clickCount || 0), 0)
-    stats.activeCount = bannerList.value.filter(b => b.status === 'active').length
-    stats.scheduledCount = bannerList.value.filter(b => b.status === 'scheduled').length
-  } catch (error) {
-    message.error('加载Banner列表失败')
-    console.error(error)
+    loadStats()
+  } catch (error: any) {
+    message.error(error?.message || '加载 Banner 列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadStats() {
+  try {
+    const [all, enabled, disabled] = await Promise.all([
+      bannerApi.list({ page: 1, size: 1 }),
+      bannerApi.list({ page: 1, size: 1, status: 'ENABLED' }),
+      bannerApi.list({ page: 1, size: 1, status: 'DISABLED' }),
+    ])
+    stats.totalBanners = all.total || 0
+    stats.enabledCount = enabled.total || 0
+    stats.disabledCount = disabled.total || 0
+  } catch (error) {
+    console.error('加载统计数据失败:', error)
   }
 }
 
@@ -339,11 +402,7 @@ onMounted(() => {
   padding: 0;
 }
 
-.content-wrapper {
-}
-
 .stat-card {
-  cursor: pointer;
   transition: all 0.3s;
 
   &:hover {
@@ -387,8 +446,8 @@ onMounted(() => {
 }
 
 .banner-thumbnail {
-  width: 100px;
-  height: 50px;
+  width: 110px;
+  height: 55px;
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid #e8e8e8;
@@ -403,6 +462,11 @@ onMounted(() => {
 .banner-subtitle {
   font-size: 12px;
   color: #8c8c8c;
+}
+
+.banner-missing {
+  font-size: 12px;
+  color: #faad14;
 }
 
 .pagination-wrapper {

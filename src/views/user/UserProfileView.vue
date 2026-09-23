@@ -37,7 +37,7 @@
             <div class="info-item">
               <PhoneOutlined class="info-icon" />
               <span class="info-label">手机</span>
-              <span class="info-value">{{ profile.phone || '未绑定' }}</span>
+              <span class="info-value">{{ profile.phone || '未设置' }}</span>
             </div>
             <div class="info-item">
               <TeamOutlined class="info-icon" />
@@ -47,7 +47,7 @@
             <div class="info-item">
               <ClockCircleOutlined class="info-icon" />
               <span class="info-label">最后登录</span>
-              <span class="info-value">{{ formatDateTime(profile.lastLoginAt) }}</span>
+              <span class="info-value">{{ formatDateTime(profile.lastLoginAt, true) }}</span>
             </div>
           </div>
         </a-card>
@@ -72,6 +72,11 @@
                   <a-form-item label="邮箱">
                     <a-input v-model:value="profileForm.email" placeholder="请输入邮箱" allow-clear>
                       <template #prefix><MailOutlined /></template>
+                    </a-input>
+                  </a-form-item>
+                  <a-form-item label="手机号">
+                    <a-input v-model:value="profileForm.phone" placeholder="请输入手机号" allow-clear>
+                      <template #prefix><PhoneOutlined /></template>
                     </a-input>
                   </a-form-item>
                   <a-form-item>
@@ -113,34 +118,6 @@
                     </a-form-item>
                   </a-form>
                 </div>
-
-                <a-divider />
-
-                <!-- 手机号绑定 -->
-                <div class="section-block">
-                  <div class="section-title">
-                    <MobileOutlined />
-                    手机号绑定
-                  </div>
-                  <a-form :model="phoneForm" layout="vertical" class="security-form">
-                    <a-form-item label="手机号">
-                      <a-input v-model:value="phoneForm.phone" placeholder="请输入手机号" allow-clear />
-                    </a-form-item>
-                    <a-form-item label="验证码">
-                      <a-space>
-                        <a-input v-model:value="phoneForm.code" placeholder="请输入验证码" style="width: 200px" />
-                        <a-button @click="sendCode" :disabled="codeSending" :loading="codeSending">
-                          {{ codeCountdown > 0 ? codeCountdown + 's' : '获取验证码' }}
-                        </a-button>
-                      </a-space>
-                    </a-form-item>
-                    <a-form-item>
-                      <a-button type="primary" @click="bindPhone" :loading="bindingPhone">
-                        绑定手机号
-                      </a-button>
-                    </a-form-item>
-                  </a-form>
-                </div>
               </div>
             </a-tab-pane>
 
@@ -178,6 +155,7 @@ interface UploadRequestOption {
   onProgress?: (event: { percent: number }) => void
 }
 import { profileApi } from '../../api/auth'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import {
   UserOutlined,
@@ -189,7 +167,6 @@ import {
   IdcardOutlined,
   SafetyOutlined,
   LockOutlined,
-  MobileOutlined,
   HistoryOutlined,
   SaveOutlined,
 } from '@ant-design/icons-vue'
@@ -199,7 +176,6 @@ const auth = useAuthStore()
 const activeTab = ref('basic')
 const saving = ref(false)
 const changingPassword = ref(false)
-const bindingPhone = ref(false)
 const logsLoading = ref(false)
 
 const profile = reactive({
@@ -224,6 +200,7 @@ const avatarUrl = computed(() => {
 const profileForm = reactive({
   nickname: '',
   email: '',
+  phone: '',
 })
 
 const passwordForm = reactive({
@@ -231,14 +208,6 @@ const passwordForm = reactive({
   newPassword: '',
   confirmPassword: '',
 })
-
-const phoneForm = reactive({
-  phone: '',
-  code: '',
-})
-
-const codeSending = ref(false)
-const codeCountdown = ref(0)
 
 const loginLogs = ref<any[]>([])
 
@@ -279,6 +248,7 @@ const loadProfile = async () => {
     Object.assign(profile, data)
     profileForm.nickname = data.nickname || ''
     profileForm.email = data.email || ''
+    profileForm.phone = data.phone || ''
   } catch (error) {
     console.warn('获取个人信息失败:', error)
   }
@@ -294,6 +264,7 @@ const saveProfile = async () => {
     auth.updateUserInfo({
       nickname: profileForm.nickname,
       email: profileForm.email,
+      phone: profileForm.phone,
     })
   } catch (error: any) {
     message.error(error.message || '保存失败')
@@ -329,51 +300,13 @@ const changePassword = async () => {
   }
 }
 
-const sendCode = () => {
-  if (!phoneForm.phone) {
-    message.warning('请输入手机号')
-    return
-  }
-  codeSending.value = true
-  codeCountdown.value = 60
-  message.success('验证码已发送（演示模式：任意验证码均可）')
-  const timer = setInterval(() => {
-    codeCountdown.value--
-    if (codeCountdown.value <= 0) {
-      clearInterval(timer)
-      codeSending.value = false
-    }
-  }, 1000)
-}
-
-const bindPhone = async () => {
-  if (!phoneForm.phone || !phoneForm.code) {
-    message.warning('请填写手机号和验证码')
-    return
-  }
-  bindingPhone.value = true
-  try {
-    await profileApi.bindPhone({ phone: phoneForm.phone, code: phoneForm.code })
-    message.success('手机号绑定成功')
-    phoneForm.phone = ''
-    phoneForm.code = ''
-    await loadProfile()
-    // 同步更新全局用户信息
-    auth.updateUserInfo({ phone: profile.phone })
-  } catch (error: any) {
-    message.error(error.message || '手机号绑定失败')
-  } finally {
-    bindingPhone.value = false
-  }
-}
-
 const loadLoginLogs = async () => {
   logsLoading.value = true
   try {
     const data = await profileApi.getLoginLogs({ page: pagination.current, size: pagination.pageSize }) as any
     loginLogs.value = (data.records || []).map((log: any) => ({
       ...log,
-      createTime: formatDateTime(log.createTime)
+      createTime: formatDateTime(log.createTime, true)
     }))
     pagination.total = data.total || 0
   } catch (error) {
@@ -381,14 +314,6 @@ const loadLoginLogs = async () => {
   } finally {
     logsLoading.value = false
   }
-}
-
-const formatDateTime = (value: string | null) => {
-  if (!value || value === 'null' || value === 'undefined') return '-'
-  const date = new Date(value)
-  if (isNaN(date.getTime())) return value
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
 const beforeUpload = (file: File) => {

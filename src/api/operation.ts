@@ -78,14 +78,6 @@ export const dataReportApi = {
   create: (data: DataReportForm) =>
     http.post<DataReport>('/operation/reports', data),
 
-  // 生成报表（异步）
-  generate: (data: DataReportForm) =>
-    http.post<{ taskId: string }>('/operation/reports/generate', data),
-
-  // 查询生成状态
-  status: (taskId: string) =>
-    http.get<{ status: string; progress: number; reportId?: number }>(`/operation/reports/status/${taskId}`),
-
   // 导出报表
   export: (id: number, format: 'excel' | 'pdf' = 'excel') =>
     http.get(`/operation/reports/${id}/export`, {

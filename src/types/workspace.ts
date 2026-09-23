@@ -101,6 +101,11 @@ export interface GeneratedContent {
   seoTitle?: string
   seoDescription?: string
   seoKeywords?: string
+  // 编辑页「GEO & SEO 设置」面板的四个字段，后端读写都在 /api/workspace/articles 上
+  llmsSummary?: string | null
+  geoCitationSummary?: string | null
+  schemaJson?: string | null
+  faqJson?: string | null
 }
 
 // 审核项目（GET /workspace/reviews/pending 返回的就是文章，字段与后端一致）

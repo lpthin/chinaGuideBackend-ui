@@ -6,54 +6,41 @@
     <div class="content-wrapper">
       <a-spin :spinning="loading">
         <a-row :gutter="16" style="margin-bottom: 16px">
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
+          <a-col :span="8">
+            <a-card class="stat-card">
               <div class="stat-content">
                 <div class="stat-icon" style="background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)">
                   <FileTextOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.totalJobs }}</div>
+                  <div class="stat-value">{{ formatNumber(stats.totalJobs) }}</div>
                   <div class="stat-title">招聘职位</div>
                 </div>
               </div>
             </a-card>
           </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #722ed1 0%, #b37feb 100%)">
-                  <UserOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ stats.totalApplications }}</div>
-                  <div class="stat-title">投递简历</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
+          <a-col :span="8">
+            <a-card class="stat-card">
               <div class="stat-content">
                 <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
                   <CheckCircleOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.activeJobs }}</div>
-                  <div class="stat-title">招聘中</div>
+                  <div class="stat-value">{{ formatNumber(stats.openJobs) }}</div>
+                  <div class="stat-title">招聘中（门户可见）</div>
                 </div>
               </div>
             </a-card>
           </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
+          <a-col :span="8">
+            <a-card class="stat-card">
               <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%)">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #8c8c8c 0%, #bfbfbf 100%)">
                   <ClockCircleOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.pendingReviews }}</div>
-                  <div class="stat-title">待处理</div>
+                  <div class="stat-value">{{ formatNumber(stats.closedJobs) }}</div>
+                  <div class="stat-title">已关闭</div>
                 </div>
               </div>
             </a-card>
@@ -62,7 +49,17 @@
 
         <a-card :bordered="false">
           <template #title>
-            <a-space>
+            <a-space class="toolbar-fill" wrap>
+              <a-select
+                v-model:value="queryParams.status"
+                style="width: 140px"
+                placeholder="职位状态"
+                allowClear
+                @change="loadData"
+              >
+                <a-select-option value="OPEN">招聘中</a-select-option>
+                <a-select-option value="CLOSED">已关闭</a-select-option>
+              </a-select>
               <a-select
                 v-model:value="queryParams.jobType"
                 style="width: 150px"
@@ -83,7 +80,7 @@
               />
               <a-button type="primary" @click="showAddModal">
                 <template #icon><PlusOutlined /></template>
-                发布职位
+                新建职位
               </a-button>
             </a-space>
           </template>
@@ -102,19 +99,24 @@
               <template v-if="column.key === 'department'">
                 <a-tag color="blue">{{ record.department }}</a-tag>
               </template>
+              <template v-if="column.key === 'title'">
+                {{ record.title }} <DemoFlag :is-demo="record.isDemo" />
+              </template>
               <template v-if="column.key === 'status'">
-                <a-tag :color="record.status === 'active' ? 'green' : 'default'">
-                  {{ record.status === 'active' ? '招聘中' : '已下架' }}
+                <a-tag :color="record.status === 'OPEN' ? 'green' : 'default'">
+                  {{ record.status === 'OPEN' ? '招聘中' : '已关闭' }}
                 </a-tag>
+              </template>
+              <template v-if="column.key === 'viewCount'">
+                {{ formatNumber(record.viewCount) }}
               </template>
               <template v-if="column.key === 'createdAt'">
                 {{ formatDateTime(record.createdAt) }}
               </template>
               <template v-if="column.key === 'actions'">
                 <a-space>
-                  <a-button type="link" size="small" @click="toggleStatus(record)">
-                    {{ record.status === 'active' ? '下架' : '上架' }}
-                  </a-button>
+                  <a-button v-if="record.status !== 'OPEN'" type="link" size="small" @click="toggleStatus(record)">上架</a-button>
+                  <a-button v-else type="link" size="small" @click="toggleStatus(record)">下架</a-button>
                   <a-button type="link" size="small" @click="editJob(record.id)">编辑</a-button>
                   <a-popconfirm
                     title="确定要删除这个职位吗？"
@@ -144,7 +146,7 @@
       </a-spin>
     </div>
 
-    <a-modal v-model:open="showJobModal" :title="editingJob ? '编辑职位' : '发布职位'" width="700px" @ok="handleSaveJob" :confirm-loading="saving">
+    <a-modal v-model:open="showJobModal" :title="editingJob ? '编辑职位' : '新建职位'" width="700px" @ok="handleSaveJob" :confirm-loading="saving">
       <a-form :model="jobForm" layout="vertical">
         <a-row :gutter="16">
           <a-col :span="12">
@@ -165,12 +167,12 @@
         <a-row :gutter="16">
           <a-col :span="8">
             <a-form-item label="最低薪资(k)">
-              <a-input-number v-model:value="jobForm.minSalary" :min="0" />
+              <a-input-number v-model:value="jobForm.salaryMin" :min="0" />
             </a-form-item>
           </a-col>
           <a-col :span="8">
             <a-form-item label="最高薪资(k)">
-              <a-input-number v-model:value="jobForm.maxSalary" :min="0" />
+              <a-input-number v-model:value="jobForm.salaryMax" :min="0" />
             </a-form-item>
           </a-col>
           <a-col :span="8">
@@ -187,7 +189,7 @@
           </a-col>
           <a-col :span="8">
             <a-form-item label="工作经验">
-              <a-select v-model:value="jobForm.experienceRequirement">
+              <a-select v-model:value="jobForm.experienceReq">
                 <a-select-option value="不限">不限</a-select-option>
                 <a-select-option value="1-3年">1-3年</a-select-option>
                 <a-select-option value="3-5年">3-5年</a-select-option>
@@ -197,7 +199,7 @@
           </a-col>
           <a-col :span="8">
             <a-form-item label="学历要求">
-              <a-select v-model:value="jobForm.educationRequirement">
+              <a-select v-model:value="jobForm.educationReq">
                 <a-select-option value="不限">不限</a-select-option>
                 <a-select-option value="大专">大专</a-select-option>
                 <a-select-option value="本科">本科</a-select-option>
@@ -219,48 +221,46 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
   FileTextOutlined,
-  UserOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import { jobPostApi } from '../../api/portal'
-import type { JobPost, JobPostQuery } from '../../types/portal'
-import { formatDateTime } from '../../utils/format'
-import { useAuthStore } from '../../stores/auth'
+import type { JobPost, JobPostForm, JobPostQuery } from '../../types/portal'
+import { formatDateTime, formatNumber } from '../../utils/format'
+import DemoFlag from '../../components/DemoFlag.vue'
 
-const router = useRouter()
-const auth = useAuthStore()
 const loading = ref(false)
 const showJobModal = ref(false)
 const saving = ref(false)
 const editingJob = ref<JobPost | null>(null)
 
-const jobForm = reactive({
+// 字段名与后端 portal_job 实体保持一致，之前叫 minSalary / experienceRequirement，
+// 提交后被 Jackson 静默丢弃：界面提示保存成功，库里这几个字段是空的。
+const jobForm = reactive<JobPostForm>({
   title: '',
-  jobType: 'full-time' as 'full-time' | 'part-time' | 'internship',
-  minSalary: 0,
-  maxSalary: 0,
+  jobType: 'full-time',
+  salaryMin: 0,
+  salaryMax: 0,
   location: '',
   department: '',
-  experienceRequirement: '不限',
-  educationRequirement: '不限',
+  experienceReq: '不限',
+  educationReq: '不限',
   description: '',
   requirements: '',
 })
 
 const stats = reactive({
   totalJobs: 0,
-  totalApplications: 0,
-  activeJobs: 0,
-  pendingReviews: 0,
+  openJobs: 0,
+  closedJobs: 0,
 })
 
 const queryParams = reactive({
+  status: undefined as string | undefined,
   jobType: undefined as string | undefined,
   keyword: '',
 })
@@ -278,81 +278,83 @@ const columns = [
   { title: '薪资范围', key: 'salary', width: 150 },
   { title: '工作地点', dataIndex: 'location', key: 'location', width: 120 },
   { title: '部门', key: 'department', width: 100 },
-  { title: '工作经验', dataIndex: 'experienceRequirement', key: 'experienceRequirement', width: 100 },
-  { title: '学历要求', dataIndex: 'educationRequirement', key: 'educationRequirement', width: 100 },
+  { title: '工作经验', dataIndex: 'experienceReq', key: 'experienceReq', width: 100 },
+  { title: '学历要求', dataIndex: 'educationReq', key: 'educationReq', width: 100 },
   { title: '浏览量', dataIndex: 'viewCount', key: 'viewCount', width: 100, align: 'center' as const },
   { title: '状态', key: 'status', width: 100 },
   { title: '发布时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
-  { title: '操作', key: 'actions', fixed: 'right' as const, width: 280 },
+  { title: '操作', key: 'actions', fixed: 'right' as const, width: 240 },
 ]
 
 function formatSalary(record: JobPost): string {
-  if (record.minSalary && record.maxSalary) {
-    return `${record.minSalary}k-${record.maxSalary}k`
+  if (record.salaryMin && record.salaryMax) {
+    return `${record.salaryMin}k-${record.salaryMax}k`
   }
   return '面议'
 }
 
+function resetJobForm() {
+  Object.assign(jobForm, {
+    title: '',
+    jobType: 'full-time',
+    salaryMin: 0,
+    salaryMax: 0,
+    location: '',
+    department: '',
+    experienceReq: '不限',
+    educationReq: '不限',
+    description: '',
+    requirements: '',
+  })
+}
+
 function showAddModal() {
   editingJob.value = null
-  jobForm.title = ''
-  jobForm.jobType = 'full-time'
-  jobForm.minSalary = 0
-  jobForm.maxSalary = 0
-  jobForm.location = ''
-  jobForm.department = ''
-  jobForm.experienceRequirement = '不限'
-  jobForm.educationRequirement = '不限'
-  jobForm.description = ''
-  jobForm.requirements = ''
+  resetJobForm()
   showJobModal.value = true
 }
 
-async function editJob(id: number) {
-  try {
-    const job = await jobPostApi.get(id)
-    editingJob.value = job
-    jobForm.title = job.title || ''
-    jobForm.jobType = (job.jobType as 'full-time' | 'part-time' | 'internship') || 'full-time'
-    jobForm.minSalary = job.minSalary || 0
-    jobForm.maxSalary = job.maxSalary || 0
-    jobForm.location = job.location || ''
-    jobForm.department = job.department || ''
-    jobForm.experienceRequirement = job.experienceRequirement || '不限'
-    jobForm.educationRequirement = job.educationRequirement || '不限'
-    jobForm.description = job.description || ''
-    jobForm.requirements = job.requirements || ''
-    showJobModal.value = true
-  } catch (error) {
-    message.error('加载职位信息失败')
-    console.error(error)
+function editJob(id: number) {
+  const job = jobList.value.find((item) => item.id === id)
+  if (!job) {
+    message.error('职位已不在当前列表，请刷新后重试')
+    return
   }
+  editingJob.value = job
+  Object.assign(jobForm, {
+    title: job.title || '',
+    jobType: job.jobType || 'full-time',
+    salaryMin: job.salaryMin ?? 0,
+    salaryMax: job.salaryMax ?? 0,
+    location: job.location || '',
+    department: job.department || '',
+    experienceReq: job.experienceReq || '不限',
+    educationReq: job.educationReq || '不限',
+    description: job.description || '',
+    requirements: job.requirements || '',
+  })
+  showJobModal.value = true
 }
 
 async function handleSaveJob() {
-  if (!jobForm.title.trim()) {
+  if (!jobForm.title?.trim()) {
     message.warning('请输入职位名称')
     return
   }
   saving.value = true
   try {
-    const tenantId = auth.selectedTenantId || auth.tenantId
-    const data = {
-      ...jobForm,
-      tenantId,
-      status: 'active' as const,
-    }
     if (editingJob.value) {
-      await jobPostApi.update(editingJob.value.id, data)
-      message.success('职位更新成功')
+      await jobPostApi.update(editingJob.value.id, { ...jobForm })
+      message.success('职位已更新')
     } else {
-      await jobPostApi.create(data)
-      message.success('职位发布成功')
+      // 新建不带 status，后端默认 CLOSED；上架是单独动作，避免「一保存就出现在门户上」的错觉
+      await jobPostApi.create({ ...jobForm })
+      message.success('职位已保存，点「上架」后门户才会展示')
     }
     showJobModal.value = false
     await loadData()
-  } catch (error) {
-    message.error('操作失败')
+  } catch (error: any) {
+    message.error(error?.message || '保存失败')
     console.error(error)
   } finally {
     saving.value = false
@@ -360,14 +362,14 @@ async function handleSaveJob() {
 }
 
 async function toggleStatus(record: JobPost) {
+  const toOpen = record.status !== 'OPEN'
   try {
-    const newStatus = record.status === 'active' ? 'disabled' : 'active'
-    await jobPostApi.update(record.id, { ...record, status: newStatus })
-    record.status = newStatus
-    message.success(`${newStatus === 'active' ? '上架' : '下架'}成功`)
+    await (toOpen ? jobPostApi.publish(record.id) : jobPostApi.close(record.id))
+    record.status = toOpen ? 'OPEN' : 'CLOSED'
+    message.success(toOpen ? '已上架，门户招聘页现在能看到它' : '已下架')
     loadStats()
-  } catch (error) {
-    message.error('操作失败')
+  } catch (error: any) {
+    message.error(error?.message || '操作失败')
     console.error(error)
   }
 }
@@ -377,8 +379,8 @@ async function handleDelete(id: number) {
     await jobPostApi.delete(id)
     message.success('删除成功')
     await loadData()
-  } catch (error) {
-    message.error('删除失败')
+  } catch (error: any) {
+    message.error(error?.message || '删除失败')
     console.error(error)
   }
 }
@@ -387,9 +389,9 @@ async function loadData() {
   loading.value = true
   try {
     const params: JobPostQuery = {
-      tenantId: auth.selectedTenantId || auth.tenantId,
       page: pagination.page,
       size: pagination.size,
+      status: queryParams.status || undefined,
       jobType: queryParams.jobType || undefined,
       keyword: queryParams.keyword || undefined,
     }
@@ -397,8 +399,8 @@ async function loadData() {
     jobList.value = result.records || []
     pagination.total = result.total || 0
     loadStats()
-  } catch (error) {
-    message.error('加载职位列表失败')
+  } catch (error: any) {
+    message.error(error?.message || '加载职位列表失败')
     console.error(error)
   } finally {
     loading.value = false
@@ -407,12 +409,14 @@ async function loadData() {
 
 async function loadStats() {
   try {
-    const tenantId = auth.selectedTenantId || auth.tenantId
-    const allResult = await jobPostApi.list({ tenantId, page: 1, size: 1 })
-    stats.totalJobs = allResult.total || 0
-    
-    const activeResult = await jobPostApi.list({ tenantId, page: 1, size: 1, status: 'active' })
-    stats.activeJobs = activeResult.total || 0
+    const [all, open, closed] = await Promise.all([
+      jobPostApi.list({ page: 1, size: 1 }),
+      jobPostApi.list({ page: 1, size: 1, status: 'OPEN' }),
+      jobPostApi.list({ page: 1, size: 1, status: 'CLOSED' }),
+    ])
+    stats.totalJobs = all.total || 0
+    stats.openJobs = open.total || 0
+    stats.closedJobs = closed.total || 0
   } catch (error) {
     console.error('加载统计数据失败:', error)
   }

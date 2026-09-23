@@ -12,7 +12,6 @@
         <template #message>
           <div class="alert-content">
             <p>关键词排名追踪帮助你了解网站在搜索引擎中的排名表现。</p>
-            <p>添加追踪关键词后，点击"检查排名"按钮可以手动更新排名数据。</p>
             <p>排名数字越小表示排名越靠前（1 = 第一名）。</p>
             <p>竞品排名字段支持记录多个竞品的排名对比。</p>
           </div>
@@ -21,7 +20,7 @@
 
       <a-alert type="warning" show-icon style="margin-bottom: 16px">
         <template #message>
-          <span>提示：系统目前支持手动录入排名数据。自动排名追踪功能将在后续版本中推出。</span>
+          <span>当前只支持手动录入：请在「添加关键词 / 编辑」里填写当前排名与检查时间。系统尚未接入搜索引擎排名数据源，所以没有「一键检测」。</span>
         </template>
       </a-alert>
 
@@ -101,14 +100,6 @@
           </template>
           <template v-if="column.key === 'actions'">
             <a-space>
-              <a-button
-                type="link"
-                size="small"
-                :loading="checkingId === record.id"
-                @click="handleCheck(record)"
-              >
-                检查排名
-              </a-button>
               <a-button type="link" size="small" @click="handleEdit(record)">编辑</a-button>
               <a-popconfirm
                 title="确定要删除这个关键词吗？"
@@ -209,7 +200,6 @@ const loading = ref(false)
 const saving = ref(false)
 const modalVisible = ref(false)
 const editingId = ref<number | null>(null)
-const checkingId = ref<number | null>(null)
 const searchEngineFilter = ref<string>('')
 const keywords = ref<GeoSeoKeywordRank[]>([])
 
@@ -359,21 +349,6 @@ async function handleDelete(id: number) {
   } catch (error) {
     console.error(error)
     message.error('删除失败')
-  }
-}
-
-async function handleCheck(record: GeoSeoKeywordRank) {
-  if (!record.id) return
-  checkingId.value = record.id
-  try {
-    await geoKeywordApi.check(record.id)
-    message.success('排名检查已完成')
-    await loadData()
-  } catch (error) {
-    console.error(error)
-    message.error('排名检查失败')
-  } finally {
-    checkingId.value = null
   }
 }
 
