@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import type { RouteComponent } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { message } from 'ant-design-vue'
+import { slugOfPath } from '../portal/portalPath'
 
 // 🔐 主布局
 const WorkspaceView = () => import('../views/workspace/WorkspaceView.vue')
@@ -49,7 +50,6 @@ const InvoiceView = () => import('../views/billing/InvoiceView.vue')
 const OrdersView = () => import('../views/billing/OrdersView.vue')
 
 // 🏢 门户网站模块
-const PortalHome = () => import('../portal/PortalHome.vue')
 const PortalDynamicPage = () => import('../portal/PortalDynamicPage.vue')
 const PortalArticleDetail = () => import('../portal/PortalArticleDetail.vue')
 const PortalCaseDetail = () => import('../portal/PortalCaseDetail.vue')
@@ -114,41 +114,49 @@ const AlertChannelView = () => import('../views/workspace/AlertChannelView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes: RouteRecordRaw[] = [
-  // 🌐 门户网站前台页面
+  // 🌐 门户网站前台页面。六个内置路径都挂同一个组件：slug 由路径换算（见 portalPath.ts），
+  // 取数与渲染只此一条路。这里曾经是「灰度闸门」PortalHome——站点没开 page_model_enabled 就
+  // 退回三套写死的旧模板，两条渲染路径并存；旧模板已整条删除（Spec D3 / R8 的 sunset 项）。
   {
     path: '/',
     name: 'portal-home',
-    component: PortalHome,
+    component: PortalDynamicPage,
+    props: route => ({ slug: slugOfPath(route.path) }),
     meta: { title: '首页', requiresAuth: false }
   },
   {
     path: '/about',
     name: 'portal-about',
-    component: PortalHome,
+    component: PortalDynamicPage,
+    props: route => ({ slug: slugOfPath(route.path) }),
     meta: { title: '关于我们', requiresAuth: false }
   },
   {
     path: '/services',
     name: 'portal-services',
-    component: PortalHome,
+    component: PortalDynamicPage,
+    props: route => ({ slug: slugOfPath(route.path) }),
     meta: { title: '服务项目', requiresAuth: false }
   },
   {
     path: '/cases',
     name: 'portal-cases',
-    component: PortalHome,
+    component: PortalDynamicPage,
+    props: route => ({ slug: slugOfPath(route.path) }),
     meta: { title: '案例展示', requiresAuth: false }
   },
   {
     path: '/news',
     name: 'portal-news',
-    component: PortalHome,
+    component: PortalDynamicPage,
+    props: route => ({ slug: slugOfPath(route.path) }),
     meta: { title: '新闻动态', requiresAuth: false }
   },
   {
     path: '/contact',
     name: 'portal-contact',
-    component: PortalHome,
+    component: PortalDynamicPage,
+    props: route => ({ slug: slugOfPath(route.path) }),
     meta: { title: '联系我们', requiresAuth: false }
   },
   // 租户自定义页：路径由后端 PortalUrls.page() 生成（内置页仍走上面六个原路径，不搬家）
