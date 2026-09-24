@@ -129,8 +129,8 @@
 
             <a-divider style="margin: 12px 0" />
             <div class="page-builder__theme">
-              <span class="page-builder__muted">主题（design token，只允许这 8 个旋钮）</span>
-              <div v-for="token in THEME_FIELDS" :key="token.key" class="page-builder__theme-row">
+              <span class="page-builder__muted">主题（design token，只允许白名单里的 {{ DESIGN_TOKEN_FIELDS.length }} 个旋钮）</span>
+              <div v-for="token in DESIGN_TOKEN_FIELDS" :key="token.key" class="page-builder__theme-row">
                 <label>{{ token.label }}</label>
                 <a-input
                   v-if="token.kind === 'text'"
@@ -209,7 +209,7 @@
         <a-form-item label="标题" required>
           <a-input v-model:value="createForm.title" placeholder="例如：关于我们" />
         </a-form-item>
-        <a-form-item label="slug" extra="留空则由标题生成；对外地址是 /p/{slug}，内置栏目（home/about/services/contact/jobs）走短路径">
+        <a-form-item label="slug" extra="留空则由标题生成；对外地址是 /p/{slug}，只有内置页 home/about/services/cases/news/contact 走短路径">
           <a-input v-model:value="createForm.slug" placeholder="about" />
         </a-form-item>
         <a-form-item label="站点">
@@ -292,6 +292,7 @@ import {
 } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'
 import { formatDateTime } from '../../utils/format'
+import { DESIGN_TOKEN_FIELDS } from '../../portal/designTokens'
 import BlockPropsForm from './builder/BlockPropsForm.vue'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 
@@ -342,17 +343,6 @@ const versionsOpen = ref(false)
 const versions = ref<PortalPageVersion[]>([])
 const diffFrom = ref<number | null>(null)
 const diffText = ref('')
-
-const THEME_FIELDS = [
-  { key: 'colorPrimary', label: '主色', kind: 'text' as const, placeholder: '#1677ff' },
-  { key: 'colorBg', label: '背景色', kind: 'text' as const, placeholder: '#ffffff' },
-  { key: 'colorText', label: '正文色', kind: 'text' as const, placeholder: '#1f1f1f' },
-  { key: 'colorMuted', label: '次要文字色', kind: 'text' as const, placeholder: '#666666' },
-  { key: 'radius', label: '圆角', kind: 'text' as const, placeholder: '12px' },
-  { key: 'sectionMaxWidth', label: '区块最大宽度', kind: 'text' as const, placeholder: '1120px' },
-  { key: 'fontScale', label: '字号比例', kind: 'number' as const, min: 0.8, max: 1.4, step: 0.05 },
-  { key: 'spacingScale', label: '间距比例', kind: 'number' as const, min: 0.5, max: 2, step: 0.1 }
-]
 
 const statusOptions = computed(() =>
   Object.entries(statusLabels.value).map(([value, label]) => ({ value, label }))
