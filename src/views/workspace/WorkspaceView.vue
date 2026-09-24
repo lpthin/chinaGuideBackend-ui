@@ -195,6 +195,14 @@
               <template #icon><RocketOutlined /></template>
               门户上线
             </a-menu-item>
+            <a-menu-item key="portal/content" v-if="auth.hasPermission('portal:siteinfo:manage')">
+              <template #icon><AppstoreOutlined /></template>
+              内容工作台
+            </a-menu-item>
+            <a-menu-item key="portal/sections" v-if="auth.hasPermission('portal:build:section')">
+              <template #icon><AppstoreOutlined /></template>
+              栏目管理
+            </a-menu-item>
             <a-menu-item key="portal/pages" v-if="auth.hasPermission('portal:build:manage')">
               <template #icon><AppstoreOutlined /></template>
               页面搭建
@@ -224,7 +232,7 @@
               <template #icon><PictureOutlined /></template>
               Banner管理
             </a-menu-item>
-            <a-menu-item key="portal/jobs" v-if="auth.hasPermission('portal:siteinfo:manage')">
+            <a-menu-item key="portal/jobs" v-if="auth.hasPermission('portal:siteinfo:manage') && entryOpen('job')">
               <template #icon><UserAddOutlined /></template>
               招聘管理
             </a-menu-item>
@@ -236,7 +244,7 @@
               <template #icon><FormOutlined /></template>
               留言管理
             </a-menu-item>
-            <a-menu-item key="portal/company" v-if="auth.hasPermission('portal:siteinfo:manage')">
+            <a-menu-item key="portal/company" v-if="auth.hasPermission('portal:siteinfo:manage') && entryOpen('company')">
               <template #icon><BankOutlined /></template>
               企业信息
             </a-menu-item>
@@ -244,7 +252,7 @@
               <template #icon><SearchOutlined /></template>
               SEO配置
             </a-menu-item>
-            <a-menu-item key="portal/analytics">
+            <a-menu-item key="portal/analytics" v-if="auth.hasPermission('analytics:view')">
               <template #icon><BarChartOutlined /></template>
               访问统计
             </a-menu-item>
@@ -485,12 +493,34 @@ import {
   WalletOutlined,
   ShoppingOutlined
 } from '@ant-design/icons-vue'
+import { portalSectionsApi } from '../../api/portalSections'
 import { message } from 'ant-design-vue'
 import { describeHttpError } from '../../api/http'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+
+/**
+ * 内容类菜单项按栏目开通态显隐（Spec §7.1）。判据是后端词表里每个栏目的 contentEntry 字段，
+ * 不是在前端再抄一份栏目清单（I-1）。拉取失败就全显示（null = 不知道）：这一处挡的是
+ * 「点进去只有一片空白」，权限从来不由这里判，三个只读端点各自挂着 @RequirePermission。
+ */
+const openContentEntries = ref<Set<string> | null>(null)
+
+function entryOpen(entry: string): boolean {
+  return openContentEntries.value === null || openContentEntries.value.has(entry)
+}
+
+async function loadSectionEntries() {
+  try {
+    const states = await portalSectionsApi.list()
+    openContentEntries.value = new Set(
+      states.filter(state => state.enabled).map(state => state.contentEntry))
+  } catch {
+    openContentEntries.value = null
+  }
+}
 
 const collapsed = ref(false)
 const openKeys = ref<string[]>(['content', 'articleManage', 'knowledge', 'system', 'alert'])
@@ -738,7 +768,11 @@ onMounted(() => {
       console.warn('刷新当前用户信息失败:', e)
     })
   }
+  loadSectionEntries()
 })
+
+// 超管切换站点上下文之后，栏目开通态是另一个站点的，菜单得跟着重算
+watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSectionEntries)
 </script>
 
 <style scoped>

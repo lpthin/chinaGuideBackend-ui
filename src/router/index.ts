@@ -58,6 +58,8 @@ const JobManageView = () => import('../views/portal/JobManageView.vue')
 const MessageManageView = () => import('../views/portal/MessageManageView.vue')
 const GuestbookManageView = () => import('../views/portal/GuestbookManageView.vue')
 const CompanyInfoView = () => import('../views/portal/CompanyInfoView.vue')
+const PortalContentWorkbenchView = () => import('../views/portal/PortalContentWorkbenchView.vue')
+const SectionManageView = () => import('../views/portal/SectionManageView.vue')
 const SeoConfigView = () => import('../views/portal/SeoConfigView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
@@ -393,6 +395,30 @@ const routes: RouteRecordRaw[] = [
       },
       // 「模板管理」这一项随 portal_template 整条删除：挑了模板也不会改变访客看到的样子，
       // 换样式由「样式沉淀」（portal/presets，皮肤 + 平台模板）承担。
+      {
+        path: 'portal/content',
+        name: 'workspace-portal-content',
+        component: PortalContentWorkbenchView,
+        // 租户门户的落地页（Spec §7.1）：卡集合完全来自 /api/portal/sections，页面里一个开关都没有
+        meta: {
+          title: '内容工作台',
+          icon: 'grid',
+          breadcrumb: ['首页', '门户网站', '内容工作台'],
+          requiredPermission: 'portal:siteinfo:manage'
+        }
+      },
+      {
+        path: 'portal/sections',
+        name: 'workspace-portal-sections',
+        component: SectionManageView,
+        // 栏目开关是建设域（N5）：租户令牌打这条路径应当真 403，与后端 @RequirePermission 同一个码
+        meta: {
+          title: '栏目管理',
+          icon: 'grid',
+          breadcrumb: ['首页', '门户网站', '栏目管理'],
+          requiredPermission: 'portal:build:section'
+        }
+      },
       {
         path: 'portal/banners',
         name: 'workspace-portal-banners',
