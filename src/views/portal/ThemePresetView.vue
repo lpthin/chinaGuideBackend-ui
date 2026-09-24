@@ -254,7 +254,7 @@ import { useAuthStore } from '../../stores/auth'
  */
 
 const auth = useAuthStore()
-const canManage = computed(() => auth.hasPermission('portal:page:manage'))
+const canManage = computed(() => auth.hasPermission('portal:build:preset'))
 const canPromote = computed(() => auth.hasPermission('portal:template:promote'))
 
 const presets = ref<ThemePreset[]>([])

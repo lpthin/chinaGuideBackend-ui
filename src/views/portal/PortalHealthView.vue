@@ -127,7 +127,7 @@
               @changed="onDraftChanged(record.draftId)"
             />
             <span v-else-if="!canReviewDrafts" class="portal-health-page__muted">
-              草稿 #{{ record.draftId }} 已生成，但看它的内容需要 portal:review:manage 权限（当前账号没有）。
+              草稿 #{{ record.draftId }} 已生成，但看它的内容需要 portal:build:review 权限（当前账号没有）。
             </span>
             <a-spin v-else :spinning="true" size="small" />
           </template>
@@ -263,7 +263,7 @@ const expandedKeys = ref<number[]>([])
  * 这份草稿不属于任何工单，而工单那条列表接口只按工单查草稿，所以这一页是它唯一的落脚点。
  */
 const draftsById = reactive<Record<number, RevisionDraft>>({})
-const canReviewDrafts = computed(() => auth.hasPermission('portal:review:manage'))
+const canReviewDrafts = computed(() => auth.hasPermission('portal:build:review'))
 
 watch(expandedKeys, keys => {
   keys.forEach(key => {

@@ -66,6 +66,7 @@ const ThemePresetView = () => import('../views/portal/ThemePresetView.vue')
 const PortalHealthView = () => import('../views/portal/PortalHealthView.vue')
 const PortalAnalyticsView = () => import('../views/analytics/PortalAnalyticsView.vue')
 const PortalLaunchView = () => import('../views/onboarding/PortalLaunchView.vue')
+const SupportTicketView = () => import('../views/portal/SupportTicketView.vue')
 
 // 🔍 SEO & GEO 模块
 const GeoSeoDashboardView = () => import('../views/geoseo/GeoSeoDashboardView.vue')
@@ -396,13 +397,13 @@ const routes: RouteRecordRaw[] = [
         path: 'portal/banners',
         name: 'workspace-portal-banners',
         component: BannerManageView,
-        meta: { title: 'Banner管理', icon: 'image', breadcrumb: ['首页', '门户网站', 'Banner管理'] }
+        meta: { title: 'Banner管理', icon: 'image', breadcrumb: ['首页', '门户网站', 'Banner管理'], requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/jobs',
         name: 'workspace-portal-jobs',
         component: JobManageView,
-        meta: { title: '招聘管理', icon: 'job', breadcrumb: ['首页', '门户网站', '招聘管理'] }
+        meta: { title: '招聘管理', icon: 'job', breadcrumb: ['首页', '门户网站', '招聘管理'], requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/messages',
@@ -414,19 +415,25 @@ const routes: RouteRecordRaw[] = [
         path: 'portal/guestbook',
         name: 'workspace-portal-guestbook',
         component: GuestbookManageView,
-        meta: { title: '留言管理', icon: 'guestbook', breadcrumb: ['首页', '门户网站', '留言管理'] }
+        meta: { title: '留言管理', icon: 'guestbook', breadcrumb: ['首页', '门户网站', '留言管理'], requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/company',
         name: 'workspace-portal-company',
         component: CompanyInfoView,
-        meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', '门户网站', '企业信息'] }
+        meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', '门户网站', '企业信息'], requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/seo',
         name: 'workspace-portal-seo',
         component: SeoConfigView,
-        meta: { title: 'SEO配置', icon: 'seo', breadcrumb: ['首页', '门户网站', 'SEO配置'] }
+        // SEO 从 Q0 起归建设域（后端 /api/portal/seo 同码）；Spec §13 收口后这一项会被页面级 SEO 取代
+        meta: {
+          title: 'SEO配置',
+          icon: 'seo',
+          breadcrumb: ['首页', '门户网站', 'SEO配置'],
+          requiredPermission: 'portal:build:manage'
+        }
       },
       {
         path: 'portal/pages',
@@ -438,7 +445,7 @@ const routes: RouteRecordRaw[] = [
           title: '页面搭建',
           icon: 'template',
           breadcrumb: ['首页', '门户网站', '页面搭建'],
-          requiredPermission: 'portal:page:manage'
+          requiredPermission: 'portal:build:manage'
         }
       },
       {
@@ -449,7 +456,7 @@ const routes: RouteRecordRaw[] = [
           title: '改版工单',
           icon: 'message',
           breadcrumb: ['首页', '门户网站', '改版工单'],
-          requiredPermission: 'portal:review:manage'
+          requiredPermission: 'portal:build:review'
         }
       },
       {
@@ -461,7 +468,7 @@ const routes: RouteRecordRaw[] = [
           title: '参考站摄取',
           icon: 'global',
           breadcrumb: ['首页', '门户网站', '参考站摄取'],
-          requiredPermission: 'portal:reference:use'
+          requiredPermission: 'portal:build:reference'
         }
       },
       {
@@ -474,7 +481,7 @@ const routes: RouteRecordRaw[] = [
           title: '样式沉淀',
           icon: 'template',
           breadcrumb: ['首页', '门户网站', '样式沉淀'],
-          requiredPermission: 'portal:page:manage'
+          requiredPermission: 'portal:build:preset'
         }
       },
       {
@@ -482,12 +489,12 @@ const routes: RouteRecordRaw[] = [
         name: 'workspace-portal-health',
         component: PortalHealthView,
         // 同一个码覆盖「看巡检结果」与「让 AI 出手」：出手只产出建议或待审阅草稿，
-        // 真正把内容推给访客仍然是 portal:page:manage 的应用/发布动作。
+        // 真正把内容推给访客仍然是 portal:build:manage 的应用/发布动作。
         meta: {
           title: '页面巡检',
           icon: 'safety',
           breadcrumb: ['首页', '门户网站', '页面巡检'],
-          requiredPermission: 'portal:health:use'
+          requiredPermission: 'portal:build:health'
         }
       },
       {
@@ -495,6 +502,31 @@ const routes: RouteRecordRaw[] = [
         name: 'workspace-portal-analytics',
         component: PortalAnalyticsView,
         meta: { title: '访问统计', icon: 'chart', breadcrumb: ['首页', '门户网站', '访问统计'] }
+      },
+      {
+        path: 'portal/support',
+        name: 'workspace-portal-support',
+        component: SupportTicketView,
+        // 拍板 N1：租户侧没有「申请建站」，唯一的平台沟通口就是这张通用工单
+        props: { mode: 'mine' },
+        meta: {
+          title: '联系平台',
+          icon: 'message',
+          breadcrumb: ['首页', '门户网站', '联系平台'],
+          requiredPermission: 'portal:ticket:submit'
+        }
+      },
+      {
+        path: 'portal/support-queue',
+        name: 'workspace-portal-support-queue',
+        component: SupportTicketView,
+        props: { mode: 'queue' },
+        meta: {
+          title: '平台工单队列',
+          icon: 'message',
+          breadcrumb: ['首页', '门户网站', '平台工单队列'],
+          requiredPermission: 'portal:build:review'
+        }
       },
 
       // ===== 🔍 SEO & GEO =====

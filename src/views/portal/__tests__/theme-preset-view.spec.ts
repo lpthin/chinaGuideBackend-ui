@@ -188,18 +188,18 @@ describe('ThemePresetView', () => {
   })
 
   it('「沉淀为平台模板」只发给有 promote 权限的人', async () => {
-    const tenantWrapper = await mountView(['portal:page:manage'])
+    const tenantWrapper = await mountView(['portal:build:preset'])
     expect(byText('沉淀为平台模板').length).toBe(0)
     expect(byText('把页面样式沉淀为皮肤').length).toBe(1)
     tenantWrapper.unmount()
 
-    const adminWrapper = await mountView(['portal:page:manage', 'portal:template:promote'])
+    const adminWrapper = await mountView(['portal:build:preset', 'portal:template:promote'])
     expect(byText('沉淀为平台模板').length).toBe(1)
     adminWrapper.unmount()
   })
 
   it('皮肤行给「应用到页面」，平台模板行才给「用此模板建页」', async () => {
-    const wrapper = await mountView(['portal:page:manage'])
+    const wrapper = await mountView(['portal:build:preset'])
     const labels = [...document.querySelectorAll('button')].map(node => (node.textContent || '').trim())
     expect(labels.filter(l => l === '应用到页面').length).toBe(2)
     expect(labels.filter(l => l === '用此模板建页').length).toBe(1)
@@ -208,7 +208,7 @@ describe('ThemePresetView', () => {
 
   it('点「把页面样式沉淀为皮肤」才挂出表单，选好页面后提交的是 trim 过的名称', async () => {
     vi.mocked(themePresetsApi.saveSkin).mockResolvedValue(SKIN as any)
-    const wrapper = await mountView(['portal:page:manage'])
+    const wrapper = await mountView(['portal:build:preset'])
     expect(document.querySelector('.modal-stub')).toBeFalsy()
 
     byText('把页面样式沉淀为皮肤')[0].click()
@@ -235,7 +235,7 @@ describe('ThemePresetView', () => {
 
   it('应用皮肤带的是页面列表里那一份 version，成功后提示用服务端回读的版本号', async () => {
     vi.mocked(themePresetsApi.apply).mockResolvedValue({ ...PAGE, version: 4 } as any)
-    const wrapper = await mountView(['portal:page:manage'])
+    const wrapper = await mountView(['portal:build:preset'])
 
     byText('应用到页面')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await nextTick()
@@ -254,7 +254,7 @@ describe('ThemePresetView', () => {
   })
 
   it('不勾「已人工确认来源与近似度」就提交不了平台模板', async () => {
-    const wrapper = await mountView(['portal:page:manage', 'portal:template:promote'])
+    const wrapper = await mountView(['portal:build:preset', 'portal:template:promote'])
     byText('沉淀为平台模板')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await nextTick()
     const modal = document.querySelector('.modal-stub') as HTMLElement

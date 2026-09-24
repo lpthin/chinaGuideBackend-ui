@@ -183,7 +183,7 @@ describe('PortalHealthView', () => {
   })
 
   it('AI 按钮只按后端给的 aiFixMode 出现，不认类型的第三份副本', async () => {
-    const wrapper = await mountView(['portal:health:use'])
+    const wrapper = await mountView(['portal:build:health'])
     expect(byText('让 AI 出 SEO 建议').length).toBe(1)
     expect(byText('让 AI 出改版草稿').length).toBe(1)
     // link_dead 是 aiFixMode=none：这一行只该有「忽略」，不该出现任何 AI 入口
@@ -199,7 +199,7 @@ describe('PortalHealthView', () => {
       { ...finding(2, 'content_stale'), draftId: 880 },
       finding(3, 'link_dead')
     ] as any)
-    const wrapper = await mountView(['portal:health:use', 'portal:review:manage'])
+    const wrapper = await mountView(['portal:build:health', 'portal:build:review'])
     expect(byText('让 AI 出 SEO 建议').length).toBe(0)
     expect(byText('让 AI 出改版草稿').length).toBe(0)
     expect(byText('查看建议').length).toBe(1)
@@ -213,7 +213,7 @@ describe('PortalHealthView', () => {
       types: { seo_missing: { key: 'seo_missing', label: '后端改过的名字', aiFixMode: 'suggestion', hint: 'x' } },
       statuses: { open: '还没看' }
     } as any)
-    const wrapper = await mountView(['portal:health:use'])
+    const wrapper = await mountView(['portal:build:health'])
     const html = document.body.textContent || ''
     expect(html).toContain('后端改过的名字')
     expect(html).toContain('还没看')
@@ -231,7 +231,7 @@ describe('PortalHealthView', () => {
       aiFixEnabled: true,
       notice: null
     } as any)
-    const wrapper = await mountView(['portal:health:use'])
+    const wrapper = await mountView(['portal:build:health'])
 
     byText('让 AI 出 SEO 建议')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await flushPromises()
@@ -253,7 +253,7 @@ describe('PortalHealthView', () => {
   })
 
   it('忽略必须写理由，理由 trim 后交给后端', async () => {
-    const wrapper = await mountView(['portal:health:use'])
+    const wrapper = await mountView(['portal:build:health'])
     byText('忽略')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await nextTickish()
     const modal = document.querySelector('.modal-stub') as HTMLElement
@@ -285,7 +285,7 @@ describe('PortalHealthView', () => {
       dismissed: 4,
       scannedAt: '2026-09-24T10:00:00'
     } as any)
-    const wrapper = await mountView(['portal:health:use'])
+    const wrapper = await mountView(['portal:build:health'])
 
     ;(document.querySelector('.popconfirm-ok') as HTMLButtonElement).dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await flushPromises()
@@ -295,17 +295,17 @@ describe('PortalHealthView', () => {
     wrapper.unmount()
   })
 
-  it('没有 portal:review:manage 时不去取草稿正文，只说明为什么看不到', async () => {
+  it('没有 portal:build:review 时不去取草稿正文，只说明为什么看不到', async () => {
     vi.mocked(portalHealthApi.findings).mockResolvedValue([
       { ...finding(4, 'content_stale'), draftId: 880 }
     ] as any)
-    const wrapper = await mountView(['portal:health:use'])
+    const wrapper = await mountView(['portal:build:health'])
 
     // 展开这一行（视图里的「草稿 #880」那个链接）
     byText('草稿 #880')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await flushPromises()
     expect(portalTicketsApi.draft).not.toHaveBeenCalled()
-    expect((document.body.textContent || '').indexOf('portal:review:manage')).toBeGreaterThan(-1)
+    expect((document.body.textContent || '').indexOf('portal:build:review')).toBeGreaterThan(-1)
     wrapper.unmount()
   })
 })

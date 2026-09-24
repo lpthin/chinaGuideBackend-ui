@@ -195,32 +195,36 @@
               <template #icon><RocketOutlined /></template>
               门户上线
             </a-menu-item>
-            <a-menu-item key="portal/pages" v-if="auth.hasPermission('portal:page:manage')">
+            <a-menu-item key="portal/pages" v-if="auth.hasPermission('portal:build:manage')">
               <template #icon><AppstoreOutlined /></template>
               页面搭建
             </a-menu-item>
-            <a-menu-item key="portal/tickets" v-if="auth.hasPermission('portal:review:manage')">
+            <a-menu-item key="portal/tickets" v-if="auth.hasPermission('portal:build:review')">
               <template #icon><CommentOutlined /></template>
               改版工单
             </a-menu-item>
-            <a-menu-item key="portal/reference-sites" v-if="auth.hasPermission('portal:reference:use')">
+            <a-menu-item key="portal/reference-sites" v-if="auth.hasPermission('portal:build:reference')">
               <template #icon><GlobalOutlined /></template>
               参考站摄取
             </a-menu-item>
-            <a-menu-item key="portal/presets" v-if="auth.hasPermission('portal:page:manage')">
+            <a-menu-item key="portal/presets" v-if="auth.hasPermission('portal:build:preset')">
               <template #icon><BgColorsOutlined /></template>
               样式沉淀
             </a-menu-item>
             <!-- 菜单显隐与路由 meta.requiredPermission 用同一个码，和后端 @RequirePermission 也是一致的 -->
-            <a-menu-item key="portal/health" v-if="auth.hasPermission('portal:health:use')">
+            <a-menu-item key="portal/health" v-if="auth.hasPermission('portal:build:health')">
               <template #icon><SafetyOutlined /></template>
               页面巡检
             </a-menu-item>
-            <a-menu-item key="portal/banners">
+            <a-menu-item key="portal/support-queue" v-if="auth.hasPermission('portal:build:review')">
+              <template #icon><CommentOutlined /></template>
+              平台工单队列
+            </a-menu-item>
+            <a-menu-item key="portal/banners" v-if="auth.hasPermission('portal:siteinfo:manage')">
               <template #icon><PictureOutlined /></template>
               Banner管理
             </a-menu-item>
-            <a-menu-item key="portal/jobs">
+            <a-menu-item key="portal/jobs" v-if="auth.hasPermission('portal:siteinfo:manage')">
               <template #icon><UserAddOutlined /></template>
               招聘管理
             </a-menu-item>
@@ -228,21 +232,25 @@
               <template #icon><MessageOutlined /></template>
               站内信
             </a-menu-item>
-            <a-menu-item key="portal/guestbook">
+            <a-menu-item key="portal/guestbook" v-if="auth.hasPermission('portal:siteinfo:manage')">
               <template #icon><FormOutlined /></template>
               留言管理
             </a-menu-item>
-            <a-menu-item key="portal/company">
+            <a-menu-item key="portal/company" v-if="auth.hasPermission('portal:siteinfo:manage')">
               <template #icon><BankOutlined /></template>
               企业信息
             </a-menu-item>
-            <a-menu-item key="portal/seo">
+            <a-menu-item key="portal/seo" v-if="auth.hasPermission('portal:build:manage')">
               <template #icon><SearchOutlined /></template>
               SEO配置
             </a-menu-item>
             <a-menu-item key="portal/analytics">
               <template #icon><BarChartOutlined /></template>
               访问统计
+            </a-menu-item>
+            <a-menu-item key="portal/support" v-if="auth.hasPermission('portal:ticket:submit')">
+              <template #icon><CommentOutlined /></template>
+              联系平台
             </a-menu-item>
           </a-sub-menu>
 
@@ -524,6 +532,8 @@ const menuLabels: Record<string, string> = {
   'portal/company': '企业信息',
   'portal/seo': 'SEO配置',
   'portal/analytics': '访问统计',
+  'portal/support': '联系平台',
+  'portal/support-queue': '平台工单队列',
   'geoseo/dashboard': '总览仪表盘',
   'geoseo/config': '站点配置',
   'geoseo/pages': '页面SEO',
