@@ -63,6 +63,7 @@ const PortalTemplateView = () => import('../views/portal/PortalTemplateView.vue'
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
+const ThemePresetView = () => import('../views/portal/ThemePresetView.vue')
 const PortalAnalyticsView = () => import('../views/analytics/PortalAnalyticsView.vue')
 const PortalLaunchView = () => import('../views/onboarding/PortalLaunchView.vue')
 
@@ -448,6 +449,19 @@ const routes: RouteRecordRaw[] = [
           icon: 'global',
           breadcrumb: ['首页', '门户网站', '参考站摄取'],
           requiredPermission: 'portal:reference:use'
+        }
+      },
+      {
+        path: 'portal/presets',
+        name: 'workspace-portal-presets',
+        component: ThemePresetView,
+        // 整页都是写动作（沉淀/应用/建页/删除），所以按写权限挡；promote 那一半另有更小的权限码，
+        // 由界面按 auth.hasPermission('portal:template:promote') 决定是否出现入口。
+        meta: {
+          title: '样式沉淀',
+          icon: 'template',
+          breadcrumb: ['首页', '门户网站', '样式沉淀'],
+          requiredPermission: 'portal:page:manage'
         }
       },
       {

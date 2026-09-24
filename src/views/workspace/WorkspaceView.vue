@@ -213,6 +213,10 @@
               <template #icon><GlobalOutlined /></template>
               参考站摄取
             </a-menu-item>
+            <a-menu-item key="portal/presets" v-if="auth.hasPermission('portal:page:manage')">
+              <template #icon><BgColorsOutlined /></template>
+              样式沉淀
+            </a-menu-item>
             <a-menu-item key="portal/banners">
               <template #icon><PictureOutlined /></template>
               Banner管理
@@ -445,6 +449,7 @@ import {
   UploadOutlined,
   FolderOutlined,
   GlobalOutlined,
+  BgColorsOutlined,
   TeamOutlined,
   SafetyOutlined,
   UserAddOutlined,
@@ -513,6 +518,7 @@ const menuLabels: Record<string, string> = {
   'portal/pages': '页面搭建',
   'portal/tickets': '改版工单',
   'portal/reference-sites': '参考站摄取',
+  'portal/presets': '样式沉淀',
   'portal/banners': 'Banner管理',
   'portal/jobs': '招聘管理',
   'portal/messages': '站内信',
