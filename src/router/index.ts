@@ -381,7 +381,7 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '门户上线', icon: 'rocket', breadcrumb: ['首页', '门户网站', '门户上线'] }
       },
       // 「模板管理」这一项随 portal_template 整条删除：挑了模板也不会改变访客看到的样子，
-      // 换样式由「皮肤」（portal/theme-presets）承担。
+      // 换样式由「样式沉淀」（portal/presets，皮肤 + 平台模板）承担。
       {
         path: 'portal/banners',
         name: 'workspace-portal-banners',
