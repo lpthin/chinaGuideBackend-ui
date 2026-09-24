@@ -515,7 +515,7 @@ const task = ref<ReferenceSite | null>(null)
 const tab = ref('pages')
 const pages = ref<ReferencePage[]>([])
 const pagesLoading = ref(false)
-/** 素材 id → /uploads/... 公开地址；截图列的 <img> 只能用这个，不能拿 id 拼 */
+/** 素材 id → 后端现签的可显示地址；截图列的 <img> 只能用这个，不能拿 id 拼 */
 const shotUrls = ref<Record<number, string>>({})
 const mappings = ref<ReferenceMapping[]>([])
 const mappingsLoading = ref(false)

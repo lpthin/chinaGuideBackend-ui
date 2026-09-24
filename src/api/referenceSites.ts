@@ -72,7 +72,7 @@ export interface ReferenceCreateForm {
   obeyRobots?: boolean | null
 }
 
-/** 上传一张截图的结果：url 是 /uploads/... 的素材地址，可直接给 img */
+/** 上传一张截图的结果：url 是后端签好的短期预览地址（默认 15 分钟），可直接给 img，过期后要重新取 */
 export interface UploadedShot {
   referencePageId: number
   viewport: string
@@ -178,10 +178,14 @@ export const portalReferenceApi = {
   unmatched: (id: number) => http.get<ReferenceMapping[]>(`/portal/reference-sites/${id}/unmatched`),
 
   /**
-   * 参考站截图的素材地址（id → /uploads/... 公开路径）。
+   * 参考站截图的素材地址（id → 后端现签的短期预览地址，默认 15 分钟）。
    *
    * 为什么不直接拿 media id 拼图片链接：`GET /api/media/files/{id}` 要求带 Authorization，
-   * 而 `<img>` 发不出这个头，界面只会看到一排碎图。素材的公开路径只有 /media 列表接口会回给前端。
+   * 而 `<img>` 发不出这个头，界面只会看到一排碎图。素材的可显示地址只有 /media 列表接口会给出来。
+   *
+   * 为什么截图不再是 `/uploads/...`：那是公网可读、永久有效的路径，而截图是别人家网站的界面，
+   * 一次任务就是十几张。后端把这类素材落到公开目录之外，只经 `/api/media/preview/{id}` 发出来。
+   * 代价是抽屉长时间开着不管它，缩略图会先到期（重新打开或点刷新即可），这是有意的取舍。
    */
   shotMedia: () =>
     http.get<{ records?: Array<{ id: number; url: string }> }>('/media', {
