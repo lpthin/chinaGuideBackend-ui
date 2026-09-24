@@ -17,6 +17,7 @@ const RENDERERS: Record<string, () => Promise<Component>> = {
   caseGrid: () => import('./CaseGridBlock.vue'),
   caseList: () => import('./CaseListBlock.vue'),
   newsList: () => import('./NewsListBlock.vue'),
+  jobList: () => import('./JobListBlock.vue'),
   aboutRich: () => import('./AboutRichBlock.vue'),
   textBand: () => import('./TextBandBlock.vue'),
   teamGrid: () => import('./TeamGridBlock.vue'),

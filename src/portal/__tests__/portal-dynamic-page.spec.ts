@@ -119,4 +119,54 @@ describe('PortalDynamicPage 区块渲染', () => {
     await waitForText(wrapper, '关于页标题')
     expect(api.page).toHaveBeenLastCalledWith('about')
   })
+
+  /**
+   * 招聘区块：岗位字段只能来自后端把 {"$data":"jobs"} 解析好的结果——前端既不去自己取数，
+   * 也不给没填的字段编一个「面议」当占位（库里没有的那一格就是不出现）。
+   */
+  it('job-list 渲染解析出来的岗位字段', async () => {
+    api.page.mockResolvedValue(renderedPage({
+      slug: 'jobs',
+      blocks: [{
+        instanceId: 'b1',
+        blockKey: 'job-list',
+        rendererKey: 'jobList',
+        props: {
+          heading: '在招岗位',
+          items: [
+            {
+              id: 9, title: '口腔执业医师', department: '口腔科', jobType: '全职',
+              location: '昆明', salaryText: '12-20 元/月',
+              description: '负责口腔门诊日常诊疗', requirements: '持有口腔执业医师证', benefits: null,
+            },
+            { id: 10, title: '前台接待', location: '昆明' },
+          ],
+        },
+      }],
+    }))
+    const wrapper = await mountPage('口腔执业医师', 'jobs')
+    expect(api.page).toHaveBeenCalledWith('jobs')
+    expect(wrapper.text()).toContain('在招岗位')
+    expect(wrapper.text()).toContain('12-20 元/月')
+    // 岗位元信息拼的是后端字典翻译后的值，不是 FULL_TIME 这种代码
+    expect(wrapper.text()).toContain('口腔科 · 全职 · 昆明')
+    expect(wrapper.text()).toContain('负责口腔门诊日常诊疗')
+    expect(wrapper.text()).toContain('持有口腔执业医师证')
+    expect(wrapper.text()).toContain('前台接待')
+    expect(wrapper.text()).not.toContain('面议')
+  })
+
+  /** 一条岗位都没有时整块消失（区块里没有「暂无」这种编出来的文案），页面照常渲染其余区块 */
+  it('岗位列表为空时 job-list 整块不渲染', async () => {
+    api.page.mockResolvedValue(renderedPage({
+      slug: 'jobs',
+      // job-list 放在前面：等后面的标题出现时，这一块的异步组件也已经解析完了
+      blocks: [
+        { instanceId: 'b1', blockKey: 'job-list', rendererKey: 'jobList', props: { heading: '在招岗位', items: [] } },
+        { instanceId: 'b2', blockKey: 'hero', rendererKey: 'hero', props: { title: '加入我们' } },
+      ],
+    }))
+    const wrapper = await mountPage('加入我们', 'jobs')
+    expect(wrapper.text()).not.toContain('在招岗位')
+  })
 })

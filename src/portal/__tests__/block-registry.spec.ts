@@ -10,7 +10,7 @@ import { slugOfPath } from '../portalPath'
  */
 const RENDERER_KEYS = [
   'siteHeader', 'hero', 'bannerCarousel', 'serviceCards', 'caseGrid', 'caseList',
-  'newsList', 'aboutRich', 'textBand', 'teamGrid', 'statsBand', 'logoWall',
+  'newsList', 'jobList', 'aboutRich', 'textBand', 'teamGrid', 'statsBand', 'logoWall',
   'ctaBand', 'contactBlock', 'siteFooter'
 ]
 

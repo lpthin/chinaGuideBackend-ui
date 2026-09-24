@@ -113,7 +113,7 @@ const AlertChannelView = () => import('../views/workspace/AlertChannelView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes: RouteRecordRaw[] = [
-  // 🌐 门户网站前台页面。六个内置路径都挂同一个组件：slug 由路径换算（见 portalPath.ts），
+  // 🌐 门户网站前台页面。内置页的短路径都挂同一个组件：slug 由路径换算（见 portalPath.ts），
   // 取数与渲染只此一条路。这里曾经是「灰度闸门」PortalHome——站点没开页面模型就
   // 退回三套写死的旧模板，两条渲染路径并存；旧模板与那个开关已整条删除（Spec D3 / R8 的 sunset 项）。
   {
@@ -158,7 +158,17 @@ const routes: RouteRecordRaw[] = [
     props: route => ({ slug: slugOfPath(route.path) }),
     meta: { title: '联系我们', requiresAuth: false }
   },
-  // 租户自定义页：路径由后端 PortalUrls.page() 生成（内置页仍走上面六个原路径，不搬家）
+  // 招聘页：内置页（后端 BuiltInPages 有它，PortalUrls.page 才发得出 /jobs 这个短地址），
+  // 区块 job-list 绑 {"$data":"jobs"}。历史上 /jobs 只存在于后端清单里、前端没有这条路由，
+  // 所以它是个打不开的门面；这次是地址、内置页、区块三者一起补上的。
+  {
+    path: '/jobs',
+    name: 'portal-jobs',
+    component: PortalDynamicPage,
+    props: route => ({ slug: slugOfPath(route.path) }),
+    meta: { title: '加入我们', requiresAuth: false }
+  },
+  // 租户自定义页：路径由后端 PortalUrls.page() 生成（内置页仍走上面那些原路径，不搬家）
   {
     path: '/p/:slug',
     name: 'portal-page',
