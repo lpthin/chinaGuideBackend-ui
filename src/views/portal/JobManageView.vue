@@ -166,12 +166,12 @@
         </a-row>
         <a-row :gutter="16">
           <a-col :span="8">
-            <a-form-item label="最低薪资(k)">
+            <a-form-item label="最低薪资(元/月)">
               <a-input-number v-model:value="jobForm.salaryMin" :min="0" />
             </a-form-item>
           </a-col>
           <a-col :span="8">
-            <a-form-item label="最高薪资(k)">
+            <a-form-item label="最高薪资(元/月)">
               <a-input-number v-model:value="jobForm.salaryMax" :min="0" />
             </a-form-item>
           </a-col>
@@ -288,7 +288,9 @@ const columns = [
 
 function formatSalary(record: JobPost): string {
   if (record.salaryMin && record.salaryMax) {
-    return `${record.salaryMin}k-${record.salaryMax}k`
+    // 库里 salary_min/max 存的就是元（建表注释：salary_unit MONTHLY-月/YEARLY-年/DAILY-天），
+    // 这里以前自创了个 "k"，同一个数在管理端读作 15k、在门户公开页读作 15 元
+    return `${record.salaryMin}-${record.salaryMax} 元/月`
   }
   return '面议'
 }
