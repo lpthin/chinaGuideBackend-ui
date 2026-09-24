@@ -57,9 +57,20 @@ export interface PromoteForm {
   provenanceReviewed: boolean
 }
 
+/**
+ * 一个可改的样式变量：后端 LayoutValidator 的白名单条目。
+ * kind 决定渲哪种输入框，min/max 只对 SCALE 有意义（COLOR/LENGTH 回 0，界面不读）。
+ */
+export interface ThemeTokenField {
+  key: string
+  kind: 'COLOR' | 'LENGTH' | 'SCALE'
+  min: number
+  max: number
+}
+
 export const themePresetsApi = {
-  /** 可改的样式变量名清单（唯一真相：LayoutValidator.knownThemeTokens()） */
-  tokens: () => http.get<string[]>('/portal/theme-presets/tokens'),
+  /** 可改的样式变量清单（唯一真相：LayoutValidator 里那一份声明，含种类与比例区间） */
+  tokens: () => http.get<ThemeTokenField[]>('/portal/theme-presets/tokens'),
 
   list: () => http.get<ThemePreset[]>('/portal/theme-presets'),
 

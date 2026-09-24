@@ -44,11 +44,20 @@ describe('themePresetsApi', () => {
     await themePresetsApi.tokens()
     expect(http.get).toHaveBeenCalledWith('/portal/theme-presets/tokens')
 
-    // 搭建器与沉淀页都只 import designTokens.ts；谁再往视图里塞一份 colorPrimary 就会被这条抓到
+    // 键名一份都不许出现在视图里：谁往模板或脚本里塞 colorPrimary / fontScale 就会被这条抓到
     const views = readRaw(
       import.meta.glob('../../views/portal/*.vue', { eager: true, query: '?raw', import: 'default' }) as Record<string, string>
     )
-    expect(views).not.toMatch(/colorPrimary/)
+    expect(views).not.toMatch(/colorPrimary|colorBg|colorText|colorMuted|sectionMaxWidth|fontScale|spacingScale/)
+    // 而搭建器确实去问服务端要清单——「接口有了」和「前端取了」是两件事，历史上只有前者成立过
+    const builder = readRaw(
+      import.meta.glob('../../views/portal/PageBuilderView.vue', { eager: true, query: '?raw', import: 'default' }) as Record<
+        string,
+        string
+      >
+    )
+    expect(builder).toMatch(/themePresetsApi\.tokens\(\)/)
+    // 中文标签那份词表只在这里，且只剩标签：种类与区间由接口回传，前端不再声明
     const tokens = readRaw(
       import.meta.glob('../../portal/designTokens.ts', { eager: true, query: '?raw', import: 'default' }) as Record<
         string,
@@ -56,6 +65,8 @@ describe('themePresetsApi', () => {
       >
     )
     expect(tokens).toMatch(/colorPrimary/)
+    expect(tokens).not.toMatch(/kind:\s*'(text|number)'/)
+    expect(tokens).not.toMatch(/\bmin:\s*0\.8|\bmax:\s*1\.4/)
   })
 
   it('沉淀皮肤与平台沉淀走两个不同的前缀', async () => {

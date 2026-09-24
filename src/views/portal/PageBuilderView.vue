@@ -129,23 +129,24 @@
 
             <a-divider style="margin: 12px 0" />
             <div class="page-builder__theme">
-              <span class="page-builder__muted">主题（design token，只允许白名单里的 {{ DESIGN_TOKEN_FIELDS.length }} 个旋钮）</span>
-              <div v-for="token in DESIGN_TOKEN_FIELDS" :key="token.key" class="page-builder__theme-row">
-                <label>{{ token.label }}</label>
-                <a-input
-                  v-if="token.kind === 'text'"
-                  size="small"
-                  :value="(themeJson as Record<string, string | number>)[token.key] ?? ''"
-                  :placeholder="token.placeholder"
-                  @update:value="writeTheme(token.key, $event)"
-                />
+              <span class="page-builder__muted">主题（design token，白名单由服务端给，当前 {{ tokenFields.length }} 个旋钮）</span>
+              <p v-if="!tokenFields.length" class="page-builder__muted">样式变量清单还没取到：这里不留第二份清单，刷新页面重试。</p>
+              <div v-for="token in tokenFields" :key="token.key" class="page-builder__theme-row">
+                <label>{{ designTokenLabel(token.key) }}</label>
                 <a-input-number
-                  v-else
+                  v-if="token.kind === 'SCALE'"
                   size="small"
                   :value="(themeJson as Record<string, string | number>)[token.key] as number"
                   :min="token.min"
                   :max="token.max"
-                  :step="token.step"
+                  step="0.05"
+                  @update:value="writeTheme(token.key, $event)"
+                />
+                <a-input
+                  v-else
+                  size="small"
+                  :value="(themeJson as Record<string, string | number>)[token.key] ?? ''"
+                  :placeholder="designTokenPlaceholder(token.key)"
                   @update:value="writeTheme(token.key, $event)"
                 />
                 <a-button size="small" type="text" @click="clearTheme(token.key)">清</a-button>
@@ -291,8 +292,9 @@ import {
   type PreviewPage
 } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'
+import { themePresetsApi, type ThemeTokenField } from '../../api/themePresets'
 import { formatDateTime } from '../../utils/format'
-import { DESIGN_TOKEN_FIELDS } from '../../portal/designTokens'
+import { designTokenLabel, designTokenPlaceholder } from '../../portal/designTokens'
 import BlockPropsForm from './builder/BlockPropsForm.vue'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 
@@ -300,7 +302,8 @@ import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue
  * 门户页面搭建器：区块白名单 + design token 白名单，没有任何「写 HTML / 写 CSS」的入口。
  *
  * 三条来自 Spec 的硬约束在界面上的落点：
- * 1. 区块列表与 props 表单全部来自 /api/portal/blocks（与后端校验器同源），前端不维护字段清单；
+ * 1. 区块列表、props 表单与样式变量清单全部来自服务端（/api/portal/blocks、/portal/theme-presets/tokens），
+ *    前端不维护字段清单；
  * 2. 保存必须带 baseVersion，冲突由后端回中文错（409），这里绝不静默覆盖别人；
  * 3. 发布/下线是动作按钮，不提供「把 status 改一下再保存」的路径——published 只能由发布动作产生。
  *
@@ -327,6 +330,8 @@ const pageId = ref<number | null>(null)
 const baseVersion = ref<number | null>(null)
 const layoutBlocks = ref<LayoutBlock[]>([])
 const themeJson = ref<Record<string, string | number>>({})
+/** 可改的样式变量：整份清单（键名 + 种类 + 区间）来自 /portal/theme-presets/tokens，前端不写死 */
+const tokenFields = ref<ThemeTokenField[]>([])
 const activeIndex = ref(-1)
 const dirty = ref(false)
 const validateErrors = ref<string[]>([])
@@ -669,16 +674,19 @@ async function rollback(versionNo: number) {
 
 onMounted(async () => {
   try {
-    const [blockMeta, labels, sourceLabels, siteList] = await Promise.all([
+    const [blockMeta, labels, sourceLabels, siteList, tokenList] = await Promise.all([
       portalPagesApi.blocks(),
       portalPagesApi.statusLabels(),
       portalPagesApi.changeSourceLabels(),
       // 站点列表由后端按登录态过滤（TenantGuard）：超管看到全部，租户只看到自己的
-      siteApi.list()
+      siteApi.list(),
+      // 样式变量的白名单也来自服务端：留一份前端常量的话，服务端加旋钮时这里会安静地少一个输入框
+      themePresetsApi.tokens()
     ])
     blocks.value = blockMeta
     statusLabels.value = labels || {}
     changeSourceLabels.value = sourceLabels || {}
+    tokenFields.value = tokenList || []
     sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
     if (sites.value.length === 1) {
       siteId.value = sites.value[0].id

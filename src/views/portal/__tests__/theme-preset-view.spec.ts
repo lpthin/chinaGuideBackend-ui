@@ -179,7 +179,10 @@ describe('ThemePresetView', () => {
     vi.clearAllMocks()
     document.body.innerHTML = ''
     vi.mocked(themePresetsApi.list).mockResolvedValue([SKIN, TEMPLATE] as any)
-    vi.mocked(themePresetsApi.tokens).mockResolvedValue(['colorPrimary', 'radius'] as any)
+    vi.mocked(themePresetsApi.tokens).mockResolvedValue([
+      { key: 'colorPrimary', kind: 'COLOR', min: 0, max: 0 },
+      { key: 'radius', kind: 'LENGTH', min: 0, max: 0 }
+    ] as any)
     vi.mocked(portalPagesApi.list).mockResolvedValue([PAGE] as any)
     vi.mocked(siteApi.list).mockResolvedValue([{ id: 1, name: '小山口腔' }] as any)
   })
