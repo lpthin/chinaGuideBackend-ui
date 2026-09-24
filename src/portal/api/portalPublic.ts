@@ -54,8 +54,6 @@ export interface PortalSiteShell {
   seo: PortalSeo | null
   template: PortalTemplateInfo
   nav: PortalNavItem[]
-  /** 站点是否走「区块白名单页面模型」；false/undefined 时门户仍用旧模板渲染（灰度开关，见 site.page_model_enabled） */
-  pageModelEnabled?: boolean | null
 }
 
 export interface PortalArticleItem {

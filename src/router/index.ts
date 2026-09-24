@@ -115,8 +115,8 @@ const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes: RouteRecordRaw[] = [
   // 🌐 门户网站前台页面。六个内置路径都挂同一个组件：slug 由路径换算（见 portalPath.ts），
-  // 取数与渲染只此一条路。这里曾经是「灰度闸门」PortalHome——站点没开 page_model_enabled 就
-  // 退回三套写死的旧模板，两条渲染路径并存；旧模板已整条删除（Spec D3 / R8 的 sunset 项）。
+  // 取数与渲染只此一条路。这里曾经是「灰度闸门」PortalHome——站点没开页面模型就
+  // 退回三套写死的旧模板，两条渲染路径并存；旧模板与那个开关已整条删除（Spec D3 / R8 的 sunset 项）。
   {
     path: '/',
     name: 'portal-home',

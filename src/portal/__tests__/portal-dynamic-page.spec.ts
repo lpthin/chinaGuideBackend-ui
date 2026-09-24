@@ -23,7 +23,6 @@ const SHELL = {
   seo: null,
   template: { code: null, name: null, renderKey: 'tech' },
   nav: [{ title: '关于我们', url: '/about', articleCount: 3 }],
-  pageModelEnabled: true,
 }
 
 function renderedPage(overrides: Record<string, unknown> = {}) {
