@@ -217,6 +217,11 @@
               <template #icon><BgColorsOutlined /></template>
               样式沉淀
             </a-menu-item>
+            <!-- 菜单显隐与路由 meta.requiredPermission 用同一个码，和后端 @RequirePermission 也是一致的 -->
+            <a-menu-item key="portal/health" v-if="auth.hasPermission('portal:health:use')">
+              <template #icon><SafetyOutlined /></template>
+              页面巡检
+            </a-menu-item>
             <a-menu-item key="portal/banners">
               <template #icon><PictureOutlined /></template>
               Banner管理
@@ -519,6 +524,7 @@ const menuLabels: Record<string, string> = {
   'portal/tickets': '改版工单',
   'portal/reference-sites': '参考站摄取',
   'portal/presets': '样式沉淀',
+  'portal/health': '页面巡检',
   'portal/banners': 'Banner管理',
   'portal/jobs': '招聘管理',
   'portal/messages': '站内信',

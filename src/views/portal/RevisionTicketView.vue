@@ -141,66 +141,7 @@
           <a-divider>AI 草稿</a-divider>
           <a-empty v-if="!drafts.length" description="这条工单还没有草稿" />
           <div v-for="draft in drafts" :key="draft.id" class="revision-ticket-page__draft">
-            <a-alert
-              v-if="draft.validationError"
-              type="error"
-              show-icon
-              message="这份草稿未通过门禁，不能应用"
-              :description="draft.validationError"
-            />
-            <a-descriptions :column="2" size="small">
-              <a-descriptions-item label="模型自述">{{ draft.reason || '（模型未给理由）' }}</a-descriptions-item>
-              <a-descriptions-item label="基线版本">v{{ draft.baseVersion }}</a-descriptions-item>
-              <a-descriptions-item label="token 消耗">
-                {{ (draft.promptTokens ?? 0) + (draft.completionTokens ?? 0) }}
-              </a-descriptions-item>
-              <a-descriptions-item label="生成时间">{{ formatDateTime(draft.createdAt) }}</a-descriptions-item>
-            </a-descriptions>
-
-            <div v-if="warningsOf(draft).length" class="revision-ticket-page__warnings">
-              <p v-for="warning in warningsOf(draft)" :key="warning">{{ warning }}</p>
-            </div>
-
-            <a-table
-              v-if="diffOf(draft).length"
-              :data-source="diffOf(draft)"
-              :columns="diffColumns"
-              :pagination="false"
-              row-key="rowKey"
-              size="small"
-              :scroll="{ x: 720 }"
-            >
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'field'">
-                  <div>{{ record.blockName }}<span class="revision-ticket-page__muted">（{{ record.instanceId }}）</span></div>
-                  <div class="revision-ticket-page__mono">{{ record.fieldName }}</div>
-                </template>
-                <template v-else-if="column.key === 'before'">
-                  <span class="revision-ticket-page__del">{{ record.before }}</span>
-                </template>
-                <template v-else-if="column.key === 'after'">
-                  <span class="revision-ticket-page__ins">{{ record.after }}</span>
-                </template>
-              </template>
-            </a-table>
-            <p v-else-if="!draft.validationError" class="revision-ticket-page__muted">
-              这份草稿没有字段级差异记录（可能只改了主题变量），应用前请确认页面现状。
-            </p>
-
-            <a-space style="margin-top: 8px">
-              <a-popconfirm
-                title="应用后页面结构立即对访客生效，确定吗？"
-                :disabled="!canApply(draft)"
-                @confirm="applyDraft(draft)"
-              >
-                <a-button type="primary" :disabled="!canApply(draft)" :loading="applying === draft.id">
-                  {{ draft.appliedAt ? '已应用' : '应用到页面' }}
-                </a-button>
-              </a-popconfirm>
-              <a-popconfirm title="丢弃后这份草稿不再可用，确定吗？" @confirm="discardDraft(draft)">
-                <a-button :disabled="!!draft.appliedAt">丢弃</a-button>
-              </a-popconfirm>
-            </a-space>
+            <DraftReviewCard :draft="draft" @changed="onDraftChanged" />
           </div>
         </template>
       </a-spin>
@@ -312,6 +253,7 @@ import {
   type TicketOptions
 } from '../../api/portalTickets'
 import { portalPagesApi, type PortalPage } from '../../api/portalPages'
+import DraftReviewCard from './builder/DraftReviewCard.vue'
 import { formatDateTime } from '../../utils/format'
 
 /**
@@ -357,12 +299,6 @@ const columns = [
   { title: '操作', key: 'op', width: 90, fixed: 'right' as const }
 ]
 
-const diffColumns = [
-  { title: '区块 / 槽位', key: 'field', width: 240 },
-  { title: '改前', key: 'before', width: 240 },
-  { title: '改后', key: 'after', width: 240 }
-]
-
 const sessionColumns = [
   { title: '编号', dataIndex: 'id', key: 'id', width: 72 },
   { title: '备注', dataIndex: 'label', key: 'label', width: 170 },
@@ -381,7 +317,6 @@ const estimating = ref(false)
 const drafting = ref(false)
 const draftsLoading = ref(false)
 const drafts = ref<RevisionDraft[]>([])
-const applying = ref<number | null>(null)
 const draftModalOpen = ref(false)
 const confirmChecked = ref(false)
 
@@ -523,118 +458,11 @@ async function loadDrafts() {
   }
 }
 
-interface DiffRow {
-  rowKey: string
-  blockName: string
-  instanceId: string
-  fieldName: string
-  before: string
-  after: string
-}
-
-/** change_summary_json 的形状是 {diff:[{instanceId,blockName,action,fields:[{name,before,after}]}],summary,warnings} */
-function diffOf(draft: RevisionDraft): DiffRow[] {
-  const raw = draft.changeSummaryJson
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw) as {
-      diff?: Array<{
-        instanceId?: string
-        blockKey?: string
-        blockName?: string
-        action?: string
-        fields?: Array<{ name?: string; before?: unknown; after?: unknown }>
-      }>
-    }
-    const rows: DiffRow[] = []
-    ;(parsed.diff || []).forEach(entry => {
-      const action = entry.action || 'modified'
-      const label = entry.blockName || entry.blockKey || entry.instanceId || '—'
-      const fields = entry.fields || []
-      if (!fields.length) {
-        rows.push({
-          rowKey: `${label}-${action}`,
-          blockName: `${ACTION_LABELS[action] || action}：${label}`,
-          instanceId: entry.instanceId || '',
-          fieldName: '（整块顺序或结构变化）',
-          before: '',
-          after: ''
-        })
-        return
-      }
-      fields.forEach((field, index) => {
-        rows.push({
-          rowKey: `${entry.instanceId}-${field.name}-${index}`,
-          blockName: label,
-          instanceId: entry.instanceId || '',
-          fieldName: field.name || '—',
-          before: displayValue(field.before),
-          after: displayValue(field.after)
-        })
-      })
-    })
-    return rows
-  } catch (error) {
-    // 摘要坏了就什么都不显：宁可少一份参考，也不要在表格里渲半截 JSON
-    return []
-  }
-}
-
-const ACTION_LABELS: Record<string, string> = {
-  added: '新增区块',
-  removed: '删除区块',
-  modified: '改内容',
-  replaced: '换区块类型',
-  moved: '挪顺序'
-}
-
-function displayValue(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '（空）'
-  if (typeof value === 'object') {
-    const bound = (value as { $data?: string }).$data
-    return bound ? `绑定门户数据：${bound}` : JSON.stringify(value)
-  }
-  return String(value)
-}
-
-function warningsOf(draft: RevisionDraft): string[] {
-  const raw = draft.changeSummaryJson
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw) as { warnings?: unknown }
-    return Array.isArray(parsed.warnings) ? parsed.warnings.map(item => String(item)) : []
-  } catch (error) {
-    return []
-  }
-}
-
-function canApply(draft: RevisionDraft) {
-  return !draft.validationError && !draft.appliedAt
-}
-
-async function applyDraft(draft: RevisionDraft) {
-  applying.value = draft.id
-  try {
-    const saved = await portalTicketsApi.apply(draft.id)
-    message.success(`已应用，页面当前版本 v${saved.version}`)
-    await Promise.all([loadDrafts(), loadPages(), loadTickets()])
-    if (ticket.value) {
-      ticket.value = await portalTicketsApi.get(ticket.value.id)
-    }
-  } catch (error) {
-    message.error((error as Error).message || '应用失败')
-  } finally {
-    applying.value = null
-  }
-}
-
-async function discardDraft(draft: RevisionDraft) {
-  try {
-    await portalTicketsApi.discard(draft.id, '人工审阅后决定不用')
-    message.success('这份草稿已丢弃')
-    await loadDrafts()
-  } catch (error) {
-    message.error((error as Error).message || '丢弃失败')
+/** 草稿的 diff、应用与丢弃都在 DraftReviewCard 里；这两件事做完要把工单状态和页面版本一起刷回来 */
+async function onDraftChanged() {
+  await Promise.all([loadDrafts(), loadPages(), loadTickets()])
+  if (ticket.value) {
+    ticket.value = await portalTicketsApi.get(ticket.value.id)
   }
 }
 

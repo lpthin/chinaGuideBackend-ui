@@ -64,6 +64,7 @@ const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
 const ThemePresetView = () => import('../views/portal/ThemePresetView.vue')
+const PortalHealthView = () => import('../views/portal/PortalHealthView.vue')
 const PortalAnalyticsView = () => import('../views/analytics/PortalAnalyticsView.vue')
 const PortalLaunchView = () => import('../views/onboarding/PortalLaunchView.vue')
 
@@ -462,6 +463,19 @@ const routes: RouteRecordRaw[] = [
           icon: 'template',
           breadcrumb: ['首页', '门户网站', '样式沉淀'],
           requiredPermission: 'portal:page:manage'
+        }
+      },
+      {
+        path: 'portal/health',
+        name: 'workspace-portal-health',
+        component: PortalHealthView,
+        // 同一个码覆盖「看巡检结果」与「让 AI 出手」：出手只产出建议或待审阅草稿，
+        // 真正把内容推给访客仍然是 portal:page:manage 的应用/发布动作。
+        meta: {
+          title: '页面巡检',
+          icon: 'safety',
+          breadcrumb: ['首页', '门户网站', '页面巡检'],
+          requiredPermission: 'portal:health:use'
         }
       },
       {
