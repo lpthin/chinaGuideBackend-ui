@@ -1,10 +1,6 @@
 // 门户网站模块 API
 import http from './http'
 import type {
-  PortalTemplate,
-  PortalTemplateForm,
-  PortalTemplateListResult,
-  PortalTemplateQuery,
   Banner,
   JobPost,
   PortalMessage,
@@ -185,39 +181,8 @@ export const seoConfigApi = {
     http.delete(`/portal/seo/${id}`)
 }
 
-// 门户模板 API
-export const portalTemplateApi = {
-  // 获取模板列表（系统预设 + 当前租户自建）
-  list: (params: PortalTemplateQuery) =>
-    http.get<PortalTemplateListResult>('/portal/templates', { params }),
-
-  // 获取模板详情
-  get: (id: number) =>
-    http.get<PortalTemplate>(`/portal/templates/${id}`),
-
-  // 创建自定义模板
-  create: (data: PortalTemplateForm, tenantId?: number) =>
-    http.post<PortalTemplate>('/portal/templates', data, { params: { tenantId } }),
-
-  // 更新模板
-  update: (id: number, data: PortalTemplateForm, tenantId?: number) =>
-    http.put<PortalTemplate>(`/portal/templates/${id}`, data, { params: { tenantId } }),
-
-  // 删除模板
-  delete: (id: number, tenantId?: number) =>
-    http.delete(`/portal/templates/${id}`, { params: { tenantId } }),
-
-  // 应用模板到租户
-  apply: (id: number, tenantId: number) =>
-    http.post(`/portal/templates/${id}/apply`, { tenantId }),
-
-  // 获取租户当前使用的模板
-  getCurrentTemplate: (tenantId: number) =>
-    http.get<PortalTemplate>('/portal/templates/current', { params: { tenantId } })
-}
 
 export default {
-  template: portalTemplateApi,
   banner: bannerApi,
   jobPost: jobPostApi,
   message: portalMessageApi,

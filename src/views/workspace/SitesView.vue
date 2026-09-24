@@ -99,7 +99,6 @@ const defaultForm = (): SiteForm => ({
   enabledLocalesList: ['zh-CN'],
   frontendProjectPath: '',
   publishMode: 'static_html',
-  themeCode: 'default',
   status: 'enabled'
 })
 

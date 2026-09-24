@@ -33,12 +33,6 @@ export interface PortalCompanyBrief {
   address: string | null
 }
 
-export interface PortalTemplateInfo {
-  code: string | null
-  name: string | null
-  renderKey: string | null
-}
-
 export interface PortalNavItem {
   title: string
   url: string
@@ -52,7 +46,6 @@ export interface PortalSiteShell {
   baseUrl: string | null
   company: PortalCompanyBrief
   seo: PortalSeo | null
-  template: PortalTemplateInfo
   nav: PortalNavItem[]
 }
 

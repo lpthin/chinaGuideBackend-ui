@@ -92,7 +92,6 @@ export interface Site {
   enabledLocales: string
   frontendProjectPath: string
   publishMode: string
-  themeCode: string
   status: string
 }
 

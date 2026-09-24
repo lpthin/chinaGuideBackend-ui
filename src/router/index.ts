@@ -59,7 +59,6 @@ const MessageManageView = () => import('../views/portal/MessageManageView.vue')
 const GuestbookManageView = () => import('../views/portal/GuestbookManageView.vue')
 const CompanyInfoView = () => import('../views/portal/CompanyInfoView.vue')
 const SeoConfigView = () => import('../views/portal/SeoConfigView.vue')
-const PortalTemplateView = () => import('../views/portal/PortalTemplateView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
@@ -381,13 +380,8 @@ const routes: RouteRecordRaw[] = [
         component: PortalLaunchView,
         meta: { title: '门户上线', icon: 'rocket', breadcrumb: ['首页', '门户网站', '门户上线'] }
       },
-      {
-        path: 'portal/templates',
-        name: 'workspace-portal-templates',
-        component: PortalTemplateView,
-        // 挑模板是租户的日常运营动作，之前被 requiresSuperAdmin 挡死，租户看不到也换不了
-        meta: { title: '模板管理', icon: 'template', breadcrumb: ['首页', '门户网站', '模板管理'] }
-      },
+      // 「模板管理」这一项随 portal_template 整条删除：挑了模板也不会改变访客看到的样子，
+      // 换样式由「皮肤」（portal/theme-presets）承担。
       {
         path: 'portal/banners',
         name: 'workspace-portal-banners',

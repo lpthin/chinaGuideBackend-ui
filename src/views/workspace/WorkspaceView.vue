@@ -195,12 +195,6 @@
               <template #icon><RocketOutlined /></template>
               门户上线
             </a-menu-item>
-            <!-- 模板是租户自己的资产（后端按登录租户隔离），以前挂 isSuperAdmin 让租户看不见也换不了，
-                 与早已放开的路由不一致；这里改回不挡权限。 -->
-            <a-menu-item key="portal/templates">
-              <template #icon><LayoutOutlined /></template>
-              模板管理
-            </a-menu-item>
             <a-menu-item key="portal/pages" v-if="auth.hasPermission('portal:page:manage')">
               <template #icon><AppstoreOutlined /></template>
               页面搭建
@@ -467,7 +461,6 @@ import {
   TagsOutlined,
   ProjectOutlined,
   AccountBookOutlined,
-  LayoutOutlined,
   AppstoreOutlined,
   CommentOutlined,
   MessageOutlined,
@@ -519,7 +512,6 @@ const menuLabels: Record<string, string> = {
   'billing/manage': '账单管理',
   'billing/stats': '消费统计',
   'portal/launch': '门户上线',
-  'portal/templates': '模板管理',
   'portal/pages': '页面搭建',
   'portal/tickets': '改版工单',
   'portal/reference-sites': '参考站摄取',
@@ -593,7 +585,6 @@ const currentParentMenu = computed(() => {
     'billing/manage': '计费系统',
     'billing/stats': '计费系统',
     'portal/launch': '门户网站',
-    'portal/templates': '门户网站',
     'portal/pages': '门户网站',
     'portal/tickets': '门户网站',
     'portal/reference-sites': '门户网站',

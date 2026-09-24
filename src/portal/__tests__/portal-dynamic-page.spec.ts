@@ -21,7 +21,6 @@ const SHELL = {
   baseUrl: null,
   company: { name: '示例公司', logo: null, description: null, copyright: '© 示例公司', phone: '010-0000', email: null, address: null },
   seo: null,
-  template: { code: null, name: null, renderKey: 'tech' },
   nav: [{ title: '关于我们', url: '/about', articleCount: 3 }],
 }
 
