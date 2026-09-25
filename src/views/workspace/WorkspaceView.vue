@@ -389,6 +389,10 @@
               <template #icon><AuditOutlined /></template>
               审计日志
             </a-menu-item>
+            <a-menu-item key="media-storage">
+              <template #icon><CloudServerOutlined /></template>
+              素材存储
+            </a-menu-item>
           </a-sub-menu>
 
           <!-- 报警管理 -->
@@ -514,7 +518,8 @@ import {
   WalletOutlined,
   ShoppingOutlined,
   AimOutlined,
-  ShareAltOutlined
+  ShareAltOutlined,
+  CloudServerOutlined
 } from '@ant-design/icons-vue'
 import { portalSectionsApi } from '../../api/portalSections'
 import { message } from 'ant-design-vue'
@@ -609,6 +614,7 @@ const menuLabels: Record<string, string> = {
   users: '用户管理',
   settings: '系统设置',
   'audit-log': '审计日志',
+  'media-storage': '素材存储',
   'alert/rules': '报警规则',
   'alert/records': '报警记录',
   'alert/channels': '通知渠道',
@@ -683,6 +689,7 @@ const currentParentMenu = computed(() => {
     users: '系统管理',
     settings: '系统管理',
     'audit-log': '系统管理',
+    'media-storage': '系统管理',
     'alert/rules': '报警管理',
     'alert/records': '报警管理',
     'alert/channels': '报警管理',

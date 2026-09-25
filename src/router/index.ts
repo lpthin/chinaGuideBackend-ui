@@ -113,6 +113,7 @@ const PermissionsPanel = () => import('../views/workspace/PermissionsPanel.vue')
 const UsersPanel = () => import('../views/workspace/UsersPanel.vue')
 const SystemSettingsView = () => import('../views/workspace/SystemSettingsView.vue')
 const AuditLogView = () => import('../views/workspace/AuditLogView.vue')
+const MediaStorageView = () => import('../views/workspace/MediaStorageView.vue')
 const SitesView = () => import('../views/workspace/SitesView.vue')
 const TenantPanel = () => import('../views/workspace/TenantPanel.vue')
 const AlertRuleManageView = () => import('../views/workspace/AlertRuleManageView.vue')
@@ -782,6 +783,18 @@ const routes: RouteRecordRaw[] = [
         name: 'workspace-audit-log',
         component: AuditLogView,
         meta: { title: '审计日志', icon: 'audit', breadcrumb: ['首页', '系统管理', '审计日志'], requiresSuperAdmin: true }
+      },
+      {
+        path: 'media-storage',
+        name: 'workspace-media-storage',
+        component: MediaStorageView,
+        // 问题六「图片迁去 OSS」的手在这里。放系统管理而不是文章管理的图片库旁边：
+        // 这一次点会改所有租户的 media 行，租户侧连读都不该读到（后端两个口都是 checkSuperAdmin）。
+        // 路径故意不用 media/ 前缀：getMenuKey 只按首段认菜单，media/library 会被认成 'media'
+        // ——那是图片库的 key，两处会抢同一个高亮。
+        // 不挂 requiredPermission：这一族端点只认超管身份，库里也没有「素材迁移」这种权限码，
+        // 编一个出来只会多一个永远授不出去的名词。
+        meta: { title: '素材存储', icon: 'cloud', breadcrumb: ['首页', '系统管理', '素材存储'], requiresSuperAdmin: true }
       },
 
       // ===== 🔔 报警管理 =====
