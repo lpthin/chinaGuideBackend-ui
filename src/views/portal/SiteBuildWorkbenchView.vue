@@ -104,6 +104,44 @@
           </p>
           <a-button :disabled="!siteId" @click="router.push({ name: 'workspace-portal-sections' })">去栏目管理核对开通态</a-button>
         </a-card>
+
+        <!-- 交棒之后：巡检闭环（Spec §13.3-6）。不给它编号——§6.1 那条流水线是五步，这一步在交棒之后 -->
+        <a-card size="small" class="build-workbench__step">
+          <template #title>交棒之后：巡检闭环</template>
+          <p class="build-workbench__state">
+            交棒不等于收尾。巡检扫出来的「演示数据还没换 / SEO 缺项」以前只能等人自己去那一页翻，
+            这一格把它收成一次点击：扫描 → 让 AI 逐条先出草稿 → 结果写成一条待办。
+            扫描本身一次模型都不调；出草稿按条数花配额，所以要显式确认，一轮也有上限（后端配置
+            app.portal.health.patrol-draft-cap）。<strong>草稿不会自己上线</strong>：把它们变成线上内容
+            仍然是在巡检页逐条点应用。
+          </p>
+          <a-checkbox v-model:checked="patrolConfirmed">我确认这一轮会消耗 token 配额</a-checkbox>
+          <div class="build-workbench__patrol-actions">
+            <a-button type="primary" :disabled="!siteId || !patrolConfirmed" :loading="patrolling"
+                      @click="runPatrol">跑一轮巡检闭环</a-button>
+            <a-button :disabled="!siteId" @click="router.push({ name: 'workspace-portal-health' })">
+              去巡检看待处理与草稿
+            </a-button>
+          </div>
+          <a-alert v-if="patrolError" type="error" show-icon class="build-workbench__patrol-result"
+                   :message="patrolError" />
+          <div v-else-if="patrolResult" class="build-workbench__patrol-result">
+            {{ patrolResult.siteName }}：新发现 {{ patrolResult.opened }} 条，重新确认
+            {{ patrolResult.reconfirmed }} 条，本轮没再报出来 {{ patrolResult.resolved }} 条；
+            AI 出草稿 {{ patrolResult.drafted }} 条，出稿失败 {{ patrolResult.failed }} 条<span
+              v-if="patrolResult.queued">，排在下一轮 {{ patrolResult.queued }} 条</span>。
+            <span v-if="patrolResult.notificationId">已经写成一条待办（编号 {{ patrolResult.notificationId }}），
+              在「待办通知」那一页看得见。</span>
+            <span v-else>这一轮没有欠着的事，所以没写待办。</span>
+            <div v-if="patrolResult.notificationId" class="build-workbench__patrol-actions">
+              <a-button @click="router.push({ name: 'workspace-notifications' })">去看这条待办</a-button>
+            </div>
+            <span v-else>这一轮没有欠着的事，所以没写待办。</span>
+            <ul v-if="patrolResult.failures.length" class="build-workbench__patrol-failures">
+              <li v-for="(line, index) in patrolResult.failures" :key="index">{{ line }}</li>
+            </ul>
+          </div>
+        </a-card>
       </div>
     </a-spin>
 
@@ -144,6 +182,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { portalHealthApi, type HealthPatrolResult } from '../../api/portalHealth'
 import { portalPagesApi, type PortalPage } from '../../api/portalPages'
 import { portalSectionsApi, type SectionState } from '../../api/portalSections'
 import { portalReferenceApi, type ReferenceCapabilities } from '../../api/referenceSites'
@@ -160,7 +199,9 @@ import { siteApi } from '../../api/workspace'
  * 3. AI 组装本期没有端点，就把按钮禁用并写清「下一阶段」，不放一个点了必然报错的假功能；
  * 4. 「依赖体检」读的是后端 ReferenceCapabilities 那一次快照：五个开关位按布尔显示，缺什么照它写的
  *    那几句中文原样列出来（那些句子里点名的是配置文件里的键，前端改一个字就对不上号了）。
- *    这里没有任何开关可以翻，所以它既不跟着站点走（探测按后端给的 probedTenantId 说），也不提供「一键启用」。
+ *    这里没有任何开关可以翻，所以它既不跟着站点走（探测按后端给的 probedTenantId 说），也不提供「一键启用」；
+ * 5. 「巡检闭环」是这一页唯一会花配额的动作：确认位没勾上按钮就是灰的，跑完显示的也是后端给的计数
+ *    （新发现/出草稿/失败/排下一轮），前端不把它归纳成「成功」——那会把「一条都没出」和「出了五条」说得一样。
  */
 
 interface SiteRow {
@@ -197,6 +238,11 @@ const skeletonVersions = ref<Record<string, number>>({})
 const skeletonNames = ref<Record<string, string>>({})
 const statusLabels = ref<Record<string, string>>({})
 const capabilities = ref<ReferenceCapabilities | null>(null)
+
+const patrolConfirmed = ref(false)
+const patrolling = ref(false)
+const patrolResult = ref<HealthPatrolResult | null>(null)
+const patrolError = ref('')
 
 const loadingSites = ref(false)
 const loadingPages = ref(false)
@@ -330,6 +376,29 @@ async function refreshAll() {
   await Promise.all([loadSites(), loadCapabilities()])
 }
 
+/**
+ * 闭环一轮（Spec §13.3-6）。confirm 直接传 true：按钮在确认位没勾上时是灰的，
+ * 而后端还有一道——没确认它自己会拒，这里不替它把那道判断演一遍。
+ *
+ * <p>跑完不重取页面列表：这一步只往 finding 表和草稿表里写东西，这一页上那几个计数跟它无关，
+ * 跟着刷新反而让人以为线上内容被动过了。</p>
+ */
+async function runPatrol() {
+  if (!patrolConfirmed.value || siteId.value === null) {
+    return
+  }
+  patrolling.value = true
+  patrolError.value = ''
+  patrolResult.value = null
+  try {
+    patrolResult.value = await portalHealthApi.patrol(siteId.value, true)
+  } catch (error: any) {
+    patrolError.value = error?.message || '巡检闭环没跑成'
+  } finally {
+    patrolling.value = false
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadSites(), loadSkeletonIndex(), loadCapabilities()])
 })
@@ -382,6 +451,22 @@ onMounted(async () => {
 
   &__caps {
     margin-top: 12px;
+  }
+
+  &__patrol-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  &__patrol-result {
+    margin-top: 8px;
+    color: rgba(0, 0, 0, 0.65);
+  }
+
+  &__patrol-failures {
+    margin: 4px 0 0;
+    padding-left: 20px;
   }
 
   &__cap-chips {

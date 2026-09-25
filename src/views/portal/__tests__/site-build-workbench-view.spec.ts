@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { Button, Select, Tag } from 'ant-design-vue'
+import { Button, Checkbox, Select, Tag } from 'ant-design-vue'
 import SiteBuildWorkbenchView from '../SiteBuildWorkbenchView.vue'
+import { portalHealthApi } from '../../../api/portalHealth'
 import { portalPagesApi } from '../../../api/portalPages'
 import { portalSectionsApi } from '../../../api/portalSections'
 import { portalSkeletonsApi } from '../../../api/portalSkeletons'
@@ -31,6 +32,7 @@ vi.mock('../../../api/portalPages', () => ({ portalPagesApi: { list: vi.fn(), st
 vi.mock('../../../api/portalSections', () => ({ portalSectionsApi: { adminList: vi.fn() } }))
 vi.mock('../../../api/portalSkeletons', () => ({ portalSkeletonsApi: { list: vi.fn() } }))
 vi.mock('../../../api/referenceSites', () => ({ portalReferenceApi: { capabilities: vi.fn() } }))
+vi.mock('../../../api/portalHealth', () => ({ portalHealthApi: { patrol: vi.fn() } }))
 
 const PASS_THROUGH = (name: string) => ({
   name,
@@ -93,6 +95,30 @@ interface Options {
   skeletonsError?: string
   capabilities?: ReturnType<typeof capabilities> | null
   capabilitiesError?: string
+  patrol?: ReturnType<typeof patrolOutcome>
+  patrolError?: string
+}
+
+/**
+ * 一轮闭环的返回：计数全是后端给的，界面只负责列出来。
+ * 数字故意各不相同（opened 3 / drafted 5 / failed 1 / queued 4），这样「把两个数用同一个变量渲染」
+ * 或「自己归纳成一句成功」都会红。
+ */
+function patrolOutcome(overrides: Record<string, unknown> = {}) {
+  return {
+    siteId: 7,
+    siteName: '甲站',
+    opened: 3,
+    reconfirmed: 1,
+    resolved: 2,
+    drafted: 5,
+    failed: 1,
+    queued: 4,
+    failures: ['内容过期迹象：AI 没能给出可用的建议（门禁3：描述里出现了链接）'],
+    notificationId: 88,
+    finishedAt: '2026-09-25T10:00:00',
+    ...overrides
+  }
 }
 
 async function mountView(options: Options = {}) {
@@ -106,7 +132,9 @@ async function mountView(options: Options = {}) {
     sectionsError = '',
     skeletonsError = '',
     capabilities: caps = capabilities(),
-    capabilitiesError = ''
+    capabilitiesError = '',
+    patrol = patrolOutcome(),
+    patrolError = ''
   } = options
   vi.mocked(siteApi.list).mockResolvedValue(sites as any)
   vi.mocked(portalPagesApi.statusLabels).mockResolvedValue(statusLabels as any)
@@ -130,6 +158,11 @@ async function mountView(options: Options = {}) {
   } else {
     vi.mocked(portalReferenceApi.capabilities).mockResolvedValue(caps as any)
   }
+  if (patrolError) {
+    vi.mocked(portalHealthApi.patrol).mockRejectedValueOnce(new Error(patrolError))
+  } else {
+    vi.mocked(portalHealthApi.patrol).mockResolvedValue(patrol as any)
+  }
   const wrapper = mount(SiteBuildWorkbenchView, {
     attachTo: document.body,
     global: {
@@ -143,6 +176,7 @@ async function mountView(options: Options = {}) {
         'a-alert': PASS_THROUGH('AAlert'),
         'a-spin': PASS_THROUGH('ASpin'),
         'a-tooltip': PASS_THROUGH('ATooltip'),
+        'a-checkbox': Checkbox,
         'a-tag': Tag
       }
     }
@@ -247,9 +281,11 @@ describe('每一步的现状都来自接口，不是前端编的', () => {
   it('栏目只报开通数：交棒说明写在页面上，但不放任何开关', async () => {
     const wrapper = await mountView()
     expect(wrapper.text()).toContain('已开通栏目 1 个（共 2 个可开）')
-    // 刷新 + 五步各一颗：多出来的按钮只可能是有人在这一页放了写动作
-    expect(document.querySelectorAll('button').length).toBe(6)
-    expect(document.querySelectorAll('input[type="checkbox"], .ant-switch').length).toBe(0)
+    // 刷新 + 五步各一颗 + 闭环那颗「跑一轮」和它的去处：再多出来的按钮就说明有人在这一页又塞了一个写动作
+    expect(document.querySelectorAll('button').length).toBe(8)
+    // 这一页唯一的写动作是巡检闭环，它必须挂着一道确认；除此之外不许有任何开关（栏目租户只读，N2）
+    expect(document.querySelectorAll('input[type="checkbox"]').length).toBe(1)
+    expect(document.querySelectorAll('.ant-switch').length).toBe(0)
   })
 
   it('骨架库读失败不影响这一页：只报 key，不跟着报错', async () => {
@@ -446,5 +482,95 @@ describe('依赖体检：格子跟着 payload 翻，说明照后端原话，取�
     expect(portalReferenceApi.capabilities).toHaveBeenCalledTimes(2)
     expect(siteApi.list).toHaveBeenCalledTimes(2)
     expect(wrapper.exists()).toBe(true)
+  })
+})
+
+/**
+ * 巡检闭环（Spec §13.3-6）。这一格是整页唯一会花 token 配额的动作，所以钉三件事：
+ * 没确认点不动、点下去真的带着 confirm 与这一站、跑完显示的必须是后端那五个计数
+ * （前端自己归纳成一句「成功」，就会把「一条都没出」和「出了五条」说得一样）。
+ */
+describe('巡检闭环：先确认，再花配额，结果照后端那一份列出来', () => {
+  async function tickConfirm(wrapper: any) {
+    wrapper.findAllComponents(Checkbox)[0].vm.$emit('update:checked', true)
+    await flushPromises()
+  }
+
+  function patrolButton() {
+    const nodes = buttonContaining('跑一轮巡检闭环')
+    expect(nodes).toHaveLength(1)
+    return nodes[0] as HTMLButtonElement
+  }
+
+  it('没勾确认位时按钮是灰的，硬点也不会发请求', async () => {
+    await mountView()
+    expect(patrolButton().disabled).toBe(true)
+    click(patrolButton())
+    await flushPromises()
+    expect(portalHealthApi.patrol).not.toHaveBeenCalled()
+  })
+
+  it('勾上确认后点一次：带上这一站与 confirm，且不去重取页面列表', async () => {
+    const wrapper = await mountView()
+    await tickConfirm(wrapper)
+    expect(patrolButton().disabled).toBe(false)
+    click(patrolButton())
+    await flushPromises()
+    expect(portalHealthApi.patrol).toHaveBeenCalledTimes(1)
+    expect(portalHealthApi.patrol).toHaveBeenCalledWith(7, true)
+    // 闭环只写 finding 与草稿；跟着刷新页面列表会让人以为线上内容被动过了
+    expect(portalPagesApi.list).toHaveBeenCalledTimes(1)
+  })
+
+  it('五个计数各报各的，失败原因逐条列出来', async () => {
+    const wrapper = await mountView()
+    await tickConfirm(wrapper)
+    click(patrolButton())
+    await flushPromises()
+    const text = wrapper.text()
+    expect(text).toContain('新发现 3 条')
+    expect(text).toContain('重新确认 1 条')
+    expect(text).toContain('AI 出草稿 5 条')
+    expect(text).toContain('出稿失败 1 条')
+    expect(text).toContain('排在下一轮 4 条')
+    expect(wrapper.findAll('.build-workbench__patrol-failures li').map(line => line.text())).toEqual([
+      '内容过期迹象：AI 没能给出可用的建议（门禁3：描述里出现了链接）'
+    ])
+    expect(text).not.toContain('闭环成功')
+  })
+
+  it('这一轮没写待办时说明没有欠着的事，而不是留一格空', async () => {
+    const wrapper = await mountView({
+      patrol: patrolOutcome({ opened: 0, drafted: 0, failed: 0, queued: 0, failures: [], notificationId: null })
+    })
+    await tickConfirm(wrapper)
+    click(patrolButton())
+    await flushPromises()
+    expect(wrapper.text()).toContain('这一轮没有欠着的事')
+    expect(wrapper.findAll('.build-workbench__patrol-failures li')).toHaveLength(0)
+  })
+
+  it('排下一轮那条只在真有待排时才说，不写「排在下一轮 0 条」', async () => {
+    const wrapper = await mountView({ patrol: patrolOutcome({ queued: 0 }) })
+    await tickConfirm(wrapper)
+    click(patrolButton())
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('排在下一轮')
+  })
+
+  it('闭环失败只说在这一格：不拿计数充数', async () => {
+    const wrapper = await mountView({ patrolError: 'AI 整改建议未开启，请在配置里打开后再试' })
+    await tickConfirm(wrapper)
+    click(patrolButton())
+    await flushPromises()
+    expect(wrapper.text()).toContain('AI 整改建议未开启')
+    expect(wrapper.text()).not.toContain('AI 出草稿')
+  })
+
+  it('没选站点时这一格也跟着点不动', async () => {
+    const wrapper = await mountView({ sites: [] })
+    await tickConfirm(wrapper)
+    expect(patrolButton().disabled).toBe(true)
+    expect(buttonContaining('去巡检看待处理与草稿')[0].hasAttribute('disabled')).toBe(true)
   })
 })

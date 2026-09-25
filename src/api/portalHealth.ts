@@ -62,6 +62,27 @@ export interface HealthScanResult {
   scannedAt: string | null
 }
 
+/**
+ * 一轮闭环（Spec §13.3-6）：扫描 → AI 逐条先出草稿 → 写成一条待办。
+ * 计数与中文原因都来自后端，界面只负责把它们列出来，不自己归纳成「成功/失败」。
+ */
+export interface HealthPatrolResult {
+  siteId: number
+  siteName: string
+  opened: number
+  reconfirmed: number
+  resolved: number
+  /** 本轮真的出了几条草稿/建议 */
+  drafted: number
+  failed: number
+  /** 上限截掉、排在下一轮的条数：这不是失败，别和 failed 混成一个数 */
+  queued: number
+  failures: string[]
+  /** 这一轮没写出待办时是 null（后端：一切正常不该挤进待办列表） */
+  notificationId: number | null
+  finishedAt: string | null
+}
+
 export interface HealthEstimate {
   findingId: number
   findingType: string
@@ -113,6 +134,16 @@ export const portalHealthApi = {
   /** 手动扫描：只读页面与内容表，不改任何内容，也不调模型 */
   scan: (siteId?: number | null) =>
     http.post<HealthScanResult>('/portal/health/scan', null, { params: { siteId: siteId ?? undefined } }),
+
+  /**
+   * 闭环一轮（Spec §13.3-6）：扫描 + 让 AI 逐条先出草稿 + 写成超管待办。
+   * confirm 必须是 true——这一步按条数花配额，没确认后端直接拒。
+   * 出的仍然是草稿：把草稿变成线上内容仍然是巡检页上那两条 apply 动作，由人点。
+   */
+  patrol: (siteId: number | null | undefined, confirm: boolean) =>
+    http.post<HealthPatrolResult>('/portal/health/patrol', { confirm }, {
+      params: { siteId: siteId ?? undefined }
+    }),
 
   /** reason 必填：不写理由的忽略等于把问题藏起来，后端同样判 */
   dismiss: (id: number, reason: string) =>
