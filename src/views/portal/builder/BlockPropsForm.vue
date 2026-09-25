@@ -15,7 +15,7 @@
 
       <!-- 字面值 / 数据绑定 二选一：区块的列表型槽位只允许绑定，
            把内容抄进 layout_json 就等于在页面里养第二份真相，内容改了页面不会跟着变 -->
-      <template v-if="kindOf(name) === 'text'">
+      <template v-if="kindOf(name) === 'text' || kindOf(name) === 'image'">
         <a-radio-group
           size="small"
           :value="modeOf(name)"
@@ -24,8 +24,15 @@
           <a-radio-button value="literal">写字面内容</a-radio-button>
           <a-radio-button value="binding">绑定门户数据</a-radio-button>
         </a-radio-group>
+        <!-- 图片槽换媒体选择器：仍然能手填地址（外链与临时图要用），但多两条真路。
+             判据来自后端槽位声明的 format，不在前端按字段名猜「哪个是图」 -->
+        <MediaImagePicker
+          v-if="kindOf(name) === 'image' && modeOf(name) === 'literal'"
+          :model-value="literalOf(name) as string | undefined"
+          @update:model-value="write(name, $event)"
+        />
         <a-textarea
-          v-if="modeOf(name) === 'literal'"
+          v-else-if="modeOf(name) === 'literal'"
           :value="literalOf(name) as string | undefined"
           :rows="2"
           :maxlength="maxLengthOf(name)"
@@ -87,6 +94,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import MediaImagePicker from '@/components/MediaImagePicker.vue'
 
 /**
  * 由区块 data_schema_json 生成的 props 表单。
@@ -106,11 +114,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'update:model', value: Record<string, unknown>): void }>()
 
-type SlotKind = 'text' | 'binding' | 'integer' | 'enum' | 'boolean' | 'unknown'
+type SlotKind = 'text' | 'image' | 'binding' | 'integer' | 'enum' | 'boolean' | 'unknown'
 
 interface PropertySchema {
   oneOf?: unknown[]
   type?: string
+  format?: string
   enum?: unknown[]
   minimum?: number
   maximum?: number
@@ -130,16 +139,20 @@ function schemaOf(name: string): PropertySchema | null {
 
 /**
  * 槽位形状判读：
- * - oneOf[字符串, {$data}] → 字面内容或绑定二选一（区块白名单里的 SHORT/TEXT/URL 槽）
+ * - oneOf[字符串, {$data}] → 字面内容或绑定二选一（区块白名单里的 SHORT/TEXT/URL 槽）；
+ *   字符串那份带 {@code format: "image"} 时是图片槽，字面那一侧换媒体选择器
  * - 只有 $data → 必须绑定（列表槽 items/links，后端 additionalProperties=false 会拒绝字面值）
  */
 function kindOf(name: string): SlotKind {
   const schema = schemaOf(name)
   if (!schema) return 'unknown'
   if (Array.isArray(schema.oneOf)) {
-    const literal = schema.oneOf.some(item => (item as PropertySchema)?.type === 'string')
+    const literal = schema.oneOf.find(item => (item as PropertySchema)?.type === 'string') as PropertySchema | undefined
     const binding = schema.oneOf.some(item => JSON.stringify(item).includes('$data'))
-    return literal && binding ? 'text' : 'unknown'
+    if (!literal || !binding) {
+      return 'unknown'
+    }
+    return literal.format === 'image' ? 'image' : 'text'
   }
   if (schema.properties && '$data' in schema.properties) return 'binding'
   if (Array.isArray(schema.enum)) return 'enum'

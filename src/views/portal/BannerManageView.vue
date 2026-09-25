@@ -163,13 +163,7 @@
           <a-input v-model:value="form.subtitle" placeholder="可选，补充一句具体信息" />
         </a-form-item>
         <a-form-item label="图片地址" required>
-          <a-input v-model:value="form.imageUrl" placeholder="/uploads/... 或完整图片地址">
-            <template #addonAfter>
-              <a-upload :show-upload-list="false" accept="image/*" :custom-request="handleUpload">
-                上传
-              </a-upload>
-            </template>
-          </a-input>
+          <MediaImagePicker v-model="form.imageUrl" placeholder="从媒体库挑一张，或粘贴已有图片地址" />
         </a-form-item>
         <a-form-item label="跳转链接">
           <a-input v-model:value="form.linkUrl" placeholder="留空表示这张 Banner 不跳转" />
@@ -199,10 +193,10 @@ import {
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import { bannerApi } from '../../api/portal'
-import http from '../../api/http'
 import type { Banner, BannerForm, BannerQuery } from '../../types/portal'
 import { formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
+import MediaImagePicker from '../../components/MediaImagePicker.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -286,20 +280,6 @@ function openEdit(record: Banner) {
     description: record.description ?? '',
   })
   formVisible.value = true
-}
-
-async function handleUpload(options: any) {
-  const formData = new FormData()
-  formData.append('file', options.file)
-  try {
-    const result = await http.post<{ url: string }>('/media/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    form.imageUrl = (result as any).url
-    message.success('图片已上传')
-  } catch (error: any) {
-    message.error(error?.message || '图片上传失败')
-  }
 }
 
 async function handleSave() {

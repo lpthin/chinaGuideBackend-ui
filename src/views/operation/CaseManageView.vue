@@ -164,12 +164,12 @@
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="客户Logo">
-              <a-input v-model:value="editForm.customerLogo" placeholder="请输入Logo URL" />
+              <MediaImagePicker v-model="editForm.customerLogo" size="small" placeholder="客户 Logo，可留空" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item label="封面图片">
-              <a-input v-model:value="editForm.coverImage" placeholder="请输入封面图URL" />
+              <MediaImagePicker v-model="editForm.coverImage" size="small" placeholder="案例列表与门户 case-card 用的那张图" />
             </a-form-item>
           </a-col>
         </a-row>
@@ -236,6 +236,7 @@ import type { CustomerCase, CustomerCaseForm } from '../../types/operation'
 import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
+import MediaImagePicker from '../../components/MediaImagePicker.vue'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()

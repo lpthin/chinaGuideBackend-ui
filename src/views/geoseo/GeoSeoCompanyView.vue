@@ -21,12 +21,12 @@
                   placeholder="请输入公司描述"
                 />
               </a-form-item>
-              <a-form-item label="Logo URL">
-                <a-input v-model:value="form.logoUrl" placeholder="请输入 Logo 图片 URL" />
+              <a-form-item label="Logo">
+                <MediaImagePicker v-model="form.logoUrl" placeholder="公司 Logo，站点级 JSON-LD 与页头都会用" />
               </a-form-item>
               <a-form-item label="网站图标">
-                <a-input v-model:value="form.faviconUrl" placeholder="请输入网站 favicon 图标 URL" />
-                <div class="form-helper">网站favicon图标URL，建议32x32像素的.ico或.png格式</div>
+                <MediaImagePicker v-model="form.faviconUrl" placeholder="favicon，建议 32x32 的 .ico 或 .png" />
+                <div class="form-helper">浏览器标签页上那张小图，缺了访客在书签里只能看到一个灰方块</div>
               </a-form-item>
               <a-form-item label="官方网站">
                 <a-input v-model:value="form.website" placeholder="请输入官方网站 URL" />
@@ -128,6 +128,7 @@ import { companyInfoApi } from '@/api/portal'
 import { describeHttpError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import type { CompanyInfo, CompanyInfoForm } from '@/types/portal'
+import MediaImagePicker from '@/components/MediaImagePicker.vue'
 
 const loading = ref(false)
 const saving = ref(false)

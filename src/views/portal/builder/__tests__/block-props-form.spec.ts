@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { Alert, Input, InputNumber, Radio, Select, Switch, Textarea } from 'ant-design-vue'
 import BlockPropsForm from '../BlockPropsForm.vue'
+import MediaImagePicker from '../../../../components/MediaImagePicker.vue'
 
 /**
  * 这个表单是「区块白名单 → 界面」的最后一环：槽位是字面内容还是门户数据绑定，
@@ -41,6 +42,7 @@ const SCHEMA = {
     columns: { type: 'integer', minimum: 1, maximum: 4 },
     featured: { type: 'boolean' },
     layout: { enum: ['grid', 'list'] },
+    logoUrl: { oneOf: [{ type: 'string', maxLength: 500, format: 'image' }, { type: 'object', additionalProperties: false, properties: { $data: { type: 'string' } }, required: ['$data'] }] },
     media: { type: 'object', description: '不认识的形状' }
   }
 } as const
@@ -96,6 +98,30 @@ describe('BlockPropsForm 由区块 schema 生成的槽位表单', () => {
     expect(lastEmitted(wrapper)).toEqual({ featured: true })
     expect(rowOf(wrapper, 'layout')!.find('.ant-select').exists()).toBe(true)
     expect(rowOf(wrapper, 'columns')!.find('.ant-input-number').exists()).toBe(true)
+  })
+
+  it('带 format:image 的槽位换媒体选择器，挑中即写进字面值（判据来自后端声明，不按字段名猜）', () => {
+    const wrapper = mountForm({ logoUrl: '/uploads/logo.png' })
+    const row = rowOf(wrapper, 'logoUrl')!
+    const picker = row.findComponent(MediaImagePicker)
+    expect(picker.exists(), '图片槽得换成媒体选择器').toBe(true)
+    expect(picker.props('modelValue')).toBe('/uploads/logo.png')
+    expect(row.find('textarea').exists()).toBe(false)
+    picker.vm.$emit('update:modelValue', '/uploads/picked.png')
+    expect(lastEmitted(wrapper)).toEqual({ logoUrl: '/uploads/picked.png' })
+  })
+
+  it('图片槽照样能切到绑定模式，字面/绑定二选一的规矩不为图片破例', async () => {
+    const wrapper = mountForm({ logoUrl: '/uploads/logo.png' })
+    const row = rowOf(wrapper, 'logoUrl')!
+    await row.findAll('input[type=radio]')[1]!.setValue('binding')
+    expect(lastEmitted(wrapper)).toEqual({ logoUrl: { $data: '' } })
+  })
+
+  it('普通文本槽不会被图片选择器误伤：认的是 format，不是名字里有没有 url', () => {
+    const wrapper = mountForm({ title: '种植牙专科' })
+    expect(rowOf(wrapper, 'title')!.find('.media-field').exists()).toBe(false)
+    expect(rowOf(wrapper, 'title')!.find('textarea').exists()).toBe(true)
   })
 
   it('认不出的形状退化成只读并说明原因，不凭空造结构', () => {
