@@ -52,7 +52,7 @@ export const dashboardApi = {
 export const keywordApi = {
   // 获取关键词列表
   list: (params: { page?: number; size?: number; status?: string; keyword?: string; tenantId?: number }) =>
-    http.get<PageResult<{ id: number; rawKeyword: string; normalizedKeyword: string; searchVolume: number; competition: number; status: string; createdAt: string }>>('/workspace/keywords', { params }),
+    http.get<PageResult<{ id: number; rawKeyword: string; normalizedKeyword: string; status: string; createdAt: string }>>('/workspace/keywords', { params }),
 
   // 导入关键词
   importKeywords: (data: { keywords: string[] }, tenantId?: number) =>

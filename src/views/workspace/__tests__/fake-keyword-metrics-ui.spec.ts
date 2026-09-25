@@ -19,6 +19,10 @@ const scanned = import.meta.glob(
 
 const raw = Object.values(scanned).join('\n')
 
+/** 接口那一层也扫：响应已经不带这三个字段了，类型里留着就是留着一个谎（V100 把列删了） */
+const apiSources = import.meta.glob(['../../../api/workspace.ts', '../../../api/index.ts'],
+  { eager: true, query: '?raw', import: 'default' }) as Record<string, string>
+
 function textOf(path: string): string {
   const found = Object.entries(scanned).find(([key]) => key.endsWith(path))
   return found ? String(found[1]) : ''
@@ -38,6 +42,13 @@ describe('I-8：搜索量/竞争度/意图价值在界面上没有任何读法',
 
   it('排序项里也没有这两个（全 0 的字段排不出任何顺序，却会让人以为排过）', () => {
     expect(textOf('KeywordLibraryView.vue')).not.toMatch(/按搜索量|按意图价值/)
+  })
+
+  it('接口类型里也不声明这三个字段', () => {
+    // 落到两份 api 文件上：/workspace/keywords 与 /keywords 两条读口的响应形状都不该再长出假指标
+    expect(Object.keys(apiSources).length).toBe(2)
+    expect(Object.values(apiSources).join('\n'))
+      .not.toMatch(/\bsearchVolume\b|\bcompetition\b|\bintentValue\b/)
   })
 
   it('选词那条链路也不再按这两个字段排序', () => {
