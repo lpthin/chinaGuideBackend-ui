@@ -102,6 +102,8 @@ export interface Guestbook {
   replyAt: string
   replyUserId: number
   status: string
+  /** 留言种类：取值与中文名只来自 GET /guestbook/types（I-1，前端不抄第二份词表） */
+  type?: string | null
   ip: string
   createdAt: string
   updatedAt: string
@@ -201,6 +203,10 @@ export interface PortalMessageQuery {
 export interface GuestbookQuery {
   tenantId: number
   status?: string
+  type?: string
+  keyword?: string
+  /** ISO 本地时间字符串，后端按 @DateTimeFormat(ISO.DATE_TIME) 收 */
+  startDate?: string
   page?: number
   size?: number
 }

@@ -130,6 +130,10 @@ export const guestbookApi = {
   submit: (data: Partial<Guestbook>) =>
     http.post<Guestbook>('/guestbook', data),
 
+  /** 留言种类的中文标签（普通留言 / 留资线索）。列表页那个徽标只有这一个来源 */
+  types: () =>
+    http.get<Record<string, string>>('/guestbook/types'),
+
   // 回复留言
   reply: (id: number, replyContent: string, replierName?: string) =>
     http.put<Guestbook>(`/guestbook/${id}/reply`, { replyContent, replierName }),

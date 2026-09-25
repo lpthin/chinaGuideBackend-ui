@@ -74,6 +74,18 @@
                 <a-select-option value="replied">已回复</a-select-option>
                 <a-select-option value="closed">已关闭</a-select-option>
               </a-select>
+              <!-- 类型名一个都不写在这里：这份词表后端有，抄一份就会跟它分家（I-1） -->
+              <a-select
+                v-model:value="queryParams.type"
+                style="width: 140px"
+                placeholder="类型筛选"
+                allowClear
+                @change="loadData"
+              >
+                <a-select-option v-for="(label, code) in typeLabels" :key="code" :value="code">
+                  {{ label }}
+                </a-select-option>
+              </a-select>
               <a-input-search
                 v-model:value="queryParams.keyword"
                 placeholder="搜索留言内容/用户"
@@ -97,6 +109,9 @@
                 <div v-if="record.reply" class="reply-content">
                   <span class="reply-label">回复：</span>{{ record.reply }}
                 </div>
+              </template>
+              <template v-if="column.key === 'type'">
+                <a-tag>{{ typeLabelOf(record.type) }}</a-tag>
               </template>
               <template v-if="column.key === 'status'">
                 <a-tag :color="getStatusColor(record.status)">
@@ -225,6 +240,7 @@ const stats = reactive({
 
 const queryParams = reactive({
   status: undefined as string | undefined,
+  type: undefined as string | undefined,
   keyword: '',
 })
 
@@ -242,6 +258,7 @@ const messageList = ref<Guestbook[]>([])
 
 const columns = [
   { title: '用户姓名', dataIndex: 'name', key: 'name', width: 120 },
+  { title: '类型', key: 'type', width: 110 },
   { title: '联系方式', dataIndex: 'phone', key: 'phone', width: 150 },
   { title: '留言内容', key: 'content', width: 300 },
   { title: '状态', key: 'status', width: 100 },
@@ -249,6 +266,23 @@ const columns = [
   { title: '回复时间', dataIndex: 'replyAt', key: 'replyAt', width: 180 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 150 },
 ]
+
+/** 中文标签只有一个来源：GET /guestbook/types（I-1）。拉不到时原样显示代码，不自造一个「未知类型」 */
+const typeLabels = ref<Record<string, string>>({})
+
+function typeLabelOf(type?: string | null): string {
+  if (!type) return '—'
+  return typeLabels.value[type] || type
+}
+
+async function loadTypes() {
+  try {
+    typeLabels.value = await guestbookApi.types()
+  } catch (error) {
+    // 词表拉不到不该挡住列表：徽标退化成后端原话，仍然是可信信息
+    console.error('加载留言类型词表失败:', error)
+  }
+}
 
 function getStatusColor(status: string): string {
   const colorMap: Record<string, string> = {
@@ -314,6 +348,8 @@ async function loadData() {
       page: pagination.page,
       size: pagination.size,
       status: queryParams.status || undefined,
+      type: queryParams.type || undefined,
+      keyword: queryParams.keyword.trim() || undefined,
     }
     const result = await guestbookApi.list(params)
     messageList.value = result.records || []
@@ -338,6 +374,12 @@ async function loadStats() {
     
     const pendingResult = await guestbookApi.list({ tenantId, page: 1, size: 1, status: 'pending' })
     stats.pendingCount = pendingResult.total || 0
+
+    // 这张卡以前永远是 0：那个数没人取过。今天零点起的条数才是「今日新增」
+    const now = new Date()
+    const startOfToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T00:00:00`
+    const todayResult = await guestbookApi.list({ tenantId, page: 1, size: 1, startDate: startOfToday })
+    stats.todayCount = todayResult.total || 0
   } catch (error) {
     console.error('加载统计数据失败:', error)
   }
@@ -350,6 +392,7 @@ function handleSizeChange(_current: number, size: number) {
 }
 
 onMounted(() => {
+  loadTypes()
   loadData()
 })
 </script>
