@@ -24,6 +24,26 @@ export interface SectionState {
   landingPageId: number | null;
 }
 
+/**
+ * 一个栏目的内容完整度（后端 `SectionCompleteness.Value`，问题十）。
+ *
+ * <p>档位代码 `level` 只用来配色，`label` 与 `hint` 那两句中文一律照后端渲染：
+ * 前端自己写第二份「missingImage → 有内容缺图」的映射，后端加一档时界面上只会安静地
+ * 把新档演成它认识的那句话（I-1）。</p>
+ */
+export interface SectionCompleteness {
+  /** notList | empty | missingImage | complete | noCoverSlot */
+  level: string;
+  /** 卡上那句短标签的中文，后端词表给 */
+  label: string;
+  /** 说清「差在哪、下一步做什么」的一句话，里面的数字是真数出来的 */
+  hint: string;
+  /** 其中没有封面图的条数；null = 这一类内容在数据模型里没有图位，后端没判这一项 */
+  missingImageCount: number | null;
+  /** 已发布但没进这一栏目的条数；null = 这一栏目没有这种区分 */
+  unlistedCount: number | null;
+}
+
 /** 一个栏目的内容统计（后端 `SectionSummaryService.Summary`） */
 export interface SectionSummary {
   key: string;
@@ -38,6 +58,8 @@ export interface SectionSummary {
   landingPageTitle: string | null;
   /** null = 该 pageKind 一个页面都没有；draft/offline 表示有页但访客看不到 */
   landingPageStatus: string | null;
+  /** 内容完整度（含缺图）：那一串数派生出来的档位与中文 */
+  completeness: SectionCompleteness;
 }
 
 /** 超管改栏目的表单：只翻开关与显示名，不碰页面本身 */

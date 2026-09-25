@@ -60,13 +60,37 @@ function summary(key: string, overrides: Record<string, unknown> = {}) {
     landingPageId: 12,
     landingPageTitle: '栏目页',
     landingPageStatus: 'published',
+    completeness: completeness(),
     ...overrides
   }
 }
 
-async function mountView(states: ReturnType<typeof state>[], summaries: Record<string, any> = {}) {
+/**
+ * 完整度那一句的桩：默认给一档「内容完整」。
+ *
+ * <p>label/hint 故意写成后端原话的形状而不由界面拼——用例要证的就是这里只照抄，
+ * 数字与中文都是后端 `SectionCompleteness` 数出来、说出来的。</p>
+ */
+function completeness(overrides: Record<string, unknown> = {}) {
+  return {
+    level: 'complete',
+    label: '内容完整',
+    hint: '5 条内容都配了封面图',
+    missingImageCount: 0,
+    unlistedCount: null,
+    ...overrides
+  }
+}
+
+async function mountView(states: ReturnType<typeof state>[], summaries: Record<string, any> = {},
+                        failedKeys: string[] = []) {
   vi.mocked(portalSectionsApi.list).mockResolvedValue(states as any)
-  vi.mocked(portalSectionsApi.summary).mockImplementation(async (key: string) => summaries[key] ?? summary(key) as any)
+  vi.mocked(portalSectionsApi.summary).mockImplementation(async (key: string) => {
+    if (failedKeys.includes(key)) {
+      throw new Error('统计接口挂了')
+    }
+    return summaries[key] ?? summary(key) as any
+  })
   vi.mocked(portalPagesApi.statusLabels).mockResolvedValue({ draft: '草稿', published: '已发布', offline: '已下线' })
   const wrapper = mount(PortalContentWorkbenchView, {
     attachTo: document.body,
@@ -123,7 +147,12 @@ describe('栏目卡集合只来自接口', () => {
 describe('三个数字的口径', () => {
   it('零条时说「还没有内容」，不是冷冰冰的 0', async () => {
     const wrapper = await mountView([state('news', '资讯栏', 'article')], {
-      news: summary('news', { contentCount: 0, landingPageId: null, landingPageStatus: null })
+      news: summary('news', {
+        contentCount: 0,
+        landingPageId: null,
+        landingPageStatus: null,
+        completeness: completeness({ level: 'empty', label: '还没有内容', hint: '访客在这一栏目里看不到任何内容，从「去维护」里发一条就有', missingImageCount: 0 })
+      })
     })
     expect(wrapper.text()).toContain('还没有内容')
     expect(wrapper.text()).toContain('平台还没为这一栏目建页')
@@ -131,9 +160,13 @@ describe('三个数字的口径', () => {
 
   it('标量栏目报「—」而不是 0（关于我们没有「几条」这件事）', async () => {
     const wrapper = await mountView([state('about', '关于我们页', 'company')], {
-      about: summary('about', { contentCount: null })
+      about: summary('about', {
+        contentCount: null,
+        completeness: completeness({ level: 'notList', label: '不计条数', hint: '这一栏目读的是企业信息那一组字段，没有「几条」这件事', missingImageCount: null })
+      })
     })
     expect(wrapper.text()).toContain('—')
+    expect(wrapper.text()).toContain('不计条数')
     expect(wrapper.text()).not.toContain('还没有内容')
   })
 
@@ -143,6 +176,55 @@ describe('三个数字的口径', () => {
     })
     expect(wrapper.text()).toContain('草稿')
     expect(wrapper.text()).not.toContain('draft')
+  })
+})
+
+describe('内容完整度那一格（问题十，含缺图）', () => {
+  /** 只看卡上那几个档位标签的文字：行标签是界面自己的字段名，不参与「中文谁说的」这场判断 */
+  const tagTexts = (wrapper: Awaited<ReturnType<typeof mountView>>) =>
+    wrapper.findAll('.atag-stub').map(node => node.text())
+
+  it('缺几条图照后端那句话原样说，界面自己不再数一遍', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')], {
+      news: summary('news', {
+        contentCount: 8,
+        completeness: completeness({ level: 'missingImage', label: '有内容缺图', hint: '8 条里 3 条没配封面图：门户上摆图的那一格是空的', missingImageCount: 3 })
+      })
+    })
+    expect(tagTexts(wrapper)).toEqual(['有内容缺图'])
+    expect(wrapper.text()).toContain('8 条里 3 条没配封面图')
+  })
+
+  it('卡上的档位与说明都来自接口：后端换成什么字，界面就照说什么', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')], {
+      news: summary('news', {
+        completeness: completeness({ level: 'missingImage', label: '档位词表改过的字', hint: '后端说的完整度那句话' })
+      })
+    })
+    expect(wrapper.text()).toContain('档位词表改过的字')
+    expect(wrapper.text()).toContain('后端说的完整度那句话')
+    // 界面没有把这一档硬编码成自己认识的那几种说法
+    expect(tagTexts(wrapper)).not.toContain('内容完整')
+  })
+
+  it('没有封面图位的栏目（招聘）照后端说「不判缺图」，不被演成完整', async () => {
+    const wrapper = await mountView([state('jobs', '招聘栏', 'job')], {
+      jobs: summary('jobs', {
+        contentEntry: 'job',
+        contentCount: 11,
+        completeness: completeness({ level: 'noCoverSlot', label: '已有内容', hint: '访客能看到 11 条；这一栏目在门户上没有封面图位，不判缺图', missingImageCount: null })
+      })
+    })
+    expect(wrapper.text()).toContain('没有封面图位，不判缺图')
+    expect(tagTexts(wrapper)).not.toContain('内容完整')
+  })
+
+  it('统计没回来的那一卡不许亮出「内容完整」，也不补一个默认档', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')], {}, ['news'])
+    expect(wrapper.text()).toContain('统计未就绪')
+    expect(wrapper.text()).toContain('完整度统计未就绪')
+    // 档位标签整个不渲染，而不是渲染一个界面自己猜的档
+    expect(wrapper.findAll('.atag-stub')).toHaveLength(0)
   })
 })
 
