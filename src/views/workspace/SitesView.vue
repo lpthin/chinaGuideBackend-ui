@@ -97,8 +97,6 @@ const defaultForm = (): SiteForm => ({
   siteType: 'content_site',
   defaultLocale: 'zh-CN',
   enabledLocalesList: ['zh-CN'],
-  frontendProjectPath: '',
-  publishMode: 'static_html',
   status: 'enabled'
 })
 
@@ -285,7 +283,7 @@ onMounted(() => {
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item label="域名">
+            <a-form-item label="域名" extra="访客从哪个域名进来就打开这个站点，填主机名即可（带不带 https:// 都认），暂不支持带路径">
               <a-input v-model:value="form.domain" placeholder="https://www.example.com" />
             </a-form-item>
           </a-col>
@@ -384,19 +382,6 @@ onMounted(() => {
             <a-form-item label="启用语言">
               <a-select v-model:value="form.enabledLocalesList" mode="multiple" style="width:100%">
                 <a-select-option v-for="loc in localeOptions" :key="loc.value" :value="loc.value">{{ loc.label }}</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="24">
-            <a-form-item label="前端项目路径">
-              <a-input v-model:value="form.frontendProjectPath" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="发布模式">
-              <a-select v-model:value="form.publishMode" style="width:100%">
-                <a-select-option value="static_html">静态 HTML</a-select-option>
-                <a-select-option value="dynamic">动态</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>

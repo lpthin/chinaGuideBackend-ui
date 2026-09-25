@@ -90,8 +90,6 @@ export interface Site {
   siteType: string
   defaultLocale: string
   enabledLocales: string
-  frontendProjectPath: string
-  publishMode: string
   status: string
 }
 
