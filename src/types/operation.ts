@@ -68,6 +68,14 @@ export interface CustomerCase {
   sort: number
   /** DRAFT / PUBLISHED，后端存储与返回都是大写 */
   status: string
+  /**
+   * 对外 SEO 三件套与详情页首包的结构化数据。空着时门户退回这一条的标题与摘要，
+   * schema 没有退回（库里没填就是不填）。
+   */
+  seoTitle?: string | null
+  seoDescription?: string | null
+  seoKeywords?: string | null
+  schemaJson?: string | null
   /** 演示内容包生成的行：门户只列 PUBLISHED 且非演示 */
   isDemo?: boolean
   createdAt: string

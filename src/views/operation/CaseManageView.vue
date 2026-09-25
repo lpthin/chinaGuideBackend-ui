@@ -117,6 +117,7 @@
               <a-space>
                 <a-button type="link" size="small" @click="viewDetail(record)">查看</a-button>
                 <a-button type="link" size="small" @click="editCase(record)">编辑</a-button>
+                <a-button type="link" size="small" @click="openDraftModal(record)">AI 起草</a-button>
                 <a-button type="link" size="small" danger @click="handleDelete(record.id)">删除</a-button>
               </a-space>
             </template>
@@ -191,7 +192,56 @@
         <a-form-item label="排序">
           <a-input-number v-model:value="editForm.sort" :min="0" style="width: 200px" />
         </a-form-item>
+        <a-alert
+          v-if="isEdit"
+          type="info"
+          show-icon
+          message="对外 SEO 三件套不在这里改：这一组列由列表行的「AI 起草」写入，改正文与状态都不会动它"
+        />
       </a-form>
+    </a-modal>
+
+    <!--
+      AI 起草弹窗。顺序是刻意的：先把预估拿到手才让勾确认，勾了才让点确定——
+      与改版工单、巡检建议那两条花钱的路同一个口径（决策 D4：执行前给租户看预计消耗）。
+    -->
+    <a-modal
+      v-model:open="draftVisible"
+      title="让 AI 重写这一条案例"
+      width="640px"
+      :confirm-loading="drafting"
+      :ok-button-props="{ disabled: !estimate || !draftConfirmed }"
+      @ok="runAiDraft"
+      @cancel="draftVisible = false"
+    >
+      <a-spin :spinning="estimateLoading">
+        <a-alert
+          v-if="!estimate"
+          type="info"
+          show-icon
+          message="正在估算这一条的 token 消耗（这一步一次模型都不调，不花钱）"
+        />
+        <template v-else>
+          <a-alert
+            type="info"
+            show-icon
+            :message="`预计 ${estimate.estimatedTokens} token，本站剩余配额 ${estimate.remainingTokens} token`"
+            :description="estimate.notice || (estimate.aiDraftEnabled ? null : '案例 AI 起草当前未开启（后端配置），确认也不会调用模型')"
+          />
+          <p class="draft-scope">
+            确定后会覆盖这一条的<b>标题、摘要、正文与 SEO 三件套</b>；已发布的案例在门户上立刻换成新文案。
+            状态、对外时间与浏览量都不动，所以草稿不会因为按了这个按钮就自己上线。
+          </p>
+          <a-form-item label="这一轮的额外要求（可空）">
+            <a-textarea
+              v-model:value="draftInstruction"
+              :rows="3"
+              placeholder="例如：把复查那一段写细一点；不要出现具体费用与地址"
+            />
+          </a-form-item>
+          <a-checkbox v-model:checked="draftConfirmed">我确认消耗 token 配额并覆盖当前文案</a-checkbox>
+        </template>
+      </a-spin>
     </a-modal>
 
     <!-- 只读详情弹窗 -->
@@ -215,6 +265,19 @@
           <img v-if="detailCase.coverImage" :src="detailCase.coverImage" class="detail-cover" />
           <span v-else>-</span>
         </a-descriptions-item>
+        <a-descriptions-item label="SEO 标题">
+          {{ detailCase.seoTitle || '（未填，门户这一页退回案例标题）' }}
+        </a-descriptions-item>
+        <a-descriptions-item label="SEO 描述">
+          {{ detailCase.seoDescription || '（未填，门户这一页退回案例摘要）' }}
+        </a-descriptions-item>
+        <a-descriptions-item label="SEO 关键词">
+          {{ detailCase.seoKeywords || '（未填。关键词没有退回来源：库里没填就是不填）' }}
+        </a-descriptions-item>
+        <a-descriptions-item label="详情页结构化数据">
+          <pre v-if="detailCase.schemaJson" class="detail-schema">{{ detailCase.schemaJson }}</pre>
+          <span v-else>（未填，首包不输出 schema）</span>
+        </a-descriptions-item>
         <a-descriptions-item label="创建时间">{{ formatDateTime(detailCase.createdAt) }}</a-descriptions-item>
         <a-descriptions-item label="更新时间">{{ formatDateTime(detailCase.updatedAt) }}</a-descriptions-item>
       </a-descriptions>
@@ -224,7 +287,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
-import { message, Modal } from 'ant-design-vue'
+import { message, Modal, notification } from 'ant-design-vue'
 import {
   TrophyOutlined,
   EyeOutlined,
@@ -232,6 +295,7 @@ import {
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import { customerCaseApi } from '../../api/operation'
+import type { CaseDraftEstimate } from '../../api/operation'
 import type { CustomerCase, CustomerCaseForm } from '../../types/operation'
 import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime, formatNumber } from '../../utils/format'
@@ -247,6 +311,15 @@ const modalVisible = ref(false)
 const isEdit = ref(false)
 const detailVisible = ref(false)
 const detailCase = ref<CustomerCase | null>(null)
+
+// AI 起草这一条案例的那扇弹窗
+const draftVisible = ref(false)
+const drafting = ref(false)
+const estimateLoading = ref(false)
+const draftTarget = ref<CustomerCase | null>(null)
+const estimate = ref<CaseDraftEstimate | null>(null)
+const draftConfirmed = ref(false)
+const draftInstruction = ref('')
 
 // 服务端全量统计，空态如实展示 0/'-'
 const stats = reactive({
@@ -282,7 +355,7 @@ const columns = [
   { title: '浏览量', dataIndex: 'viewCount', key: 'viewCount', width: 100, align: 'center' as const },
   { title: '状态', key: 'status', width: 100 },
   { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
-  { title: '操作', key: 'actions', fixed: 'right' as const, width: 200 },
+  { title: '操作', key: 'actions', fixed: 'right' as const, width: 250 },
 ]
 
 const caseList = ref<CustomerCase[]>([])
@@ -408,6 +481,56 @@ function editCase(record: CustomerCase) {
 function viewDetail(record: CustomerCase) {
   detailCase.value = record
   detailVisible.value = true
+}
+
+/** 打开这扇窗时只做一件事：取预估。这一发一次模型都不调，所以不存在「顺手把钱花了」 */
+async function openDraftModal(record: CustomerCase) {
+  draftTarget.value = record
+  estimate.value = null
+  draftConfirmed.value = false
+  draftInstruction.value = ''
+  draftVisible.value = true
+  estimateLoading.value = true
+  try {
+    estimate.value = await customerCaseApi.estimateAiDraft(record.id)
+  } catch (error) {
+    message.error(`预估失败：${describeHttpError(error)}`)
+    console.error(error)
+  } finally {
+    estimateLoading.value = false
+  }
+}
+
+async function runAiDraft() {
+  const target = draftTarget.value
+  if (!target || !estimate.value || !draftConfirmed.value || drafting.value) return
+  drafting.value = true
+  try {
+    const result = await customerCaseApi.aiDraft(
+      target.id,
+      true,
+      draftInstruction.value.trim() || undefined,
+    )
+    draftVisible.value = false
+    message.success(
+      `AI 已重写这一条案例：第 ${result.attempts} 版可用，本次扣 ${result.tokensCharged} token（留档 #${result.draftId}）`,
+    )
+    // 门禁 4 的 warn 档不拦落地，但「疑似照抄参考站 / 引用了外部素材」必须让人看见，不能吞掉
+    if (result.warnings?.length) {
+      notification.warning({
+        message: 'AI 产出的素材来源提示',
+        description: result.warnings.join('；'),
+        duration: 0,
+      })
+    }
+    await Promise.all([loadCaseList(), loadStats()])
+  } catch (error) {
+    // 被门禁拦下的那些轮一次都不扣配额，所以这里不需要任何补偿动作
+    message.error(`AI 起草失败：${describeHttpError(error)}`)
+    console.error(error)
+  } finally {
+    drafting.value = false
+  }
 }
 
 function resetForm() {
@@ -568,5 +691,21 @@ onMounted(() => {
 .detail-cover {
   max-width: 200px;
   border-radius: 6px;
+}
+
+.detail-schema {
+  margin: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.draft-scope {
+  margin: 12px 0;
+  color: #666;
+  font-size: 13px;
+  line-height: 1.6;
 }
 </style>

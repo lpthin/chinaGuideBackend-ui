@@ -27,6 +27,30 @@ export interface CustomerCaseStatistics {
   industryCount: number
 }
 
+/**
+ * 案例 AI 起草的预估（这一发一次模型都不调，只拼提示词）。
+ * 三个 AI 出口（组装 / 巡检 / 案例）在这一步的形状是同一个：预计消耗 + 剩余 + 开关 + 一句人话。
+ */
+export interface CaseDraftEstimate {
+  caseId: number
+  estimatedTokens: number
+  remainingTokens: number
+  /** 后端总开关。关掉时界面上说清楚「确认了也不会调用」，而不是让人点了才知道 */
+  aiDraftEnabled: boolean
+  notice: string | null
+}
+
+/** 出稿结果：case 是写库之后的那一行，界面直接拿它覆盖自己，不自己拼一份 */
+export interface CaseDraftResult {
+  case: CustomerCase
+  /** 门禁 4 的提示（疑似照抄参考站、外链素材）。warn 档不拦，但必须让人看见 */
+  warnings: string[]
+  attempts: number
+  /** 这一版的留档行 id，也就是账单上那笔扣费的 bizId */
+  draftId: number
+  tokensCharged: number
+}
+
 // 客户案例 API
 export const customerCaseApi = {
   // 获取案例列表
@@ -57,7 +81,22 @@ export const customerCaseApi = {
 
   // 批量删除
   batchDelete: (ids: number[]) =>
-    http.delete('/operation/cases/batch', { data: ids })
+    http.delete('/operation/cases/batch', { data: ids }),
+
+  /**
+   * AI 起草的预估：一次模型都不调，只把提示词拼起来量一下规模。
+   * 用 GET 而不是那五条 estimate 的 POST——这一发真的什么都不改。
+   */
+  estimateAiDraft: (id: number) =>
+    http.get<CaseDraftEstimate>(`/operation/cases/${id}/ai-draft/estimate`),
+
+  /**
+   * 让 AI 重写这一条案例（问题四「稿子全部交给 AI」在案例这一路的落点）。
+   * confirm 必须由界面上的勾选传进来：缺了后端直接拒，不会因为请求体恰好为空而默默花租户的钱。
+   * 被门禁拦下的那些轮一次都不扣，所以这里也不需要「失败回滚」的兜底。
+   */
+  aiDraft: (id: number, confirm: boolean, instruction?: string) =>
+    http.post<CaseDraftResult>(`/operation/cases/${id}/ai-draft`, { confirm, instruction })
 }
 
 // 数据报表 API
