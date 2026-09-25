@@ -11,7 +11,7 @@ import { slugOfPath } from '../portalPath'
 const RENDERER_KEYS = [
   'siteHeader', 'hero', 'bannerCarousel', 'serviceCards', 'caseGrid', 'caseList',
   'newsList', 'jobList', 'aboutRich', 'textBand', 'teamGrid', 'statsBand', 'logoWall',
-  'ctaBand', 'contactBlock', 'siteFooter'
+  'ctaBand', 'contactBlock', 'inquiryForm', 'siteFooter'
 ]
 
 describe('区块渲染器注册表', () => {

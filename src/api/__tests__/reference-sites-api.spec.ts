@@ -48,6 +48,25 @@ describe('portalReferenceApi', () => {
     expect(source).not.toMatch(/映射已就绪/)
     expect(source).not.toMatch(/需人工处理/)
     expect(source).not.toMatch(/结构归纳中/)
+    // 依赖体检那几句「缺什么改哪个键」的原话只在后端一处：前端抄一份就跟着配置文件漂移
+    expect(source).not.toMatch(/总开关关着/)
+    expect(source).not.toMatch(/把这一项改成 true/)
+  })
+
+  it('依赖体检是一个只读快照：不带 tenantId 时把参数留空，让后端按平台探', async () => {
+    const http = await httpMock()
+    await portalReferenceApi.capabilities()
+    expect(http.get).toHaveBeenLastCalledWith('/portal/reference-sites/capabilities', {
+      params: { tenantId: undefined }
+    })
+
+    await portalReferenceApi.capabilities(5)
+    expect(http.get).toHaveBeenLastCalledWith('/portal/reference-sites/capabilities', { params: { tenantId: 5 } })
+
+    // 体检不翻开关：这一发里没有 POST/PUT/DELETE
+    expect(http.post).not.toHaveBeenCalled()
+    expect(http.put).not.toHaveBeenCalled()
+    expect(http.delete).not.toHaveBeenCalled()
   })
 
   it('状态词表只读后端一个端点', async () => {

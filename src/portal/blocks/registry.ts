@@ -25,6 +25,7 @@ const RENDERERS: Record<string, () => Promise<Component>> = {
   logoWall: () => import('./LogoWallBlock.vue'),
   ctaBand: () => import('./CtaBandBlock.vue'),
   contactBlock: () => import('./ContactBlock.vue'),
+  inquiryForm: () => import('./InquiryFormBlock.vue'),
   siteFooter: () => import('./SiteFooterBlock.vue')
 }
 

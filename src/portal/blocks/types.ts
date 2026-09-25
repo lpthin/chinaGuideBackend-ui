@@ -61,3 +61,12 @@ export function columnsClassOf(blockProps: BlockProps | undefined | null): strin
   const columns = typeof value === 'number' && [2, 3, 4].includes(value) ? value : 3
   return `pb-grid--${columns}`
 }
+
+/**
+ * 手上这份壳是不是「没有能收数据的站点」：画廊与骨架预览用演示壳（siteId 0 / siteCode demo），
+ * 搭建器预览干脆传 null。会写库的区块（留资表单）据此把提交关掉——
+ * 管理端那些框里点了提交，既没有租户可归属，也不该真的动访客数据。
+ */
+export function isDemoContext(shell: PortalSiteShell | null | undefined): boolean {
+  return !shell || shell.siteId === 0 || shell.siteCode === 'demo'
+}

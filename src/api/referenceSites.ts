@@ -113,6 +113,29 @@ export interface AppliedResult {
   skippedUnverified: number
 }
 
+/**
+ * 建设链路的依赖体检（Spec §6.4 末尾那句「启用引导」）。
+ *
+ * 后端把「哪几道开关开着、缺什么该说什么」都算好了：`guidance` 就是给人看的那几句中文原话，
+ * 里面点名的配置键与界面说法是同一份东西，前端重排或改写一次就和配置文件脱钩了。
+ * 三个字段单独说清，别让界面替它们多说：
+ * `sidecarConfigured`（配置启没启用）与 `sidecarReachable`（这一次探不探得通）不是一回事；
+ * `visionModelReady` 只是查了有没有 `model_type=vision` 的配置行，没有真调过一次模型；
+ * `probedTenantId` 是后端实际探测用的租户，没传 tenantId 时它是平台那一个，界面别自己填。
+ */
+export interface ReferenceCapabilities {
+  sidecarConfigured: boolean
+  sidecarReachable: boolean
+  sidecarDetail: string
+  crawlEnabled: boolean
+  analyzeEnabled: boolean
+  reviewAiEnabled: boolean
+  assemblyEnabled: boolean
+  visionModelReady: boolean
+  probedTenantId: number
+  guidance: string[]
+}
+
 /** 截图在素材库里的分类名，与后端 ReferencePage.SHOT_CATEGORY 同一个字面量（抓取与上传共用） */
 export const REFERENCE_SHOT_CATEGORY = 'reference-shot'
 
@@ -206,6 +229,19 @@ export const portalReferenceApi = {
   /** 只出 status=draft 的草稿页，发布仍然归租户自己按 */
   apply: (id: number, data: ApplyForm) =>
     http.post<AppliedResult>(`/portal/reference-sites/${id}/apply`, data),
+
+  /**
+   * 整条建设链路的依赖体检：它不属于某一个任务，而是「这一路能不能走通」的一次快照。
+   *
+   * tenantId 可空——不传时后端按平台探（平台有视觉模型就等于任何租户最差也有），
+   * 探的是哪一个租户由响应里的 `probedTenantId` 说，前端不猜。
+   * 这个口只读：这些开关控制的是服务端要不要真的对外发请求、要不要真的花 token，
+   * 翻它仍然是改配置重启，界面上不该长出这个入口。
+   */
+  capabilities: (tenantId?: number | null) =>
+    http.get<ReferenceCapabilities>('/portal/reference-sites/capabilities', {
+      params: { tenantId: tenantId ?? undefined }
+    }),
 }
 
 /** 结构摘要的形状：{title,textLength,sections:[{tag,name,heading,textLength,links,images,listItems,buttons,forms}],headings,navLinks,signals} */

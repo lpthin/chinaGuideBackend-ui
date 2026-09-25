@@ -2,7 +2,7 @@
  * 区块共用的排版原语（只有一份，由 PortalDynamicPage.vue 以非 scoped 方式引入）。
  *
  * 为什么不做成 scoped + 每个组件 @import：less 的 @import 会把规则原样展开进每个组件，
- * 15 个区块就是 15 份同样的 CSS；这些类只服务门户，前缀 pb- 足够避免与管理后台冲突。
+ * 17 个区块就是 17 份同样的 CSS；这些类只服务门户，前缀 pb- 足够避免与管理后台冲突。
  * 尺寸全部走 portal-tokens.less 的变量，fontScale / spacingScale 在这里统一生效。
  */
 

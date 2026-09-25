@@ -298,6 +298,28 @@ export function submitReviewTicket(token: string, payload: ReviewTicketPayload):
 }
 
 /**
+ * 访客留资（inquiry-form 区块唯一的落库通道）：免鉴权公开写口，站点只由访问域名决定，
+ * 所以这里没有任何 siteId 可填。
+ *
+ * 后端对「真收了 / 被限流了 / 命中蜜罐」回的是同一个 accepted:true，前端拿不到可分支的信息：
+ * 调用方只在请求没抛错时按「已收到」提示，绝不去判返回值，也不因返回值多说一句承诺。
+ */
+export interface PortalInquiryPayload {
+  name?: string
+  phone?: string
+  email?: string
+  content?: string
+  /** 蜜罐：正常表单里隐藏且永不初值 */
+  website?: string
+  /** 来源页路径，后端按门户地址白名单收，超范围的整条静默丢弃 */
+  page?: string | null
+}
+
+export function submitInquiry(payload: PortalInquiryPayload): Promise<void> {
+  return post<void>(`${BASE}/inquiry`, payload as Record<string, unknown>)
+}
+
+/**
  * 采集器的动作枚举词表（值 → 中文标签），来自后端白名单。
  * 令牌无效时后端回空对象，界面就不显示下拉——不猜、不在 TS 里抄一份兜底。
  */
