@@ -117,6 +117,7 @@ const TenantPanel = () => import('../views/workspace/TenantPanel.vue')
 const AlertRuleManageView = () => import('../views/workspace/AlertRuleManageView.vue')
 const AlertRecordView = () => import('../views/workspace/AlertRecordView.vue')
 const AlertChannelView = () => import('../views/workspace/AlertChannelView.vue')
+const NotificationInboxView = () => import('../views/workspace/NotificationInboxView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const routes: RouteRecordRaw[] = [
@@ -785,6 +786,18 @@ const routes: RouteRecordRaw[] = [
         name: 'workspace-alert-channels',
         component: AlertChannelView,
         meta: { title: '通知渠道', icon: 'setting', breadcrumb: ['首页', '报警管理', '通知渠道'], requiresSuperAdmin: true }
+      },
+      // 站内待办：巡检闭环写的那一条要有地方看得见（Spec §13.3-6），否则「通知超管」只落到库里
+      {
+        path: 'notifications',
+        name: 'workspace-notifications',
+        component: NotificationInboxView,
+        meta: {
+          title: '待办通知',
+          icon: 'notification',
+          breadcrumb: ['首页', '报警管理', '待办通知'],
+          requiresSuperAdmin: true
+        }
       }
     ]
   },

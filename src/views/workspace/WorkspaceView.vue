@@ -400,6 +400,10 @@
               <template #icon><SettingOutlined /></template>
               通知渠道
             </a-menu-item>
+            <a-menu-item key="notifications">
+              <template #icon><BellOutlined /></template>
+              待办通知
+            </a-menu-item>
           </a-sub-menu>
         </a-menu>
       </a-layout-sider>
@@ -597,7 +601,8 @@ const menuLabels: Record<string, string> = {
   'audit-log': '审计日志',
   'alert/rules': '报警规则',
   'alert/records': '报警记录',
-  'alert/channels': '通知渠道'
+  'alert/channels': '通知渠道',
+  notifications: '待办通知'
 }
 
 const getMenuKey = () => {
