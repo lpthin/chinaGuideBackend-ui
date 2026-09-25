@@ -18,7 +18,7 @@ import {
 import { message, Modal } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import { keywordApi } from '../../api'
-import { formatDateTime, formatNumber } from '../../utils/format'
+import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
@@ -29,7 +29,7 @@ const showConfigModal = ref(false)
 const searchText = ref('')
 const stageFilter = ref<string>('all') // all / new / suggested / articled
 const categoryFilter = ref<string>('all')
-const sortKey = ref<'intentValue' | 'searchVolume' | 'suggestionCount' | 'articleCount'>('intentValue')
+const sortKey = ref<'suggestionCount' | 'articleCount'>('suggestionCount')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 const selectedRowKeys = ref<number[]>([])
 const importText = ref('')
@@ -45,9 +45,6 @@ interface KW {
   rawKeyword: string
   normalizedKeyword: string
   category: string
-  searchVolume: number
-  competition: number
-  intentValue: number
   suggestionCount: number
   articleCount: number
   status: string
@@ -189,9 +186,6 @@ async function loadKeywords() {
       rawKeyword: r.rawKeyword,
       normalizedKeyword: r.normalizedKeyword,
       category: r.category || '基础',
-      searchVolume: Number(r.searchVolume || 0),
-      competition: Number(r.competition || 0),
-      intentValue: Number(r.intentValue || 0),
       suggestionCount: Number(r.suggestionCount || 0),
       articleCount: Number(r.articleCount || 0),
       status: r.status,
@@ -546,8 +540,6 @@ onMounted(fetchAll)
             </a-select>
 
             <a-select v-model:value="sortKey" style="width:150px" @change="loadKeywords">
-              <a-select-option value="intentValue">按意图价值</a-select-option>
-              <a-select-option value="searchVolume">按搜索量</a-select-option>
               <a-select-option value="suggestionCount">按建议数</a-select-option>
               <a-select-option value="articleCount">按文章数</a-select-option>
             </a-select>
@@ -601,19 +593,21 @@ onMounted(fetchAll)
             </template>
           </a-table-column>
 
-          <a-table-column title="意图价值" data-index="intentValue" width="100" align="right">
-            <template #default="{ record }">
-              <a-progress
-                :percent="record.intentValue || 0"
-                :show-info="true"
-                size="small"
-                :stroke-color="record.intentValue >= 80 ? '#ef4444' : record.intentValue >= 60 ? '#f59e0b' : '#0ea5e9'"
-              />
+          <!--
+            这三列从前显示的是 new Random(42) 造出来的数（Spec §13.4 的 I-8）。
+            后端已经不写这三列了，列先留着，让「知道该有什么」的人看见为什么它是空的；
+            接到真实数据源之前，这里不可能出现第二个数。
+          -->
+          <a-table-column title="意图价值" width="100" align="right">
+            <template #default>
+              <span class="no-source">暂无真实数据源</span>
             </template>
           </a-table-column>
 
-          <a-table-column title="搜索量" data-index="searchVolume" width="100" align="right">
-            <template #default="{ record }">{{ formatNumber(record.searchVolume) }}</template>
+          <a-table-column title="搜索量" width="100" align="right">
+            <template #default>
+              <span class="no-source">暂无真实数据源</span>
+            </template>
           </a-table-column>
 
           <a-table-column title="蒸馏优先级" data-index="priority" width="110" align="right">
@@ -624,9 +618,9 @@ onMounted(fetchAll)
             </template>
           </a-table-column>
 
-          <a-table-column title="竞争度" data-index="competition" width="110" align="right">
-            <template #default="{ record }">
-              <span class="comp-pill">{{ Number(record.competition || 0).toFixed(2) }}</span>
+          <a-table-column title="竞争度" width="110" align="right">
+            <template #default>
+              <span class="no-source">暂无真实数据源</span>
             </template>
           </a-table-column>
 
@@ -733,7 +727,7 @@ onMounted(fetchAll)
         style="margin-top: 16px"
         type="info"
         show-icon
-        message="蒸馏选词按优先级从高到低，其次按搜索量；分值 0-10。"
+        message="蒸馏选词按优先级从高到低；分值 0-10。搜索量已从排序里去掉——它没有真实数据源。"
       />
     </a-modal>
   </div>
@@ -828,11 +822,7 @@ onMounted(fetchAll)
 .kw-cell .kw-name { font-weight: 600; color: @slate-900; }
 .kw-cell .kw-sub  { color: @slate-500; font-size: 12px; margin-top: 2px; }
 
-.comp-pill {
-  display: inline-block; min-width: 48px; text-align: center;
-  padding: 2px 8px; border-radius: 999px;
-  background: #f1f5f9; color: #334155; font-size: 12px;
-}
+.no-source { color: @slate-500; font-size: 12px; }
 
 .count-cell {
   display: inline-flex; align-items: center; gap: 6px;

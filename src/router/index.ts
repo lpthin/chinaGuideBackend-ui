@@ -60,6 +60,10 @@ const GuestbookManageView = () => import('../views/portal/GuestbookManageView.vu
 const CompanyInfoView = () => import('../views/portal/CompanyInfoView.vue')
 const PortalContentWorkbenchView = () => import('../views/portal/PortalContentWorkbenchView.vue')
 const SectionManageView = () => import('../views/portal/SectionManageView.vue')
+const BlockShowcaseView = () => import('../views/portal/BlockShowcaseView.vue')
+const SkeletonLibraryView = () => import('../views/portal/SkeletonLibraryView.vue')
+const AssembleJobView = () => import('../views/portal/AssembleJobView.vue')
+const SiteBuildWorkbenchView = () => import('../views/portal/SiteBuildWorkbenchView.vue')
 const SeoConfigView = () => import('../views/portal/SeoConfigView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
@@ -420,6 +424,59 @@ const routes: RouteRecordRaw[] = [
         }
       },
       {
+        path: 'portal/build',
+        name: 'workspace-portal-build',
+        component: SiteBuildWorkbenchView,
+        // 流水线 0（Spec §6.1）：这一页只报现状 + 给入口，写动作都在它跳去的那几页里
+        meta: {
+          title: '建站工作台',
+          icon: 'rocket',
+          breadcrumb: ['首页', '门户网站', '建站工作台'],
+          requiredPermission: 'portal:build:manage'
+        }
+      },
+      {
+        path: 'portal/skeletons',
+        name: 'workspace-portal-skeletons',
+        component: SkeletonLibraryView,
+        // 读骨架用 preset 那个码（与后端 SkeletonAdminController 的读口一致）；
+        // 「应用到站点」那一发要 build:manage，界面按同一个码决定给不给这个面板
+        meta: {
+          title: '骨架库',
+          icon: 'template',
+          breadcrumb: ['首页', '门户网站', '骨架库'],
+          requiredPermission: 'portal:build:preset'
+        }
+      },
+      {
+        path: 'portal/blocks',
+        name: 'workspace-portal-blocks',
+        component: BlockShowcaseView,
+        // 区块画廊是纯读元数据：清单与显示名只有 /api/portal/blocks 一处来源（I-1）。
+        // 这一页要跨的两个码不许分家——后端那个读口挂的是 portal:build:manage，
+        // 这里要是写 preset，就等于给「只给得出 preset」的账号开一屏注定 403 的空画廊。
+        meta: {
+          title: '区块画廊',
+          icon: 'appstore',
+          breadcrumb: ['首页', '门户网站', '区块画廊'],
+          requiredPermission: 'portal:build:manage'
+        }
+      },
+      {
+        path: 'portal/assemble-jobs',
+        name: 'workspace-portal-assemble-jobs',
+        component: AssembleJobView,
+        // 整站组装会替租户烧 token 配额、还会把整站内容重写成草稿，决策 N4 把它只留给平台侧：
+        // 租户侧没有这条路。后端 PortalAssembleController 的类级 portal:build:assemble 是唯一的执法者
+        // （租户令牌打过来是真 403），这里挂同一个码只是不让用户敲地址进来后对着一屏 403。
+        meta: {
+          title: '整站组装',
+          icon: 'rocket',
+          breadcrumb: ['首页', '门户网站', '整站组装'],
+          requiredPermission: 'portal:build:assemble'
+        }
+      },
+      {
         path: 'portal/banners',
         name: 'workspace-portal-banners',
         component: BannerManageView,
@@ -580,6 +637,8 @@ const routes: RouteRecordRaw[] = [
         component: GeoSeoCompanyView,
         meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', 'SEO & GEO', '企业信息'] }
       },
+      // 这两条按 N10 从菜单里摘了，路由留着：排名与竞品数字全是人工抄录，
+      // 挂在菜单上等于我们承诺「能看到排名」。存量记录仍要有人能进来改（Spec §13.4「下线并注明」）。
       {
         path: 'geoseo/competitors',
         name: 'workspace-geoseo-competitors',

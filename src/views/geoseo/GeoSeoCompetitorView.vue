@@ -8,12 +8,12 @@
         </a-button>
       </template>
 
-      <a-alert type="info" show-icon style="margin-bottom: 16px">
+      <a-alert type="warning" show-icon style="margin-bottom: 16px">
         <template #message>
           <div class="alert-content">
-            <p>添加竞品后，系统会追踪竞品域名在搜索引擎中的关键词排名变化。</p>
-            <p>在关键词排名页面可以查看您和竞品的排名对比。</p>
-            <p>建议添加3-5个主要竞品进行持续追踪。</p>
+            <p>这里只是把竞品域名记下来，系统<strong>不会</strong>去搜索引擎抓它们的任何数据（Spec 决议 N10：排名监控这一期不做）。</p>
+            <p>「关键词排名」那一页里的数字同样是人工抄录的，不是检测结果。</p>
+            <p>这一页已从左侧菜单摘掉，只有拿着地址的人能进来；要维护存量记录就进来改。</p>
           </div>
         </template>
       </a-alert>

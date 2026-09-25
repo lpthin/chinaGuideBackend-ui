@@ -733,8 +733,6 @@ type KeywordOption = {
   id: number
   name: string
   category?: string
-  intentValue: number
-  searchVolume: number
   suggestionCount: number
   articleCount: number
   status?: string
@@ -1227,17 +1225,17 @@ async function loadKeywords() {
       id: k.id,
       name: k.rawKeyword || k.normalizedKeyword || '',
       category: k.category,
-      intentValue: Number(k.intentValue || 0),
-      searchVolume: Number(k.searchVolume || 0),
       suggestionCount: Number(k.suggestionCount || 0),
       articleCount: Number(k.articleCount || 0),
       status: k.status,
     }))
-    // 高意图值倒序 → 搜索量倒序 → 未生成内容优先（没文章优先于有文章）
+    // 没生成过内容的优先（把词表消化掉），其次建议数多的先来。
+    // 这里从前按「意图价值 → 搜索量」排，那两列在后端已停写（I-8），
+    // 留下它们只会得到一个由 0 组成的稳定顺序，却让人以为排过序。
     records.sort((a, b) => {
-      if (b.intentValue !== a.intentValue) return b.intentValue - a.intentValue
-      if (b.searchVolume !== a.searchVolume) return b.searchVolume - a.searchVolume
-      return (a.articleCount > 0 ? 1 : 0) - (b.articleCount > 0 ? 1 : 0)
+      const produced = (a.articleCount > 0 ? 1 : 0) - (b.articleCount > 0 ? 1 : 0)
+      if (produced !== 0) return produced
+      return b.suggestionCount - a.suggestionCount
     })
     keywordsList.value = records
   } catch (e) { console.error('加载关键词失败', e) }

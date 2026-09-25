@@ -203,6 +203,19 @@
               <template #icon><AppstoreOutlined /></template>
               栏目管理
             </a-menu-item>
+            <!-- 建设域三件套（Spec §7.2，Q2）：菜单显隐与路由 meta.requiredPermission、后端 @RequirePermission 同一个码 -->
+            <a-menu-item key="portal/build" v-if="auth.hasPermission('portal:build:manage')">
+              <template #icon><ProjectOutlined /></template>
+              建站工作台
+            </a-menu-item>
+            <a-menu-item key="portal/skeletons" v-if="auth.hasPermission('portal:build:preset')">
+              <template #icon><AppstoreOutlined /></template>
+              骨架库
+            </a-menu-item>
+            <a-menu-item key="portal/blocks" v-if="auth.hasPermission('portal:build:preset')">
+              <template #icon><AppstoreOutlined /></template>
+              区块画廊
+            </a-menu-item>
             <a-menu-item key="portal/pages" v-if="auth.hasPermission('portal:build:manage')">
               <template #icon><AppstoreOutlined /></template>
               页面搭建
@@ -282,14 +295,11 @@
               <template #icon><BankOutlined /></template>
               企业信息
             </a-menu-item>
-            <a-menu-item key="geoseo/competitors">
-              <template #icon><TeamOutlined /></template>
-              竞品追踪
-            </a-menu-item>
-            <a-menu-item key="geoseo/keywords">
-              <template #icon><SearchOutlined /></template>
-              关键词排名
-            </a-menu-item>
+            <!--
+              竞品追踪 / 关键词排名这两个入口按决议 N10 摘掉：排名数据没有真源，页面上那些数
+              是人工抄进去的，摆在菜单里就等于我们承诺「这里能看到排名」。
+              路由与页面本身留着——存量数据还得有人看得见、改得动（Spec §13.4 的「下线并注明」）。
+            -->
           </a-sub-menu>
 
           <!-- AI配置 -->
