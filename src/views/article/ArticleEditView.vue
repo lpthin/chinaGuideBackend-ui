@@ -104,6 +104,7 @@
                     </a-space>
                   </div>
                   <textarea
+                    ref="contentEl"
                     v-model="articleForm.content"
                     class="editor-textarea"
                     placeholder="请输入文章内容..."
@@ -402,13 +403,20 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <MediaImageLibraryModal
+      v-if="showImageModal"
+      v-model:open="showImageModal"
+      title="插入图片"
+      @pick="insertImageMarkdown"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { message, Modal } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import { useAuthStore } from '../../stores/auth'
 import {
   BoldOutlined,
@@ -437,6 +445,7 @@ import { aiGenerateApi } from '../../api/ai-model'
 import { marked } from 'marked'
 import { articleStatusMeta, type ArticleStatus } from '../../utils/contentStatus'
 import { formatDate } from '../../utils/format'
+import MediaImageLibraryModal from '../../components/MediaImageLibraryModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -460,6 +469,8 @@ const seoKeywords = ref<string[]>([])
 const publishDate = ref<any>(null)
 const isFullscreen = ref(false)
 const showLinkModal = ref(false)
+const showImageModal = ref(false)
+const contentEl = ref<HTMLTextAreaElement | null>(null)
 const linkUrl = ref('')
 const linkText = ref('')
 
@@ -554,11 +565,28 @@ function formatText(type: string) {
 }
 
 function handleInsertImage() {
-  Modal.info({
-    title: '插入图片',
-    content: '请先上传图片到服务器，然后复制图片URL粘贴到文章中。目前支持通过封面图片上传功能添加图片。',
-    okText: '知道了',
-  })
+  showImageModal.value = true
+}
+
+/**
+ * 挑中一张图后往正文里插一条 Markdown 图片语法。
+ *
+ * <p>alt 用文件名起头，并把光标停在 alt 上：alt 是爬虫和读屏软件唯一能读到的一句话，
+ * 插入的人当场改最省事，留空等于这张图对搜索引擎不存在。</p>
+ */
+async function insertImageMarkdown(url: string, name?: string) {
+  const alt = (name || '图片说明').replace(/[\[\]()]/g, '')
+  const snippet = `\n![${alt}](${url})\n`
+  const el = contentEl.value
+  const text = articleForm.content
+  const start = el ? el.selectionStart : text.length
+  const end = el ? el.selectionEnd : text.length
+  articleForm.content = text.slice(0, start) + snippet + text.slice(end)
+  await nextTick()
+  if (!el) return
+  const altStart = start + 3
+  el.focus()
+  el.setSelectionRange(altStart, altStart + alt.length)
 }
 
 function handleInsertLink() {
