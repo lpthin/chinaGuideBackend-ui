@@ -119,6 +119,11 @@
               <template #icon><FileDoneOutlined /></template>
               软文模板
             </a-menu-item>
+            <!-- 菜单 key 就是路由首段 'media'（getMenuKey 的口径），别写成 'media/library'——那样永远高亮不上 -->
+            <a-menu-item key="media" v-if="auth.hasPermission('media:manage')">
+              <template #icon><PictureOutlined /></template>
+              图片库
+            </a-menu-item>
           </a-sub-menu>
 
           <!-- 知识库 -->
@@ -237,6 +242,11 @@
               <template #icon><SafetyOutlined /></template>
               页面巡检
             </a-menu-item>
+            <!-- 探测的发起权只在平台（决议 N10 方案 B + N4 建设域口径）：租户令牌拿不到 portal:build:citation，这一项对它们自然不出现 -->
+            <a-menu-item key="portal/citation-probes" v-if="auth.hasPermission('portal:build:citation')">
+              <template #icon><AimOutlined /></template>
+              品牌引用探测
+            </a-menu-item>
             <a-menu-item key="portal/support-queue" v-if="auth.hasPermission('portal:build:review')">
               <template #icon><CommentOutlined /></template>
               平台工单队列
@@ -264,6 +274,11 @@
             <a-menu-item key="portal/analytics" v-if="auth.hasPermission('analytics:view')">
               <template #icon><BarChartOutlined /></template>
               访问统计
+            </a-menu-item>
+            <!-- 问题七：「谁把我带来的、AI 有没有提到我」交给租户自己看，用的就是访问统计那一码 -->
+            <a-menu-item key="portal/citations" v-if="auth.hasPermission('analytics:view')">
+              <template #icon><ShareAltOutlined /></template>
+              引用与来源
             </a-menu-item>
             <a-menu-item key="portal/support" v-if="auth.hasPermission('portal:ticket:submit')">
               <template #icon><CommentOutlined /></template>
@@ -497,7 +512,9 @@ import {
   AlertOutlined,
   NotificationOutlined,
   WalletOutlined,
-  ShoppingOutlined
+  ShoppingOutlined,
+  AimOutlined,
+  ShareAltOutlined
 } from '@ant-design/icons-vue'
 import { portalSectionsApi } from '../../api/portalSections'
 import { message } from 'ant-design-vue'
@@ -546,6 +563,7 @@ const menuLabels: Record<string, string> = {
   articles: '文章列表',
   categories: '栏目管理',
   'article-templates': '软文模板',
+  media: '图片库',
   'knowledge/dashboard': '知识仪表板',
   'knowledge/documents': '资料库',
   'knowledge/cards': '知识卡片',
@@ -561,6 +579,8 @@ const menuLabels: Record<string, string> = {
   'portal/reference-sites': '参考站摄取',
   'portal/presets': '样式沉淀',
   'portal/health': '页面巡检',
+  'portal/citation-probes': '品牌引用探测',
+  'portal/citations': '引用与来源',
   'portal/banners': 'Banner管理',
   'portal/jobs': '招聘管理',
   'portal/messages': '站内信',
@@ -620,6 +640,7 @@ const currentParentMenu = computed(() => {
     articles: '文章管理',
     categories: '文章管理',
     'article-templates': '文章管理',
+  media: '文章管理',
     'knowledge/dashboard': '知识库',
     'knowledge/documents': '知识库',
     'knowledge/cards': '知识库',
@@ -639,6 +660,9 @@ const currentParentMenu = computed(() => {
     'portal/guestbook': '门户网站',
     'portal/company': '门户网站',
     'portal/analytics': '门户网站',
+    'portal/health': '门户网站',
+    'portal/citation-probes': '门户网站',
+    'portal/citations': '门户网站',
     'geoseo/dashboard': 'SEO & GEO',
     'geoseo/config': 'SEO & GEO',
     'geoseo/company': 'SEO & GEO',

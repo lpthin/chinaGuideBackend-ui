@@ -35,6 +35,7 @@ const KnowledgeSearchView = () => import('../views/knowledge/KnowledgeSearchView
 const ArticleDetailView = () => import('../views/article/ArticleDetailView.vue')
 const ArticleEditView = () => import('../views/article/ArticleEditView.vue')
 const ArticleTemplateManageView = () => import('../views/article/ArticleTemplateManageView.vue')
+const ImageLibraryView = () => import('../views/article/ImageLibraryView.vue')
 
 // 📚 关键词库模块（原热词管理→企业关键词生产体系，统一走 keyword SOT）
 const KeywordLibraryView = () => import('../views/workspace/KeywordLibraryView.vue')
@@ -69,6 +70,8 @@ const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue'
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
 const ThemePresetView = () => import('../views/portal/ThemePresetView.vue')
 const PortalHealthView = () => import('../views/portal/PortalHealthView.vue')
+const CitationProbeView = () => import('../views/portal/CitationProbeView.vue')
+const PortalCitationView = () => import('../views/analytics/PortalCitationView.vue')
 const PortalAnalyticsView = () => import('../views/analytics/PortalAnalyticsView.vue')
 const PortalLaunchView = () => import('../views/onboarding/PortalLaunchView.vue')
 const SupportTicketView = () => import('../views/portal/SupportTicketView.vue')
@@ -292,6 +295,16 @@ const routes: RouteRecordRaw[] = [
         component: CategoriesPanel,
         meta: { title: '栏目管理', icon: 'category', breadcrumb: ['首页', '文章管理', '栏目管理'] }
       },
+      {
+        path: 'media/library',
+        name: 'workspace-media-library',
+        component: ImageLibraryView,
+        // 这个视图此前一直存在但没有路由：进不去的界面等于没有界面（问题八裁决「要挂路由的」）。
+        // 它读的是 /api/media 那一族，素材的使用次数/标签/改动时间现在是真数据（V103 起）。
+        // 权限码用库里既有且已授角色的 media:manage——后端的 /api/media 本身只吃 JWT + 租户归属，
+        // 这里挂码只是不让没有码的角色看到一个点了必报错的入口。
+        meta: { title: '图片库', icon: 'image', breadcrumb: ['首页', '文章管理', '图片库'], requiredPermission: 'media:manage' }
+      },
 
       // ===== 📚 知识库 =====
       {
@@ -476,6 +489,20 @@ const routes: RouteRecordRaw[] = [
         }
       },
       {
+        path: 'portal/citation-probes',
+        name: 'workspace-portal-citation-probes',
+        component: CitationProbeView,
+        // 发起权与整站组装同口径（决议 N4/N10 方案 B）：一轮探测是几十次外呼，钱从平台侧的
+        // 决策花出去，租户令牌打这个地址只会对着满屏 403 猜自己哪里做错了。
+        // 后端 CitationProbeController 的类级 portal:build:citation（V102 只授 SUPER_ADMIN）是执法者。
+        meta: {
+          title: '品牌引用探测',
+          icon: 'aim',
+          breadcrumb: ['首页', '门户网站', '品牌引用探测'],
+          requiredPermission: 'portal:build:citation'
+        }
+      },
+      {
         path: 'portal/banners',
         name: 'workspace-portal-banners',
         component: BannerManageView,
@@ -572,6 +599,15 @@ const routes: RouteRecordRaw[] = [
         name: 'workspace-portal-analytics',
         component: PortalAnalyticsView,
         meta: { title: '访问统计', icon: 'chart', breadcrumb: ['首页', '门户网站', '访问统计'] }
+      },
+      {
+        path: 'portal/citations',
+        name: 'workspace-portal-citations',
+        component: PortalCitationView,
+        // 问题七：「谁把我带来的、AI 有没有提到我」要交给租户自己看。这一屏背后只有 GET，
+        // 挂的是后端 CitationStatsController 的类级 analytics:view——SITE_ADMIN 本来就有这一码，
+        // 所以这里不再另起 requiredPermission（和访问统计同进同出，多写一个码只会多一处理解成本）。
+        meta: { title: '引用与来源', icon: 'share', breadcrumb: ['首页', '门户网站', '引用与来源'] }
       },
       {
         path: 'portal/support',
