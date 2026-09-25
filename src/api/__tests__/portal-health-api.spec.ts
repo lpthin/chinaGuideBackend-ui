@@ -9,7 +9,8 @@ import { portalHealthApi } from '../portalHealth'
  * 2. 词表只有一个来源：这一页的中文类型名/状态名只能来自 /portal/health/options，
  *    模块里不许出现第二份 labels 映射（出现过一次，结果后端改了词表前端还在显示旧名字）；
  * 3. 这一页不许有任何能改页面内容的出口：整份文件里不能出现 /portal/pages 的写路径，
- *    「巡检把页面修好了」这句话就是假的；
+ *    「巡检把页面修好了」这句话就是假的。Q5 加的那两条 apply/undo 是唯一的例外，
+ *    而且写的仍然是 /portal/health/* ——由后端经 PortalPageService 落库，前端不碰页面接口；
  * 4. 花钱的 ai-fix 必须带 confirm，且 siteId 为空时不要把 null 拼进 query。
  */
 
@@ -82,6 +83,28 @@ describe('portalHealthApi', () => {
 
     await portalHealthApi.aiFix(9, true)
     expect(http.post).toHaveBeenLastCalledWith('/portal/health/findings/9/ai-fix', { confirm: true })
+  })
+
+  it('应用与撤销各打自己那条端点，confirm 都如实带上', async () => {
+    const http = await httpMock()
+    await portalHealthApi.applySuggestion(9, true)
+    expect(http.post).toHaveBeenLastCalledWith('/portal/health/findings/9/apply-suggestion', { confirm: true })
+    await portalHealthApi.undoApply(9, false)
+    expect(http.post).toHaveBeenLastCalledWith('/portal/health/findings/9/undo-apply', { confirm: false })
+  })
+
+  /** 「可不可撤销」只有一个依据：建议 JSON 上那个 applied 节点。节点残缺时按未应用处理，不能给一个点了必错的按钮 */
+  it('applied 节点认得出，缺字段的脏数据按没应用处理', async () => {
+    const { suggestionAppliedOf } = await import('../portalHealth')
+    expect(suggestionAppliedOf({ suggestionJson: null })).toBeNull()
+    expect(suggestionAppliedOf({ suggestionJson: '{"seoTitle":"x"}' })).toBeNull()
+    expect(suggestionAppliedOf({ suggestionJson: '{"applied":"不是对象"}' })).toBeNull()
+    expect(suggestionAppliedOf({ suggestionJson: '{"applied":{"before":{}}}' })).toBeNull()
+    expect(
+      suggestionAppliedOf({
+        suggestionJson: '{"applied":{"at":"2026-09-25T10:00:00","by":"admin","before":{"seoTitle":"关于我们"}}}'
+      })
+    ).toMatchObject({ at: '2026-09-25T10:00:00', by: 'admin' })
   })
 
   it('建议 JSON 坏了要能区分出来，不能当成「没有建议」', async () => {

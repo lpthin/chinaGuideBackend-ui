@@ -7,8 +7,9 @@ import http from './http'
  * 1. 类型名、状态名、以及「这条能不能让 AI 出手」全部取自 `GET /portal/health/options`，
  *    这里不抄第二份词表——抄了就不会跟着后端变，按钮也会在被禁的类型上照样亮着；
  * 2. 烧钱的动作先 estimate 再 confirm:true，而 estimate 一次模型都不调；
- * 3. 界面绝不替后端推进状态：dismiss/reopen/ai-fix 的响应行才是真相，
- *    「页面没有被改」是这一页最重要的一条结论，所以这里连页面更新接口都不 import。
+ * 3. 界面绝不替后端推进状态：dismiss/reopen/ai-fix 的响应行才是真相。
+ *    「建议」与「页面已经被改了」之间只隔着后端那两个 apply/undo 端点——这一页自己仍然
+ *    不调用页面更新接口，写 portal_page 的入口在后端只有一处（I-6）。
  */
 
 /** 一行 portal_health_finding。注意没有「修复中」这类中间态：只有 open / dismissed / resolved */
@@ -30,7 +31,7 @@ export interface HealthFinding {
   dismissReason: string | null
   /** AI_DRAFT 那一档产出的待审阅草稿 id；null 表示还没出手 */
   draftId: number | null
-  /** AI_SUGGESTION 那一档产出的建议原文（JSON），由人贴回页面元信息 */
+  /** AI_SUGGESTION 那一档产出的建议原文（JSON）；写进页面之后同一份 JSON 上会多一个 applied 节点 */
   suggestionJson: string | null
   createdAt: string | null
   updatedAt: string | null
@@ -122,7 +123,19 @@ export const portalHealthApi = {
   estimate: (id: number) => http.post<HealthEstimate>(`/portal/health/findings/${id}/ai-fix-estimate`),
 
   aiFix: (id: number, confirm: boolean) =>
-    http.post<HealthFinding>(`/portal/health/findings/${id}/ai-fix`, { confirm })
+    http.post<HealthFinding>(`/portal/health/findings/${id}/ai-fix`, { confirm }),
+
+  /**
+   * 把那一段 SEO 建议写进页面元信息（Q5 出口条件「零复制粘贴」的落点）。
+   * 这一步不烧 token：钱在出建议那一刻已经花过，这里只是人替自己点一下确认。
+   * 后端方法级另挂 portal:build:manage，因为它真的改 portal_page。
+   */
+  applySuggestion: (id: number, confirm: boolean) =>
+    http.post<HealthFinding>(`/portal/health/findings/${id}/apply-suggestion`, { confirm }),
+
+  /** 换回应用前的那三个值；页面在中间被人工改过时后端会拒，不会拿旧快照盖掉别人的改动 */
+  undoApply: (id: number, confirm: boolean) =>
+    http.post<HealthFinding>(`/portal/health/findings/${id}/undo-apply`, { confirm })
 }
 
 /**
@@ -137,6 +150,24 @@ export function seoSuggestionOf(finding: Pick<HealthFinding, 'suggestionJson'>):
   } catch {
     return null
   }
+}
+
+/**
+ * 那次应用留下的痕迹：什么时候、谁、覆盖前的三个值。后端把它写在同一份建议 JSON 上，
+ * 所以「可不可撤销」这件事只有一个依据——这个节点在不在。
+ */
+export interface SuggestionApplied {
+  at: string
+  by: string | null
+  before: { seoTitle: string; seoDescription: string; seoKeywords: string }
+}
+
+export function suggestionAppliedOf(finding: Pick<HealthFinding, 'suggestionJson'>): SuggestionApplied | null {
+  const applied = seoSuggestionOf(finding)?.applied
+  if (!applied || typeof applied !== 'object' || Array.isArray(applied)) return null
+  const candidate = applied as Partial<SuggestionApplied>
+  if (typeof candidate.at !== 'string' || !candidate.before || typeof candidate.before !== 'object') return null
+  return candidate as SuggestionApplied
 }
 
 /** 状态色只是可读性，语义一律用后端给的中文标签，这里不翻译第二套 */

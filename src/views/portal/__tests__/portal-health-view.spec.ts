@@ -24,8 +24,15 @@ vi.mock('ant-design-vue', async () => {
   }
 })
 
-vi.mock('../../../api/portalHealth', () => {
-  const actual = {
+/**
+ * 词表与那两个纯函数用真实现（importActual），只把发请求的 api 换成桩。
+ * 上一版在这里手写了一份 `seoSuggestionOf: () => null`，于是「建议正文怎么渲染」
+ * 这一整块在测试里根本没跑过——界面测了空气。
+ */
+vi.mock('../../../api/portalHealth', async () => {
+  const actual = await vi.importActual<Record<string, any>>('../../../api/portalHealth')
+  return {
+    ...actual,
     portalHealthApi: {
       options: vi.fn(),
       findings: vi.fn(),
@@ -34,15 +41,11 @@ vi.mock('../../../api/portalHealth', () => {
       dismiss: vi.fn(),
       reopen: vi.fn(),
       estimate: vi.fn(),
-      aiFix: vi.fn()
-    },
-    healthStatusColor: () => 'red',
-    seoSuggestionOf: () => null,
-    HEALTH_AI_NONE: 'none',
-    HEALTH_AI_SUGGESTION: 'suggestion',
-    HEALTH_AI_DRAFT: 'draft'
+      aiFix: vi.fn(),
+      applySuggestion: vi.fn(),
+      undoApply: vi.fn()
+    }
   }
-  return actual
 })
 vi.mock('../../../api/portalPages', () => ({ portalPagesApi: { list: vi.fn() } }))
 vi.mock('../../../api/workspace', () => ({ siteApi: { list: vi.fn() } }))
@@ -306,6 +309,78 @@ describe('PortalHealthView', () => {
     await flushPromises()
     expect(portalTicketsApi.draft).not.toHaveBeenCalled()
     expect((document.body.textContent || '').indexOf('portal:build:review')).toBeGreaterThan(-1)
+    wrapper.unmount()
+  })
+
+  // ---------------- 把 SEO 建议写进页面（Q5：零复制粘贴） ----------------
+
+  const SEO_SUGGESTION =
+    '{"seoTitle":"小山口腔 · 种植牙与正畸","seoDescription":"一段够长的描述，讲清项目与预约方式。","seoKeywords":"种植牙,正畸"}'
+  const APPLIED_SUGGESTION =
+    '{"seoTitle":"小山口腔 · 种植牙与正畸","seoDescription":"一段够长的描述，讲清项目与预约方式。","seoKeywords":"种植牙,正畸",' +
+    '"applied":{"before":{"seoTitle":"关于我们","seoDescription":"","seoKeywords":""},"at":"2026-09-25T10:00:00","by":"admin"}}'
+
+  /** 展开某一行并返回它的内容区；不展开的话建议那一块在 DOM 里根本不存在 */
+  async function expandRow() {
+    byText('查看建议')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    return document.querySelector('.expanded-row') as HTMLElement
+  }
+
+  it('有建议又管得到页面时，展开就能看到「应用到页面」，点它是后端那一条端点', async () => {
+    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+      { ...finding(1, 'seo_missing'), suggestionJson: SEO_SUGGESTION }
+    ] as any)
+    vi.mocked(portalHealthApi.applySuggestion).mockResolvedValue({} as any)
+    const wrapper = await mountView(['portal:build:health', 'portal:build:manage'])
+
+    const row = await expandRow()
+    // 按钮就在 popconfirm 里，但直接点它不算确认
+    byText('应用到页面')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(portalHealthApi.applySuggestion).not.toHaveBeenCalled()
+
+    ;(row.querySelector('.popconfirm-ok') as HTMLButtonElement).dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(portalHealthApi.applySuggestion).toHaveBeenCalledWith(1, true)
+    // 应用完重新拉一次列表：这一行的 applied 节点是后端写完才挂的，界面不自己拼状态
+    expect(portalHealthApi.findings).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('已经应用过的那一条只给「撤销应用」，并把覆盖前的那份说清楚', async () => {
+    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+      { ...finding(1, 'seo_missing'), suggestionJson: APPLIED_SUGGESTION }
+    ] as any)
+    vi.mocked(portalHealthApi.undoApply).mockResolvedValue({} as any)
+    const wrapper = await mountView(['portal:build:health', 'portal:build:manage'])
+
+    const row = await expandRow()
+    const text = row.textContent || ''
+    expect(text).toContain('已于')
+    expect(text).toContain('admin')
+    expect(byText('应用到页面').length).toBe(0)
+    expect(byText('撤销应用').length).toBe(1)
+
+    ;(row.querySelector('.popconfirm-ok') as HTMLButtonElement).dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(portalHealthApi.undoApply).toHaveBeenCalledWith(1, true)
+    wrapper.unmount()
+  })
+
+  /** 权限不够时这一页退化回「复制」，但仍然说清缺的是哪个码，而不是让人猜按钮为什么不在 */
+  it('没有 portal:build:manage 时不给写入按钮，只给手工贴回的说明', async () => {
+    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+      { ...finding(1, 'seo_missing'), suggestionJson: SEO_SUGGESTION }
+    ] as any)
+    const wrapper = await mountView(['portal:build:health'])
+
+    const row = await expandRow()
+    expect(byText('应用到页面').length).toBe(0)
+    expect(byText('撤销应用').length).toBe(0)
+    expect(portalHealthApi.applySuggestion).not.toHaveBeenCalled()
+    expect(row.textContent ?? '').toContain('portal:build:manage')
     wrapper.unmount()
   })
 })

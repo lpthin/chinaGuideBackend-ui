@@ -159,8 +159,35 @@
                 class="portal-health-page__warning"
                 :message="warning"
               />
-              <div class="portal-health-page__muted">
-                这段只是建议：需要人工贴到页面搭建器的「页面信息」里保存并发布，才会对访客生效。
+              <div class="portal-health-page__apply">
+                <template v-if="appliedOf(record)">
+                  <span class="portal-health-page__muted">{{ appliedText(record) }}</span>
+                  <a-popconfirm
+                    v-if="canManagePages"
+                    title="换回那次写入之前的三个值？"
+                    ok-text="撤销"
+                    cancel-text="先不"
+                    @confirm="undoSuggestionApply(record)"
+                  >
+                    <a-button size="small" :loading="applying === record.id">撤销应用</a-button>
+                  </a-popconfirm>
+                </template>
+                <template v-else-if="canManagePages">
+                  <a-popconfirm
+                    title="用这段建议覆盖这一页现有的 SEO 三条 meta？"
+                    ok-text="应用到页面"
+                    cancel-text="先不"
+                    @confirm="applySuggestion(record)"
+                  >
+                    <a-button size="small" type="primary" :loading="applying === record.id">应用到页面</a-button>
+                  </a-popconfirm>
+                  <span class="portal-health-page__muted">
+                    这一步不烧 token，也确实会改到已发布页面对外那份 meta；写入前的值会留着，可撤销。
+                  </span>
+                </template>
+                <span v-else class="portal-health-page__muted">
+                  当前账号没有 portal:build:manage，只能复制上面三段手工贴到「页面信息」里保存。
+                </span>
               </div>
             </div>
           </template>
@@ -224,6 +251,7 @@ import {
   healthStatusColor,
   portalHealthApi,
   seoSuggestionOf,
+  suggestionAppliedOf,
   type HealthEstimate,
   type HealthFinding,
   type HealthOptions
@@ -459,6 +487,45 @@ async function reopen(id: number) {
   }
 }
 
+// ---------------- 把建议写进页面（Q5：零复制粘贴） ----------------
+
+const applying = ref<number | null>(null)
+const canManagePages = computed(() => auth.hasPermission('portal:build:manage'))
+
+function appliedOf(finding: HealthFinding) {
+  return suggestionAppliedOf(finding)
+}
+
+/** 那句话整句在这里拼：模板里对可能为 null 的对象做属性链，类型检查只会逼着写一堆断言 */
+function appliedText(finding: HealthFinding): string {
+  const applied = suggestionAppliedOf(finding)
+  if (!applied) return ''
+  const who = applied.by ? `由 ${applied.by} ` : ''
+  return `已于 ${who}${formatDateTime(applied.at)} 写进这一页的元信息。下次巡检若这条 meta 还在，这一条会自动变成「已消失」。`
+}
+
+/**
+ * 应用与撤销共用一个收尾：都重新拉一次列表。
+ * 后端在那一步改的是 portal_page，而这一行的 applied 节点是它写完才挂上的，
+ * 本地拼一份「看起来已应用」的状态只会让界面和库里两个真相。
+ */
+async function submitApply(finding: HealthFinding, undo: boolean) {
+  applying.value = finding.id
+  try {
+    if (undo) await portalHealthApi.undoApply(finding.id, true)
+    else await portalHealthApi.applySuggestion(finding.id, true)
+    message.success(undo ? '已换回应用前的元信息' : '已写入这一页的元信息')
+    await load()
+  } catch (error) {
+    message.error((error as Error).message || (undo ? '撤销失败' : '应用失败'))
+  } finally {
+    applying.value = null
+  }
+}
+
+const applySuggestion = (finding: HealthFinding) => submitApply(finding, false)
+const undoSuggestionApply = (finding: HealthFinding) => submitApply(finding, true)
+
 // ---------------- AI 出手 ----------------
 const aiFixOpen = ref(false)
 const estimating = ref(false)
@@ -469,7 +536,7 @@ const outputShape = computed(() => {
   if (!estimate.value) return '—'
   return estimate.value.aiFixMode === HEALTH_AI_DRAFT
     ? '页面改版草稿：产出后展开这一行看字段级 diff，确认无误再点「应用到页面」（这份草稿会立刻占掉页面新版本，可回滚）'
-    : '一段 SEO 建议：写在这条巡检结果上，需要人贴到页面信息里'
+    : '一段 SEO 建议：写在这条巡检结果上，展开这一行点「应用到页面」才写进元信息（页面在这一点之前没被动过）'
 })
 
 async function openAiFix(finding: HealthFinding) {
@@ -503,7 +570,7 @@ async function submitAiFix() {
     if (updated.draftId) {
       message.success(`草稿 #${updated.draftId} 已生成，这条仍是待处理——页面没有被动过`)
     } else if (updated.suggestionJson) {
-      message.success('建议已写在这条结果上，展开可查看（页面没有被动过）')
+      message.success('建议已写在这条结果上，展开这一行可点「应用到页面」（页面没有被动过）')
     } else {
       message.warning('这次没有产出可用结果，原因见后端返回')
     }
@@ -567,6 +634,14 @@ onMounted(async () => {
 
 .portal-health-page__divider {
   margin: 8px 0;
+}
+
+.portal-health-page__apply {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
 }
 
 .portal-health-page__warning,
