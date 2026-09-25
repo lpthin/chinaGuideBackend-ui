@@ -67,54 +67,17 @@
           <pre class="preview-content">{{ sitemapPreview }}</pre>
         </a-tab-pane>
 
-        <!-- Tab 4: 默认Meta标签配置 -->
-        <a-tab-pane key="meta" tab="默认Meta标签">
+        <!-- Tab 4: 站点级 GEO 摘要。
+             这里原来还有「默认SEO标题/描述/关键词、默认OG图、默认Twitter卡片、默认Schema」六项：
+             一份全站默认文案盖在所有页面之上，与页面自己填的 seo_* 互相不知道对方存在（I-6）。
+             逐页的 SEO 现在只有一个地方能填——「页面搭建」里那一页的 meta，缺了由巡检出草稿补。 -->
+        <a-tab-pane key="meta" tab="站点摘要与引用">
           <a-form
             :model="config"
             :label-col="{ span: 4 }"
             :wrapper-col="{ span: 18 }"
             label-align="left"
           >
-            <a-form-item label="默认SEO标题" name="defaultSeoTitle">
-              <a-input
-                v-model:value="config.defaultSeoTitle"
-                :maxlength="60"
-                show-count
-                placeholder="请输入默认SEO标题"
-              />
-            </a-form-item>
-            <a-form-item label="默认SEO描述" name="defaultSeoDescription">
-              <a-textarea
-                v-model:value="config.defaultSeoDescription"
-                :maxlength="160"
-                show-count
-                :rows="3"
-                placeholder="请输入默认SEO描述"
-              />
-            </a-form-item>
-            <a-form-item label="默认SEO关键词" name="defaultSeoKeywords">
-              <a-input
-                v-model:value="config.defaultSeoKeywords"
-                placeholder="关键词1,关键词2,关键词3"
-              />
-            </a-form-item>
-            <a-form-item label="默认OG图片URL" name="defaultOgImage">
-              <a-input
-                v-model:value="config.defaultOgImage"
-                placeholder="请输入默认OG图片URL"
-              />
-            </a-form-item>
-            <a-form-item label="默认Twitter卡片类型" name="defaultTwitterCardType">
-              <a-select
-                v-model:value="config.defaultTwitterCardType"
-                placeholder="请选择Twitter卡片类型"
-              >
-                <a-select-option value="summary">summary</a-select-option>
-                <a-select-option value="summary_large_image">summary_large_image</a-select-option>
-                <a-select-option value="app">app</a-select-option>
-                <a-select-option value="player">player</a-select-option>
-              </a-select>
-            </a-form-item>
             <a-form-item label="站点摘要" name="llmsSummary">
               <a-textarea
                 v-model:value="config.llmsSummary"
@@ -131,14 +94,6 @@
                 show-count
                 :rows="4"
                 placeholder="请输入AI引用摘要，用于提升AI搜索引擎的引用率"
-              />
-            </a-form-item>
-            <a-form-item label="默认Schema.org JSON-LD" name="defaultSchemaJson">
-              <a-textarea
-                v-model:value="config.defaultSchemaJson"
-                :rows="8"
-                placeholder='{"@context":"https://schema.org","@type":"Organization",...}'
-                style="font-family: 'Courier New', monospace;"
               />
             </a-form-item>
             <a-form-item :wrapper-col="{ offset: 4, span: 18 }">
@@ -184,12 +139,6 @@ const config = reactive<GeoSeoConfig>({
   siteId: undefined,
   robotsTxt: '',
   llmsTxtTemplate: '',
-  defaultSeoTitle: '',
-  defaultSeoDescription: '',
-  defaultSeoKeywords: '',
-  defaultOgImage: '',
-  defaultTwitterCardType: 'summary',
-  defaultSchemaJson: '',
   llmsSummary: '',
   geoCitationSummary: '',
 })

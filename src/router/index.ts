@@ -64,7 +64,6 @@ const BlockShowcaseView = () => import('../views/portal/BlockShowcaseView.vue')
 const SkeletonLibraryView = () => import('../views/portal/SkeletonLibraryView.vue')
 const AssembleJobView = () => import('../views/portal/AssembleJobView.vue')
 const SiteBuildWorkbenchView = () => import('../views/portal/SiteBuildWorkbenchView.vue')
-const SeoConfigView = () => import('../views/portal/SeoConfigView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
@@ -77,7 +76,6 @@ const SupportTicketView = () => import('../views/portal/SupportTicketView.vue')
 // 🔍 SEO & GEO 模块
 const GeoSeoDashboardView = () => import('../views/geoseo/GeoSeoDashboardView.vue')
 const GeoSeoConfigView = () => import('../views/geoseo/GeoSeoConfigView.vue')
-const GeoSeoPageView = () => import('../views/geoseo/GeoSeoPageView.vue')
 const GeoSeoCompanyView = () => import('../views/geoseo/GeoSeoCompanyView.vue')
 const GeoSeoCompetitorView = () => import('../views/geoseo/GeoSeoCompetitorView.vue')
 const GeoSeoKeywordView = () => import('../views/geoseo/GeoSeoKeywordView.vue')
@@ -508,18 +506,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', '门户网站', '企业信息'], requiredPermission: 'portal:siteinfo:manage' }
       },
       {
-        path: 'portal/seo',
-        name: 'workspace-portal-seo',
-        component: SeoConfigView,
-        // SEO 从 Q0 起归建设域（后端 /api/portal/seo 同码）；Spec §13 收口后这一项会被页面级 SEO 取代
-        meta: {
-          title: 'SEO配置',
-          icon: 'seo',
-          breadcrumb: ['首页', '门户网站', 'SEO配置'],
-          requiredPermission: 'portal:build:manage'
-        }
-      },
-      {
         path: 'portal/pages',
         name: 'workspace-portal-pages',
         component: PageBuilderView,
@@ -625,12 +611,6 @@ const routes: RouteRecordRaw[] = [
         name: 'workspace-geoseo-config',
         component: GeoSeoConfigView,
         meta: { title: '站点配置', icon: 'setting', breadcrumb: ['首页', 'SEO & GEO', '站点配置'] }
-      },
-      {
-        path: 'geoseo/pages',
-        name: 'workspace-geoseo-pages',
-        component: GeoSeoPageView,
-        meta: { title: '页面SEO', icon: 'file-text', breadcrumb: ['首页', 'SEO & GEO', '页面SEO'] }
       },
       {
         path: 'geoseo/company',

@@ -261,10 +261,6 @@
               <template #icon><BankOutlined /></template>
               企业信息
             </a-menu-item>
-            <a-menu-item key="portal/seo" v-if="auth.hasPermission('portal:build:manage')">
-              <template #icon><SearchOutlined /></template>
-              SEO配置
-            </a-menu-item>
             <a-menu-item key="portal/analytics" v-if="auth.hasPermission('analytics:view')">
               <template #icon><BarChartOutlined /></template>
               访问统计
@@ -286,10 +282,6 @@
             <a-menu-item key="geoseo/config">
               <template #icon><SettingOutlined /></template>
               站点配置
-            </a-menu-item>
-            <a-menu-item key="geoseo/pages">
-              <template #icon><FileTextOutlined /></template>
-              页面SEO
             </a-menu-item>
             <a-menu-item key="geoseo/company">
               <template #icon><BankOutlined /></template>
@@ -574,13 +566,11 @@ const menuLabels: Record<string, string> = {
   'portal/messages': '站内信',
   'portal/guestbook': '留言管理',
   'portal/company': '企业信息',
-  'portal/seo': 'SEO配置',
   'portal/analytics': '访问统计',
   'portal/support': '联系平台',
   'portal/support-queue': '平台工单队列',
   'geoseo/dashboard': '总览仪表盘',
   'geoseo/config': '站点配置',
-  'geoseo/pages': '页面SEO',
   'geoseo/company': '企业信息',
   'geoseo/competitors': '竞品追踪',
   'geoseo/keywords': '关键词排名',
@@ -648,11 +638,9 @@ const currentParentMenu = computed(() => {
     'portal/messages': '门户网站',
     'portal/guestbook': '门户网站',
     'portal/company': '门户网站',
-    'portal/seo': '门户网站',
     'portal/analytics': '门户网站',
     'geoseo/dashboard': 'SEO & GEO',
     'geoseo/config': 'SEO & GEO',
-    'geoseo/pages': 'SEO & GEO',
     'geoseo/company': 'SEO & GEO',
     'geoseo/competitors': 'SEO & GEO',
     'geoseo/keywords': 'SEO & GEO',

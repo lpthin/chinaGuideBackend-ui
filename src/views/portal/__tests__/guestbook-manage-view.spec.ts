@@ -21,7 +21,6 @@ vi.mock('../../../api/portal', () => ({
     delete: vi.fn()
   },
   companyInfoApi: {},
-  seoConfigApi: {},
   bannerApi: {},
   siteApi: {}
 }))

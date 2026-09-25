@@ -8,7 +8,6 @@ import type {
   PortalMessageBroadcast,
   Guestbook,
   CompanyInfo,
-  SeoConfig,
   BannerQuery,
   JobPostQuery,
   PortalMessageQuery,
@@ -17,7 +16,6 @@ import type {
   JobPostForm,
   GuestbookReply,
   CompanyInfoForm,
-  SeoConfigForm,
   PageResult
 } from '../types/portal'
 
@@ -162,35 +160,10 @@ export const companyInfoApi = {
   }
 }
 
-// SEO配置 API
-export const seoConfigApi = {
-  // 获取SEO配置列表
-  list: (params: { tenantId?: number; siteId?: number; pageType?: string; keyword?: string } = {}) =>
-    http.get<SeoConfig[]>('/portal/seo', { params }),
-
-  // 获取SEO配置详情
-  get: (id: number) =>
-    http.get<SeoConfig>(`/portal/seo/${id}`),
-
-  // 创建SEO配置
-  create: (data: SeoConfigForm) =>
-    http.post<SeoConfig>('/portal/seo', data),
-
-  // 更新SEO配置
-  update: (id: number, data: SeoConfigForm) =>
-    http.put<SeoConfig>(`/portal/seo/${id}`, data),
-
-  // 删除SEO配置
-  delete: (id: number) =>
-    http.delete(`/portal/seo/${id}`)
-}
-
 
 export default {
   banner: bannerApi,
   jobPost: jobPostApi,
   message: portalMessageApi,
   guestbook: guestbookApi,
-  companyInfo: companyInfoApi,
-  seoConfig: seoConfigApi
 }

@@ -1,7 +1,6 @@
 import http from './http'
 import type {
   GeoSeoConfig,
-  GeoSeoPage,
   GeoSeoCompetitor,
   GeoSeoKeywordRank,
   GeoDashboard,
@@ -14,16 +13,6 @@ export const geoConfigApi = {
   previewRobots: () => http.get<string>('/geoseo/config/preview/robots'),
   previewLlms: () => http.get<string>('/geoseo/config/preview/llms'),
   previewSitemap: () => http.get<string>('/geoseo/config/preview/sitemap'),
-}
-
-// ==================== 页面SEO API ====================
-export const geoPageApi = {
-  list: (params?: { pageType?: string }) =>
-    http.get<GeoSeoPage[]>('/geoseo/pages', { params }),
-  get: (id: number) => http.get<GeoSeoPage>(`/geoseo/pages/${id}`),
-  create: (data: GeoSeoPage) => http.post<GeoSeoPage>('/geoseo/pages', data),
-  update: (id: number, data: GeoSeoPage) => http.put<GeoSeoPage>(`/geoseo/pages/${id}`, data),
-  delete: (id: number) => http.delete<void>(`/geoseo/pages/${id}`),
 }
 
 // ==================== 竞品追踪 API ====================
@@ -52,7 +41,6 @@ export const geoDashboardApi = {
 
 export default {
   config: geoConfigApi,
-  page: geoPageApi,
   competitor: geoCompetitorApi,
   keyword: geoKeywordApi,
   dashboard: geoDashboardApi,

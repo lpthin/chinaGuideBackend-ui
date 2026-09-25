@@ -6,35 +6,8 @@ export interface GeoSeoConfig {
   siteId?: number
   robotsTxt: string
   llmsTxtTemplate: string
-  defaultSeoTitle: string
-  defaultSeoDescription: string
-  defaultSeoKeywords: string
-  defaultOgImage: string
-  defaultTwitterCardType: string
-  defaultSchemaJson: string
   llmsSummary: string
   geoCitationSummary: string
-}
-
-export interface GeoSeoPage {
-  id?: number
-  tenantId?: number
-  siteId?: number
-  pageType: string  // 'home' | 'category' | 'article' | 'case' | 'custom'
-  pageKey: string
-  seoTitle: string
-  seoDescription: string
-  seoKeywords: string
-  canonicalUrl: string
-  robotsMeta: string
-  ogTitle: string
-  ogDescription: string
-  ogImage: string
-  twitterCardType: string
-  twitterTitle: string
-  twitterDescription: string
-  twitterImage: string
-  structuredData: string
 }
 
 export interface GeoSeoCompetitor {

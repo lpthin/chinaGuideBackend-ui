@@ -158,23 +158,6 @@ export interface CompanyInfo {
   updateTime?: string
 }
 
-// SEO配置
-export interface SeoConfig {
-  id: number
-  tenantId: number
-  siteId?: number
-  pageType: string
-  pageKey: string
-  seoTitle: string
-  seoKeywords: string
-  seoDescription: string
-  ogImage: string
-  ogTitle: string
-  ogDescription: string
-  structuredData: string
-  updatedAt: string
-}
-
 // 查询参数
 export interface BannerQuery {
   siteId?: number
@@ -290,21 +273,6 @@ export interface CompanyInfoForm {
   logoUrl?: string
   faviconUrl?: string
   certificateUrls?: string
-}
-
-export interface SeoConfigForm {
-  id?: number
-  tenantId?: number
-  siteId?: number
-  pageType?: string
-  pageKey: string
-  seoTitle?: string
-  seoKeywords?: string
-  seoDescription?: string
-  ogImage?: string
-  ogTitle?: string
-  ogDescription?: string
-  structuredData?: string
 }
 
 // 分页结果
