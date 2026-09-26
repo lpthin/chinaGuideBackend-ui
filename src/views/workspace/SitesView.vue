@@ -101,6 +101,8 @@ const defaultForm = (): SiteForm => ({
   domain: '',
   description: '',
   brandName: '',
+  // 新建时由「归属租户」下拉填；编辑时被库里的归属覆盖，保存分支不会把它带回 payload
+  tenantId: undefined,
   industryPath: [],
   targetRegionsList: [],
   targetAudienceList: [],
@@ -211,6 +213,27 @@ const statusLockedInForm = computed(() => form.status === 'candidate' || form.st
 const tenantNames = ref<Record<number, string>>({})
 const tenantsFailed = ref(false)
 
+/**
+ * 「归属租户」下拉直接吃 tenantNames 那一份：数据源仍是同一个 tenantApi.list()，
+ * 不在这里再抄第二份租户清单（I-1）。列表里查不到的号（多半是租户接口没取到）
+ * 补一条「租户 #id」把原话报出来，不静默丢已选值。
+ */
+const tenantOptions = computed(() => {
+  const options = Object.entries(tenantNames.value)
+    .map(([id, name]) => ({ value: Number(id), label: name }))
+    .sort((a, b) => a.value - b.value)
+  if (form.tenantId && !options.some(option => option.value === form.tenantId)) {
+    options.push({ value: form.tenantId, label: `租户 #${form.tenantId}（这一页的租户列表里没查到）` })
+  }
+  return options
+})
+
+const tenantPlaceholder = computed(() => {
+  if (editingId.value) return '这一站现在没有归属租户：改归属是后端的开通/移交动作，这里动不了'
+  if (tenantsFailed.value) return '租户列表没取到，刷新重试'
+  return '这一站归哪个租户（新建必选）'
+})
+
 async function loadTenantNames() {
   try {
     const list = await tenantApi.list()
@@ -288,8 +311,13 @@ async function save() {
     message.warning('请填写站点编码和名称')
     return
   }
+  if (!editingId.value && !form.tenantId) {
+    message.warning('新建站点要先选归属租户：后端把这一站记在租户名下，没这个号建不出来')
+    return
+  }
   try {
-    // tenantId 一律不入 payload：改归属是后端的开通/移交动作，这张表单没有这个权利
+    // tenantId 只在新建那一支入 payload：后端 create 要求请求带号（超管上下文的 effectiveTenantId 是 null）；
+    // 编辑那一支继续不带——update 会强制沿用库里那份归属，带过去也不生效，界面不能演成能改归属
     const { enabledLocalesList, industryPath, targetRegionsList, targetAudienceList, businessModelList, searchLocalesList, competitorDomainsList, seedKeywordsList, excludedKeywordsList, tenantId, ...rest } = form
     const payload: Site = {
       ...rest,
@@ -304,12 +332,21 @@ async function save() {
       seedKeywords: joinList(seedKeywordsList),
       excludedKeywords: joinList(excludedKeywordsList)
     }
-    if (editingId.value) await siteApi.update(editingId.value, payload)
-    else await siteApi.create(payload)
-    message.success('保存成功')
-        modalVisible.value = false
-        await load()
-        await siteStore.loadSites()
+    if (editingId.value) {
+      await siteApi.update(editingId.value, payload)
+      message.success('保存成功')
+      modalVisible.value = false
+      await load()
+      await siteStore.loadSites()
+    } else {
+      await siteApi.create({ ...payload, tenantId })
+      message.success('站点已建好，下一步去录前采需求单')
+      modalVisible.value = false
+      await load()
+      await siteStore.loadSites()
+      // 建站向导的交棒出口：与 TenantPanel「去录前采」同一走法——租户号挂 query，录入页自己预填
+      router.push({ name: 'workspace-portal-brief-new', query: { tenantId: String(tenantId) } })
+    }
   } catch (e) {
     message.error('保存失败')
   }
@@ -479,6 +516,22 @@ onMounted(() => {
           <a-col :span="12">
             <a-form-item label="域名" extra="访客从哪个域名进来就打开这个站点，填主机名即可（带不带 https:// 都认），暂不支持带路径">
               <a-input v-model:value="form.domain" placeholder="https://www.example.com" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <!-- 新建必选归属租户（后端 create 认请求里这个号）；编辑时禁用并如实显示库里那份归属：
+                 后端 update 强制沿用原归属，这里给一个能改的下拉就是撒谎 -->
+            <a-form-item label="归属租户" :required="!editingId">
+              <a-select
+                v-model:value="form.tenantId"
+                :options="tenantOptions"
+                :disabled="!!editingId"
+                :placeholder="tenantPlaceholder"
+                :not-found-content="tenantsFailed ? '租户列表没取到，刷新重试' : '没有可选项'"
+                show-search
+                option-filter-prop="label"
+                data-testid="tenant-select"
+              />
             </a-form-item>
           </a-col>
           <a-col :span="24">

@@ -91,7 +91,7 @@ export interface Site {
   defaultLocale: string
   enabledLocales: string
   status: string
-  /** 站点归属租户：只读展示用。写操作一律不带它（改归属是后端的开通/移交动作，不是这张表单的权利）。 */
+  /** 站点归属租户：列表展示用；新建时由站点表单带上（后端 create 认请求里这个号），编辑时后端强制沿用库里那份，改归属是后端的开通/移交动作。 */
   tenantId?: number
   /**
    * 建站需求单 id（Spec-C §4 V115 `site.build_brief_id`，P2 后端加）：这一站是哪一张前采需求单
