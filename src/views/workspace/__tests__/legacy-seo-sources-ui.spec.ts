@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { MENU_EXCLUDED, MENU_GROUP_BY_ROUTE } from '../../../navigation/workspaceMenu'
 
 /**
  * 旧的两处「全站级 SEO 配置面」在管理端必须彻底没有读法（Spec §13.5 的 ③，I-6 / I-8）。
@@ -60,9 +61,13 @@ describe('I-6：界面上没有任何一处还在读那三处旧 SEO 来源', ()
     expect(hitsOf(/default(?:Seo|Og|Twitter|Schema)\w*|default_(?:seo|og|twitter|schema)\w*/)).toEqual([])
   })
 
-  it('逐页 SEO 的唯一入口还在：菜单里有「页面搭建」', () => {
-    const menu = String(files.find(([path]) => path.endsWith('WorkspaceView.vue'))?.[1] ?? '')
-    expect(menu).toMatch(/key="portal\/pages"/)
+  it('逐页 SEO 的唯一入口还在：路由有 portal/pages「页面搭建」，菜单表认它这一条', () => {
+    const routerSource = String(files.find(([path]) => path.endsWith('router/index.ts'))?.[1] ?? '')
+    // 侧边菜单改成从路由单源生成（Spec-C §3.2 P0）后，「菜单里有没有」问的是分组表与排除表，
+    // 不再是 WorkspaceView 里手写的 key——所以这里查真模块的导出，而不是查模板字符串。
+    expect(MENU_GROUP_BY_ROUTE['workspace-portal-pages']).toBeTruthy()
+    expect(MENU_EXCLUDED['workspace-portal-pages']).toBeUndefined()
+    expect(routerSource).toMatch(/name: 'workspace-portal-pages'[\s\S]{0,200}title: '页面搭建'/)
   })
 
   it('站点配置里留下的确实是库里真有对应列的那几项', () => {

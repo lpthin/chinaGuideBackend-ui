@@ -64,11 +64,15 @@ describe('I-1 前端不抄第二份栏目词表', () => {
   })
 
   it('内容菜单项按 contentEntry 取值过滤，而不是按栏目 key', () => {
+    // 菜单改成从路由单源生成（Spec-C §3.2 P0）：门控住在 navigation/workspaceMenu.ts，
+    // 取值住在路由 meta——菜单模块自己一个取值都不写，写了就是第二份清单。
     const menu = Object.values({
-      ...import.meta.glob('../../views/workspace/WorkspaceView.vue', { eager: true, query: '?raw', import: 'default' })
+      ...import.meta.glob('../../navigation/workspaceMenu.ts', { eager: true, query: '?raw', import: 'default' })
     }).join('\n')
-    expect(menu).toMatch(/entryOpen\('job'\)/)
-    expect(menu).toMatch(/\.contentEntry/)
+    expect(menu).toMatch(/openContentEntries\.has\(leaf\.contentEntry\)/)
+    expect(menu).toMatch(/contentEntry: meta\.contentEntry/)
+    // 门控取值只许出现在注释里（后端词表的说明），不许是字符串字面量
+    expect(menu).not.toMatch(/contentEntry:\s*['"`]/)
     // 菜单里出现栏目 key（而不是 contentEntry 取值）就等于抄了第二份清单
     expect(menu).not.toMatch(/state\.key\s*===\s*['"`]/)
   })

@@ -57,366 +57,69 @@
 
     <!-- 主体内容区 -->
     <a-layout class="main-layout">
-      <!-- 左侧侧边栏 -->
-      <a-layout-sider width="220" class="side-menu" :collapsed="collapsed" collapsible :trigger="null">
-        <a-menu
-          v-model:selectedKeys="selectedKeys"
-          v-model:openKeys="openKeys"
-          mode="inline"
-          :inline-collapsed="collapsed"
-          class="sidebar-menu"
-          @click="handleMenuClick"
-        >
-          <!-- 仪表盘 -->
-          <a-menu-item key="dashboard">
-            <template #icon><DashboardOutlined /></template>
-            <span>工作台</span>
-          </a-menu-item>
+      <!--
+        左侧侧边栏：整棵菜单由 `src/navigation/workspaceMenu.ts` 从路由表生成（Spec「建站重构」§3.1）。
+        这一层只渲染，不再抄标签、图标、权限码——以前这里手写 19 个 portal 菜单项，外加 menuLabels 与
+        currentParentMenu 两张表：路由改了这里不改，于是「文章分类」在菜单里仍叫「栏目管理」；
+        区块画廊这里判 preset 码而路由要 manage 码，看得见、点进去 403。
+      -->
+      <a-layout-sider width="240" class="side-menu" :collapsed="collapsed" collapsible :trigger="null">
+        <nav class="sidebar-nav">
+          <a-menu
+            v-if="topLeaf"
+            mode="inline"
+            :selected-keys="selectedKeys"
+            :inline-collapsed="collapsed"
+            class="sidebar-menu sidebar-menu--single"
+            @click="handleMenuClick"
+          >
+            <a-menu-item :key="topLeaf.key">
+              <template #icon><component :is="topLeaf.icon" /></template>
+              {{ topLeaf.label }}
+            </a-menu-item>
+          </a-menu>
 
-          <!-- 内容生产 -->
-          <a-sub-menu key="content">
-            <template #icon><FireOutlined /></template>
-            <template #title>内容生产</template>
-            <a-menu-item key="keywords">
-              <template #icon><DownloadOutlined /></template>
-              关键词库
-            </a-menu-item>
-            <a-menu-item key="cluster">
-              <template #icon><ClusterOutlined /></template>
-              聚类分析
-            </a-menu-item>
-            <a-menu-item key="article-generate">
-              <template #icon><EditOutlined /></template>
-              AI生成
-            </a-menu-item>
-            <a-menu-item key="review">
-              <template #icon><CheckCircleOutlined /></template>
-              审核管理
-            </a-menu-item>
-            <a-menu-item key="publish">
-              <template #icon><RocketOutlined /></template>
-              发布中心
-            </a-menu-item>
-            <a-menu-item key="publish-config">
-              <template #icon><SettingOutlined /></template>
-              发布配置
-            </a-menu-item>
-          </a-sub-menu>
+          <section v-for="section in menuSections" :key="section.domain" class="menu-domain">
+            <div v-if="!collapsed" class="menu-domain__label">
+              {{ section.label }}
+              <span class="menu-domain__hint">{{ section.hint }}</span>
+            </div>
+            <div v-else class="menu-domain__rule" aria-hidden="true"></div>
 
-          <!-- 文章管理 -->
-          <a-sub-menu key="articleManage">
-            <template #icon><FileTextOutlined /></template>
-            <template #title>文章管理</template>
-            <a-menu-item key="articles">
-              <template #icon><FileTextOutlined /></template>
-              文章列表
-            </a-menu-item>
-            <a-menu-item key="categories">
-              <template #icon><FolderOutlined /></template>
-              栏目管理
-            </a-menu-item>
-            <a-menu-item key="article-templates">
-              <template #icon><FileDoneOutlined /></template>
-              软文模板
-            </a-menu-item>
-            <!-- 菜单 key 就是路由首段 'media'（getMenuKey 的口径），别写成 'media/library'——那样永远高亮不上 -->
-            <a-menu-item key="media" v-if="auth.hasPermission('media:manage')">
-              <template #icon><PictureOutlined /></template>
-              图片库
-            </a-menu-item>
-          </a-sub-menu>
+            <a-menu
+              mode="inline"
+              :selected-keys="selectedKeys"
+              :inline-collapsed="collapsed"
+              class="sidebar-menu"
+              @click="handleMenuClick"
+            >
+              <a-menu-item-group v-for="group in section.groups" :key="group.def.key">
+                <template #title>
+                  <span class="menu-group__label">{{ group.def.label }}</span>
+                  <span v-if="group.def.hint && !collapsed" class="menu-group__hint">{{ group.def.hint }}</span>
+                </template>
+                <a-menu-item v-for="leaf in group.items" :key="leaf.key">
+                  <template #icon><component :is="leaf.icon" /></template>
+                  {{ leaf.label }}
+                </a-menu-item>
+              </a-menu-item-group>
+            </a-menu>
+          </section>
 
-          <!-- 知识库 -->
-          <a-sub-menu key="knowledge">
-            <template #icon><BookOutlined /></template>
-            <template #title>知识库</template>
-            <a-menu-item key="knowledge/dashboard">
-              <template #icon><DashboardOutlined /></template>
-              知识仪表板
+          <a-menu
+            v-if="bottomLeaf"
+            mode="inline"
+            :selected-keys="selectedKeys"
+            :inline-collapsed="collapsed"
+            class="sidebar-menu sidebar-menu--bottom"
+            @click="handleMenuClick"
+          >
+            <a-menu-item :key="bottomLeaf.key">
+              <template #icon><component :is="bottomLeaf.icon" /></template>
+              {{ bottomLeaf.label }}
             </a-menu-item>
-            <a-menu-item key="knowledge/documents">
-              <template #icon><FolderOutlined /></template>
-              资料库
-            </a-menu-item>
-            <a-menu-item key="knowledge/cards">
-              <template #icon><IdcardOutlined /></template>
-              知识卡片
-            </a-menu-item>
-            <a-menu-item key="knowledge/categories">
-              <template #icon><FolderOutlined /></template>
-              知识分类
-            </a-menu-item>
-            <a-menu-item key="knowledge/tags">
-              <template #icon><TagsOutlined /></template>
-              标签管理
-            </a-menu-item>
-            <a-menu-item key="knowledge/graph">
-              <template #icon><ApartmentOutlined /></template>
-              知识图谱
-            </a-menu-item>
-          </a-sub-menu>
-
-          <!-- 案例管理 -->
-          <a-sub-menu key="caseManage">
-            <template #icon><ProjectOutlined /></template>
-            <template #title>案例管理</template>
-            <a-menu-item key="case/list">
-              <template #icon><FileTextOutlined /></template>
-              案例列表
-            </a-menu-item>
-          </a-sub-menu>
-
-          <!-- 计费系统 -->
-          <a-sub-menu key="billing" v-if="auth.isSuperAdmin">
-            <template #icon><AccountBookOutlined /></template>
-            <template #title>计费系统</template>
-            <a-menu-item key="billing/manage">
-              <template #icon><AccountBookOutlined /></template>
-              账单管理
-            </a-menu-item>
-            <a-menu-item key="billing/stats">
-              <template #icon><BarChartOutlined /></template>
-              消费统计
-            </a-menu-item>
-            <a-menu-item key="billing/wallet">
-              <template #icon><WalletOutlined /></template>
-              我的钱包
-            </a-menu-item>
-            <a-menu-item key="billing/invoices">
-              <template #icon><FileTextOutlined /></template>
-              发票管理
-            </a-menu-item>
-            <a-menu-item key="billing/orders">
-              <template #icon><ShoppingOutlined /></template>
-              订单管理
-            </a-menu-item>
-          </a-sub-menu>
-
-          <!-- 门户网站 -->
-          <a-sub-menu key="portal">
-            <template #icon><GlobalOutlined /></template>
-            <template #title>门户网站</template>
-            <a-menu-item key="portal/launch">
-              <template #icon><RocketOutlined /></template>
-              门户上线
-            </a-menu-item>
-            <a-menu-item key="portal/content" v-if="auth.hasPermission('portal:siteinfo:manage')">
-              <template #icon><AppstoreOutlined /></template>
-              内容工作台
-            </a-menu-item>
-            <a-menu-item key="portal/sections" v-if="auth.hasPermission('portal:build:section')">
-              <template #icon><AppstoreOutlined /></template>
-              栏目管理
-            </a-menu-item>
-            <!-- 建设域三件套（Spec §7.2，Q2）：菜单显隐与路由 meta.requiredPermission、后端 @RequirePermission 同一个码 -->
-            <a-menu-item key="portal/build" v-if="auth.hasPermission('portal:build:manage')">
-              <template #icon><ProjectOutlined /></template>
-              建站工作台
-            </a-menu-item>
-            <a-menu-item key="portal/skeletons" v-if="auth.hasPermission('portal:build:preset')">
-              <template #icon><AppstoreOutlined /></template>
-              骨架库
-            </a-menu-item>
-            <a-menu-item key="portal/blocks" v-if="auth.hasPermission('portal:build:preset')">
-              <template #icon><AppstoreOutlined /></template>
-              区块画廊
-            </a-menu-item>
-            <a-menu-item key="portal/pages" v-if="auth.hasPermission('portal:build:manage')">
-              <template #icon><AppstoreOutlined /></template>
-              页面搭建
-            </a-menu-item>
-            <a-menu-item key="portal/tickets" v-if="auth.hasPermission('portal:build:review')">
-              <template #icon><CommentOutlined /></template>
-              改版工单
-            </a-menu-item>
-            <a-menu-item key="portal/reference-sites" v-if="auth.hasPermission('portal:build:reference')">
-              <template #icon><GlobalOutlined /></template>
-              参考站摄取
-            </a-menu-item>
-            <a-menu-item key="portal/presets" v-if="auth.hasPermission('portal:build:preset')">
-              <template #icon><BgColorsOutlined /></template>
-              样式沉淀
-            </a-menu-item>
-            <!-- 菜单显隐与路由 meta.requiredPermission 用同一个码，和后端 @RequirePermission 也是一致的 -->
-            <a-menu-item key="portal/health" v-if="auth.hasPermission('portal:build:health')">
-              <template #icon><SafetyOutlined /></template>
-              页面巡检
-            </a-menu-item>
-            <!-- 探测的发起权只在平台（决议 N10 方案 B + N4 建设域口径）：租户令牌拿不到 portal:build:citation，这一项对它们自然不出现 -->
-            <a-menu-item key="portal/citation-probes" v-if="auth.hasPermission('portal:build:citation')">
-              <template #icon><AimOutlined /></template>
-              品牌引用探测
-            </a-menu-item>
-            <a-menu-item key="portal/support-queue" v-if="auth.hasPermission('portal:build:review')">
-              <template #icon><CommentOutlined /></template>
-              平台工单队列
-            </a-menu-item>
-            <a-menu-item key="portal/banners" v-if="auth.hasPermission('portal:siteinfo:manage')">
-              <template #icon><PictureOutlined /></template>
-              Banner管理
-            </a-menu-item>
-            <a-menu-item key="portal/jobs" v-if="auth.hasPermission('portal:siteinfo:manage') && entryOpen('job')">
-              <template #icon><UserAddOutlined /></template>
-              招聘管理
-            </a-menu-item>
-            <a-menu-item key="portal/messages">
-              <template #icon><MessageOutlined /></template>
-              站内信
-            </a-menu-item>
-            <a-menu-item key="portal/guestbook" v-if="auth.hasPermission('portal:siteinfo:manage')">
-              <template #icon><FormOutlined /></template>
-              留言管理
-            </a-menu-item>
-            <a-menu-item key="portal/company" v-if="auth.hasPermission('portal:siteinfo:manage') && entryOpen('company')">
-              <template #icon><BankOutlined /></template>
-              企业信息
-            </a-menu-item>
-            <a-menu-item key="portal/analytics" v-if="auth.hasPermission('analytics:view')">
-              <template #icon><BarChartOutlined /></template>
-              访问统计
-            </a-menu-item>
-            <!-- 问题七：「谁把我带来的、AI 有没有提到我」交给租户自己看，用的就是访问统计那一码 -->
-            <a-menu-item key="portal/citations" v-if="auth.hasPermission('analytics:view')">
-              <template #icon><ShareAltOutlined /></template>
-              引用与来源
-            </a-menu-item>
-            <a-menu-item key="portal/support" v-if="auth.hasPermission('portal:ticket:submit')">
-              <template #icon><CommentOutlined /></template>
-              联系平台
-            </a-menu-item>
-          </a-sub-menu>
-
-          <!-- SEO & GEO -->
-          <a-sub-menu key="geoseo">
-            <template #icon><SearchOutlined /></template>
-            <template #title>SEO & GEO</template>
-            <a-menu-item key="geoseo/dashboard">
-              <template #icon><DashboardOutlined /></template>
-              总览仪表盘
-            </a-menu-item>
-            <a-menu-item key="geoseo/config">
-              <template #icon><SettingOutlined /></template>
-              站点配置
-            </a-menu-item>
-            <a-menu-item key="geoseo/company">
-              <template #icon><BankOutlined /></template>
-              企业信息
-            </a-menu-item>
-            <!--
-              竞品追踪 / 关键词排名这两个入口按决议 N10 摘掉：排名数据没有真源，页面上那些数
-              是人工抄进去的，摆在菜单里就等于我们承诺「这里能看到排名」。
-              路由与页面本身留着——存量数据还得有人看得见、改得动（Spec §13.4 的「下线并注明」）。
-            -->
-          </a-sub-menu>
-
-          <!-- AI配置 -->
-          <a-sub-menu key="ai" v-if="auth.isSuperAdmin">
-            <template #icon><RobotOutlined /></template>
-            <template #title>AI配置</template>
-            <a-menu-item key="ai/models">
-              <template #icon><RobotOutlined /></template>
-              大模型配置
-            </a-menu-item>
-            <a-menu-item key="ai/embedding">
-              <template #icon><ApiOutlined /></template>
-              向量化配置
-            </a-menu-item>
-            <a-menu-item key="ai/usage">
-              <template #icon><BarChartOutlined /></template>
-              用量监控
-            </a-menu-item>
-            <a-menu-item key="ai/article-templates">
-              <template #icon><FileTextOutlined /></template>
-              生成模板
-            </a-menu-item>
-          </a-sub-menu>
-
-          <!-- 运营管理 -->
-          <a-sub-menu key="operation">
-            <template #icon><PieChartOutlined /></template>
-            <template #title>运营管理</template>
-            <a-menu-item key="operation/dashboard">
-              <template #icon><DashboardOutlined /></template>
-              运营概览
-            </a-menu-item>
-            <a-menu-item key="operation/customers" v-if="auth.isSuperAdmin">
-              <template #icon><TeamOutlined /></template>
-              客户管理
-            </a-menu-item>
-            <a-menu-item key="operation/cases">
-              <template #icon><ProjectOutlined /></template>
-              客户案例
-            </a-menu-item>
-            <a-menu-item key="operation/reports">
-              <template #icon><FileSearchOutlined /></template>
-              数据报表
-            </a-menu-item>
-          </a-sub-menu>
-
-          <!-- 系统管理 -->
-          <a-sub-menu key="system" v-if="auth.isSuperAdmin">
-            <template #icon><SettingOutlined /></template>
-            <template #title>系统管理</template>
-            <a-menu-item key="sites">
-              <template #icon><GlobalOutlined /></template>
-              站点管理
-            </a-menu-item>
-            <a-menu-item key="tenant">
-              <template #icon><TeamOutlined /></template>
-              租户管理
-            </a-menu-item>
-            <a-menu-item key="users">
-              <template #icon><UserOutlined /></template>
-              用户管理
-            </a-menu-item>
-            <a-menu-item key="roles">
-              <template #icon><TeamOutlined /></template>
-              角色管理
-            </a-menu-item>
-            <a-menu-item key="permissions">
-              <template #icon><SafetyOutlined /></template>
-              权限管理
-            </a-menu-item>
-            <a-menu-item key="system-prompt">
-              <template #icon><ApiOutlined /></template>
-              Prompt管理
-            </a-menu-item>
-            <a-menu-item key="settings">
-              <template #icon><SettingOutlined /></template>
-              系统设置
-            </a-menu-item>
-            <a-menu-item key="audit-log">
-              <template #icon><AuditOutlined /></template>
-              审计日志
-            </a-menu-item>
-            <a-menu-item key="media-storage">
-              <template #icon><CloudServerOutlined /></template>
-              素材存储
-            </a-menu-item>
-          </a-sub-menu>
-
-          <!-- 报警管理 -->
-          <a-sub-menu key="alert" v-if="auth.isSuperAdmin">
-            <template #icon><BellOutlined /></template>
-            <template #title>报警管理</template>
-            <a-menu-item key="alert/rules">
-              <template #icon><AlertOutlined /></template>
-              报警规则
-            </a-menu-item>
-            <a-menu-item key="alert/records">
-              <template #icon><NotificationOutlined /></template>
-              报警记录
-            </a-menu-item>
-            <a-menu-item key="alert/channels">
-              <template #icon><SettingOutlined /></template>
-              通知渠道
-            </a-menu-item>
-            <a-menu-item key="notifications">
-              <template #icon><BellOutlined /></template>
-              待办通知
-            </a-menu-item>
-          </a-sub-menu>
-        </a-menu>
+          </a-menu>
+        </nav>
       </a-layout-sider>
 
       <!-- 主要工作区 -->
@@ -428,11 +131,11 @@
               <DashboardOutlined style="margin-right: 4px" />
               首页
             </a-breadcrumb-item>
-            <a-breadcrumb-item v-if="currentParentMenu">
-              {{ currentParentMenu }}
+            <a-breadcrumb-item v-if="crumb.parent">
+              {{ crumb.parent }}
             </a-breadcrumb-item>
             <a-breadcrumb-item>
-              {{ currentMenuLabel }}
+              {{ crumb.current || '工作台' }}
             </a-breadcrumb-item>
           </a-breadcrumb>
           
@@ -465,62 +168,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, provide, inject, watch, h } from 'vue'
+import { ref, computed, onMounted, provide, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import TenantSwitcher from '../../components/TenantSwitcher.vue'
 import {
-  DownloadOutlined,
-  ClusterOutlined,
-  FileTextOutlined,
-  CheckCircleOutlined,
-  RocketOutlined,
-  UserOutlined,
-  SettingOutlined,
-  HomeOutlined,
-  ReloadOutlined,
-  DownOutlined,
   BarChartOutlined,
-  ApartmentOutlined,
-  EditOutlined,
   DashboardOutlined,
+  DownOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  ReloadOutlined,
   UploadOutlined,
-  FolderOutlined,
-  GlobalOutlined,
-  BgColorsOutlined,
-  TeamOutlined,
-  SafetyOutlined,
-  UserAddOutlined,
-  ApiOutlined,
-  PictureOutlined,
-  FireOutlined,
-  FileDoneOutlined,
-  BookOutlined,
-  IdcardOutlined,
-  TagsOutlined,
-  ProjectOutlined,
-  AccountBookOutlined,
-  AppstoreOutlined,
-  CommentOutlined,
-  MessageOutlined,
-  FormOutlined,
-  BankOutlined,
-  SearchOutlined,
-  RobotOutlined,
-  PieChartOutlined,
-  FileSearchOutlined,
-  AuditOutlined,
-  BellOutlined,
-  AlertOutlined,
-  NotificationOutlined,
-  WalletOutlined,
-  ShoppingOutlined,
-  AimOutlined,
-  ShareAltOutlined,
-  CloudServerOutlined
+  UserOutlined
 } from '@ant-design/icons-vue'
+import { routes } from '../../router'
+import {
+  MENU_BOTTOM_ROUTE,
+  MENU_TOP_ROUTE,
+  buildMenuSections,
+  collectMenuLeaves,
+  findLeaf,
+  leafVisible,
+  menuCrumb,
+  selectedMenuKey
+} from '../../navigation/workspaceMenu'
 import { portalSectionsApi } from '../../api/portalSections'
 import { message } from 'ant-design-vue'
 import { describeHttpError } from '../../api/http'
@@ -536,10 +208,6 @@ const auth = useAuthStore()
  */
 const openContentEntries = ref<Set<string> | null>(null)
 
-function entryOpen(entry: string): boolean {
-  return openContentEntries.value === null || openContentEntries.value.has(entry)
-}
-
 async function loadSectionEntries() {
   try {
     const states = await portalSectionsApi.list()
@@ -550,169 +218,47 @@ async function loadSectionEntries() {
   }
 }
 
-const collapsed = ref(false)
-const openKeys = ref<string[]>(['content', 'articleManage', 'knowledge', 'system', 'alert'])
+/** 路由定义顺序 = 界面上的上下顺序；`router.getRoutes()` 按路径权重排过序，不能用它 */
+const menuLeaves = computed(() => collectMenuLeaves(routes))
 
+const visibility = computed(() => ({
+  isSuperAdmin: auth.isSuperAdmin,
+  hasPermission: (code: string) => auth.hasPermission(code),
+  openContentEntries: openContentEntries.value
+}))
+
+const menuSections = computed(() => buildMenuSections(menuLeaves.value, visibility.value))
+
+/** 菜单上/下两端各固定一项（工作台、联系平台）：标签与图标同样来自那条路由，视图里不写死中文 */
+function visibleFixedLeaf(routeName: string) {
+  const leaf = findLeaf(routeName, menuLeaves.value)
+  return leaf && leafVisible(leaf, visibility.value) ? leaf : null
+}
+
+const topLeaf = computed(() => visibleFixedLeaf(MENU_TOP_ROUTE))
+const bottomLeaf = computed(() => visibleFixedLeaf(MENU_BOTTOM_ROUTE))
+
+/**
+ * 选中态用最长前缀匹配。旧实现取「路径首段」+ 手抄一份前缀白名单，于是 `media/library`（图片库）
+ * 与 `media-storage`（素材存储）抢同一个 key，图片库的高亮跑到素材存储上；
+ * 详情页（`articles/12`、`knowledge/cards/3`）也不用再抄映射，自动归到它的列表项。
+ */
+const currentMenuKey = computed(() => selectedMenuKey(route.path, menuLeaves.value))
+
+const selectedKeys = computed(() => (currentMenuKey.value ? [currentMenuKey.value] : []))
+
+/** 面包屑两级来自组与项本身：那张 60 行的 currentParentMenu 手抄表删掉了 */
+const crumb = computed(() => menuCrumb(currentMenuKey.value, menuLeaves.value))
+
+const collapsed = ref(false)
 const pageKey = ref(0)
 const refreshing = ref(false)
 const importCallback = ref<(() => void) | null>(null)
 
-const menuLabels: Record<string, string> = {
-  dashboard: '工作台',
-  keywords: '关键词库',
-  cluster: '聚类分析',
-  'article-generate': 'AI生成',
-  review: '审核管理',
-  publish: '发布中心',
-  'publish-config': '发布配置',
-  articles: '文章列表',
-  categories: '栏目管理',
-  'article-templates': '软文模板',
-  media: '图片库',
-  'knowledge/dashboard': '知识仪表板',
-  'knowledge/documents': '资料库',
-  'knowledge/cards': '知识卡片',
-  'knowledge/categories': '知识分类',
-  'knowledge/tags': '标签管理',
-  'knowledge/graph': '知识图谱',
-  'case/list': '案例列表',
-  'billing/manage': '账单管理',
-  'billing/stats': '消费统计',
-  'portal/launch': '门户上线',
-  'portal/pages': '页面搭建',
-  'portal/tickets': '改版工单',
-  'portal/reference-sites': '参考站摄取',
-  'portal/presets': '样式沉淀',
-  'portal/health': '页面巡检',
-  'portal/citation-probes': '品牌引用探测',
-  'portal/citations': '引用与来源',
-  'portal/banners': 'Banner管理',
-  'portal/jobs': '招聘管理',
-  'portal/messages': '站内信',
-  'portal/guestbook': '留言管理',
-  'portal/company': '企业信息',
-  'portal/analytics': '访问统计',
-  'portal/support': '联系平台',
-  'portal/support-queue': '平台工单队列',
-  'geoseo/dashboard': '总览仪表盘',
-  'geoseo/config': '站点配置',
-  'geoseo/company': '企业信息',
-  'geoseo/competitors': '竞品追踪',
-  'geoseo/keywords': '关键词排名',
-  'ai/models': '大模型配置',
-  'ai/embedding': '向量化配置',
-  'ai/usage': '用量监控',
-  'ai/article-templates': '生成模板',
-  'operation/dashboard': '运营概览',
-  'operation/cases': '客户案例',
-  'operation/reports': '数据报表',
-  sites: '站点管理',
-  tenant: '租户管理',
-  'system-prompt': 'Prompt管理',
-  roles: '角色管理',
-  permissions: '权限管理',
-  users: '用户管理',
-  settings: '系统设置',
-  'audit-log': '审计日志',
-  'media-storage': '素材存储',
-  'alert/rules': '报警规则',
-  'alert/records': '报警记录',
-  'alert/channels': '通知渠道',
-  notifications: '待办通知'
-}
-
-const getMenuKey = () => {
-  const pathParts = route.path.replace('/workspace/', '').split('/')
-  if (pathParts.length >= 2 && ['knowledge', 'case', 'billing', 'portal', 'geoseo', 'ai', 'operation', 'alert'].includes(pathParts[0])) {
-    return pathParts.join('/')
-  }
-  return pathParts[0] || 'dashboard'
-}
-
-const currentMenuLabel = computed(() => {
-  const key = getMenuKey()
-  return menuLabels[key] || key
-})
-
-const currentParentMenu = computed(() => {
-  const key = getMenuKey()
-  const parentMap: Record<string, string> = {
-    keywords: '内容生产',
-    cluster: '内容生产',
-    'article-generate': '内容生产',
-    review: '内容生产',
-    publish: '内容生产',
-    'publish-config': '内容生产',
-    articles: '文章管理',
-    categories: '文章管理',
-    'article-templates': '文章管理',
-  media: '文章管理',
-    'knowledge/dashboard': '知识库',
-    'knowledge/documents': '知识库',
-    'knowledge/cards': '知识库',
-    'knowledge/categories': '知识库',
-    'knowledge/tags': '知识库',
-    'knowledge/graph': '知识库',
-    'case/list': '案例管理',
-    'billing/manage': '计费系统',
-    'billing/stats': '计费系统',
-    'portal/launch': '门户网站',
-    'portal/pages': '门户网站',
-    'portal/tickets': '门户网站',
-    'portal/reference-sites': '门户网站',
-    'portal/banners': '门户网站',
-    'portal/jobs': '门户网站',
-    'portal/messages': '门户网站',
-    'portal/guestbook': '门户网站',
-    'portal/company': '门户网站',
-    'portal/analytics': '门户网站',
-    'portal/health': '门户网站',
-    'portal/citation-probes': '门户网站',
-    'portal/citations': '门户网站',
-    'geoseo/dashboard': 'SEO & GEO',
-    'geoseo/config': 'SEO & GEO',
-    'geoseo/company': 'SEO & GEO',
-    'geoseo/competitors': 'SEO & GEO',
-    'geoseo/keywords': 'SEO & GEO',
-    'ai/models': 'AI配置',
-    'ai/embedding': 'AI配置',
-    'ai/usage': 'AI配置',
-    'ai/article-templates': 'AI配置',
-    'operation/dashboard': '运营管理',
-    'operation/cases': '运营管理',
-    'operation/reports': '运营管理',
-    sites: '系统管理',
-    tenant: '系统管理',
-    'system-prompt': '系统管理',
-    roles: '系统管理',
-    permissions: '系统管理',
-    users: '系统管理',
-    settings: '系统管理',
-    'audit-log': '系统管理',
-    'media-storage': '系统管理',
-    'alert/rules': '报警管理',
-    'alert/records': '报警管理',
-    'alert/channels': '报警管理',
-  }
-  return parentMap[key]
-})
-
-const selectedKeys = computed(() => {
-  const key = getMenuKey()
-  return [key]
-})
-
-const showImportBtn = computed(() => {
-  const key = getMenuKey()
-  return key === 'keywords'
-})
+const showImportBtn = computed(() => currentMenuKey.value === 'keywords')
 
 const toggleCollapse = () => {
   collapsed.value = !collapsed.value
-}
-
-const goHome = () => {
-  router.push('/workspace/dashboard')
 }
 
 const handleMenuClick = ({ key }: { key: string }) => {
@@ -737,6 +283,8 @@ const refresh = async () => {
     refreshing.value = false
     return
   }
+  // 栏目开通态一并重取：超管刚开的栏目不该等用户换入口才发现菜单里多了那一项
+  loadSectionEntries()
   pageKey.value += 1
   message.success('已刷新')
   refreshing.value = false
@@ -792,7 +340,7 @@ watch(
 // 清除回调，避免内存泄漏
 onMounted(() => {
   // 路由变化时清除回调
-  const unregisterRouter = router.afterEach(() => {
+  router.afterEach(() => {
     importCallback.value = null
   })
 
@@ -881,9 +429,71 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   left: 0;
 }
 
+.sidebar-nav {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 8px;
+}
+
 .sidebar-menu {
   border-right: none;
-  height: 100%;
+}
+
+.sidebar-menu--single {
+  flex: none;
+}
+
+/* 「联系平台」压在菜单最后：它是租户唯一的平台沟通口，不该混在内容项中间 */
+.sidebar-menu--bottom {
+  margin-top: auto;
+  border-top: 1px solid #f0f0f0;
+}
+
+.menu-domain {
+  flex: none;
+}
+
+.menu-domain + .menu-domain {
+  border-top: 1px solid #f0f0f0;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+/*
+ * 两段标题把「租户日常」与「平台建站动作」分家（Spec「建站重构」R-1 的第一半：先分开）。
+ * 折叠成窄栏时只留一条分隔线，两行中文收掉——窄栏里塞说明会把菜单挤成一团。
+ */
+.menu-domain__label {
+  padding: 10px 16px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.45);
+  line-height: 18px;
+}
+
+.menu-domain__hint {
+  display: block;
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.menu-domain__rule {
+  margin: 10px 12px 4px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.menu-group__label {
+  display: block;
+}
+
+.menu-group__hint {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.35);
+  white-space: normal;
+  line-height: 15px;
 }
 
 .workspace-content {

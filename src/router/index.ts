@@ -122,7 +122,7 @@ const AlertChannelView = () => import('../views/workspace/AlertChannelView.vue')
 const NotificationInboxView = () => import('../views/workspace/NotificationInboxView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
-const routes: RouteRecordRaw[] = [
+export const routes: RouteRecordRaw[] = [
   // 🌐 门户网站前台页面。内置页的短路径都挂同一个组件：slug 由路径换算（见 portalPath.ts），
   // 取数与渲染只此一条路。这里曾经是「灰度闸门」PortalHome——站点没开页面模型就
   // 退回三套写死的旧模板，两条渲染路径并存；旧模板与那个开关已整条删除（Spec D3 / R8 的 sunset 项）。
@@ -294,7 +294,10 @@ const routes: RouteRecordRaw[] = [
         path: 'categories',
         name: 'workspace-categories',
         component: CategoriesPanel,
-        meta: { title: '栏目管理', icon: 'category', breadcrumb: ['首页', '文章管理', '栏目管理'] }
+        // 改名（Spec「建站重构」§2.1）：这一项管的是**文章的分类**，
+        // 而「栏目」在这个系统里指的是访客侧的站点栏目（`site_section`，超管开通）。
+        // 两个不同东西共用「栏目管理」这四个字，是用户说「不知道哪个入口好」的直接来源之一。
+        meta: { title: '文章分类', icon: 'category', breadcrumb: ['首页', '文章管理', '文章分类'] }
       },
       {
         path: 'media/library',
@@ -428,11 +431,13 @@ const routes: RouteRecordRaw[] = [
         path: 'portal/sections',
         name: 'workspace-portal-sections',
         component: SectionManageView,
-        // 栏目开关是建设域（N5）：租户令牌打这条路径应当真 403，与后端 @RequirePermission 同一个码
+        // 栏目开关是建设域（N5）：租户令牌打这条路径应当真 403，与后端 @RequirePermission 同一个码。
+        // 改名「栏目开通」：这一项是超管开关站点栏目，与租户那一项「文章分类」（文章的分类）是两回事，
+        // 以前两处都叫「栏目管理」，用户按名字找必然找错（Spec §2.1）。
         meta: {
-          title: '栏目管理',
+          title: '栏目开通',
           icon: 'grid',
-          breadcrumb: ['首页', '门户网站', '栏目管理'],
+          breadcrumb: ['首页', '平台 · 站点资产', '栏目开通'],
           requiredPermission: 'portal:build:section'
         }
       },
@@ -440,11 +445,13 @@ const routes: RouteRecordRaw[] = [
         path: 'portal/build',
         name: 'workspace-portal-build',
         component: SiteBuildWorkbenchView,
-        // 流水线 0（Spec §6.1）：这一页只报现状 + 给入口，写动作都在它跳去的那几页里
+        // 流水线 0（Spec §6.1）：这一页只报现状 + 给入口，写动作都在它跳去的那几页里。
+        // 改名「建站流水线」并挂到平台段：它和租户那一项「门户上线」（上线自检）都带「站」字，
+        // 以前两条并排在同一个「门户网站」分组里，用户分不清哪个才是自己该点的（Spec §2.1）。
         meta: {
-          title: '建站工作台',
+          title: '建站流水线',
           icon: 'rocket',
-          breadcrumb: ['首页', '门户网站', '建站工作台'],
+          breadcrumb: ['首页', '平台 · 建站交付', '建站流水线'],
           requiredPermission: 'portal:build:manage'
         }
       },
@@ -513,7 +520,9 @@ const routes: RouteRecordRaw[] = [
         path: 'portal/jobs',
         name: 'workspace-portal-jobs',
         component: JobManageView,
-        meta: { title: '招聘管理', icon: 'job', breadcrumb: ['首页', '门户网站', '招聘管理'], requiredPermission: 'portal:siteinfo:manage' }
+        // contentEntry = 后端栏目词表里那个内容入口名：这一栏没在本站开通时菜单不摆这一项
+        // （Spec-A §7.1 的栏目门控；以前这个判断写在 WorkspaceView 里手抄的一份 entryOpen('job')）。
+        meta: { title: '招聘管理', icon: 'job', breadcrumb: ['首页', '网站内容维护', '招聘管理'], requiredPermission: 'portal:siteinfo:manage', contentEntry: 'job' }
       },
       {
         path: 'portal/messages',
@@ -531,7 +540,8 @@ const routes: RouteRecordRaw[] = [
         path: 'portal/company',
         name: 'workspace-portal-company',
         component: CompanyInfoView,
-        meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', '门户网站', '企业信息'], requiredPermission: 'portal:siteinfo:manage' }
+        // 「关于我们/联系我们」这两栏读的是企业信息标量（无列表数据源），开通判断同上一条：来自后端词表
+        meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', '网站信息', '企业信息'], requiredPermission: 'portal:siteinfo:manage', contentEntry: 'company' }
       },
       {
         path: 'portal/pages',
@@ -599,16 +609,19 @@ const routes: RouteRecordRaw[] = [
         path: 'portal/analytics',
         name: 'workspace-portal-analytics',
         component: PortalAnalyticsView,
-        meta: { title: '访问统计', icon: 'chart', breadcrumb: ['首页', '门户网站', '访问统计'] }
+        // 补齐权限码（原来只有菜单在判、路由不判）：后端 AnalyticsController 的类级就是 analytics:view，
+        // 菜单显隐、路由守卫、后端三处读同一个码才是「看不见的人也是进不去的人」。
+        meta: { title: '访问统计', icon: 'chart', breadcrumb: ['首页', '效果与引用', '访问统计'], requiredPermission: 'analytics:view' }
       },
       {
         path: 'portal/citations',
         name: 'workspace-portal-citations',
         component: PortalCitationView,
         // 问题七：「谁把我带来的、AI 有没有提到我」要交给租户自己看。这一屏背后只有 GET，
-        // 挂的是后端 CitationStatsController 的类级 analytics:view——SITE_ADMIN 本来就有这一码，
-        // 所以这里不再另起 requiredPermission（和访问统计同进同出，多写一个码只会多一处理解成本）。
-        meta: { title: '引用与来源', icon: 'share', breadcrumb: ['首页', '门户网站', '引用与来源'] }
+        // 挂的是后端 CitationStatsController 的类级 analytics:view——SITE_ADMIN 本来就有这一码。
+        // 以前这条只有「菜单按码隐藏、路由不判」：拿不到码的账号敲地址仍能进来对着空数据猜，
+        // 现在菜单与路由读同一个 meta.requiredPermission（与访问统计同进同出，不另起新码）。
+        meta: { title: '引用与来源', icon: 'share', breadcrumb: ['首页', '效果与引用', '引用与来源'], requiredPermission: 'analytics:view' }
       },
       {
         path: 'portal/support',
