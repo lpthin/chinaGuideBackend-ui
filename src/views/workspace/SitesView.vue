@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { siteApi, tenantApi } from '../../api'
-import { PROFILE_QUESTION_KEYS, findProfileQuestion, vocabularyApi } from '@/api/siteBriefs'
+import { PROFILE_QUESTION_KEYS, findProfileQuestion, siteStatusColor, siteStatusText, vocabularyApi } from '@/api/siteBriefs'
 import type { BriefVocabularyQuestion, SiteBriefVocabulary } from '@/api/siteBriefs'
 import { useAuthStore } from '../../stores/auth'
 import { useSiteStore } from '@/stores/site'
+import { formatDateTime } from '@/utils/format'
 import type { Site } from '../../types'
 import type { Tenant } from '../../types/workspace'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const loading = ref(false)
 const modalVisible = ref(false)
@@ -117,6 +119,90 @@ const defaultForm = (): SiteForm => ({
 const siteStore = useSiteStore()
 const form = reactive<SiteForm>(defaultForm())
 const sites = ref<Site[]>([])
+
+/**
+ * 归档范围（Spec-C §7「站点管理」那行：`candidate`/`archived` 要显式标出，归档的不许静默混在默认列表里）。
+ * hide = 默认：正式站与候选站照常列，客户没选中的旧候选收起来（不删、随时可看）；
+ * only = 只看归档的那几站；all = 一起列。
+ */
+const archiveScope = ref<'hide' | 'only' | 'all'>('hide')
+const archiveScopeOptions = [
+  { value: 'hide', label: '不列归档候选（默认）' },
+  { value: 'only', label: '只看归档候选' },
+  { value: 'all', label: '归档的也一起列' }
+]
+
+/** 「从需求单进入」：详情页带 `?briefId=12` 过来时只列这一单名下的站（含归档的），清了回到全量 */
+const briefFilter = ref<number | null>(null)
+
+function queryBriefFilter(): number | null {
+  const query = (route.query ?? {}) as Record<string, unknown>
+  const parsed = Number(query.briefId)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+/** 这一站是不是 V115 之后由需求单建出来的（`build_brief_id` 还没上线时全部为 false） */
+function fromBrief(site: Site): boolean {
+  return typeof site.buildBriefId === 'number' && site.buildBriefId > 0
+}
+
+const visibleSites = computed(() =>
+  sites.value.filter(site => {
+    if (briefFilter.value !== null) return site.buildBriefId === briefFilter.value
+    if (archiveScope.value === 'only') return site.status === 'archived'
+    if (archiveScope.value === 'hide') return site.status !== 'archived'
+    return true
+  })
+)
+
+/** 默认视图里被收起来的归档站有多少：不说数量的「不列归档」等于把东西藏了 */
+const archivedHiddenCount = computed(() =>
+  sites.value.filter(site => site.status === 'archived').length
+)
+
+const briefFilterCount = computed(() =>
+  briefFilter.value === null ? 0 : sites.value.filter(site => site.buildBriefId === briefFilter.value).length
+)
+
+/** 空态按「为什么是空」来说：筛完没有不等于一站都没有——这是这一族页面反复犯过的错 */
+const emptyText = computed(() => {
+  if (!sites.value.length) return '一个站点都没有：可以「新建站点」，也可以从「前采需求单」录一单让流水线建候选站'
+  if (briefFilter.value !== null) return `需求单 #${briefFilter.value} 名下没有站点（这一列还没回填时也会是这样）`
+  if (archiveScope.value === 'only') return '现在没有归档候选：还没有客户否掉过方案'
+  return '当前筛选下没有站点：把上面的「归档候选」切回默认再看'
+})
+
+/** 候选/归档整行 tint：扫一眼就把「还没见客的站」和正式站分开，不用逐格读状态 */
+function rowClassName(record: Site): string {
+  if (record.status === 'candidate') return 'sites-view__row--candidate'
+  if (record.status === 'archived') return 'sites-view__row--archived'
+  return ''
+}
+
+function openBrief(site: Site) {
+  if (!fromBrief(site)) return
+  router.push({ name: 'workspace-portal-brief-detail', params: { id: String(site.buildBriefId) } })
+}
+
+function clearBriefFilter() {
+  briefFilter.value = null
+}
+
+function onArchiveScopeChange(value: unknown) {
+  const next = value === null || value === undefined ? 'hide' : String(value)
+  archiveScope.value = next === 'only' || next === 'all' ? next : 'hide'
+}
+
+/** 需求单号那一格的话：没有来源就说没有，不猜它是「手工建的」还是「老早建的」 */
+function sourceText(site: Site): string {
+  if (!fromBrief(site)) return '没有需求单来源'
+  return site.candidateNo == null
+    ? `需求单 #${site.buildBriefId}（没记第几套）`
+    : `需求单 #${site.buildBriefId} · 第 ${site.candidateNo} 套`
+}
+
+/** 编辑弹窗里那一格：候选/归档时换成文本，不给一个会把状态写歪的下拉 */
+const statusLockedInForm = computed(() => form.status === 'candidate' || form.status === 'archived')
 
 /**
  * 租户名只用来把「这一站归谁」说清楚（Spec-C §3.2 P0：建站域与内容域分开后，
@@ -235,6 +321,8 @@ onMounted(() => {
     router.push('/workspace/dashboard')
     return
   }
+  // 从需求单详情「只看这一单的站」过来的那一发地址：先按它筛，别让人在几十站里自己找
+  briefFilter.value = queryBriefFilter()
   load()
   loadTenantNames()
   loadProfileVocabulary()
@@ -246,13 +334,51 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h3>站点管理</h3>
-        <p>维护站点画像与归属：域名、租户、启用状态都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。</p>
+        <p>
+          维护站点画像与归属：域名、租户、启用状态都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。
+          建站流水线建出来的是 <b>候选站</b>（等客户选中才转正），客户没选中的收进 <b>归档</b>——这两种在下面的行里都单独标色，
+          状态本身不在这里改：转正与归档是流水线推进的结果，这里给一个下拉就等于撒一个谎。
+        </p>
       </div>
       <a-button type="primary" @click="resetForm(); modalVisible = true">
         <template #icon><PlusOutlined /></template>
         新建站点
       </a-button>
     </div>
+
+    <a-form layout="inline" class="sites-view__toolbar">
+      <a-form-item label="归档候选">
+        <a-select
+          :value="archiveScope"
+          :options="archiveScopeOptions"
+          style="width: 200px"
+          @update:value="onArchiveScopeChange"
+        />
+      </a-form-item>
+      <a-form-item class="toolbar-actions">
+        <a-space wrap>
+          <a-button @click="load">刷新站点</a-button>
+        </a-space>
+      </a-form-item>
+    </a-form>
+
+    <!-- 从需求单过来的那一发过滤要一直挂在脸上：不然人会把「只列出 2 个站」读成「一共只有 2 个站」 -->
+    <a-alert v-if="briefFilter !== null" type="info" show-icon class="sites-view__filter-alert">
+      <template #message>
+        正在只看需求单 #{{ briefFilter }} 名下的站点（{{ briefFilterCount }} 个，归档的也一起列在这里）。
+        <template v-if="!briefFilterCount">
+          一个都没有：可能是这一单还没建出站，也可能是站点上那列需求单号还没回填（后端 P2 的活）。
+        </template>
+        <a-button size="small" type="link" @click="clearBriefFilter">清掉这个过滤，看全部站点</a-button>
+      </template>
+    </a-alert>
+
+    <a-alert v-if="briefFilter === null && archiveScope === 'hide' && archivedHiddenCount" type="info" show-icon class="sites-view__filter-alert">
+      <template #message>
+        有 {{ archivedHiddenCount }} 个归档候选没列在下面的表里（客户没选中、留着备查的旧方案）：
+        要看它们把上面那个筛选切到「只看归档候选」或「归档的也一起列」。
+      </template>
+    </a-alert>
 
     <a-alert v-if="profileFailed" type="warning" show-icon style="margin-bottom: 16px">
       <template #message>
@@ -262,12 +388,13 @@ onMounted(() => {
     </a-alert>
 
     <a-table
-      :data-source="sites"
+      :data-source="visibleSites"
       :loading="loading"
       :pagination="false"
       row-key="id"
       bordered
-      :scroll="{ x: 1400 }"
+      :row-class-name="rowClassName"
+      :scroll="{ x: 1660 }"
     >
       <a-table-column title="ID" data-index="id" width="70" align="center">
         <template #default="{ text }">{{ text || '-' }}</template>
@@ -281,6 +408,15 @@ onMounted(() => {
       <a-table-column title="归属租户" width="160" ellipsis show-overflow-tooltip>
         <template #default="{ record }">{{ tenantLabel(record) }}</template>
       </a-table-column>
+      <a-table-column title="来源需求单" width="230">
+        <template #default="{ record }">
+          <!-- 有单号才给链接：没这一列（后端 P2 之前）时这里说的是实话，不是一个点了没反应的号 -->
+          <a-button v-if="fromBrief(record)" type="link" size="small" @click="openBrief(record)">
+            {{ sourceText(record) }}
+          </a-button>
+          <span v-else class="sites-view__muted">{{ sourceText(record) }}</span>
+        </template>
+      </a-table-column>
       <a-table-column title="域名" data-index="domain" min-width="220" ellipsis show-overflow-tooltip>
         <template #default="{ text }">{{ text || '-' }}</template>
       </a-table-column>
@@ -293,11 +429,12 @@ onMounted(() => {
       <a-table-column title="种子词" data-index="seedKeywords" min-width="220" ellipsis show-overflow-tooltip>
         <template #default="{ text }">{{ text || '-' }}</template>
       </a-table-column>
-      <a-table-column title="状态" width="100" align="center">
+      <a-table-column title="状态" width="150" align="center">
         <template #default="{ record }">
-          <a-tag :color="record.status === 'enabled' || record.status === 'active' ? 'green' : 'default'">
-            {{ record.status === 'enabled' || record.status === 'active' ? '启用' : record.status === 'disabled' ? '禁用' : record.status || '-' }}
-          </a-tag>
+          <a-tag :color="siteStatusColor(record.status)">{{ siteStatusText(record.status) }}</a-tag>
+          <div v-if="record.status === 'candidate'" class="sites-view__muted">等客户选中，选中才转正</div>
+          <div v-else-if="record.status === 'archived'" class="sites-view__muted">旧方案，留着备查</div>
+          <div v-else-if="record.promotedAt" class="sites-view__muted">转正于 {{ formatDateTime(record.promotedAt) }}</div>
         </template>
       </a-table-column>
       <a-table-column title="操作" width="100" fixed="right" align="center">
@@ -308,6 +445,10 @@ onMounted(() => {
           <span v-else>-</span>
         </template>
       </a-table-column>
+      <template #emptyText>
+        <!-- 筛完为空不等于一站都没有：把「当前过滤下没有」和「一个站都没有」分开说 -->
+        <a-empty :description="emptyText" />
+      </template>
     </a-table>
 
     <a-modal
@@ -440,7 +581,15 @@ onMounted(() => {
           </a-col>
           <a-col :span="12">
             <a-form-item label="状态">
-              <a-select v-model:value="form.status" style="width:100%">
+              <!-- 候选/归档不给状态下拉：那两态是建站流水线推进的结果（客户选中才转正、没选中才归档），
+                   在这里改一下字符串既不会让客户选、也不会撤销预览令牌，摆了就是一个会写坏数据的控件。 -->
+              <template v-if="statusLockedInForm">
+                <span class="sites-view__locked-status">{{ siteStatusText(form.status) }}</span>
+                <p class="sites-view__muted">
+                  这一站的状态归建站流水线管，这张表单不动它；下面那些画像字段照常能改，改完保存只写画像。
+                </p>
+              </template>
+              <a-select v-else v-model:value="form.status" style="width:100%">
                 <a-select-option value="enabled">启用</a-select-option>
                 <a-select-option value="disabled">禁用</a-select-option>
               </a-select>
@@ -479,5 +628,27 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+.sites-view__toolbar {
+  margin-bottom: 12px;
+}
+.sites-view__filter-alert {
+  margin-bottom: 12px;
+}
+.sites-view__muted {
+  color: #9ca3af;
+  font-size: 12px;
+}
+.sites-view__locked-status {
+  font-weight: 600;
+  color: #111827;
+}
+/* 候选/归档整行 tint：不用逐格读状态也知道这一站还没见客（或已经不再是方案之一） */
+.sites-view :deep(.sites-view__row--candidate) > td {
+  background: #f9f0ff;
+}
+.sites-view :deep(.sites-view__row--archived) > td {
+  background: #fafafa;
+  color: #8c8c8c;
 }
 </style>
