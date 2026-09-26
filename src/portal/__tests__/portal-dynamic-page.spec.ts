@@ -2,15 +2,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
 import type { ComponentPublicInstance } from 'vue'
+import type { Router } from 'vue-router'
 import PortalDynamicPage from '../PortalDynamicPage.vue'
 
 const api = vi.hoisted(() => ({
   page: vi.fn(),
+  reviewPage: vi.fn(),
   shell: vi.fn(),
+  context: vi.fn(),
 }))
 
+/**
+ * 桩件里每一条回包都照真后端的形状写：PortalReviewPublicController.TokenContext 是
+ * (scope, ticketWritable, label, expiresAt) 四条，多一个少一个都会让组件里的判断在测试里假绿。
+ */
 vi.mock('../api/portalPublic', () => ({
+  PREVIEW_TOKEN_PARAM: 'reviewToken',
+  previewTokenOfUrl: vi.fn(() => ''),
   fetchPublicPage: (...args: unknown[]) => api.page(...args),
+  fetchReviewPage: (...args: unknown[]) => api.reviewPage(...args),
+  fetchReviewContext: (...args: unknown[]) => api.context(...args),
+  fetchReviewIntentOptions: vi.fn().mockResolvedValue({}),
   fetchSiteShell: () => api.shell(),
 }))
 
@@ -63,11 +75,39 @@ async function mountPage(expectText: string, slug = 'home') {
   return wrapper
 }
 
+/**
+ * 把预览令牌放进地址栏：用的还是 setup.ts 里那个真 router，
+ * 因为「令牌在 route.query 里」正是组件读它的方式——拿全局 stub 塞一份假 query，
+ * 测出来的只是 stub（这条纪律的来处见本仓另一条踩坑记录）。
+ */
+async function gotoWithToken(wrapper: VueWrapper<ComponentPublicInstance>, token: string) {
+  await wrapper.vm.$router.push({ path: '/', query: { reviewToken: token } })
+  await flushPromises()
+}
+
+/**
+ * setup.ts 那个 router 是跨用例活着的：上一例留下的 ?reviewToken=tok-page 会变成下一例的初始地址，
+ * 于是「整站令牌那一例」里能看到逐页令牌的取数调用——红得很随机。每例开始先把地址擦回 '/'。
+ */
+let sharedRouter: Router | null = null
+async function resetRoute() {
+  if (!sharedRouter) {
+    const probe = mount({ render: () => null })
+    sharedRouter = (probe.vm as unknown as { $router: Router }).$router
+    probe.unmount()
+  }
+  await sharedRouter.replace('/')
+  await flushPromises()
+}
+
 describe('PortalDynamicPage 区块渲染', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await resetRoute()
     vi.clearAllMocks()
     api.shell.mockResolvedValue(SHELL)
     api.page.mockResolvedValue(renderedPage())
+    api.reviewPage.mockResolvedValue(renderedPage())
+    api.context.mockResolvedValue({ scope: 'page', ticketWritable: true, label: null, expiresAt: null })
   })
 
   it('按 slug 取页面，并把已登记区块的真实内容渲染出来', async () => {
@@ -169,4 +209,59 @@ describe('PortalDynamicPage 区块渲染', () => {
     const wrapper = await mountPage('加入我们', 'jobs')
     expect(wrapper.text()).not.toContain('在招岗位')
   })
+
+  /**
+   * 逐页预览令牌：取数走 /review/{token}/page（草稿版本也只有令牌那条口能看到），
+   * 公开取数口一次都不碰。
+   */
+  it('逐页令牌按令牌取这一页，并摆出批注工具条', async () => {
+    const wrapper = await mountPage('真实主标题')
+    await gotoWithToken(wrapper, 'tok-page')
+    await waitForText(wrapper, '预览页')
+
+    expect(api.context).toHaveBeenCalledWith('tok-page')
+    expect(api.reviewPage).toHaveBeenCalledWith('tok-page')
+    // 令牌到手之后没有再按 slug 去公开口要过一次这一页：草稿版本只在令牌那条口上存在
+    expect(api.page).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.review-toolbar').exists()).toBe(true)
+    expect(wrapper.find('.portal-dynamic-page__notice').exists()).toBe(false)
+  })
+
+  /**
+   * 整站预览令牌（候选站那一档）：作用域是「这一整套站」，每一页都该走公开取数口——
+   * 后端已经让令牌优先于域名，无域名的候选站也认得出自己，所以 /p/{slug} 拿得到内容。
+   * 这条链接没有工单写口（拍板 1A/R-3），界面上只许出现那句实话，不许出现提交框。
+   */
+  it('整站令牌翻每一页都走公开取数口，页面上只有「这里不能提意见」那句实话', async () => {
+    api.context.mockResolvedValue({ scope: 'site', ticketWritable: false, label: '候选站 A 方案', expiresAt: null })
+    const wrapper = await mountPage('真实主标题')
+    await gotoWithToken(wrapper, 'tok-site')
+
+    expect(api.context).toHaveBeenCalledWith('tok-site')
+    expect(api.reviewPage).not.toHaveBeenCalled()
+    expect(api.page).toHaveBeenCalledWith('home')
+
+    await wrapper.setProps({ slug: 'services' })
+    await waitForText(wrapper, '真实主标题')
+    // 翻页还是同一套站：取数口仍然是公开的这一条，且没有换成令牌口
+    expect(api.page).toHaveBeenCalledWith('services')
+    expect(api.reviewPage).not.toHaveBeenCalled()
+
+    await waitForText(wrapper, '整站预览')
+    const notice = wrapper.find('.portal-dynamic-page__notice')
+    expect(notice.exists(), '只读预览该给出那句「不能在这里提交修改意见」').toBe(true)
+    expect(notice.text()).toContain('它不能在这里提交修改意见')
+    expect(wrapper.find('.review-toolbar').exists()).toBe(false)
+  })
+
+  it('作用域问不到时按只读处理：不摆提交框，也不硬猜一条取数口', async () => {
+    api.context.mockRejectedValue(new Error('预览链接无效或已过期'))
+    const wrapper = await mountPage('真实主标题')
+    await gotoWithToken(wrapper, 'tok-unknown')
+    await waitForText(wrapper, '只读')
+
+    expect(wrapper.find('.review-toolbar').exists()).toBe(false)
+    expect(wrapper.find('.portal-dynamic-page__notice').exists()).toBe(true)
+  })
 })
+

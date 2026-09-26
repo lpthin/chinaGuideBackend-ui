@@ -17,7 +17,11 @@
         :review="reviewActive"
         :page-path="page.path"
       />
-      <component :is="ReviewToolbar" v-if="reviewActive" />
+      <component :is="ReviewToolbar" v-if="canComment" />
+      <!-- 这条链接不能提工单时（候选站整站预览按拍板 1A/R-3 没有写口，或作用域没问到），
+           只把工具条藏起来是不够的：客户会以为「点了没反应」。当场说一句实话，
+           他才知道要回平台答复，而不是在这页上反复圈。 -->
+      <p v-else-if="reviewActive" class="portal-dynamic-page__notice">{{ readonlyNotice }}</p>
     </template>
   </div>
 </template>
@@ -35,22 +39,30 @@ import {
 } from './api/portalPublic'
 import PortalViewportPreview from './blocks/PortalViewportPreview.vue'
 import { themeVars } from './blocks/portalTheme'
-import { reviewTokenOf, useReviewMode } from './useReviewMode'
+import { SITE_PREVIEW_NOTICE, reviewTokenOf, useReviewMode } from './useReviewMode'
 
 /**
  * 页面模型的访客入口：按 slug（或预览令牌）取 RenderedPage，交给共用的区块渲染框。
  *
  * 数据仍要站点壳：页头导航、页脚联系方式这类全站信息只在 /site 里有一份，避免第二处真相。
  *
- * 带 ?reviewToken= 时改为按令牌取页（草稿版本也能看到，这正是令牌存在的理由），
- * 并把工具条异步加载进来——访客首屏不下载它，圈选壳也不出现在它的 DOM 里。
+ * 带 ?reviewToken= 时先问一次 /context 拿这条令牌的作用域，再决定走哪条取数口——
+ * 逐页令牌只能开它绑的那一页（/review/{token}/page），整站令牌开的是这一整套站，
+ * 每一页都走公开取数口（后端已让令牌优先于域名，无域名的候选站也认得出自己）。
+ * 工具条则跟着「能不能提工单」出现，候选站那条没有写口，摆出来就是演给客户看。
  */
 const props = defineProps<{ slug: string }>()
 
 const ReviewToolbar = defineAsyncComponent(() => import('./review/ReviewToolbar.vue'))
 
 const route = useRoute()
-const { enabled: reviewEnabled, activate } = useReviewMode()
+const {
+  activate,
+  ensureContext,
+  enabled: reviewEnabled,
+  sitePreview,
+  ticketWritable
+} = useReviewMode()
 
 const page = ref<RenderedPage | null>(null)
 const shell = ref<PortalSiteShell | null>(null)
@@ -59,6 +71,15 @@ const error = ref('')
 
 const reviewToken = computed(() => reviewTokenOf(route.query))
 const reviewActive = computed(() => reviewEnabled.value && !!page.value)
+const canComment = computed(() => reviewActive.value && ticketWritable.value)
+
+/** 只读那句实话：整站预览有专门的一句，作用域没问到时也只说「这里提不了意见」，不编原因 */
+const readonlyNotice = computed(() => {
+  if (sitePreview.value) {
+    return SITE_PREVIEW_NOTICE
+  }
+  return '这条预览链接是只读的：页面上能翻，但修改意见不能在这里提交。'
+})
 
 // 主题变量落在页面根上：整页背景要跟着换肤，写满视口，不能只有内容那么高
 const pageStyle = computed<Record<string, string>>(() => themeVars(page.value?.theme))
@@ -87,8 +108,12 @@ async function load() {
   error.value = ''
   const token = reviewToken.value
   try {
+    // 作用域问明白了再取数：拿「有没有令牌」当作用域，逐页令牌会被派去走公开取数口，
+    // 客户看到的是「该域名未绑定站点」，而这条链接本来是有效的。
+    const context = await ensureContext(token)
+    const siteScoped = context?.scope === 'site'
     const [rendered, siteShell] = await Promise.all([
-      token ? fetchReviewPage(token) : fetchPublicPage(props.slug),
+      token && !siteScoped ? fetchReviewPage(token) : fetchPublicPage(props.slug),
       fetchSiteShell().catch(() => null)
     ])
     page.value = rendered
@@ -129,6 +154,23 @@ watch([() => props.slug, reviewToken], load, { immediate: true })
     padding: 120px 24px;
     text-align: center;
     color: var(--portal-color-muted);
+  }
+
+  // 只读预览那句实话要挂在页底显眼处，但不许长得像工具条：客户会以为那里能提意见
+  &__notice {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 90;
+    max-width: min(420px, calc(100vw - 32px));
+    margin: 0;
+    padding: 10px 14px;
+    border: 1px dashed #d9d9d9;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.92);
+    color: rgba(0, 0, 0, 0.55);
+    font-size: 13px;
+    line-height: 1.6;
   }
 }
 </style>

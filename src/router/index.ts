@@ -3,6 +3,7 @@ import type { RouteComponent } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { message } from 'ant-design-vue'
 import { slugOfPath } from '../portal/portalPath'
+import { withSitePreviewToken } from '../portal/previewNavigation'
 
 // 🔐 主布局
 const WorkspaceView = () => import('../views/workspace/WorkspaceView.vue')
@@ -943,6 +944,13 @@ export const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to) => {
+  // 整站预览翻页时把同一枚站级令牌补回地址栏（只补已经确认过作用域是 site:{id} 的那一条）。
+  // 不补的话客户点一下候选站的导航就变成「该域名未绑定站点」——候选站在转正之前没有域名，
+  // 那一整套站能被认出来，全靠 URL 上这一段令牌。返回 undefined 时这次导航原样继续。
+  const carried = withSitePreviewToken(to)
+  if (carried) {
+    return carried
+  }
   const authStore = useAuthStore()
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth !== false)
 

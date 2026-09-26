@@ -10,6 +10,23 @@ import { resolveSiteCode } from './portalData'
 
 const BASE = '/api/portal/public'
 
+/**
+ * 预览令牌在地址栏里的那一个参数名，前端一侧的唯一出处。
+ * 后端对应的是 {@code SiteVisibilityGuard.PREVIEW_TOKEN_PARAM}（查询参数）与
+ * {@code PREVIEW_TOKEN_HEADER}（请求头）；换名字等于把已发出去的链接集体作废。
+ */
+export const PREVIEW_TOKEN_PARAM = 'reviewToken'
+
+/**
+ * 地址栏里现在有没有预览令牌（只读地址栏，不落 sessionStorage——纪律见 useReviewMode 顶部）。
+ * 整站级预览能在翻页之后还带着它，是因为路由那一层把参数一直挂在 URL 上（previewNavigation.ts），
+ * 不是因为这里存了一份。
+ */
+export function previewTokenOfUrl(): string {
+  const value = new URLSearchParams(window.location.search).get(PREVIEW_TOKEN_PARAM)
+  return value && value.trim() ? value.trim() : ''
+}
+
 export interface PortalSeo {
   seoTitle: string | null
   seoDescription: string | null
@@ -185,9 +202,19 @@ export class PortalApiError extends Error {
 async function request<T>(method: 'get' | 'post', path: string, payload: Record<string, unknown> = {}): Promise<T> {
   const site = resolveSiteCode()
   const params = { ...(site ? { site } : {}) }
+  // 预览令牌走请求头这一条通道（后端 SiteVisibilityGuard.PREVIEW_TOKEN_HEADER）：
+  // 站级令牌（候选站那一档）认的就是「这一整站」，公开取数口的每一条——站点壳、导航、
+  // 文章列表、案例详情——都必须带着同一枚令牌才拿得到内容。只在少数几条口上带，
+  // 结果就是「首屏有内容、一点导航就变成别的租户或 404」，那种串台最难看出来。
+  // 地址栏里没有令牌时一个头都不加：匿名访客的请求不该多一次会话表查询的机会。
+  const previewToken = previewTokenOfUrl()
+  const config = {
+    params: { ...params, ...payload },
+    ...(previewToken ? { headers: { 'X-Review-Token': previewToken } } : {})
+  }
   try {
     const response = method === 'get'
-      ? await axios.get(path, { params: { ...params, ...payload } })
+      ? await axios.get(path, config)
       : await axios.post(path, payload, { params })
     const body = response.data
     if (body && typeof body.success === 'boolean') {
@@ -277,6 +304,27 @@ export function fetchPublicPage(slug: string): Promise<RenderedPage> {
  */
 export function fetchReviewPage(token: string): Promise<RenderedPage> {
   return get<RenderedPage>(`${BASE}/review/${encodeURIComponent(token)}/page`)
+}
+
+/**
+ * 这一条令牌到底是「开一页」还是「开一整站」，以及它能不能提改版工单。
+ *
+ * 为什么必须问后端而不是自己猜：猜的两种错法都真实发生过——
+ * ① 见到 reviewToken 就当整站，于是逐页令牌去取公开取数口，客户看到的是「域名未绑定站点」；
+ * ② 见到 reviewToken 就摆圈选工具条，而候选站那条按拍板 1A/R-3 根本没有写口，
+ *    后端对无效写一律恒回 200 且一行不落（§9-7），界面那句「已收到」就成了
+ *    把客户意见静默丢掉的那只手。作用域与写口这两件事只有库里那一行 scope 知道。
+ */
+export interface PortalReviewContext {
+  /** 'site' = 整站级（候选站那一档）；'page' = 逐页预览 */
+  scope: 'site' | 'page' | string
+  ticketWritable: boolean
+  label: string | null
+  expiresAt: string | null
+}
+
+export function fetchReviewContext(token: string): Promise<PortalReviewContext> {
+  return get<PortalReviewContext>(`${BASE}/review/${encodeURIComponent(token)}/context`)
 }
 
 /**
