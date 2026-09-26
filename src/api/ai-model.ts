@@ -1,10 +1,11 @@
 // AI 大模型配置 API
-import http from './http'
+import http, { AI_REQUEST_TIMEOUT } from './http'
 import type {
   AIModel,
   ModelConfig,
   VectorDatabaseConfig,
   EmbeddingConfig,
+  ImageProbeResult,
   ModelConnectionTestResult,
   ModelHealthCheckSummary,
   ModelQueryParams,
@@ -72,6 +73,19 @@ export const modelConfigApi = {
   // 测试配置连接
   test: (id: number) =>
     http.post<ModelConnectionTestResult>(`/ai/model-configs/${id}/test`),
+
+  /**
+   * 图像模型「试出一张图」：这是唯一能证明这一行配置真能出图的动作。
+   *
+   * <p>它和 {@link test} 不是一回事，也不许合并：{@code /test} 对图像行现在直接拒答
+   * （拿聊天请求打生图端点，绿了也是假绿）。这一口会真花钱，所以只由超管显式点击，
+   * 超时按 AI 那一档给（出图比一次对话慢得多，30s 默认值会让前端先于后端放弃）。</p>
+   */
+  imageProbe: (id: number, prompt?: string) =>
+    http.post<ImageProbeResult>(`/ai/model-configs/${id}/image-probe`, null, {
+      params: prompt ? { prompt } : undefined,
+      timeout: AI_REQUEST_TIMEOUT,
+    }),
 
   // 测试新配置（不保存）
   testNew: (data: ModelConfigForm) =>

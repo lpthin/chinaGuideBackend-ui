@@ -112,6 +112,11 @@
             <template v-if="column.key === 'type'">
               <a-tag color="blue">{{ getModelTypeName(record.modelType) }}</a-tag>
             </template>
+            <template v-if="column.key === 'apiProtocol'">
+              <a-tooltip :title="protocolTooltip(record)">
+                <a-tag :color="record.apiProtocol ? 'purple' : 'default'">{{ protocolText(record.apiProtocol) }}</a-tag>
+              </a-tooltip>
+            </template>
             <template v-if="column.key === 'priority'">
               <a-tag :color="getPriorityColor(record.priority)">P{{ record.priority }}</a-tag>
             </template>
@@ -144,7 +149,20 @@
             </template>
             <template v-if="column.key === 'actions'">
               <a-space>
-                <a-button type="link" size="small" @click="testConnection(record)" :loading="testingId === record.id">
+                <!-- 图像行不给「测试」：对话式探测打不到生图端点，绿了也是假绿（后端同样会拒答）。
+                     这一行的结论只由「试出一张图」给，而那一次是真花钱的，所以按两次才算数 -->
+                <a-popconfirm
+                  v-if="isImageRow(record)"
+                  title="这会真出一张图并产生一次费用（只出 1 张，不入库）"
+                  ok-text="出 1 张"
+                  cancel-text="取消"
+                  @confirm="probeImage(record)"
+                >
+                  <a-button type="link" size="small" :loading="probingId === record.id">
+                    <PictureOutlined /> 试出一张图
+                  </a-button>
+                </a-popconfirm>
+                <a-button v-else type="link" size="small" @click="testConnection(record)" :loading="testingId === record.id">
                   <ThunderboltOutlined /> 测试
                 </a-button>
                 <a-button type="link" size="small" @click="editConfig(record)">编辑</a-button>
@@ -215,12 +233,20 @@
               </div>
             </a-form-item>
           </a-col>
-          <a-col :span="12">
+          <a-col :span="24">
+            <a-form-item
+              label="接口协议"
+              extra="决定请求按哪种形状发出。「自动」= 按下面的接口地址判断，现有配置不用改。百炼的图像模型只认「DashScope 原生」；「Anthropic 兼容」只有对话，没有生图"
+            >
+              <a-select v-model:value="configForm.apiProtocol" :options="protocolOptions" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="16">
             <a-form-item label="API Base URL">
               <a-input v-model:value="configForm.baseUrl" placeholder="自定义 API 地址（可选）" />
             </a-form-item>
           </a-col>
-          <a-col :span="12">
+          <a-col :span="8">
             <a-form-item label="API Version">
               <a-input v-model:value="configForm.apiVersion" placeholder="API 版本（可选）" />
             </a-form-item>
@@ -298,17 +324,19 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, notification } from 'ant-design-vue'
 import {
   AppstoreOutlined,
   CheckCircleOutlined,
   ApiOutlined,
   BlockOutlined,
   PlusOutlined,
+  PictureOutlined,
   ThunderboltOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons-vue'
 import { modelConfigApi, usageApi } from '../../api/ai-model'
+import { describeHttpError } from '../../api/http'
 import type { ModelConfig } from '../../types/ai-model'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
@@ -319,6 +347,7 @@ const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 const loading = ref(false)
 const saving = ref(false)
 const testingId = ref<number | null>(null)
+const probingId = ref<number | null>(null)
 const checkingAll = ref(false)
 const togglingId = ref<number | null>(null)
 const settingDefaultId = ref<number | null>(null)
@@ -355,6 +384,45 @@ const providers = [
   { id: 'ollama', name: 'Ollama', icon: BlockOutlined },
 ]
 
+/**
+ * 协议下拉的取值与文案，是后端 `AiProtocols.label` 的一面镜子：只有这三条，
+ * 外加「留空 = 让后端按接口地址推断」。判断规则不在前端重写一份——两处各写一遍，
+ * 迟早会出现「界面说自动、后端按另一种协议发出去」。
+ */
+const PROTOCOL_LABELS: Record<string, string> = {
+  openai: 'OpenAI 兼容',
+  anthropic: 'Anthropic 兼容',
+  dashscope: 'DashScope 原生',
+}
+
+const protocolOptions = [
+  { value: '', label: '自动（按接口地址推断）' },
+  ...Object.entries(PROTOCOL_LABELS).map(([value, label]) => ({ value, label })),
+]
+
+function protocolText(protocol?: string) {
+  if (!protocol) return '自动'
+  return PROTOCOL_LABELS[protocol] || `未识别：${protocol}`
+}
+
+function protocolTooltip(record: ModelConfig) {
+  if (!record.apiProtocol) {
+    return '没有显式指定，请求发出前由后端按接口地址判断用哪种协议'
+  }
+  if (!PROTOCOL_LABELS[record.apiProtocol]) {
+    return `这一栏存的是「${record.apiProtocol}」，不在 openai / anthropic / dashscope 里，调用会直接报错指出这一栏`
+  }
+  if (record.apiProtocol === 'anthropic' && isImageRow(record)) {
+    return 'Anthropic 兼容协议没有图像生成接口，这一行出不了图'
+  }
+  return `已显式指定为「${PROTOCOL_LABELS[record.apiProtocol]}」，后端不再按地址推断`
+}
+
+/** 只有「图像模型」这一类走「试出一张图」；和后端 AiModelTypes.isImageGenerating 认的是同一个取值 */
+function isImageRow(record: ModelConfig) {
+  return record.modelType === 'image'
+}
+
 const configForm = reactive({
   name: '',
   provider: '',
@@ -362,6 +430,7 @@ const configForm = reactive({
   modelType: 'chat',
   apiKey: '',
   baseUrl: '',
+  apiProtocol: '',
   apiVersion: '',
   temperature: 0.7,
   maxTokens: 2000,
@@ -378,6 +447,7 @@ const columns = [
   { title: '配置名称', dataIndex: 'name', key: 'name', width: 200 },
   { title: '提供商', key: 'provider', width: 140 },
   { title: '模型', dataIndex: 'modelName', key: 'modelName', width: 140 },
+  { title: '接口协议', key: 'apiProtocol', width: 130 },
   { title: '优先级', key: 'priority', width: 100, align: 'center' as const },
   { title: '默认配置', key: 'isDefault', width: 100, align: 'center' as const },
   { title: '状态', key: 'isActive', width: 100, align: 'center' as const },
@@ -422,9 +492,20 @@ function healthTooltip(record: ModelConfig) {
     return `不通过：${reason}${latency} · 已通过报警管理通知管理员，系统不会自动停用该模型`
   }
   if (record.healthStatus === 'passed') {
+    if (isImageRow(record)) {
+      // 图像行的绿只认真实出图；V129 之前那版对话式探测写进去的绿不作数，所以这里不替它背书
+      const failures = record.healthConsecutiveFailures ?? 0
+      if (failures > 0) {
+        return `最近 ${failures} 次真实出图都没成功（还没到报警阈值，状态暂时仍是通过）：${record.lastHealthError || '未记原因'} · 点「试出一张图」可当场再验一次`
+      }
+      return '通过：这条只应来自一次真实出图调用（对话式探测测不到生图，V129 起对图像行直接拒答）。怀疑这行没真出过图时，点「试出一张图」验一次'
+    }
     return record.lastHealthLatencyMs != null
       ? `通过 · 最近一次探测耗时 ${record.lastHealthLatencyMs}ms`
       : '通过'
+  }
+  if (isImageRow(record)) {
+    return '图像行不做对话式连接测试：那种探测打的是聊天端点，测不到能不能生图。要点「试出一张图」，那一次会真出一张、也真计费'
   }
   return '尚未探测 · 点击「测试」或「立即巡检」，每日 03:30 也会自动巡检'
 }
@@ -500,6 +581,7 @@ function editConfig(config: ModelConfig) {
     modelType: config.modelType || 'chat',
     apiKey: '',
     baseUrl: config.apiEndpoint || config.baseUrl || '',
+    apiProtocol: config.apiProtocol || '',
     apiVersion: (config as any).apiVersion || '',
     temperature: config.temperature ?? 0.7,
     maxTokens: config.maxTokens ?? 2000,
@@ -560,6 +642,44 @@ async function testConnection(config: ModelConfig) {
   }
 }
 
+/**
+ * 图像行专用：真出一张图来证明这一行配置能用。
+ *
+ * <p>结果用 notification 而不是 message：后端那句失败里带着<b>协议名和实际请求地址</b>
+ * （就是这两样，之前两次付费跑完都看不出错在哪），一行 toast 会把它截掉。</p>
+ */
+async function probeImage(config: ModelConfig) {
+  probingId.value = config.id
+  try {
+    const result = await modelConfigApi.imageProbe(config.id)
+    const where = `${result.protocolName} · ${result.endpoint}`
+    if (result.success) {
+      notification.success({
+        message: `出了一张图（${result.elapsedMs}ms）`,
+        description: `${where} · ${result.message}`,
+        duration: 8,
+      })
+    } else {
+      notification.error({
+        message: '这一行出不了图',
+        description: `${where} · ${result.message}`,
+        duration: 0,
+      })
+    }
+    await loadData()
+  } catch (error) {
+    console.error(error)
+    // 这里不能只说「请求失败」：开关没开、类型填错这些话后端已经替我们说清楚了
+    notification.error({
+      message: '试出图没有执行',
+      description: describeHttpError(error),
+      duration: 0,
+    })
+  } finally {
+    probingId.value = null
+  }
+}
+
 async function handleCheckAllHealth() {
   checkingAll.value = true
   try {
@@ -592,6 +712,8 @@ function formToPayload() {
     modelName: configForm.modelName,
     modelType: configForm.modelType,
     apiEndpoint: configForm.baseUrl,
+    // 留空也照样提交：编辑时把「自动」改回留空，得能把之前显式填的协议清掉
+    apiProtocol: configForm.apiProtocol || '',
     temperature: configForm.temperature,
     maxTokens: configForm.maxTokens,
     topP: configForm.topP,

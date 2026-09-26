@@ -97,6 +97,8 @@ export interface ModelConfig {
   modelName?: string
   modelType?: ModelType | string
   apiEndpoint?: string
+  /** 接口协议：留空表示由后端按接口地址推断（语义只写在后端 AiProtocols，前端不重复实现） */
+  apiProtocol?: string
   sortOrder?: number
   healthStatus?: 'unknown' | 'passed' | 'failed' | string
   lastHealthCheckAt?: string
@@ -173,6 +175,20 @@ export interface ModelConnectionTestResult {
   dimension?: number
 }
 
+// 图像模型「试出一张图」的结果（字段名与后端 AiModelConfigController#probeImageModel 一致）
+// 后端刻意不回图字节也不回外链：这一口验的是「这一行能不能出图」，入库只走编排任务
+export interface ImageProbeResult {
+  protocol: string
+  protocolName: string
+  endpoint: string
+  model: string
+  success: boolean
+  bytes?: number
+  mimeType?: string
+  elapsedMs: number
+  message: string
+}
+
 // 全量健康巡检结果
 export interface ModelHealthCheckSummary {
   total: number
@@ -202,6 +218,7 @@ export interface ModelConfigForm {
   apiKey: string
   baseUrl?: string
   apiEndpoint?: string
+  apiProtocol?: string
   apiVersion?: string
   isActive: boolean
   isDefault?: boolean
