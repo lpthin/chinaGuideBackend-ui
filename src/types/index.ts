@@ -91,6 +91,8 @@ export interface Site {
   defaultLocale: string
   enabledLocales: string
   status: string
+  /** 站点归属租户：只读展示用。写操作一律不带它（改归属是后端的开通/移交动作，不是这张表单的权利）。 */
+  tenantId?: number
 }
 
 // Prompt 模板

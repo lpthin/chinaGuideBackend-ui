@@ -21,7 +21,7 @@
             <div class="article-meta">
               <a-space>
                 <a-tag v-if="categoryName" color="blue">{{ categoryName }}</a-tag>
-                <span v-else class="category-empty">栏目未设置</span>
+                <span v-else class="category-empty">分类未设置</span>
                 <span><UserOutlined /> {{ article.source || '未填写来源' }}</span>
                 <span><EyeOutlined /> {{ article.viewCount }} 浏览</span>
                 <span><LikeOutlined /> {{ article.likeCount }} 点赞</span>
@@ -60,7 +60,7 @@
                 </a-list-item>
               </template>
               <template #empty>
-                <a-empty description="同栏目暂无其他文章" />
+                <a-empty description="同分类暂无其他文章" />
               </template>
             </a-list>
           </a-card>
@@ -109,7 +109,7 @@ const route = useRoute()
 const loading = ref(false)
 const article = ref<Article | null>(null)
 
-/** 后端详情接口会带 categoryName；没有就是真的没栏目，不能写成「未分类」冒充 */
+/** 后端详情接口会带 categoryName；没有就是真的没分类，不能写成「未分类」冒充 */
 const categoryName = computed(() => article.value?.categoryName || '')
 
 const keywordList = computed(() => {

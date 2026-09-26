@@ -111,7 +111,7 @@
               </div>
               <div class="card-title__text">
                 <h3>内容分类统计</h3>
-                <p>各栏目内容分布</p>
+                <p>各分类内容分布</p>
               </div>
             </div>
           </div>

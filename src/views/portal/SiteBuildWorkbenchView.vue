@@ -61,17 +61,18 @@
           <a-button :disabled="!siteId" @click="router.push({ name: 'workspace-portal-launch' })">去门户上线生成演示内容</a-button>
         </a-card>
 
-        <!-- 步骤 3 AI 整站组装：本期未上线，不留假按钮 -->
+        <!-- 步骤 3 AI 整站组装：端点已经有了，但它今天读不到「前采需求」，所以话要说准 -->
         <a-card size="small" class="build-workbench__step">
           <template #title><span class="build-workbench__index">3</span> AI 整站组装</template>
           <p class="build-workbench__state">
-            下一阶段（Spec Q3）功能，本期未上线：现在还没有组装任务端点，
-            这里不放一个点了只会报错的按钮。整站组装上线后会带估算—确认—草稿三段门禁，
-            本期的站先用第 1、2 步 + 搭建器手工微调（N5：组件搭建归超管，可手工可 AI 辅助）。
+            这一条今天<strong>已经能跑</strong>：组装任务页可以按「站点 + 骨架（+ 参考站）」发起整站组装，
+            产出的是<strong>逐页草稿</strong>，要在页面搭建里逐条应用才会给访客看到（不会自己上线）。
+            <strong>它现在还不读前采需求单</strong>——需求单进 prompt 与「1~3 套候选站」是下一阶段（Spec-C §6.2/P3）
+            要补的那一段，今天这一格只会按骨架灌通用内容。
           </p>
-          <a-tooltip title="AI 整站组装在 Q3 交付，本期没有这个端点，不放假入口">
-            <a-button disabled>发起组装任务（下一阶段）</a-button>
-          </a-tooltip>
+          <a-button :disabled="!siteId" @click="router.push({ name: 'workspace-portal-assemble-jobs' })">
+            去整站组装发起任务
+          </a-button>
         </a-card>
 
         <!-- 步骤 4 逐页发布 -->
@@ -102,7 +103,7 @@
               栏目本身它改不了（N2 永久边界），有意见走「联系平台」工单。
             </template>
           </p>
-          <a-button :disabled="!siteId" @click="router.push({ name: 'workspace-portal-sections' })">去栏目管理核对开通态</a-button>
+          <a-button :disabled="!siteId" @click="router.push({ name: 'workspace-portal-sections' })">去栏目开通核对开通态</a-button>
         </a-card>
 
         <!-- 交棒之后：巡检闭环（Spec §13.3-6）。不给它编号——§6.1 那条流水线是五步，这一步在交棒之后 -->
@@ -136,7 +137,6 @@
             <div v-if="patrolResult.notificationId" class="build-workbench__patrol-actions">
               <a-button @click="router.push({ name: 'workspace-notifications' })">去看这条待办</a-button>
             </div>
-            <span v-else>这一轮没有欠着的事，所以没写待办。</span>
             <ul v-if="patrolResult.failures.length" class="build-workbench__patrol-failures">
               <li v-for="(line, index) in patrolResult.failures" :key="index">{{ line }}</li>
             </ul>
@@ -190,13 +190,15 @@ import { portalSkeletonsApi } from '../../api/portalSkeletons'
 import { siteApi } from '../../api/workspace'
 
 /**
- * 超管「建站工作台」（Spec §6.1 / §7.2 流水线 0，Q2）。
+ * 超管「建站流水线」（Spec §6.1 / §7.2 流水线 0，Q2；Spec-C §3.1 改名，挂到平台段）。
  *
  * 这一页只报现状 + 给真入口，不在这儿写库：
  * 1. 骨架登记来自 `/admin/sites` 的 skeletonKey/skeletonVersion（出生证明），骨架名去骨架库列表里查，
  *    查不到也只说明 key，不在前端留一份骨架清单（I-1）；
  * 2. 页数与状态计数来自 `/api/portal/pages`，状态中文说法来自 `/api/portal/pages/statuses`；
- * 3. AI 组装本期没有端点，就把按钮禁用并写清「下一阶段」，不放一个点了必然报错的假功能；
+ * 3. AI 组装的端点已经有了（`/api/admin/portal/assemble-jobs`），所以这一格给真入口，不再谎报
+ *    「本期未上线」；它今天吃的是「站点 + 骨架（+ 参考站）」而不是前采需求单，那句话也照实写在这里
+ *    ——需求进 prompt 是 Spec-C §6.2 / P3 的活儿（问题十二裁决：先止血，不掺新能力）。
  * 4. 「依赖体检」读的是后端 ReferenceCapabilities 那一次快照：五个开关位按布尔显示，缺什么照它写的
  *    那几句中文原样列出来（那些句子里点名的是配置文件里的键，前端改一个字就对不上号了）。
  *    这里没有任何开关可以翻，所以它既不跟着站点走（探测按后端给的 probedTenantId 说），也不提供「一键启用」；

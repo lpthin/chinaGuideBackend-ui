@@ -3,10 +3,11 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
-import { siteApi } from '../../api'
+import { siteApi, tenantApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import { useSiteStore } from '@/stores/site'
 import type { Site } from '../../types'
+import type { Tenant } from '../../types/workspace'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -104,6 +105,32 @@ const siteStore = useSiteStore()
 const form = reactive<SiteForm>(defaultForm())
 const sites = ref<Site[]>([])
 
+/**
+ * 租户名只用来把「这一站归谁」说清楚（Spec-C §3.2 P0：建站域与内容域分开后，
+ * 超管第一件要看的就是站点归属）。取不到就把原话的 tenantId 报出来，不编名字。
+ */
+const tenantNames = ref<Record<number, string>>({})
+const tenantsFailed = ref(false)
+
+async function loadTenantNames() {
+  try {
+    const list = await tenantApi.list()
+    const map: Record<number, string> = {}
+    ;(list || []).forEach((tenant: Tenant) => {
+      if (tenant?.id != null) map[tenant.id] = tenant.name || tenant.code || `#${tenant.id}`
+    })
+    tenantNames.value = map
+    tenantsFailed.value = false
+  } catch (e) {
+    tenantsFailed.value = true
+  }
+}
+
+function tenantLabel(site: Site) {
+  if (!site.tenantId) return '未绑定租户'
+  return tenantNames.value[site.tenantId] || `租户 #${site.tenantId}`
+}
+
 function parseList(value?: string) {
   const items = (value || '')
     .split(/[，,\n]/)
@@ -163,7 +190,8 @@ async function save() {
     return
   }
   try {
-    const { enabledLocalesList, industryPath, targetRegionsList, targetAudienceList, businessModelList, searchLocalesList, competitorDomainsList, seedKeywordsList, excludedKeywordsList, ...rest } = form
+    // tenantId 一律不入 payload：改归属是后端的开通/移交动作，这张表单没有这个权利
+    const { enabledLocalesList, industryPath, targetRegionsList, targetAudienceList, businessModelList, searchLocalesList, competitorDomainsList, seedKeywordsList, excludedKeywordsList, tenantId, ...rest } = form
     const payload: Site = {
       ...rest,
       industry: industryPath[0] || '',
@@ -195,6 +223,7 @@ onMounted(() => {
     return
   }
   load()
+  loadTenantNames()
 })
 </script>
 
@@ -203,7 +232,7 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h3>站点管理</h3>
-        <p>维护站点画像，供行业热词收集、关键词蒸馏和内容生成使用。</p>
+        <p>维护站点画像与归属：域名、租户、启用状态都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。</p>
       </div>
       <a-button type="primary" @click="resetForm(); modalVisible = true">
         <template #icon><PlusOutlined /></template>
@@ -227,6 +256,9 @@ onMounted(() => {
       </a-table-column>
       <a-table-column title="名称" data-index="name" min-width="180">
         <template #default="{ text }">{{ text || '-' }}</template>
+      </a-table-column>
+      <a-table-column title="归属租户" width="160" ellipsis show-overflow-tooltip>
+        <template #default="{ record }">{{ tenantLabel(record) }}</template>
       </a-table-column>
       <a-table-column title="域名" data-index="domain" min-width="220" ellipsis show-overflow-tooltip>
         <template #default="{ text }">{{ text || '-' }}</template>

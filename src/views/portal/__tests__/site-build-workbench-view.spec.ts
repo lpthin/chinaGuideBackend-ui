@@ -10,12 +10,14 @@ import { portalReferenceApi } from '../../../api/referenceSites'
 import { siteApi } from '../../../api/workspace'
 
 /**
- * 建站工作台（Spec §6.1 / §7.2 流水线 0，Q2）。
+ * 超管「建站流水线」（Spec §6.1 / §7.2 流水线 0，Q2；Spec-C §3.1 改名）。
  *
  * 这一页最容易出现两种「假通」，用例就钉这两点：
  * 1. 每一步的现状必须真的来自接口——骨架名去骨架库里查不到就只能报 key，状态中文只能来自
  *    `/portal/pages/statuses`（用例把词表换成别的字，页面跟着换；出现本地常量就红）；
- * 2. 「AI 整站组装」本期没有端点，那颗按钮必须是禁用态，点它不会发出任何请求。
+ * 2. 五步各自那颗按钮都得有真去处（Spec-C §3.2 P0：不许再出现「点了没地方去」的入口），
+ *    但文案必须说准到位在哪一步——组装今天只产逐页草稿、且还不读前采需求单，
+ *    谎报「本期未上线」和谎报「一键成站」一样是假通。
  *
  * 依赖体检那一张卡另有两条：格子必须跟着 payload 翻（不是写死五个「未开启」），
  * `guidance` 要逐字是后端那几句——用一句本地永远说不准的配置键原文来验。
@@ -317,19 +319,31 @@ describe('读口的错各说各的，按钮点了要去哪就去哪', () => {
     expect(wrapper.text()).toContain('先选站点，才知道这一站登记了哪套骨架')
   })
 
-  it('五个入口分别跳到骨架库、门户上线、页面搭建、栏目管理，组装那条没有去处', async () => {
+  it('五步各有真去处：逐个点，按各自那一条路由跳，一个都不落空', async () => {
     await mountView()
-    click(byText('去骨架库')[0])
-    click(byText('去门户上线生成演示内容')[0])
-    click(byText('去页面搭建逐页发布')[0])
-    click(byText('去栏目管理核对开通态')[0])
+    const labels = [
+      '去骨架库',
+      '去门户上线生成演示内容',
+      '去整站组装发起任务',
+      '去页面搭建逐页发布',
+      '去栏目开通核对开通态'
+    ]
+    for (const label of labels) {
+      const nodes = buttonContaining(label)
+      expect(nodes).toHaveLength(1)
+      expect((nodes[0] as HTMLButtonElement).disabled).toBe(false)
+      click(nodes[0])
+    }
     await flushPromises()
     expect(pushSpy.mock.calls.map(call => call[0])).toEqual([
       { name: 'workspace-portal-skeletons' },
       { name: 'workspace-portal-launch' },
+      { name: 'workspace-portal-assemble-jobs' },
       { name: 'workspace-portal-pages' },
       { name: 'workspace-portal-sections' }
     ])
+    // 改名之后不许留旧叫法：菜单里已经没有「栏目管理」这一项了
+    expect(byText('去栏目管理核对开通态')).toHaveLength(0)
   })
 
   it('没选站点时除骨架库外的入口都点不动', async () => {
@@ -352,24 +366,24 @@ describe('读口的错各说各的，按钮点了要去哪就去哪', () => {
   })
 })
 
-describe('AI 整站组装：本期没有端点，就不许长出会发请求的入口', () => {
-  it('按钮禁用，点了之后一个请求都不发', async () => {
+describe('AI 整站组装：端点已经有了就给真入口，但话要说准到哪一步', () => {
+  it('选了站点就能进组装页；文案写清产出是逐页草稿、且今天还不读前采需求单', async () => {
     const wrapper = await mountView()
-    const assemble = buttonContaining('发起组装任务')
+    const assemble = buttonContaining('去整站组装发起任务')
     expect(assemble).toHaveLength(1)
-    expect((assemble[0] as HTMLButtonElement).disabled).toBe(true)
-    const before = [
-      siteApi.list, portalPagesApi.list, portalSectionsApi.adminList, portalSkeletonsApi.list,
-      portalReferenceApi.capabilities
-    ].map(fn => vi.mocked(fn).mock.calls.length)
+    expect((assemble[0] as HTMLButtonElement).disabled).toBe(false)
     click(assemble[0])
     await flushPromises()
-    expect(pushSpy).not.toHaveBeenCalled()
-    expect([
-      siteApi.list, portalPagesApi.list, portalSectionsApi.adminList, portalSkeletonsApi.list,
-      portalReferenceApi.capabilities
-    ].map(fn => vi.mocked(fn).mock.calls.length)).toEqual(before)
-    expect(wrapper.text()).toContain('下一阶段（Spec Q3）功能，本期未上线')
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'workspace-portal-assemble-jobs' })
+    expect(wrapper.text()).toContain('逐页草稿')
+    expect(wrapper.text()).toContain('它现在还不读前采需求单')
+    // 这句谎报已经删掉：组装端点早就存在（PortalAssembleController）
+    expect(wrapper.text()).not.toContain('本期未上线')
+  })
+
+  it('没选站点时组装入口点不动（和其它四步同口径）', async () => {
+    const wrapper = await mountView({ sites: [] })
+    expect(buttonContaining('去整站组装发起任务').every(node => (node as HTMLButtonElement).disabled)).toBe(true)
   })
 })
 

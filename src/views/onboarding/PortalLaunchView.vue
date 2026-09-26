@@ -60,7 +60,7 @@
 
         <template v-if="authStore.isSuperAdmin">
           <a-descriptions v-if="demo" :column="2" size="small" bordered>
-            <a-descriptions-item label="栏目">{{ demo.demo.categories }}</a-descriptions-item>
+            <a-descriptions-item label="分类">{{ demo.demo.categories }}</a-descriptions-item>
             <a-descriptions-item label="文章">{{ demo.demo.articles }}</a-descriptions-item>
             <a-descriptions-item label="案例">{{ demo.demo.cases }}</a-descriptions-item>
             <a-descriptions-item label="首页 Banner">{{ demo.demo.banners }}</a-descriptions-item>

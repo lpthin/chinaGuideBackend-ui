@@ -11,7 +11,7 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ stats.totalCategories }}</div>
-                <div class="stat-title">栏目总数</div>
+                <div class="stat-title">分类总数</div>
               </div>
             </div>
           </a-card>
@@ -41,7 +41,7 @@
               </div>
             </div>
             <div class="stat-footer">
-              <span class="stat-label">共 {{ stats.totalCategories }} 个栏目</span>
+              <span class="stat-label">共 {{ stats.totalCategories }} 个分类</span>
             </div>
           </a-card>
         </a-col>
@@ -49,13 +49,13 @@
 
       <!-- 主内容区 - 左右分栏 -->
       <a-row :gutter="20" style="margin-bottom: 20px">
-        <!-- 左侧栏目树 -->
+        <!-- 左侧分类树 -->
         <a-col :xs="24" :lg="6">
           <a-card class="tree-card" :bordered="false">
             <template #title>
               <div class="card-title">
                 <ApartmentOutlined class="title-icon" />
-                <span>栏目结构</span>
+                <span>分类结构</span>
               </div>
             </template>
             <template #extra>
@@ -68,7 +68,7 @@
             <div class="tree-toolbar">
               <a-input-search
                 v-model:value="searchText"
-                placeholder="搜索栏目"
+                placeholder="搜索分类"
                 size="small"
                 @search="onSearch"
               />
@@ -117,7 +117,7 @@
                   </div>
                 </template>
               </a-tree>
-              <a-empty v-else description="暂无栏目" class="tree-empty" />
+              <a-empty v-else description="暂无分类" class="tree-empty" />
             </div>
           </a-card>
         </a-col>
@@ -128,7 +128,7 @@
             <template #title>
               <div class="card-title">
                 <SettingOutlined class="title-icon" />
-                <span>栏目详情</span>
+                <span>分类详情</span>
                 <a-tag color="blue" style="margin-left: 8px">{{ currentCategory.name }}</a-tag>
               </div>
             </template>
@@ -155,21 +155,21 @@
                   <a-form layout="vertical">
                     <a-row :gutter="24">
                       <a-col :xs="24" :md="12">
-                        <a-form-item label="栏目名称" required>
-                          <a-input v-model:value="currentCategory.name" placeholder="请输入栏目名称" size="large" />
+                        <a-form-item label="分类名称" required>
+                          <a-input v-model:value="currentCategory.name" placeholder="请输入分类名称" size="large" />
                         </a-form-item>
                       </a-col>
                       <a-col :xs="24" :md="12">
-                        <a-form-item label="栏目别名">
-                          <a-input v-model:value="currentCategory.slug" placeholder="请输入栏目别名，用于URL" />
+                        <a-form-item label="分类别名">
+                          <a-input v-model:value="currentCategory.slug" placeholder="请输入分类别名，用于URL" />
                         </a-form-item>
                       </a-col>
                       <a-col :xs="24" :md="12">
-                        <a-form-item label="上级栏目">
+                        <a-form-item label="上级分类">
                           <a-tree-select
                             v-model:value="currentCategory.parentId"
                             :tree-data="treeSelectData"
-                            placeholder="选择上级栏目（不选则为顶级）"
+                            placeholder="选择上级分类（不选则为顶级）"
                             :tree-default-expand-all="true"
                             style="width: 100%"
                             allow-clear
@@ -368,7 +368,7 @@
               </a-tab-pane>
             </a-tabs>
           </a-card>
-          <a-empty v-else description="请选择左侧栏目进行编辑" class="detail-empty" />
+          <a-empty v-else description="请选择左侧分类进行编辑" class="detail-empty" />
         </a-col>
       </a-row>
 
@@ -389,7 +389,7 @@
               <!-- 柱状图 -->
               <a-col :span="24">
                 <div class="chart-section">
-                  <div class="section-title">各栏目文章数量统计</div>
+                  <div class="section-title">各分类文章数量统计</div>
                   <div ref="categoryChartRef" style="height: 300px; width: 100%"></div>
                 </div>
               </a-col>
@@ -401,23 +401,23 @@
       <!-- 新增/编辑弹窗 -->
       <a-modal
         v-model:open="showModal"
-        :title="editingCategory ? '编辑栏目' : '新增栏目'"
+        :title="editingCategory ? '编辑分类' : '新增分类'"
         @ok="handleModalOk"
         :confirmLoading="saving"
         width="600px"
       >
         <a-form layout="vertical">
-          <a-form-item label="栏目名称" required>
-            <a-input v-model:value="modalForm.name" placeholder="请输入栏目名称" />
+          <a-form-item label="分类名称" required>
+            <a-input v-model:value="modalForm.name" placeholder="请输入分类名称" />
           </a-form-item>
-          <a-form-item label="栏目别名">
-            <a-input v-model:value="modalForm.slug" placeholder="请输入栏目别名" />
+          <a-form-item label="分类别名">
+            <a-input v-model:value="modalForm.slug" placeholder="请输入分类别名" />
           </a-form-item>
-          <a-form-item label="上级栏目">
+          <a-form-item label="上级分类">
             <a-tree-select
               v-model:value="modalForm.parentId"
               :tree-data="treeSelectData"
-              placeholder="选择上级栏目（不选则为顶级）"
+              placeholder="选择上级分类（不选则为顶级）"
               :tree-default-expand-all="true"
               style="width: 100%"
               allow-clear
@@ -594,7 +594,7 @@ function onDrop(info: any) {
 
   if (dropPosition === 0) {
     dragItem.parentId = dropItem.id
-    message.success('已移动为子栏目')
+    message.success('已移动为子分类')
   } else {
     dragItem.parentId = dropItem.parentId
     message.success('已移动到同一级别')
@@ -632,7 +632,7 @@ function editCategory(key: string) {
 async function deleteCategory(key: string) {
   Modal.confirm({
     title: '确认删除',
-    content: '删除此栏目将同时删除其所有子栏目，确定要删除吗？',
+    content: '删除此分类将同时删除其所有子分类，确定要删除吗？',
     okText: '确定',
     cancelText: '取消',
     okType: 'danger',
@@ -651,7 +651,7 @@ async function deleteCategory(key: string) {
 
 async function handleModalOk() {
   if (!modalForm.name) {
-    message.error('请输入栏目名称')
+    message.error('请输入分类名称')
     return
   }
   saving.value = true
@@ -675,7 +675,7 @@ async function handleModalOk() {
 
 async function saveCategory() {
   if (!currentCategory.value?.name) {
-    message.error('请输入栏目名称')
+    message.error('请输入分类名称')
     return
   }
   saving.value = true
@@ -719,7 +719,7 @@ async function loadData() {
     categories.value = []
     stats.totalCategories = 0
     stats.totalArticles = 0
-    message.error('栏目数据加载失败')
+    message.error('分类数据加载失败')
     console.error(error)
   } finally {
     loading.value = false
