@@ -38,6 +38,13 @@ vi.mock('../../../stores/auth', () => ({
   useAuthStore: () => ({ tenantId: 15, selectedTenantId: null, isSuperAdmin: false })
 }))
 
+// D5-3 交棒链接带着 ?siteId=：照 assemble-job-view 那一档的写法只换 useRoute，给一个可写的 query
+const routeQuery = vi.hoisted(() => ({ current: {} as Record<string, string> }))
+vi.mock('vue-router', async importOriginal => {
+  const actual = await importOriginal<Record<string, any>>()
+  return { ...actual, useRoute: () => ({ query: routeQuery.current, params: {} }) }
+})
+
 /**
  * 真实 Tabs 内部用 ResizeObserver 量页签宽度；全局 setup 里那个 `vi.fn()` 桩在 `new` 之下会炸
  * （vitest 的 mock 实现是箭头函数，构造调用直接被拒）。在本 spec 内换成最小可用的类，
@@ -189,6 +196,7 @@ async function clickTab(wrapper: Awaited<ReturnType<typeof mountView>>, label: s
 beforeEach(() => {
   vi.clearAllMocks()
   document.body.innerHTML = ''
+  routeQuery.current = {}
   vi.mocked(portalShowcaseApi.kinds).mockResolvedValue(KINDS as any)
   vi.mocked(portalShowcaseApi.list).mockResolvedValue(rowsFixture() as any)
   vi.mocked(siteApi.list).mockResolvedValue([{ id: 7, name: '测试站' }] as any)
@@ -344,5 +352,29 @@ describe('展示内容页的菜单归属（Spec-C §2.1 纪律）', () => {
     expect(showcase?.path).toBe('portal/showcase')
     // 菜单显隐、路由守卫、后端 @RequirePermission 三处必须是同一个码
     expect((showcase?.meta as any)?.requiredPermission).toBe('portal:siteinfo:manage')
+  })
+})
+
+describe('交棒链接的站点定位（D5-3 那条 ?siteId=）', () => {
+  it('query 带的 siteId 在可选清单里：取数取的是它指的那个站，不回落 sites[0]', async () => {
+    routeQuery.current = { siteId: '8' }
+    vi.mocked(siteApi.list).mockResolvedValue([{ id: 7, name: '甲站' }, { id: 8, name: '乙站' }] as any)
+    const wrapper = await mountView()
+    expect(portalShowcaseApi.list).toHaveBeenLastCalledWith(8)
+    wrapper.unmount()
+  })
+
+  it('query 带的 siteId 不在清单里：回落既有默认，绝不拿一个幽灵 id 去读写', async () => {
+    routeQuery.current = { siteId: '99' }
+    vi.mocked(siteApi.list).mockResolvedValue([{ id: 7, name: '甲站' }, { id: 8, name: '乙站' }] as any)
+    const wrapper = await mountView()
+    expect(portalShowcaseApi.list).toHaveBeenLastCalledWith(null)
+    wrapper.unmount()
+  })
+
+  it('没带 query 且只有一个站：维持既有的自动选中', async () => {
+    const wrapper = await mountView()
+    expect(portalShowcaseApi.list).toHaveBeenLastCalledWith(7)
+    wrapper.unmount()
   })
 })

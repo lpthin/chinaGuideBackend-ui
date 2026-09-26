@@ -183,6 +183,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import MediaImageLibraryModal from '../../components/MediaImageLibraryModal.vue'
@@ -216,6 +217,8 @@ import {
  */
 
 const auth = useAuthStore()
+// D5-3 交棒链接带着 ?siteId=（后端 workspaceUrl 的拼法）：这一页要落回它指的那个站
+const route = useRoute()
 
 const kinds = ref<ShowcaseKind[]>([])
 const activeKind = ref('')
@@ -322,7 +325,12 @@ async function loadSites() {
   try {
     const list = await siteApi.list()
     sites.value = (list || []).map((site: any) => ({ id: site.id, name: site.name }))
-    if (sites.value.length === 1) {
+    // 交棒链接（D5-3）带着 ?siteId= 指到这一页：只有这个号真的在可选清单里才采用——
+    // 不在就回落原有默认（单站自动选中），绝不选中一个列表里没有的站（那等于往拿不到的 id 上写数据）
+    const wanted = Number(route.query.siteId)
+    if (Number.isInteger(wanted) && sites.value.some(site => site.id === wanted)) {
+      siteId.value = wanted
+    } else if (sites.value.length === 1) {
       siteId.value = sites.value[0].id
     }
   } catch (error: any) {
