@@ -84,10 +84,10 @@ export const MENU_GROUPS: MenuGroupDef[] = [
   { key: 'site-info', label: '网站信息', domain: 'tenant', icon: 'building', hint: 'AI 填好的企业信息与站点配置，可审可改' },
   { key: 'site-effect', label: '效果与引用', domain: 'tenant', icon: 'chart', hint: '流量来源与被 AI 引用的情况' },
   { key: 'operation', label: '运营管理', domain: 'tenant', icon: 'pie-chart' },
-  { key: 'build-delivery', label: '建站交付', domain: 'platform', icon: 'rocket', hint: '前采需求单 → 建站流水线 → 页面搭建 → 整站组装' },
+  { key: 'build-delivery', label: '建站交付', domain: 'platform', icon: 'rocket', hint: '前采需求单 → 出方案（详情页门禁） → 页面搭建' },
   { key: 'build-assets', label: '站点资产', domain: 'platform', icon: 'database', hint: '站点、租户、栏目开通与骨架' },
   { key: 'build-style', label: '参考与样式', domain: 'platform', icon: 'bg-colors', hint: '参考站摄取、区块与皮肤' },
-  { key: 'build-quality', label: '质量与效果（平台）', domain: 'platform', icon: 'safety', hint: '巡检、引用探测与改版工单' },
+  { key: 'build-quality', label: '质量与效果（平台）', domain: 'platform', icon: 'safety', hint: '巡检、引用探测、改版工单与整站组装（已上线站改版）' },
   { key: 'billing', label: '计费系统', domain: 'platform', icon: 'account-book' },
   { key: 'ai', label: 'AI 配置', domain: 'platform', icon: 'robot' },
   { key: 'system', label: '系统管理', domain: 'platform', icon: 'setting' },
@@ -142,10 +142,9 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-operation-cases': 'operation',
   'workspace-operation-reports': 'operation',
   'workspace-operation-customers': 'operation',
-  // 平台：建站交付
+  // 平台：建站交付（Spec-C §7 P3：「建站流水线」整页删除，主线收进需求单详情；
+  // 「整站组装」按 N-2 挪去「质量与效果」——它今天的服务对象是已上线站的改版，不是出候选）
   'workspace-portal-briefs': 'build-delivery',
-  'workspace-portal-build': 'build-delivery',
-  'workspace-portal-assemble-jobs': 'build-delivery',
   'workspace-portal-pages': 'build-delivery',
   // 平台：站点资产
   'workspace-sites': 'build-assets',
@@ -158,6 +157,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-portal-presets': 'build-style',
   // 平台：质量与效果
   'workspace-portal-health': 'build-quality',
+  'workspace-portal-assemble-jobs': 'build-quality',
   'workspace-portal-citation-probes': 'build-quality',
   'workspace-portal-tickets': 'build-quality',
   'workspace-portal-support-queue': 'build-quality',

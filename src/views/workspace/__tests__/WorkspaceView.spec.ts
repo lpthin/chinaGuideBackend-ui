@@ -81,7 +81,10 @@ describe('WorkspaceView 侧边菜单', () => {
     const text = wrapper.text()
     expect(text).toContain('内容与维护')
     expect(text).toContain('平台 · 建站与治理')
-    expect(text).toContain('建站流水线')
+    // Spec-C P3：「建站流水线」整页删除（主线收进需求单详情），菜单里它必须随之绝迹——
+    // 留着就是一条点了 404 的假入口
+    expect(text).not.toContain('建站流水线')
+    expect(text).toContain('前采需求单')
     expect(text).toContain('栏目开通')
     expect(text).toContain('文章分类')
     expect(text).not.toContain('栏目管理')
@@ -94,7 +97,7 @@ describe('WorkspaceView 侧边菜单', () => {
     const text = wrapper.text()
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
     expect(text).not.toContain('平台 · 建站与治理')
-    expect(items).not.toContain('建站流水线')
+    expect(items).not.toContain('前采需求单')
     expect(items).not.toContain('栏目开通')
     expect(items).not.toContain('页面搭建')
     expect(items).not.toContain('站点管理')
@@ -127,7 +130,8 @@ describe('WorkspaceView 侧边菜单', () => {
     })
     await flushPromises()
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
-    expect(items.filter(label => label === '建站流水线')).toHaveLength(1)
+    // P3：钉「前采需求单」只渲染一次（原来这条钉的是已删除的「建站流水线」，守的行为不变：视图不手抄第二份清单）
+    expect(items.filter(label => label === '前采需求单')).toHaveLength(1)
     expect(items.filter(label => label === '待办通知')).toHaveLength(1)
     expect(new Set(items).size).toBe(items.length)
     // 工作台（固定在最上方）+ 联系平台（固定在最下方）也在同一批渲染里

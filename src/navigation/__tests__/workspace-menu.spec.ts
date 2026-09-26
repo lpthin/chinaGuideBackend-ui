@@ -116,7 +116,7 @@ describe('平台段与租户段分家', () => {
     const sections = buildMenuSections(leaves, TENANT)
     expect(sections.map(section => section.domain)).toEqual(['tenant'])
     const visibleNames = sections.flatMap(section => section.groups.flatMap(g => g.items.map(i => i.label)))
-    expect(visibleNames).not.toContain('建站流水线')
+    expect(visibleNames).not.toContain('前采需求单')
     expect(visibleNames).not.toContain('栏目开通')
     expect(visibleNames).not.toContain('站点管理')
     expect(visibleNames).not.toContain('页面搭建')
@@ -142,6 +142,24 @@ describe('平台段与租户段分家', () => {
       expect(leaf!.permission).toBe('portal:build:manage')
     })
     expect(leafVisible(briefs!, TENANT)).toBe(false)
+  })
+
+  it('P3 降级与删除：整站组装挪进「质量与效果（平台）」组，建站流水线整页从路由绝迹', () => {
+    // §7 那行「不再是一级菜单入口（建站段）」+ N-2「能力留着给已上线站改版」：组要挪、码不许动
+    const assemble = grouped.find(leaf => leaf.routeName === 'workspace-portal-assemble-jobs')
+    expect(assemble?.group).toBe('build-quality')
+    expect(assemble?.permission).toBe('portal:build:assemble')
+    // 「建站流水线」被需求单详情替代：路由删了就要删干净，留着菜单项就是点了 404 的假入口
+    expect(leaves.some(leaf => leaf.routeName === 'workspace-portal-build')).toBe(false)
+    // 候选画廊是详情页的下钻页：meta.hidden，不占一级菜单（入口太多的病灶不许复发）
+    const gallery = leaves.find(leaf => leaf.routeName === 'workspace-portal-brief-candidates')
+    expect(gallery, '候选画廊路由必须存在').toBeTruthy()
+    expect(gallery!.group).toBe('')
+    expect(gallery!.superAdminOnly).toBe(true)
+    expect(gallery!.permission).toBe('portal:build:manage')
+    // 详情页同样 hidden：一行需求单的落点从列表进，不额外占一个菜单位
+    const detail = leaves.find(leaf => leaf.routeName === 'workspace-portal-brief-detail')
+    expect(detail?.group).toBe('')
   })
 
   it('租户视角仍看得见自己该做的事：内容、企业信息与联系平台', () => {
@@ -210,9 +228,11 @@ describe('选中态与面包屑', () => {
   })
 
   it('面包屑的两级来自组与项本身（不再有第二份 parent 表）', () => {
-    const crumb = menuCrumb('portal/build', leaves)
-    expect(crumb.current).toBe('建站流水线')
-    expect(crumb.parent).toBe('建站交付')
+    // P3 后拿「整站组装」验这条：它换了组（build-quality），面包屑父级跟着换——
+    // 正好证明父级是从组表现算的，不是哪里手抄的第二份（原来这条用的是已删除的建站流水线）
+    const crumb = menuCrumb('portal/assemble-jobs', leaves)
+    expect(crumb.current).toBe('整站组装')
+    expect(crumb.parent).toBe('质量与效果（平台）')
     expect(menuCrumb('categories', leaves)).toEqual({ parent: '文章管理', current: '文章分类' })
   })
 

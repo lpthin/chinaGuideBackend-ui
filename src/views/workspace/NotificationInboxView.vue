@@ -55,7 +55,7 @@
       <template #emptyText>
         <div class="notification-inbox__empty">
           按当前筛选没有待办。这一句只说明这张表里按 status/type 没查到记录；
-          上一轮巡检到底欠着几条，看的是「建站流水线」巡检那一格回的结果与这条待办的内容。
+          上一轮巡检到底欠着几条，看的是「页面巡检」那一格回的结果与这条待办的内容。
         </div>
       </template>
     </a-table>

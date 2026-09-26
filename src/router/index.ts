@@ -64,10 +64,10 @@ const SectionManageView = () => import('../views/portal/SectionManageView.vue')
 const BlockShowcaseView = () => import('../views/portal/BlockShowcaseView.vue')
 const SkeletonLibraryView = () => import('../views/portal/SkeletonLibraryView.vue')
 const AssembleJobView = () => import('../views/portal/AssembleJobView.vue')
-const SiteBuildWorkbenchView = () => import('../views/portal/SiteBuildWorkbenchView.vue')
 const SiteBriefsView = () => import('../views/portal/SiteBriefsView.vue')
 const BriefIntakeView = () => import('../views/portal/BriefIntakeView.vue')
 const BriefDetailView = () => import('../views/portal/BriefDetailView.vue')
+const CandidateGalleryView = () => import('../views/portal/CandidateGalleryView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
@@ -500,17 +500,18 @@ export const routes: RouteRecordRaw[] = [
         }
       },
       {
-        path: 'portal/build',
-        name: 'workspace-portal-build',
-        component: SiteBuildWorkbenchView,
-        // 流水线 0（Spec §6.1）：这一页只报现状 + 给入口，写动作都在它跳去的那几页里。
-        // 改名「建站流水线」并挂到平台段：它和租户那一项「门户上线」（上线自检）都带「站」字，
-        // 以前两条并排在同一个「门户网站」分组里，用户分不清哪个才是自己该点的（Spec §2.1）。
+        path: 'portal/brief/:id/candidates',
+        name: 'workspace-portal-brief-candidates',
+        component: CandidateGalleryView,
+        // 候选画廊（Spec-C §7 新增页）：三套并排比较。它是需求单详情的下钻页，不占一级菜单——
+        // 「不知道哪个入口好」的病灶就是入口太多，这一页的来路只有详情页那一颗按钮。
         meta: {
-          title: '建站流水线',
-          icon: 'rocket',
-          breadcrumb: ['首页', '平台 · 建站交付', '建站流水线'],
-          requiredPermission: 'portal:build:manage'
+          title: '候选画廊',
+          icon: 'grid',
+          hidden: true,
+          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单', '候选画廊'],
+          requiredPermission: 'portal:build:manage',
+          requiresSuperAdmin: true
         }
       },
       {
@@ -547,10 +548,12 @@ export const routes: RouteRecordRaw[] = [
         // 整站组装会替租户烧 token 配额、还会把整站内容重写成草稿，决策 N4 把它只留给平台侧：
         // 租户侧没有这条路。后端 PortalAssembleController 的类级 portal:build:assemble 是唯一的执法者
         // （租户令牌打过来是真 403），这里挂同一个码只是不让用户敲地址进来后对着一屏 403。
+        // Spec-C §7 降级 + §10 N-2：它不再挂「建站交付」段（出方案的主线在需求单详情里），
+        // 留在「质量与效果（平台）」组做**已上线站改版**——需求只留能力，别把功能删掉。
         meta: {
           title: '整站组装',
           icon: 'rocket',
-          breadcrumb: ['首页', '门户网站', '整站组装'],
+          breadcrumb: ['首页', '平台 · 质量与效果', '整站组装'],
           requiredPermission: 'portal:build:assemble'
         }
       },

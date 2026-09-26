@@ -91,10 +91,10 @@ describe('参考站 → 骨架沉淀与审核', () => {
   })
 })
 
-/** Q2 新建的这几个文件：从头到尾只该读接口 */
+/** Q2 新建的这几个文件：从头到尾只该读接口（Spec-C P3：SiteBuildWorkbenchView 已删，扫描面跟着收小） */
 const scanned = import.meta.glob(
   ['../portalSkeletons.ts', '../../portal/blocks/blockDemo.ts', '../../views/portal/BlockShowcaseView.vue',
-    '../../views/portal/SkeletonLibraryView.vue', '../../views/portal/SiteBuildWorkbenchView.vue'],
+    '../../views/portal/SkeletonLibraryView.vue'],
   { eager: true, query: '?raw', import: 'default' }
 ) as Record<string, string>
 
@@ -102,7 +102,7 @@ const raw = Object.values(scanned).join('\n')
 
 describe('I-1：前端不抄第二份清单与词表', () => {
   it('扫到了文件本身（路径写错会让这条用例静默通过）', () => {
-    expect(Object.keys(scanned).length).toBe(5)
+    expect(Object.keys(scanned).length).toBe(4)
   })
 
   it('没有区块 key / 骨架 key 的键值清单', () => {
