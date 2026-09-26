@@ -1,19 +1,13 @@
 import http from './http'
 import type {
-  GeoSeoConfig,
   GeoSeoCompetitor,
   GeoSeoKeywordRank,
   GeoDashboard,
 } from '../types/geoseo'
 
-// ==================== 站点配置 API ====================
-export const geoConfigApi = {
-  get: () => http.get<GeoSeoConfig>('/geoseo/config'),
-  update: (data: GeoSeoConfig) => http.put<GeoSeoConfig>('/geoseo/config', data),
-  previewRobots: () => http.get<string>('/geoseo/config/preview/robots'),
-  previewLlms: () => http.get<string>('/geoseo/config/preview/llms'),
-  previewSitemap: () => http.get<string>('/geoseo/config/preview/sitemap'),
-}
+// 站点级 SEO/GEO 配置的读写口已迁到 /api/portal/site-info（见 api/portalSiteInfo.ts，Spec-C §6.4 P5）；
+// 这里的旧 geoConfigApi（/geoseo/config 整实体 PUT）连同唯一消费者 GeoSeoConfigView 一起删除，
+// 免得留第二条「改 SEO」的写路径——I-6 只要一份真相。这里只剩 GEO 侧与 SEO 无涉的仪表盘族。
 
 // ==================== 竞品追踪 API ====================
 export const geoCompetitorApi = {
@@ -40,7 +34,6 @@ export const geoDashboardApi = {
 }
 
 export default {
-  config: geoConfigApi,
   competitor: geoCompetitorApi,
   keyword: geoKeywordApi,
   dashboard: geoDashboardApi,

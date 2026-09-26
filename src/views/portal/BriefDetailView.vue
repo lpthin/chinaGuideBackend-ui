@@ -20,6 +20,13 @@ import {
   type SiteBrief,
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
+import {
+  hasChosenDecision,
+  siteBriefDeliveryApi,
+  type BriefDecisionView,
+  type PromoteReceipt,
+  type RegenerateReceipt
+} from '@/api/siteBriefDelivery'
 import { siteApi, tenantApi } from '@/api/workspace'
 import { formatDateTime } from '@/utils/format'
 import type { Site } from '@/types'
@@ -40,7 +47,9 @@ import type { Tenant } from '@/types/workspace'
  * 「出方案」四步门禁（拍板 9A，§9-1）：预估 →（看过真能花的报价后）亲手勾确认 → 执行 → 按套看进度。
  * estimate/generate/progress 是 §5 定死的 P3 契约口；后端编排器没上线时这一发拿回什么错误，
  * 页面就把那句错误原样挂出来，绝不在本地演算一份假报价。
- * 「③ 客户预览 / ④ 转正 / ⑤ 交棒」属 P4——这一页没有那三个按钮，只有一句原话说明缺的是哪段。
+ * 「③ 客户答复留痕 / ④ 转正交棒 / 重跑收口」是 P4 的三口（`api/siteBriefDelivery`），
+ * 只按后端真回的东西渲染：转正按钮只认「留痕里有一条真的选了某一套」，客户没选就没有按钮；
+ * 交付地址只认 promote 回执里的 `maintenanceUrl`，回执没拿到时写文案，不摆假链接、不造按钮。
  */
 
 const route = useRoute()
@@ -354,6 +363,108 @@ async function runGenerate() {
   }
 }
 
+// ------------------------------------------------------------------
+// P4：客户答复留痕 → 转正交棒 → 重跑收口（Spec-C §5 后三行；三口都在 api/siteBriefDelivery）
+// ------------------------------------------------------------------
+//
+// 这一段的纪律只有一条：**界面上不声称响应没说过的状态**。
+// - 转正按钮的判据是 `GET /admin/site-briefs/{id}/decisions` 真回了一条 `chosenSiteId` 非空的留痕，
+//   不是「看着像等客户确认」；客户只提意见没选（后端明列的合法形状）时这里就是没有按钮。
+// - 交付地址只从 promote 回执的 `maintenanceUrl` 来；这一页没拿到回执，就写「没有地址可显示」，
+//   不拼一条看起来对的（§3.2 骂旧工作台「交棒是一句提示语不是一个真链接」，反方向同样是错）。
+// - regenerate 只收口（归档 + 撤令牌 + 回到待出方案），后端明说它一分钱不花；花钱的出方案仍在②。
+
+const decisions = ref<BriefDecisionView[]>([])
+const decisionsError = ref('')
+const loadingDecisions = ref(false)
+const promoting = ref(false)
+const promoteReceipt = ref<PromoteReceipt | null>(null)
+const promoteError = ref('')
+const regenerating = ref(false)
+const regenerateReceipt = ref<RegenerateReceipt | null>(null)
+const regenerateError = ref('')
+
+/** 留痕里有没有「客户真的选了某一套」：这是转正按钮唯一的判据 */
+const hasClientChoice = computed(() => hasChosenDecision(decisions.value))
+
+/** 已经交付的单不再显示「转正」：后端对它是幂等回执，但按钮挂在那儿会让人以为还要再点一次 */
+const alreadyPromoted = computed(() => brief.value?.status === 'promoted')
+
+const canPromote = computed(
+  () => !!brief.value && hasClientChoice.value && !alreadyPromoted.value && !promoting.value && !regenerating.value
+)
+
+/** 重跑收口只对「已经有候选要收」的单开放：草稿/待出方案没东西可收，已交付/已作废后端整条拒 */
+const REGENERATABLE_STATUSES = ['generating', 'awaiting_client', 'decided'] as const
+
+const canRegenerate = computed(() => {
+  const status = brief.value?.status
+  return !!status
+    && (REGENERATABLE_STATUSES as readonly string[]).includes(status)
+    && !promoting.value
+    && !regenerating.value
+})
+
+async function loadDecisions() {
+  const id = briefId.value
+  if (id === null) return
+  loadingDecisions.value = true
+  decisionsError.value = ''
+  try {
+    decisions.value = (await siteBriefDeliveryApi.decisions(id)) || []
+  } catch (error) {
+    // 读不到留痕不等于没有留痕：错误原文挂着，转正按钮照旧不出现（宁可少给一个入口）
+    decisions.value = []
+    decisionsError.value = errText(error)
+  } finally {
+    loadingDecisions.value = false
+  }
+}
+
+async function runPromote() {
+  const current = brief.value
+  if (!current || !canPromote.value) return
+  promoting.value = true
+  promoteError.value = ''
+  try {
+    // 不带 siteId：后端默认取「本单最近一条客户选定了的答复」，替客户定是另一件事，这一页不替他定
+    promoteReceipt.value = await siteBriefDeliveryApi.promote(current.id)
+    message.success('已转正：选中的那套转正式站，其余候选归档并撤销预览令牌')
+    await load()
+    await loadDecisions()
+    await loadAux()
+  } catch (error) {
+    // 后端的中文拒绝（租户对不上、不是本单候选、没有选定留痕…）原样挂在格子里
+    promoteReceipt.value = null
+    promoteError.value = errText(error)
+    message.error(promoteError.value)
+  } finally {
+    promoting.value = false
+  }
+}
+
+async function runRegenerate() {
+  const current = brief.value
+  if (!current || !canRegenerate.value) return
+  regenerating.value = true
+  regenerateError.value = ''
+  try {
+    regenerateReceipt.value = await siteBriefDeliveryApi.regenerate(current.id)
+    // 拍板 3A：旧候选从此作废——客户手里的旧链接立刻打不开
+    promoteReceipt.value = null
+    message.success('已收口：旧候选转「已归档」并撤销全部预览令牌，需求单回到待出方案')
+    await load()
+    await loadDecisions()
+    await loadAux()
+  } catch (error) {
+    regenerateReceipt.value = null
+    regenerateError.value = errText(error)
+    message.error(regenerateError.value)
+  } finally {
+    regenerating.value = false
+  }
+}
+
 // 生成中每 8 秒拉一次进度；任一步失败只影响该套，所以这里只刷新、绝不替它「重试推进」
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -378,6 +489,8 @@ onMounted(async () => {
   await Promise.all([load(), loadAux()])
   await loadVocabulary()
   if (brief.value && (brief.value.status === 'generating' || linkedSites.value.length)) await loadProgress()
+  // 留痕只在「单子已经发到客户手上或更往后」才有东西可读：draft/ready 阶段不发这一发
+  if (brief.value && !briefIsEditable(brief.value.status)) await loadDecisions()
   syncPolling()
 })
 
@@ -555,12 +668,94 @@ onUnmounted(stopPolling)
       </a-card>
 
       <a-card size="small" class="brief-detail__panel">
-        <template #title>③ 客户预览 / ④ 转正 / ⑤ 交棒租户：这一段的后端口还没有（P4）</template>
-        <p class="brief-detail__muted">
-          Spec-C 把发预览令牌的手动补发口、客户选择页与「转正/归档」定在 P4（§5 的 preview-links、public brief、promote）。
-          今天那一头还没建，所以这里不摆「点了没反应」的预览/转正按钮，也不摆客户选择页入口；
-          这一页能做的到②为止：出方案与按套看进度。等 P4 落地，这一段会换上真入口。
+        <template #title>③ 客户答复留痕 → ④ 转正交棒（重跑收口在同一格）</template>
+
+        <a-alert v-if="decisionsError" type="error" show-icon class="brief-detail__alert">
+          <template #message>
+            客户答复留痕没读到（{{ decisionsError }}）：读不到就当没有——下面这一格不摆转正按钮，
+            免得点出一个后端拒的错误。刷新重试才有。
+            <a-button size="small" type="link" @click="loadDecisions">重新读留痕</a-button>
+          </template>
+        </a-alert>
+
+        <template v-else-if="decisions.length">
+          <ul class="brief-detail__progress-list">
+            <li v-for="row in decisions" :key="row.id">
+              <b>
+                <template v-if="row.chosenSiteId == null">只提了意见，没选哪一套</template>
+                <template v-else>选定第 {{ row.candidateNo ?? '?' }} 套 · {{ row.chosenSiteName || '站点名没随回执下来' }}（站点 #{{ row.chosenSiteId }}）</template>
+              </b>
+              <span class="brief-detail__muted">
+                · 来源会话 {{ row.sessionId == null ? '（超管代录，没有链接）' : `#${row.sessionId}` }} · {{ formatDateTime(row.createdAt) }}
+              </span>
+              <div v-if="row.clientNote" class="brief-detail__answer">客户原话：{{ row.clientNote }}</div>
+            </li>
+          </ul>
+        </template>
+        <p v-else class="brief-detail__muted">
+          后端回的是空清单：这一单还没有客户答复（选择页一次都没交过，或答复被服务端的静默失败口径丢掉了）。
         </p>
+
+        <a-space wrap class="brief-detail__actions">
+          <!-- 判据是「留痕里真有一条选定了的」，不是状态看着像：客户只提意见时这里就该没有按钮 -->
+          <a-popconfirm
+            v-if="canPromote"
+            title="转正会把选中的那套转成正式站、其余候选转「已归档」并撤销全部预览令牌，客户手里的旧链接当场作废。确认？"
+            ok-text="转正交棒"
+            cancel-text="先不"
+            @confirm="runPromote"
+          >
+            <a-button type="primary" :loading="promoting">转正交棒（按最近一条客户选定的答复）</a-button>
+          </a-popconfirm>
+          <a-popconfirm
+            v-if="canRegenerate"
+            title="重跑收口会把本单候选全部转「已归档」（不删）并撤销全部预览令牌，需求单回到待出方案。这一步不调模型、不花钱。确认？"
+            ok-text="收口重跑"
+            cancel-text="先不"
+            @confirm="runRegenerate"
+          >
+            <a-button :loading="regenerating">收口重跑（旧候选作废，不花钱）</a-button>
+          </a-popconfirm>
+          <a-button :loading="loadingDecisions" @click="loadDecisions">刷新留痕</a-button>
+        </a-space>
+
+        <p v-if="!canPromote && !canRegenerate" class="brief-detail__muted">
+          这一格今天没有可点的动作：转正要等客户答复留痕里有一条真的选了某一套；
+          收口重跑要等这一单确实已经出过方案（还在草稿/待出方案的单子上没有候选要收，
+          已交付与已作废那两态后端会整条拒）。这里不摆「点了只会拿回一句拒绝」的按钮。
+        </p>
+        <p v-if="promoteError" class="brief-detail__locked">转正被后端拒了（原话）：{{ promoteError }}</p>
+        <p v-if="regenerateError" class="brief-detail__locked">收口被后端拒了（原话）：{{ regenerateError }}</p>
+
+        <!-- 交付回执：只渲染 promote 响应里真有的那几格（§6.3 R-1 到这一刻才兑现） -->
+        <template v-if="promoteReceipt">
+          <a-alert type="success" show-icon class="brief-detail__alert">
+            <template #message>
+              已交付：{{ promoteReceipt.siteName }}（站点 #{{ promoteReceipt.siteId }}）· 需求单状态
+              {{ promoteReceipt.briefStatusLabel || promoteReceipt.briefStatus }}
+              · 租户 {{ promoteReceipt.tenantName || '（回执里没带租户名）' }}
+            </template>
+          </a-alert>
+          <p class="brief-detail__line">
+            <b>租户维护地址（可复制，⑤ 交棒就是这一条真链接）：</b>
+            <span class="brief-detail__summary-inline">{{ promoteReceipt.maintenanceUrl }}</span>
+          </p>
+          <p v-if="promoteReceipt.maintenanceUrlRelative" class="brief-detail__locked">
+            这条是站内相对路径：后端说管理后台根地址（app.portal.delivery.admin-base-url）没配。
+            发给租户前请自己补上域名——这一页不猜域名，猜错一次就是把租户领到别人的后台。
+          </p>
+          <p class="brief-detail__muted">{{ promoteReceipt.archivedNotice }}</p>
+          <p class="brief-detail__muted">
+            归档的候选：{{ promoteReceipt.archivedSiteIds.length ? promoteReceipt.archivedSiteIds.join('、') : '没有' }}
+            · 撤销预览令牌 {{ promoteReceipt.revokedTokenCount }} 条
+          </p>
+        </template>
+        <p v-else-if="alreadyPromoted" class="brief-detail__muted">
+          这一单已是「{{ statusText }}」。交付回执（含租户维护地址那一条真链接）只在转正那一步的响应里给过，
+          页面重新读需求单读不到它（§5 的 GET 口没有那个字段）——所以这里没有地址可显示，
+          也不摆一条我拼出来的假链接：要重取请按后端说的用幂等口再点一次转正（第二次只回同一张回执、一行都不动）。
+        </p>
+        <p v-if="regenerateReceipt" class="brief-detail__muted">{{ regenerateReceipt.nextStepNotice }}</p>
       </a-card>
 
       <a-card size="small" class="brief-detail__panel">
@@ -660,6 +855,18 @@ onUnmounted(stopPolling)
   background: #f6ffed;
   border: 1px solid #b7eb8f;
   border-radius: 6px;
+}
+.brief-detail__line {
+  margin: 6px 0;
+  word-break: break-word;
+}
+.brief-detail__summary-inline {
+  padding: 2px 6px;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+  font-family: monospace;
+  overflow-wrap: anywhere;
 }
 .brief-detail__answer {
   word-break: break-word;

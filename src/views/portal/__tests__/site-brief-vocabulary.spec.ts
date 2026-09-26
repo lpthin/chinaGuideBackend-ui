@@ -156,17 +156,18 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     expect(detail).not.toMatch(/summaryPreview\(/)
   })
 
-  it('详情页门禁只到②为止：P4 的按钮一个不摆，§9-1 那句原话经常量引用；站点页状态控件口径不变', () => {
+  it('详情页四口全经适配层：P3 门禁三口 + P4 三口，预览地址与端点字符串一个都不自己拼', () => {
     const detail = textOf('BriefDetailView.vue')
-    // ②的门禁三口今天按 §5 契约接上（真实调用点）——原用例禁的是「P2 时还没有口」，
-    // P3 口有了，禁的对象挪到 P4：promote/regenerate/preview-links 仍一个都不许出现
+    // ②的门禁三口按 §5 契约接上（真实调用点）；P4 落地后禁的对象从「不许调用」挪成
+    // 「不许绕过适配层」：页面里出现端点字符串或自己拼 token，就等于第二份端点口径（I-1）
     expect(detail).toMatch(/briefGenerationApi\.estimate\(/)
     expect(detail).toMatch(/briefGenerationApi\.generate\(/)
     expect(detail).toMatch(/briefGenerationApi\.progress\(/)
-    expect(detail).not.toMatch(/\.(promote|regenerate|previewLinks|run)\s*\(/)
+    expect(detail).toMatch(/siteBriefDeliveryApi\.(decisions|promote|regenerate)\(/)
+    expect(detail).not.toMatch(/\/admin\/site-briefs\/\$\{[^}]*\}\/(promote|regenerate|decisions)/)
+    expect(detail).not.toMatch(/token=|public\/brief/)
     expect(detail).not.toMatch(/一键/)
-    // 「不谎报到哪一步」的两句：P4 原话 + 估算免责只许引用适配层常量（本地再抄一句就是第二份说法）
-    expect(detail).toMatch(/后端口还没有（P4/)
+    // 「不谎报到哪一步」：估算免责那句原话只许引用适配层常量（本地再抄一句就是第二份说法）
     expect(detail).toMatch(/ESTIMATE_UNDERESTIMATE_DISCLAIMER/)
     const sites = textOf('SitesView.vue')
     // 站点管理不给候选/归档摆 status 下拉：那两态归流水线，写了就是会写坏数据的控件

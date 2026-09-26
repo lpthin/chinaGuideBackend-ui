@@ -99,6 +99,28 @@ describe('菜单从路由单源生成', () => {
     expect(labels).not.toContain('栏目管理')
     expect(labels).not.toContain('建站工作台')
   })
+
+  it('P5 合并：旧的两处 SEO/GEO 页面路由绝迹，「网站信息」取代它们且成租户可见入口', () => {
+    // §7 那张表：GeoSeoConfigView + GeoSeoCompanyView 并入「网站信息」，企业信息只剩 portal/company 一处。
+    // 断言的是「同一件事不再有两个入口」这条行为，不是旧的菜单字符串（拍板 13：改断言不删断言）。
+    const workspace = routes.find(route => route.name === 'workspace')
+    const childNames = (workspace?.children ?? []).map(child => child.name)
+    expect(childNames).not.toContain('workspace-geoseo-config')
+    expect(childNames).not.toContain('workspace-geoseo-company')
+    // 替代它的那一页在，且落在「网站信息」组、租户读得到（portal:siteinfo:manage 在租户码名单里）
+    const siteInfo = grouped.find(leaf => leaf.routeName === 'workspace-portal-site-info')
+    expect(siteInfo, '「网站信息」没进菜单，做完的页面没人进得去').toBeTruthy()
+    expect(siteInfo?.group).toBe('site-info')
+    expect(siteInfo?.permission).toBe('portal:siteinfo:manage')
+    expect(leafVisible(siteInfo!, TENANT)).toBe(true)
+    // 「企业信息」这一个词在菜单里只指 portal/company 一处，geoseo 那份重名异物已经没了
+    const companyLeaves = grouped.filter(leaf => leaf.label === '企业信息')
+    expect(companyLeaves.length).toBe(1)
+    expect(companyLeaves[0].routeName).toBe('workspace-portal-company')
+    // geoseo 的两条「假数据」路由仍在（竞品/关键词，改存量用），只是不进菜单
+    expect(MENU_EXCLUDED['workspace-geoseo-competitors']).toBeTruthy()
+    expect(MENU_EXCLUDED['workspace-geoseo-keywords']).toBeTruthy()
+  })
 })
 
 describe('平台段与租户段分家', () => {

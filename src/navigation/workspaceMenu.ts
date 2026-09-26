@@ -130,9 +130,9 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-portal-jobs': 'site-content',
   'workspace-portal-guestbook': 'site-content',
   'workspace-portal-messages': 'site-content',
-  // 网站信息（租户可审 AI 填的内容；这两页今天仍带着要重做的形态，见 Spec §7）
+  // 网站信息（租户审改 AI 填的内容）：企业信息一处、站点级 SEO/GEO 与 robots 一处（P5 合并后）
   'workspace-portal-company': 'site-info',
-  'workspace-geoseo-config': 'site-info',
+  'workspace-portal-site-info': 'site-info',
   // 效果与引用
   'workspace-portal-analytics': 'site-effect',
   'workspace-portal-citations': 'site-effect',
@@ -195,9 +195,9 @@ export const MENU_EXCLUDED: Record<string, string> = {
   'workspace-dashboard': '它是面包屑的「首页」与登录落点，固定在菜单最上方单独渲染，不分组',
   'workspace-portal-support': '租户的「联系平台」：与内容/建站两域都不属于，固定在菜单最下方单独渲染',
   'workspace-user-profile': '从右上角头像进，不占侧边栏',
-  // 这三条是「假功能」下线：菜单里挂着就等于承诺看得到数（Spec-A §13.4 的「下线并注明」）。
-  // geoseo/company 另有原因：它与 portal/company 是重名异物，等「网站信息」那一页合完再删视图（P5）。
-  'workspace-geoseo-company': '与「网站内容维护 > 企业信息」重名异物，P5 并入「网站信息」后随视图一起删除',
+  // 这两条是「假功能」下线：菜单里挂着就等于承诺看得到数（Spec-A §13.4 的「下线并注明」）。
+  // geoseo/company 不再列在这里——它与 geoseo/config 已在 P5 随「网站信息」合并一起删了路由与视图，
+  // 排除表里留一条指向不存在路由的记录，本身就是第二份假真相。
   'workspace-geoseo-competitors': '排名与竞品数字全是人工抄录，不进菜单（路由留着改存量）',
   'workspace-geoseo-keywords': '同上：没有真数据源就不摆一个看着能用的入口'
 }

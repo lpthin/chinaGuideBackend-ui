@@ -352,11 +352,14 @@ describe('进度按套显示（§6.2：任一步失败只影响该套）', () =>
 })
 
 describe('P4 的诚实边界与每一步的真去处', () => {
-  it('③④⑤ 那一段只有原话没有按钮：转正/预览发送/客户选择页都不摆', async () => {
+  it('③④ 的闸是「留痕里真有一条选定」：留痕为空时只有原话，不摆点了只会拿回拒绝的按钮', async () => {
+    // P4 之前这一格连后端口都没有（断言的是「这一段的后端口还没有（P4」）。
+    // 现在三口有了，要守的行为没变、只是挪了位置：没有客户真选过的留痕，就不许出现转正/重跑按钮，
+    // 页面必须说清「今天为什么没有可点的动作」——界面不许谎报到哪一步。
     const wrapper = await mountView()
-    expect(wrapper.text()).toContain('这一段的后端口还没有（P4')
+    expect(wrapper.text()).toContain('这一格今天没有可点的动作')
     const labels = [...document.querySelectorAll('button')].map(node => (node.textContent || '').replace(/\s+/g, ''))
-    expect(labels.filter(label => /转正|发给客户|选择页/.test(label))).toEqual([])
+    expect(labels.filter(label => /转正交棒|收口重跑|发给客户|选择页/.test(label))).toEqual([])
     wrapper.unmount()
   })
 

@@ -20,6 +20,12 @@ const createRoute = (path: string, component: LazyComponent, name?: string) => (
 // 🔐 登录页面
 const LoginView = () => import('../views/LoginView.vue')
 
+// 🔓 客户选择页（Spec-C §7 新增页 / §5 的公开两口）：免鉴权、令牌即准入（拍板 10），
+// 与登录页同属「管理端外壳之外」的那一小撮路由。刻意不挂进 /workspace 的 children：
+// 侧边菜单是从那组 children 单源生成的（navigation/workspaceMenu.ts 的 collectMenuLeaves），
+// 挂进去就等于往租户/超管导航里塞一个客户页入口 —— 路由那份用例钉着这一条。
+const ClientDecisionView = () => import('../views/portal/ClientDecisionView.vue')
+
 // 📚 知识库模块
 const KnowledgeDashboardView = () => import('../views/knowledge/KnowledgeDashboardView.vue')
 const KnowledgeDocumentView = () => import('../views/knowledge/KnowledgeDocumentView.vue')
@@ -59,6 +65,7 @@ const JobManageView = () => import('../views/portal/JobManageView.vue')
 const MessageManageView = () => import('../views/portal/MessageManageView.vue')
 const GuestbookManageView = () => import('../views/portal/GuestbookManageView.vue')
 const CompanyInfoView = () => import('../views/portal/CompanyInfoView.vue')
+const PortalSiteInfoView = () => import('../views/portal/PortalSiteInfoView.vue')
 const PortalContentWorkbenchView = () => import('../views/portal/PortalContentWorkbenchView.vue')
 const SectionManageView = () => import('../views/portal/SectionManageView.vue')
 const BlockShowcaseView = () => import('../views/portal/BlockShowcaseView.vue')
@@ -80,9 +87,9 @@ const PortalLaunchView = () => import('../views/onboarding/PortalLaunchView.vue'
 const SupportTicketView = () => import('../views/portal/SupportTicketView.vue')
 
 // 🔍 SEO & GEO 模块
+// Spec-C §7 P5：站点级 SEO/GEO 那两页（GeoSeoConfigView、GeoSeoCompanyView）已并入「网站信息」
+// （portal/site-info，租户可读可写），这两个视图与其路由一起删除；企业信息只剩 portal/company 一处。
 const GeoSeoDashboardView = () => import('../views/geoseo/GeoSeoDashboardView.vue')
-const GeoSeoConfigView = () => import('../views/geoseo/GeoSeoConfigView.vue')
-const GeoSeoCompanyView = () => import('../views/geoseo/GeoSeoCompanyView.vue')
 const GeoSeoCompetitorView = () => import('../views/geoseo/GeoSeoCompetitorView.vue')
 const GeoSeoKeywordView = () => import('../views/geoseo/GeoSeoKeywordView.vue')
 
@@ -209,6 +216,14 @@ export const routes: RouteRecordRaw[] = [
     name: 'login',
     component: LoginView,
     meta: { title: '登录', requiresAuth: false }
+  },
+  // 客户选择页：令牌就在地址里（拍板 10「打开链接即可看，零身份表单」），没有任何登录/权限要求。
+  // 数据来自 Spec-C §5 的两行公开端点 `/api/portal/public/brief/{token}`（一读一写）。
+  {
+    path: '/brief/:token',
+    name: 'portal-client-decision',
+    component: ClientDecisionView,
+    meta: { title: '建站方案确认', requiresAuth: false }
   },
   {
     path: '/workspace',
@@ -605,6 +620,21 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', '网站信息', '企业信息'], requiredPermission: 'portal:siteinfo:manage', contentEntry: 'company' }
       },
       {
+        path: 'portal/site-info',
+        name: 'workspace-portal-site-info',
+        component: PortalSiteInfoView,
+        // 租户侧「网站信息」（Spec-C §6.4 / §7：GeoSeoConfigView+GeoSeoCompanyView 并入这一页）。
+        // 站点级 SEO/GEO 与 robots 形态一屏可见，每项带来源角标（AI 生成 / 人工修改 / 未记录）：
+        // 读口与写口都只有一处（/api/portal/site-info），robots 真相是爬虫勾选、文本由后端推导，
+        // 界面上不再摆一份 textarea 让人「从零填」。权限码与邻页同一条（菜单/守卫/后端一个码）。
+        meta: {
+          title: '网站信息',
+          icon: 'building',
+          breadcrumb: ['首页', '网站信息', '网站信息'],
+          requiredPermission: 'portal:siteinfo:manage'
+        }
+      },
+      {
         path: 'portal/pages',
         name: 'workspace-portal-pages',
         component: PageBuilderView,
@@ -717,18 +747,9 @@ export const routes: RouteRecordRaw[] = [
         component: GeoSeoDashboardView,
         meta: { title: '总览仪表盘', icon: 'dashboard', breadcrumb: ['首页', 'SEO & GEO', '总览仪表盘'] }
       },
-      {
-        path: 'geoseo/config',
-        name: 'workspace-geoseo-config',
-        component: GeoSeoConfigView,
-        meta: { title: '站点配置', icon: 'setting', breadcrumb: ['首页', 'SEO & GEO', '站点配置'] }
-      },
-      {
-        path: 'geoseo/company',
-        name: 'workspace-geoseo-company',
-        component: GeoSeoCompanyView,
-        meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', 'SEO & GEO', '企业信息'] }
-      },
+      // 原 geoseo/config（站点配置）与 geoseo/company（重名的第二处企业信息）已随 P5 并入
+      // 「网站信息」（portal/site-info）并删除路由与视图：站点级 SEO/GEO 从此只有一处入口、
+      // 一份真相（I-6），企业信息只剩 portal/company 一处（§7 那张「删三份重复」的表）。
       // 这两条按 N10 从菜单里摘了，路由留着：排名与竞品数字全是人工抄录，
       // 挂在菜单上等于我们承诺「能看到排名」。存量记录仍要有人能进来改（Spec §13.4「下线并注明」）。
       {

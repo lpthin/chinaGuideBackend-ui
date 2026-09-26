@@ -24,6 +24,12 @@ function hitsOf(pattern: RegExp): string[] {
   return files.filter(([, source]) => pattern.test(source)).map(([path]) => path)
 }
 
+/** 路由表源码里有没有这一条具名路由——P5 合并后用来钉「旧的两条 SEO 页面路由确实绝迹」 */
+const routerSource = String(files.find(([path]) => path.endsWith('router/index.ts'))?.[1] ?? '')
+function routerHasRouteNamed(name: string): boolean {
+  return routerSource.includes(`name: '${name}'`)
+}
+
 describe('I-6：界面上没有任何一处还在读那三处旧 SEO 来源', () => {
   it('扫到了源码本身（glob 写错会让这条用例静默通过）', () => {
     expect(files.length).toBeGreaterThan(150)
@@ -70,12 +76,21 @@ describe('I-6：界面上没有任何一处还在读那三处旧 SEO 来源', ()
     expect(routerSource).toMatch(/name: 'workspace-portal-pages'[\s\S]{0,200}title: '页面搭建'/)
   })
 
-  it('站点配置里留下的确实是库里真有对应列的那几项', () => {
-    // robots.txt / llms.txt 模板与站点级摘要有 geoseo_config 的列，也有读者；默认 meta 标签那一屏没有
-    const config = String(files.find(([path]) => path.endsWith('GeoSeoConfigView.vue'))?.[1] ?? '')
-    expect(config).toMatch(/robotsTxt/)
-    expect(config).toMatch(/llmsSummary/)
-    expect(config).toMatch(/geoCitationSummary/)
+  it('站点级 SEO/GEO 那几项只有一处入口，且留下的确实是库里真有对应列的项', () => {
+    // P5 合并后：GeoSeoConfigView/GeoSeoCompanyView 已删路由与视图，读写只剩 /api/portal/site-info 一处。
+    // 「留下的确实是库里真有对应列」这条行为没变——变的是它现在由 site-info 适配层兑现，不是那个已删除的旧视图。
+    const siteInfoApi = String(files.find(([path]) => path.endsWith('api/portalSiteInfo.ts'))?.[1] ?? '')
+    expect(siteInfoApi, '网站信息适配层没扫到（P5 合并的读口跑丢了）').not.toBe('')
+    for (const column of ['robots', 'llms_summary', 'geo_citation_summary', 'llms_txt_template']) {
+      expect(siteInfoApi, `site-info 少了库里真有的那一列 ${column}`).toContain(column)
+    }
+    // 旧的整实体写口与那两页视图彻底绝迹：菜单/路由里再没有第二个「站点配置 / geoseo 企业信息」
+    expect(files.some(([path]) => path.endsWith('GeoSeoConfigView.vue')), 'GeoSeoConfigView 视图应已随合并删除').toBe(false)
+    expect(files.some(([path]) => path.endsWith('GeoSeoCompanyView.vue')), 'GeoSeoCompanyView 视图应已随合并删除').toBe(false)
+    expect(routerHasRouteNamed('workspace-geoseo-config')).toBe(false)
+    expect(routerHasRouteNamed('workspace-geoseo-company')).toBe(false)
+    expect(routerHasRouteNamed('workspace-portal-site-info')).toBe(true)
+    // 「全站默认」那一屏仍然是假的，一句都不许复现
     expect(raw).not.toMatch(/默认Meta标签/)
   })
 })
