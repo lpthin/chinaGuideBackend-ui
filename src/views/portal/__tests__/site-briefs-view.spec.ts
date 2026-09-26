@@ -13,7 +13,9 @@ import { tenantApi } from '../../../api/workspace'
  *    租户名去租户列表查，演示档位中文只取词表 demoContentModes.label；
  * 2. 词表取不到只影响档位/状态那两格：露码或「状态未知」，不自己编一套中文；
  * 3. 过滤参数与列表接口一一对应（切租户立刻重拉，状态要按回车才带过去）；
- * 4. 空态那句话只承诺今天真存在的一步（录前采），不摆 P3/P4 的死按钮。
+ * 4. 空态那句话只承诺今天真存在的一步（录前采），不摆 P3/P4 的死按钮；
+ * 5. 一行有两个去处（详情 / 录入），而「绑定站点」这一格只有字没有控件——
+ *    这一页写不了 siteId（回填在流水线里），摆了下拉就是骗人。
  *
  * 真 a-table 在这环境里渲不出表体（内部还要 Spin 与测量那一层），换成按
  * columns × dataSource 逐格走 bodyCell 插槽的壳——格子里的判断仍是视图自己的代码。
@@ -33,10 +35,20 @@ vi.mock('ant-design-vue', async () => {
   }
 })
 
-vi.mock('../../../api/siteBriefs', () => ({
-  siteBriefsApi: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), summaryPreview: vi.fn() },
-  vocabularyApi: { adminVocabulary: vi.fn(), portalVocabulary: vi.fn() }
+// 列表页现在直接用适配层的纯函数（briefStatusLabel 那一类）：这里只替换 http 与两个 api 对象，
+// 纯函数走真实实现——把「状态中文只来自词表」那条判断在测试里再抄一遍，测的就不是视图了。
+vi.mock('../../../api/http', () => ({
+  default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() }
 }))
+
+vi.mock('../../../api/siteBriefs', async importOriginal => {
+  const actual = await importOriginal<Record<string, any>>()
+  return {
+    ...actual,
+    siteBriefsApi: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), summaryPreview: vi.fn() },
+    vocabularyApi: { adminVocabulary: vi.fn(), portalVocabulary: vi.fn() }
+  }
+})
 
 vi.mock('../../../api/workspace', () => ({
   tenantApi: { list: vi.fn() }
@@ -221,6 +233,34 @@ describe('过滤与错误各说各的', () => {
     expect(wrapper.text()).not.toContain('draft')
     expect(vi.mocked(message.error).mock.calls.flat().join()).toContain('这个账号没有看需求单的资格')
     wrapper.unmount()
+  })
+})
+
+describe('详情入口与绑定站点那一格', () => {
+  it('一行有两个去处：单号与「详情」都进详情页，「录入/编辑」仍进表单', async () => {
+    const wrapper = await mountView({ briefs: [brief()] })
+    click(byText('详情')[0])
+    expect(pushSpy).toHaveBeenLastCalledWith({ name: 'workspace-portal-brief-detail', params: { id: '5' } })
+    // 单号本身就是入口：不用为了看这单走到哪了先扑进表单
+    click(byText('#5')[0])
+    expect(pushSpy).toHaveBeenLastCalledWith({ name: 'workspace-portal-brief-detail', params: { id: '5' } })
+    click(byText('录入/编辑')[0])
+    expect(pushSpy).toHaveBeenLastCalledWith({ name: 'workspace-portal-brief-intake', params: { id: '5' } })
+    wrapper.unmount()
+  })
+
+  it('绑定站点那一格只有字没有控件：回填前写「还没有站点」，回填后写站号', async () => {
+    const none = await mountView({ briefs: [brief()] })
+    expect(none.text()).toContain('还没有站点（后链路回填）')
+    none.unmount()
+
+    document.body.innerHTML = ''
+    const bound = await mountView({ briefs: [brief({ siteId: 31 })] })
+    expect(bound.text()).toContain('站点 #31')
+    // 这一页没有任何写 siteId 的能力：给了下拉/输入框就是摆了个不生效的控件
+    expect(bound.findAllComponents(Select)).toHaveLength(1) // 只剩租户过滤那一个
+    expect(bound.findAllComponents(Input)).toHaveLength(1) // 只剩状态过滤那一个
+    expect(bound.text()).not.toContain('选择站点')
   })
 })
 

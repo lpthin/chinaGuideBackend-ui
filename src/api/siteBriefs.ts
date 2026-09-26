@@ -205,6 +205,11 @@ function snakeToCamel(key: string): string {
  */
 export const INTAKE_STATIC_KEYS = ['reference_urls', 'notes'] as const;
 
+/** 这道题是不是「走元信息、不进勾选袋」的那两块（参考站 / 补充说明） */
+export function isIntakeStaticKey(key: string): boolean {
+  return (INTAKE_STATIC_KEYS as readonly string[]).includes(key);
+}
+
 export function intakeLoopQuestions(
   vocabulary: SiteBriefVocabulary | null
 ): BriefVocabularyQuestion[] {
@@ -259,8 +264,163 @@ export function buildBriefForm(
 }
 
 /**
- * 后端读出的需求单（平铺字段）回填成录入页的勾选袋（按 `q.key`）。与 buildBriefForm 互逆，
- * 题目 key 的三处结构差异在这里同样消化。
+ * 后端 `SiteBriefVocabulary.EDITABLE_STATUSES` 的前端镜像：draft / ready 之外这份单子已经
+ * 「不属于录单人了」（在跑的、发给客户的、客户选完的、交付完的），PUT 必然被中文拒。
+ *
+ * <p>这里只放**状态码**（ASCII，落库值），不放锁单理由那句话——理由只有后端知道
+ * （`statusLockReason`），词表响应今天也没下发它，前端复述一句就是编第二份说法。
+ * 界面据此决定「给不给编辑入口」，真正的闸仍然在服务端。</p>
+ */
+export const EDITABLE_BRIEF_STATUSES = ['draft', 'ready'] as const;
+
+export function briefIsEditable(status: string | null | undefined): boolean {
+  return !!status && (EDITABLE_BRIEF_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * 需求单状态的中文：词表有这一码就用，没有就**把原码原样露出来**。
+ * 录入页头部那一格用它（那里宁可露码也不要多一句「状态未知」）。
+ */
+export function briefStatusLabelOrCode(
+  vocabulary: SiteBriefVocabulary | null,
+  code: string | null | undefined
+): string {
+  if (!code) return '';
+  return vocabulary?.statusLabels?.[code] || code;
+}
+
+/**
+ * 需求单状态的中文：优先级 后端带回的 statusLabel > 词表 statusLabels > 「状态未知（原码 x）」。
+ * 取不到绝不自己编一份 draft→草稿 的映射（I-1），但一定把原码露出来给人看。
+ */
+export function briefStatusLabel(
+  vocabulary: SiteBriefVocabulary | null,
+  code: string | null | undefined,
+  fromServer?: string | null
+): string {
+  if (fromServer) return fromServer;
+  if (!code) return '状态未知（原码 ?）';
+  const label = vocabulary?.statusLabels?.[code];
+  return label || `状态未知（原码 ${code}）`;
+}
+
+/**
+ * 把需求单上的一个选项码换成词表里的中文。级联码命中子项时把父级一起带出来
+ * （父子两级用「 / 」连），词表里查不到的码原样透出——单子可能是改词表之前录的，
+ * 宁可露码也不编一个中文给人（这里出现任何选项中文就等于抄了第二份词表）。
+ */
+export function briefOptionLabel(
+  question: BriefVocabularyQuestion,
+  code: string
+): { text: string; known: boolean } {
+  const direct = (question.options ?? []).find(option => option.code === code);
+  if (direct) return { text: direct.label, known: true };
+  for (const option of question.options ?? []) {
+    const child = (option.children ?? []).find(item => item.code === code);
+    if (child) return { text: `${option.label} / ${child.label}`, known: true };
+  }
+  return { text: code, known: false };
+}
+
+/**
+ * 只翻这一码自己的名（命中子项也不带父级）：级联答案两级都在 codes 里时用这个，
+ * 免得父名出现两遍。查不到照原码透出。
+ */
+function bareOptionLabel(
+  question: BriefVocabularyQuestion,
+  code: string
+): { text: string; known: boolean } {
+  const top = (question.options ?? []).find(option => option.code === code);
+  if (top) return { text: top.label, known: true };
+  for (const option of question.options ?? []) {
+    const child = (option.children ?? []).find(item => item.code === code);
+    if (child) return { text: child.label, known: true };
+  }
+  return { text: code, known: false };
+}
+
+/** 详情读回的一行：题目名 + 人话答案（答案里的码一律经词表换成中文） */
+export interface BriefAnswerRow {
+  key: string;
+  label: string;
+  evidence: string;
+  required: boolean;
+  /** 已经翻成人话的答案；没答就是空串，由界面决定写「没勾」还是「没填」 */
+  value: string;
+  /** 这一行的答案里有词表查不到的码（界面据此原话标注，不藏着） */
+  unknown: boolean;
+}
+
+/**
+ * 需求单详情「按词表读回 13 题」的唯一实现点。
+ *
+ * <p>为什么在适配层而不是视图里：答案与字段的对应关系（级联拆两级、语言取数组第一个、
+ * 参考站/补充说明走元信息）只有这里认得题目 key，视图拿到的就是「题名 + 人话」，
+ * 模板里一个题目 key、一个选项中文都不出现（`site-brief-vocabulary.spec.ts` 扫源码）。</p>
+ */
+export function briefAnswerRows(
+  vocabulary: SiteBriefVocabulary | null,
+  brief: SiteBrief
+): BriefAnswerRow[] {
+  return (vocabulary?.questions ?? []).map(question => {
+    const row: BriefAnswerRow = {
+      key: question.key,
+      label: question.label,
+      evidence: question.evidence || '',
+      required: question.required === true,
+      value: '',
+      unknown: false
+    };
+    if (isIntakeStaticKey(question.key)) {
+      // 参考站与补充说明是元信息字段，不进勾选袋（形状上仍是词表里的那两道题）
+      const urls = question.key === INTAKE_STATIC_KEYS[0] ? brief.referenceUrls ?? [] : [];
+      row.value = urls.length ? urls.join('、') : String(brief.notes ?? '');
+      return row;
+    }
+    if (question.select === 'text') {
+      row.value = String(readBriefSelections([question], brief)[question.key] ?? '');
+      return row;
+    }
+    const picked = readBriefSelections([question], brief)[question.key];
+    const codes = Array.isArray(picked) ? picked : picked ? [String(picked)] : [];
+    if (question.select === 'cascade' && codes.length > 1) {
+      // 级联库里存的就是「父码 + 子码」两级：每级各翻各的名再用「 / 」连，
+      // 走 briefOptionLabel 会把子码再带一次父名（大类 / 大类 / 子类），那是重复不是人话
+      const parts = codes.map(code => {
+        const bare = bareOptionLabel(question, code);
+        if (!bare.known) row.unknown = true;
+        return bare.text;
+      });
+      row.value = parts.join(' / ');
+      return row;
+    }
+    const parts = codes.map(code => {
+      const resolved = briefOptionLabel(question, code);
+      if (!resolved.known) row.unknown = true;
+      return resolved.text;
+    });
+    // 多选题用「、」连（并列的几条）；单选只有一条
+    row.value = parts.join('、');
+    return row;
+  });
+}
+
+/**
+ * 演示内容档位的中文（含拍板 7 那句「几篇文章几条案例」的数量口径）：
+ * 只取词表 `demoContentModes`，查不到就露码 + 一句原话。
+ */
+export function briefDemoModeText(
+  vocabulary: SiteBriefVocabulary | null,
+  mode: string | null | undefined
+): string {
+  if (!mode) return '没填（保存时由后端按系统默认档落）';
+  const found = (vocabulary?.demoContentModes ?? []).find(entry => entry.value === mode);
+  return found ? `${found.label}（文章 ${found.articleCount} 篇 / 案例 ${found.caseCount} 条）` : mode;
+}
+
+/**
+ * 后端读出的需求单（平铺字段）回填成录入页的勾选袋（按 `q.key`），也是详情读回答案的取值口径。
+ * 与 buildBriefForm 互逆，题目 key 的三处结构差异在这里同样消化。
  */
 export function readBriefSelections(
   questions: BriefVocabularyQuestion[],
@@ -280,4 +440,51 @@ export function readBriefSelections(
     }
   });
   return out;
+}
+
+// ------------------------------------------------------------------
+// 站点状态（V115 钉进列注释的那四码）——与需求单状态是两件事，别混用
+// ------------------------------------------------------------------
+
+/**
+ * `site.status` 的界面说法：`enabled` 正式 / `candidate` 候选（还没被客户选中）/
+ * `archived` 客户没选中的旧候选（保留备查）/ `disabled` 手工停用。
+ *
+ * <p><b>为什么这一份说法长在前端</b>：词表响应今天只有需求单的 `statusLabels`
+ * （draft/ready/…），没有站点状态那一份；`GET /api/admin/sites` 回的又是裸实体。
+ * 已把它记成 P3 要后端补的字段（`vocabulary.siteStatusLabels`）。在那之前这里就是唯一一处，
+ * 并且<b>认不出的码一律原码透出</b>——后端将来加第五个状态时这一处不会把它翻成别的字。</p>
+ */
+const SITE_STATUS_LABELS: Record<string, string> = {
+  enabled: '正式站',
+  active: '正式站',
+  candidate: '候选站',
+  archived: '已归档候选',
+  disabled: '已停用'
+};
+
+const SITE_STATUS_COLORS: Record<string, string> = {
+  enabled: 'green',
+  active: 'green',
+  candidate: 'purple',
+  archived: 'default',
+  disabled: 'orange'
+};
+
+export function siteStatusText(status: string | null | undefined): string {
+  if (!status) return '没有状态';
+  return SITE_STATUS_LABELS[status] || `未识别状态（原码 ${status}）`;
+}
+
+export function siteStatusColor(status: string | null | undefined): string {
+  return SITE_STATUS_COLORS[status || ''] || 'default';
+}
+
+/** 归档/候选这两种「不是正式站」的状态要在列表里被一眼认出来，也要被单独筛出来 */
+export function isCandidateSite(site: { status?: string | null }): boolean {
+  return site.status === 'candidate';
+}
+
+export function isArchivedSite(site: { status?: string | null }): boolean {
+  return site.status === 'archived';
 }

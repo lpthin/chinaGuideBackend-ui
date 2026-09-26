@@ -97,6 +97,10 @@
               <a-button type="link" size="small" @click="editTenant(record)">
                 编辑
               </a-button>
+              <!-- 交棒出口：带着这一家的租户号去前采录入页（租户由地址预填，不用到那边再挑） -->
+              <a-button type="link" size="small" @click="goIntake(record.id)">
+                去录前采
+              </a-button>
               <a-popconfirm
                 title="确定要删除该租户吗？"
                 ok-text="确定"
@@ -199,6 +203,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, h } from 'vue'
+import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import {
   ApartmentOutlined,
@@ -225,6 +230,7 @@ interface Tenant {
 }
 
 const loading = ref(false)
+const router = useRouter()
 const searchText = ref('')
 const statusFilter = ref('all')
 const modalVisible = ref(false)
@@ -262,7 +268,7 @@ const columns = [
     width: 180,
     customRender: ({ text }: { text: string }) => formatDateTime(text)
   },
-  { title: '操作', key: 'action', width: 180, fixed: 'right' }
+  { title: '操作', key: 'action', width: 250, fixed: 'right' }
 ]
 
 const tenantList = ref<Tenant[]>([])
@@ -401,6 +407,14 @@ const showProvisionResult = (created: ProvisionedTenant) => {
       h('p', {}, '管理员登录账号：'),
       h('p', { style: 'font-weight:600;font-family:monospace' }, created.adminUsername),
       h('p', { style: 'color:#888' }, '初始密码即上面填写的密码，请交付客户后提醒其尽快修改。'),
+      h('p', { style: 'color:#888' }, '租户侧没有「申请建站」这一说（分配即建站）：要给它建门户，下一步是平台录一份前采需求单。'),
+      h('a', {
+        style: 'font-weight:600',
+        onClick: () => {
+          Modal.destroyAll()
+          goIntake(created.id)
+        }
+      }, '现在就去录这一家的前采需求单'),
     ]),
   })
 }
@@ -453,6 +467,16 @@ const deleteTenant = async (id: number) => {
 const viewDetail = (record: Tenant) => {
   currentTenant.value = record
   detailVisible.value = true
+}
+
+/**
+ * 交棒出口（Spec-C §7「租户管理」那一行）：建完租户紧接着就是录前采。
+ * P0 时故意没做——那一页 P1 才存在，先摆一个死链等于用一句谎换另一句谎；今天它是真页。
+ * 租户号走地址的查询参数带给录入页预填，用户到那一页不用再挑一遍租户（N1：分配即建站，
+ * 租户侧永远没有「申请建站」这个入口，需求只能由平台录进来）。
+ */
+const goIntake = (tenantId: number) => {
+  router.push({ name: 'workspace-portal-brief-new', query: { tenantId: String(tenantId) } })
 }
 
 onMounted(() => {

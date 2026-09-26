@@ -15,8 +15,8 @@ import { describe, expect, it } from 'vitest'
  */
 
 const scanned = import.meta.glob(
-  ['../BriefIntakeView.vue', '../SiteBriefsView.vue', '../../../api/siteBriefs.ts',
-    '../../workspace/SitesView.vue', '../CompanyInfoView.vue'],
+  ['../BriefIntakeView.vue', '../SiteBriefsView.vue', '../BriefDetailView.vue',
+    '../../../api/siteBriefs.ts', '../../workspace/SitesView.vue', '../CompanyInfoView.vue'],
   { eager: true, query: '?raw', import: 'default' }
 ) as Record<string, string>
 
@@ -29,7 +29,7 @@ function textOf(path: string): string {
 
 function briefFiles(): Array<[string, string]> {
   return entries.filter(([path]) =>
-    /BriefIntakeView\.vue|SiteBriefsView\.vue|siteBriefs\.ts$/.test(path)
+    /BriefIntakeView\.vue|SiteBriefsView\.vue|BriefDetailView\.vue|siteBriefs\.ts$/.test(path)
   ).map(([path, source]) => [path, String(source)])
 }
 
@@ -49,10 +49,10 @@ const BRIEF_QUESTION_KEYS =
   /['"`](industry|sub_industry|audiences|primary_goal|must_have|tone|reference_urls|brand_color|scale|languages|channels|business_form|avoid)['"`]/
 
 describe('I-1：需求单这一族文件没有第二份词表', () => {
-  it('扫到了全部五份文件（glob 写错会让这条用例静默通过）', () => {
-    expect(entries.length).toBe(5)
+  it('扫到了全部六份文件（glob 写错会让这条用例静默通过）', () => {
+    expect(entries.length).toBe(6)
     for (const probe of [
-      'BriefIntakeView.vue', 'SiteBriefsView.vue', 'api/siteBriefs.ts',
+      'BriefIntakeView.vue', 'SiteBriefsView.vue', 'BriefDetailView.vue', 'api/siteBriefs.ts',
       'workspace/SitesView.vue', 'CompanyInfoView.vue'
     ]) {
       expect(entries.some(([path]) => path.endsWith(probe)), `没扫到 ${probe}`).toBe(true)
@@ -92,7 +92,7 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     expect(offenders, `还留着抄来的词表中文：${offenders.join(', ')}`).toEqual([])
   })
 
-  it('需求单三件套里没有一个选项中文、没有一处题目 key 字面量', () => {
+  it('需求单四件套里没有一个选项中文、没有一处题目 key 字面量', () => {
     for (const [path, source] of briefFiles()) {
       expect(BRIEF_QUESTION_OPTIONS.test(source), `${path} 抄了选项中文`).toBe(false)
       if (!path.endsWith('siteBriefs.ts')) {
@@ -134,6 +134,29 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     expect(list).not.toMatch(/estimate|generate|发起生成|开始生成/)
     const apiSource = textOf('siteBriefs.ts')
     expect(apiSource).not.toMatch(/site-briefs\/[^'"`]*\/(estimate|generate)/)
+  })
+
+  it('详情页读回答案只经适配层：题目名一个都不写在页面里', () => {
+    const detail = textOf('BriefDetailView.vue')
+    // 13 题的读回是 `briefAnswerRows` 一处实现（含级联翻名），页面只列它给的行
+    expect(detail).toMatch(/briefAnswerRows\(/)
+    expect(detail).toMatch(/:data-source="answerRows"/)
+    expect(detail, '页面自己拼答案就等于抄第二份词表').not.toMatch(/readBriefSelections|briefOptionLabel\(/)
+    // 摘要一律原话照抄后端那一份，页面不另拼一句、也不调 preview
+    expect(detail).toMatch(/\{\{\s*brief\.requirementsSummary\s*\}\}/)
+    expect(detail).not.toMatch(/summaryPreview\(/)
+  })
+
+  it('详情页/站点页也不摆 P3 的按钮（出方案、预览、转正这些都还没后端口）', () => {
+    const detail = textOf('BriefDetailView.vue')
+    // 调用点：一个花钱/推进状态的方法都不许出现（详情页只读需求单、词表、站点、租户）
+    expect(detail).not.toMatch(/\.(estimate|generate|regenerate|promote|previewLinks|run)\s*\(/)
+    expect(detail).not.toMatch(/一键|发起生成|开始生成|预估|估算/)
+    expect(detail).toMatch(/也不摆一个点了没反应的出方案按钮/)
+    const sites = textOf('SitesView.vue')
+    // 站点管理不给候选/归档摆 status 下拉：那两态归流水线，写了就是会写坏数据的控件
+    expect(sites).toMatch(/<template v-if="statusLockedInForm">[\s\S]{0,400}?<a-select v-else/)
+    expect(sites).toMatch(/这一站的状态归建站流水线管/)
   })
 
   it('两页消费端收编后真的在读接口词表，并带诚实降级的那句话', () => {

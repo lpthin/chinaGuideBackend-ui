@@ -65,6 +65,17 @@ vi.mock('../../../api/portalSkeletons', () => ({ portalSkeletonsApi: { list: vi.
 vi.mock('../../../api/referenceSites', () => ({ portalReferenceApi: { list: vi.fn() } }))
 vi.mock('../../../api/workspace', () => ({ siteApi: { list: vi.fn() } }))
 
+/**
+ * 视图读 `route.query.siteId`（需求单详情页「这一站的组装任务」那一跳）：
+ * 只替 useRoute 换一个可写的 query，其余（含真 router 插件）保持原样，
+ * 免得把「页面自己能不能拉到这一站的任务」测成「桩件能不能拉到」。
+ */
+const { routeQuery } = vi.hoisted(() => ({ routeQuery: { current: {} as Record<string, string> } }))
+vi.mock('vue-router', async importOriginal => {
+  const actual = await importOriginal<Record<string, any>>()
+  return { ...actual, useRoute: () => ({ query: routeQuery.current, params: {} }) }
+})
+
 /** 按 dataSource 逐行走 bodyCell 插槽的表壳：真 a-table 在这个环境里渲不出表体，空态也得自己接上 */
 const TABLE_STUB = {
   name: 'ATable',
@@ -282,6 +293,7 @@ async function openDetail(wrapper: any) {
 
 beforeEach(() => {
   document.body.innerHTML = ''
+  routeQuery.current = {}
   vi.clearAllMocks()
 })
 
@@ -667,5 +679,41 @@ describe('状态中文只有一处来源，读不到的东西不猜', () => {
     expect(noSite.text()).toContain('一个站点都取不到')
     const noSkeleton = await mountView({ skeletons: [{ skeletonKey: 'x', name: '还没定稿', status: 'draft', pages: [] }] })
     expect(noSkeleton.text()).toContain('骨架库里现在没有可组装的骨架')
+  })
+})
+
+describe('地址里的 ?siteId=（需求单详情那一跳的落点）', () => {
+  it('站点在列表里：进页面就替它选中并按它拉任务，还写明号是地址给的', async () => {
+    routeQuery.current = { siteId: '7' }
+    const wrapper = await mountView()
+    expect(portalAssembleApi.list).toHaveBeenCalledWith(7)
+    expect(wrapper.findAllComponents(Select)[0].props('value')).toBe(7)
+    expect(wrapper.text()).toContain('站点是从需求单详情带过来的（甲站）')
+    // 替用户选中不等于替他花钱：这一页的组装仍然要预估 + 亲手勾
+    expect(portalAssembleApi.estimate).not.toHaveBeenCalled()
+    expect(portalAssembleApi.run).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('站点不在这个账号取到的列表里：不假选，原话说明为什么没替它选', async () => {
+    routeQuery.current = { siteId: '999' }
+    const wrapper = await mountView()
+    expect(portalAssembleApi.list).not.toHaveBeenCalled()
+    expect(wrapper.findAllComponents(Select)[0].props('value')).toBeFalsy()
+    expect(wrapper.text()).toContain('不在这个账号取到的站点列表里')
+    wrapper.unmount()
+  })
+
+  it('非法 siteId（0 / 字母）当没带：一个任务请求都不发，也不弹那句话', async () => {
+    routeQuery.current = { siteId: '0' }
+    const wrapper = await mountView()
+    expect(portalAssembleApi.list).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('站点是从需求单详情带过来的')
+    routeQuery.current = { siteId: 'abc' }
+    document.body.innerHTML = ''
+    const second = await mountView()
+    expect(portalAssembleApi.list).not.toHaveBeenCalled()
+    expect(second.text()).not.toContain('不在这个账号取到的站点列表里')
+    second.unmount()
   })
 })

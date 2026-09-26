@@ -93,6 +93,16 @@ export interface Site {
   status: string
   /** 站点归属租户：只读展示用。写操作一律不带它（改归属是后端的开通/移交动作，不是这张表单的权利）。 */
   tenantId?: number
+  /**
+   * 建站需求单 id（Spec-C §4 V115 `site.build_brief_id`，P2 后端加）：这一站是哪一张前采需求单
+   * 让 AI 建出来的。只读——转正/归档由后链路回填，站点管理这里不给写口。
+   * 后端还没上这一列时它是 undefined，界面据此说「没有来源信息」而不是说「手工建的」。
+   */
+  buildBriefId?: number | null
+  /** 候选套号（V115 `candidate_no`）：第 1/2/3 套。只读，同上。 */
+  candidateNo?: number | null
+  /** 转正时间（V115 `promoted_at`）：只有选中的那一套有值。只读。 */
+  promotedAt?: string | null
 }
 
 // Prompt 模板

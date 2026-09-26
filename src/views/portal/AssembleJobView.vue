@@ -47,6 +47,7 @@
         </a-form-item>
       </a-form>
       <p v-if="referencesError" class="assemble-job-page__muted">{{ referencesError }}</p>
+      <p v-if="preselectedSiteNotice" class="assemble-job-page__muted">{{ preselectedSiteNotice }}</p>
       <p class="assemble-job-page__muted">
         建任务只是把「当时的站点画像 + 骨架页面清单」拍成快照存下来，一次模型都不调；花钱的是下面第 3 步。
         没发布的骨架不进下拉——最终裁判是后端的 requirePublished，这里只是不把注定失败的选项摆出来。
@@ -250,6 +251,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
   assembleIsSettled,
@@ -316,6 +318,9 @@ const draftColumns = [
 ]
 
 const sites = ref<Array<{ id: number; name: string }>>([])
+const route = useRoute()
+/** 从需求单详情带 `?siteId=` 过来时的那句话：站点是地址给的，不是用户在下拉里挑的 */
+const preselectedSiteNotice = ref('')
 const skeletons = ref<SkeletonView[]>([])
 const references = ref<ReferenceSite[]>([])
 const statusLabels = ref<Record<string, string>>({})
@@ -655,7 +660,32 @@ onMounted(async () => {
     message.error(fail('状态词表加载失败', error))
   }
   await loadBaseData()
+  await applySiteFromQuery()
 })
+
+/**
+ * 需求单详情页那句「这一站的组装任务」带来的 `?siteId=`：
+ * 站点存在且在这个账号取得到的列表里才替它选中并把任务拉出来，否则原话说为什么不选——
+ * 默默停在「没选站点」的样子会让人以为这一站没有任务。
+ */
+function querySiteId(): number | null {
+  const query = (route.query ?? {}) as Record<string, unknown>
+  const parsed = Number(query.siteId)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+async function applySiteFromQuery() {
+  const wanted = querySiteId()
+  if (wanted === null) return
+  const found = sites.value.find(site => site.id === wanted)
+  if (!found) {
+    preselectedSiteNotice.value = `地址里要看的站点 #${wanted} 不在这个账号取到的站点列表里（没取到、或它不属于你）：站点下拉没有替它选，请在上面自己选一个。`
+    return
+  }
+  siteId.value = wanted
+  preselectedSiteNotice.value = `站点是从需求单详情带过来的（${found.name}），本站的组装任务已经按它拉好。`
+  await loadJobs()
+}
 </script>
 
 <style scoped lang="less">

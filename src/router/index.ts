@@ -67,6 +67,7 @@ const AssembleJobView = () => import('../views/portal/AssembleJobView.vue')
 const SiteBuildWorkbenchView = () => import('../views/portal/SiteBuildWorkbenchView.vue')
 const SiteBriefsView = () => import('../views/portal/SiteBriefsView.vue')
 const BriefIntakeView = () => import('../views/portal/BriefIntakeView.vue')
+const BriefDetailView = () => import('../views/portal/BriefDetailView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
@@ -472,6 +473,21 @@ export const routes: RouteRecordRaw[] = [
       },
       {
         path: 'portal/brief/:id',
+        name: 'workspace-portal-brief-detail',
+        component: BriefDetailView,
+        // 需求单详情 = 后链路的落点（Spec-C §3.2）：列表里点一行先落到这里，
+        // 看答了什么、后端喂模型的是哪句话、名下列出了哪些站，再决定要不要回录入页改。
+        meta: {
+          title: '前采需求单详情',
+          icon: 'form',
+          hidden: true,
+          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单', '详情'],
+          requiredPermission: 'portal:build:manage',
+          requiresSuperAdmin: true
+        }
+      },
+      {
+        path: 'portal/brief/:id/edit',
         name: 'workspace-portal-brief-intake',
         component: BriefIntakeView,
         meta: {

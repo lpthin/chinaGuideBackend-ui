@@ -31,15 +31,16 @@ import { siteApi, tenantApi } from '../../../api/workspace'
  * 所以这里挂真实控件；只有级联与取色器换成会 emit 的壳（真组件要弹层，测的是弹层本身）。
  */
 
-const { pushSpy, replaceSpy, routeParams } = vi.hoisted(() => ({
+const { pushSpy, replaceSpy, routeParams, routeQuery } = vi.hoisted(() => ({
   pushSpy: vi.fn(),
   replaceSpy: vi.fn(),
-  routeParams: { current: {} as Record<string, string> }
+  routeParams: { current: {} as Record<string, string> },
+  routeQuery: { current: {} as Record<string, string> }
 }))
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: pushSpy, replace: replaceSpy }),
-  useRoute: () => ({ params: routeParams.current })
+  useRoute: () => ({ params: routeParams.current, query: routeQuery.current })
 }))
 
 vi.mock('ant-design-vue', async () => {
@@ -237,6 +238,7 @@ async function clickSave(wrapper: any) {
 beforeEach(() => {
   document.body.innerHTML = ''
   routeParams.current = {}
+  routeQuery.current = {}
   vi.clearAllMocks()
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 })
@@ -406,7 +408,11 @@ describe('编辑存量单与后端的拒绝原话', () => {
     // 状态中文没有词表口：露后端原码，前端不编映射
     expect(wrapper.text()).toContain('当前状态：generating')
     expect(wrapper.findAllComponents(InputNumber)[0].props('value')).toBe(2)
-    expect(wrapper.findAllComponents(Select)[2].props('value')).toBe('lite')
+    // 演示内容档位那条下拉按**它自己的选项**认，不按位置认：工具条上加一个控件就会把位置串位
+    const modeSelect = wrapper
+      .findAllComponents(Select)
+      .find(item => ((item.props('options') ?? []) as { value: unknown }[]).some(o => o.value === 'lite'))
+    expect(modeSelect?.props('value')).toBe('lite')
     expect(wrapper.find('.brief-intake__summary-text').text()).toBe('库里那段话')
     expect(vi.mocked(siteBriefsApi.summaryPreview)).not.toHaveBeenCalled()
 
@@ -420,6 +426,73 @@ describe('编辑存量单与后端的拒绝原话', () => {
       demoContentMode: 'lite'
     }))
     expect(wrapper.find('.brief-intake__save-error').text()).toBe('这份需求单已经在出方案了，锁住不能改了')
+    wrapper.unmount()
+  })
+})
+
+describe('地址栏带进来的租户号（TenantPanel 的交棒出口）', () => {
+  it('新建单时 ?tenantId=15 预填租户，并写明这个号是从租户管理那一行带来的', async () => {
+    routeQuery.current = { tenantId: '15' }
+    const wrapper = await mountView()
+    const tenantSelect = wrapper.findAllComponents(Select)[0]
+    expect(tenantSelect.props('value')).toBe(15)
+    expect(wrapper.find('.brief-intake__alert').text()).toContain('租户是从「租户管理」那一行带过来的')
+    expect(wrapper.find('.brief-intake__alert').text()).toContain('#15')
+    // 预填只是省一次选择：保存时带的仍是这个号，不是前端偷偷再造一份默认值
+    await clickSave(wrapper)
+    expect(vi.mocked(siteBriefsApi.create).mock.calls[0][0].tenantId).toBe(15)
+    wrapper.unmount()
+  })
+
+  it('地址里的号在租户列表里查不到：下拉露出这一号并说没查到，不静默丢预填', async () => {
+    routeQuery.current = { tenantId: '99' }
+    const wrapper = await mountView()
+    const options = (wrapper.findAllComponents(Select)[0].props('options') ?? []) as { value: unknown; label: string }[]
+    const extra = options.find(option => option.value === 99)
+    expect(extra, '预填的租户号必须还在下拉里').toBeTruthy()
+    expect(extra!.label).toContain('这一页的租户列表里没查到')
+    wrapper.unmount()
+  })
+
+  it('编辑存量单时地址里的租户号不许盖掉库里那一户', async () => {
+    routeParams.current = { id: '12' }
+    routeQuery.current = { tenantId: '99' }
+    const wrapper = await mountView({ brief: savedBrief({ id: 12, tenantId: 15 }) })
+    expect(wrapper.findAllComponents(Select)[0].props('value')).toBe(15)
+    expect(wrapper.text()).not.toContain('租户是从「租户管理」那一行带过来的')
+    wrapper.unmount()
+  })
+
+  it('非法的 tenantId（0 / 字母）当没带：不预填也不弹那句说明', async () => {
+    routeQuery.current = { tenantId: 'abc' }
+    const wrapper = await mountView()
+    expect(wrapper.findAllComponents(Select)[0].props('value')).toBeFalsy()
+    expect(wrapper.text()).not.toContain('租户是从「租户管理」那一行带过来的')
+    wrapper.unmount()
+  })
+})
+
+describe('锁了单的一单：编辑入口不撒谎', () => {
+  it('状态不在可编辑里：先说清保存会被拒，并给回详情页的出口', async () => {
+    routeParams.current = { id: '12' }
+    const wrapper = await mountView({ brief: savedBrief({ id: 12, status: 'promoted' }) })
+    // 词表 VOCAB 没有 statusLabels：这一格宁可露后端原码也不编中文（同上一条用例的口径）
+    const alert = wrapper.find('.brief-intake__alert')
+    expect(alert.text()).toContain('这一单现在是「promoted」')
+    expect(alert.text()).toContain('后端只收')
+    expect(alert.text()).toContain('保存一定会被拒')
+    // 页头那一格同样只露码，且详情页入口在
+    expect(wrapper.text()).toContain('当前状态：promoted')
+    click(byText('看这一单的详情')[0])
+    expect(pushSpy).toHaveBeenLastCalledWith({ name: 'workspace-portal-brief-detail', params: { id: '12' } })
+    wrapper.unmount()
+  })
+
+  it('draft 这一单不给锁单提示，也不显示详情页按钮以外的怪东西', async () => {
+    routeParams.current = { id: '12' }
+    const wrapper = await mountView({ brief: savedBrief({ id: 12, status: 'draft' }) })
+    expect(wrapper.text()).not.toContain('保存一定会被拒')
+    expect(byText('看这一单的详情').length).toBe(1)
     wrapper.unmount()
   })
 })

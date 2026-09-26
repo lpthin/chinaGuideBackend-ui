@@ -3,7 +3,10 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
+  briefIsEditable,
+  briefStatusLabelOrCode,
   buildBriefForm,
+  EDITABLE_BRIEF_STATUSES,
   intakeLoopQuestions,
   readBriefSelections,
   siteBriefsApi,
@@ -28,6 +31,10 @@ import type { Tenant } from '@/types/workspace'
  *    失败时保留上一次结果并原话标「这段话还没刷新」——前端自己拼一句就等于抄了第二份词表。
  *
  * 这一页没有任何调用生成/估算的按钮（P3 才有），也不摆点不动的死链。
+ *
+ * 两条交棒入口（任务 P2 第 3 件的接收端）：
+ * - `/portal/brief/new?tenantId=15`（租户管理那行「去录前采」）：租户从地址预填，用户不用重挑；
+ * - 编辑一单时若它已不在 `draft/ready`，页面顶部先说清「保存会被后端拒」，并给回详情页的入口。
  */
 
 /** color 题「AI 决定」的落库哨兵值：与后端词表里那条选项的 code 同一个码，不是自造的 */
@@ -58,6 +65,8 @@ const sitesFailed = ref(false)
 
 const briefId = ref<number | null>(null)
 const status = ref('')
+/** 租户是从「租户管理 > 去录前采」那条链接带过来的：预填取自地址，不让人再挑一遍 */
+const tenantFromQuery = ref(false)
 
 const form = reactive({
   tenantId: null as number | null,
@@ -142,12 +151,8 @@ function onCandidateInput(value: unknown) {
 
 function onTenantChange(value: unknown) {
   form.tenantId = value === null || value === undefined || value === '' ? null : Number(value)
-  // 换租户后原来选的站点多半不属于这个租户，宁可清空也不留一个错归属
+  // 站点是后链路按租户建出来的：换租户后原来绑的站不再属于这一单，宁可清空显示也不留一个错归属
   form.siteId = null
-}
-
-function onSiteChange(value: unknown) {
-  form.siteId = value === null || value === undefined || value === '' ? null : Number(value)
 }
 
 function onModeChange(value: unknown) {
@@ -353,24 +358,67 @@ function backToList() {
   router.push({ name: 'workspace-portal-briefs' })
 }
 
-const tenantOptions = computed(() =>
-  tenants.value.map(tenant => ({ value: tenant.id, label: tenant.name || tenant.code || `#${tenant.id}` }))
-)
-const siteOptions = computed(() =>
-  sites.value
-    .filter(site => form.tenantId === null || site.tenantId === form.tenantId)
-    .map(site => ({ value: site.id, label: site.name || `#${site.id}` }))
-)
+const tenantOptions = computed(() => {
+  const options = tenants.value.map(tenant => ({ value: tenant.id, label: tenant.name || tenant.code || `#${tenant.id}` }))
+  // 地址带过来的租户号可能不在这一页的租户列表里（列表没取全 / 取失败）：给它一条诚实的选项，
+  // 而不是让下拉显示一个裸数字，那看着像控件坏了。
+  if (form.tenantId && !options.some(option => option.value === form.tenantId)) {
+    options.push({ value: form.tenantId, label: `租户 #${form.tenantId}（这一页的租户列表里没查到）` })
+  }
+  return options
+})
+const siteNameById = computed(() => {
+  const map = new Map<number, string>()
+  sites.value.forEach(site => {
+    if (typeof site.id === 'number') map.set(site.id, site.name || `#${site.id}`)
+  })
+  return map
+})
+/** 站点只由后链路回填，界面上因此只是一段文字；站名没在列表里（列表分页没cover到/站已删）就退回显示 id，不猜 */
+const boundSiteLabel = computed(() => {
+  const id = form.siteId
+  if (id === null || id === undefined) return ''
+  return siteNameById.value.get(id) ?? `#${id}${sitesFailed.value ? '（站点列表没取到，名字刷新后才有）' : ''}`
+})
 
 function routeBriefId(): number | null {
   const parsed = Number(route.params.id)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }
 
+/** 地址里带的租户号（`/portal/brief/new?tenantId=15`）：只有它才允许预填租户 */
+function routeTenantId(): number | null {
+  const query = (route.query ?? {}) as Record<string, unknown>
+  const parsed = Number(query.tenantId)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+/** 状态中文只取自词表那一份 statusLabels（取不到就把原码露出来，绝不自己编映射） */
+const statusText = computed(() => briefStatusLabelOrCode(vocabulary.value, status.value))
+const editable = computed(() => briefIsEditable(status.value))
+const editableStatusNames = computed(() =>
+  EDITABLE_BRIEF_STATUSES.map(code => briefStatusLabelOrCode(vocabulary.value, code)).join('、')
+)
+/** 已经锁单的那一单：表单还开着，但保存一定会被后端中文拒——这句话必须先进页面 */
+const lockedNotice = computed(() => briefId.value !== null && !!status.value && !editable.value)
+
+function goDetail() {
+  const id = briefId.value
+  if (id === null) return
+  router.push({ name: 'workspace-portal-brief-detail', params: { id: String(id) } })
+}
+
 onMounted(async () => {
   booting.value = true
   const id = routeBriefId()
   await Promise.all([loadTenants(), loadSites()])
+  if (id === null) {
+    const fromQuery = routeTenantId()
+    if (fromQuery !== null) {
+      form.tenantId = fromQuery
+      tenantFromQuery.value = true
+    }
+  }
   if (id !== null) await loadBrief(id)
   await loadVocabulary()
   ensureShape()
@@ -388,9 +436,10 @@ onMounted(async () => {
           这条头上定三件事：这单给哪个租户、出几套候选、演示内容哪一档。下面每题按词表勾，只有「补充说明」可以打字，而且可空。
         </p>
       </div>
-      <a-space>
-        <a-tag v-if="status">当前状态：{{ status }}</a-tag>
+      <a-space wrap>
+        <a-tag v-if="status">当前状态：{{ statusText }}</a-tag>
         <a-button @click="backToList">返回列表</a-button>
+        <a-button v-if="briefId" @click="goDetail">看这一单的详情</a-button>
       </a-space>
     </div>
 
@@ -406,17 +455,12 @@ onMounted(async () => {
           style="width: 220px"
           @update:value="onTenantChange"
         />
-        <span class="brief-intake__profile-label">站点（可空，转正后回填）</span>
-        <a-select
-          :value="form.siteId"
-          :options="siteOptions"
-          :placeholder="sitesFailed ? '站点没取到，刷新重试' : '可空'"
-          allow-clear
-          show-search
-          option-filter-prop="label"
-          style="width: 220px"
-          @update:value="onSiteChange"
-        />
+        <!-- 站点在这里**没有可选项**：候选站是后链路 AI 建出来之后才回填的（Spec-C §6.2），
+             录入阶段给一个能选、选了又不入库的下拉，等于骗人填一遍。只在单子上确实绑过站时显示。 -->
+        <template v-if="form.siteId">
+          <span class="brief-intake__profile-label">已绑定站点</span>
+          <span class="brief-intake__bound-site">{{ boundSiteLabel }}</span>
+        </template>
         <span class="brief-intake__profile-label">候选套数（上限 {{ candidateMax }}）</span>
         <a-input-number
           :value="form.candidateCount"
@@ -435,6 +479,22 @@ onMounted(async () => {
         />
       </a-space>
     </div>
+
+    <a-alert v-if="tenantFromQuery && !briefId" type="info" show-icon class="brief-intake__alert">
+      <template #message>
+        租户是从「租户管理」那一行带过来的（#{{ form.tenantId }}）：这一单就记在它名下，确认一下再往下勾题。
+      </template>
+    </a-alert>
+
+    <!-- 锁了单的一单：表单仍然打开（要看要对照），但先说清保存会被后端拒，别让人填完才发现 -->
+    <a-alert v-if="lockedNotice" type="warning" show-icon class="brief-intake__alert">
+      <template #message>
+        这一单现在是「{{ statusText }}」，后端只收 {{ editableStatusNames }} 两种状态的修改，
+        所以这里保存一定会被拒（拒的理由是后端那句中文，原样显示在页面底部）。要改得等生成链路把状态挪回可编辑，
+        或者回详情页看这一单到底走到哪一步了。
+        <a-button size="small" type="link" @click="goDetail">看详情</a-button>
+      </template>
+    </a-alert>
 
     <a-alert v-if="vocabularyFailed" type="error" show-icon class="brief-intake__alert">
       <template #message>
@@ -579,6 +639,11 @@ onMounted(async () => {
 .brief-intake__profile-label {
   color: #6b7280;
   font-size: 13px;
+}
+.brief-intake__bound-site {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 600;
 }
 .brief-intake__alert {
   margin-bottom: 16px;
