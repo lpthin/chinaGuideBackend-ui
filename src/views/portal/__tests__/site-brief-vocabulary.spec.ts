@@ -1,21 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
 /**
- * I-1 词表单源：前采需求单这一族文件里不许出现第二份词表（Spec §4.1 / §5 / §8 P1 验收门槛）。
+ * I-1 词表单源 + 「不许谎报到哪一步」的源码守卫（Spec §4.1 / §5 / §8 P1 验收门槛；P3 起门禁挪到详情页）。
  *
  * 为什么要扫源码而不是只测渲染：这一族的病根是「词表在后端有一份、前端再抄一份」——
  * SitesView 与 CompanyInfoView 曾经各抄过一份行业/市场/用户/商业模式清单（同一值两处可填），
  * 需求单 13 题若再抄一份选项中文或题目 key，超管改词表就只生效一半，界面上什么都不会报错。
  * 判据落在源码上才守得住「以后也不许抄」。
  *
+ * P3 改了「哪页许有什么按钮」的边界：出方案的 estimate/generate/progress 是 §5 定死的契约口，
+ * 只许出现在适配层与需求单详情（门禁那一格）；录入页/列表页照旧一个花钱按钮都不许有。
+ * P4 的口（promote/regenerate/preview-links/public brief）今天全族都不许出现——连函数都不写。
+ *
  * 扫描分两圈：
- * - 四份旧抄本的词表中文（行业/市场/用户/商业模式）——五份文件里哪份出现都算复发；
- * - 需求单 13 题的选项中文与题目 key——只扫需求单三件套
+ * - 四份旧抄本的词表中文（行业/市场/用户/商业模式）——六份文件里哪份出现都算复发；
+ * - 需求单 13 题的选项中文与题目 key——扫需求单四件套 + 候选画廊
  *   （CompanyInfoView 的「微博/抖音/邮箱」是它自己表单的栏目名，不是抄的词表，别误伤）。
  */
 
 const scanned = import.meta.glob(
-  ['../BriefIntakeView.vue', '../SiteBriefsView.vue', '../BriefDetailView.vue',
+  ['../BriefIntakeView.vue', '../SiteBriefsView.vue', '../BriefDetailView.vue', '../CandidateGalleryView.vue',
     '../../../api/siteBriefs.ts', '../../workspace/SitesView.vue', '../CompanyInfoView.vue'],
   { eager: true, query: '?raw', import: 'default' }
 ) as Record<string, string>
@@ -29,7 +33,7 @@ function textOf(path: string): string {
 
 function briefFiles(): Array<[string, string]> {
   return entries.filter(([path]) =>
-    /BriefIntakeView\.vue|SiteBriefsView\.vue|BriefDetailView\.vue|siteBriefs\.ts$/.test(path)
+    /BriefIntakeView\.vue|SiteBriefsView\.vue|BriefDetailView\.vue|CandidateGalleryView\.vue|siteBriefs\.ts$/.test(path)
   ).map(([path, source]) => [path, String(source)])
 }
 
@@ -49,11 +53,11 @@ const BRIEF_QUESTION_KEYS =
   /['"`](industry|sub_industry|audiences|primary_goal|must_have|tone|reference_urls|brand_color|scale|languages|channels|business_form|avoid)['"`]/
 
 describe('I-1：需求单这一族文件没有第二份词表', () => {
-  it('扫到了全部六份文件（glob 写错会让这条用例静默通过）', () => {
-    expect(entries.length).toBe(6)
+  it('扫到了全部七份文件（glob 写错会让这条用例静默通过）', () => {
+    expect(entries.length).toBe(7)
     for (const probe of [
-      'BriefIntakeView.vue', 'SiteBriefsView.vue', 'BriefDetailView.vue', 'api/siteBriefs.ts',
-      'workspace/SitesView.vue', 'CompanyInfoView.vue'
+      'BriefIntakeView.vue', 'SiteBriefsView.vue', 'BriefDetailView.vue', 'CandidateGalleryView.vue',
+      'api/siteBriefs.ts', 'workspace/SitesView.vue', 'CompanyInfoView.vue'
     ]) {
       expect(entries.some(([path]) => path.endsWith(probe)), `没扫到 ${probe}`).toBe(true)
     }
@@ -92,7 +96,7 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     expect(offenders, `还留着抄来的词表中文：${offenders.join(', ')}`).toEqual([])
   })
 
-  it('需求单四件套里没有一个选项中文、没有一处题目 key 字面量', () => {
+  it('需求单四件套与候选画廊里没有一个选项中文、视图里没有一处题目 key 字面量', () => {
     for (const [path, source] of briefFiles()) {
       expect(BRIEF_QUESTION_OPTIONS.test(source), `${path} 抄了选项中文`).toBe(false)
       if (!path.endsWith('siteBriefs.ts')) {
@@ -124,16 +128,21 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     expect(intake).toMatch(/这段话还没刷新/)
   })
 
-  it('录入页不摆任何调用生成/估算的按钮（那是 P3 的事，今天点了没反应就别挂）', () => {
+  it('P3 边界：花钱三口只许在适配层与详情页；录入页/列表页照旧一个生成按钮都不许有', () => {
+    // 行为没变（不摆点了没反应的按钮），变的只是「详情②那一格今天真的有契约口了」
     const intake = textOf('BriefIntakeView.vue')
-    // 只钉「调用点与 CTA」：英文方法名一个都不许出现；中文只禁按钮说法，
-    // 页脚那句解释「不提供出方案/预览，那是生成链路接通后的事」里的字不算违规。
-    expect(intake).not.toMatch(/generate|estimate/i)
-    expect(intake).not.toMatch(/发起生成|开始生成|一键生成|生成候选|生成方案|预估|估算费/)
+    expect(intake).not.toMatch(/briefGenerationApi|发起生成|开始生成|一键生成|生成候选|生成方案|预估|估算费/)
+    expect(intake).toMatch(/不摆点不动的死链|也不摆一个点了没反应的/)  // 那句原话还在（注释/文案）
     const list = textOf('SiteBriefsView.vue')
-    expect(list).not.toMatch(/estimate|generate|发起生成|开始生成/)
+    expect(list).not.toMatch(/briefGenerationApi|estimate|generate|发起生成|开始生成/)
+    // 适配层按 §5 定死的路径接三个口——这正是「用 exactly these paths, verbs」的落点
     const apiSource = textOf('siteBriefs.ts')
-    expect(apiSource).not.toMatch(/site-briefs\/[^'"`]*\/(estimate|generate)/)
+    expect(apiSource).toMatch(/\/admin\/site-briefs\/\$\{id\}\/estimate/)
+    expect(apiSource).toMatch(/\/admin\/site-briefs\/\$\{id\}\/generate/)
+    expect(apiSource).toMatch(/\/admin\/site-briefs\/\$\{id\}\/progress/)
+    // P4 的口今天连函数都不许写：写了就是给「点了没反应」埋源头（§5 preview-links / promote）
+    expect(apiSource).not.toMatch(/\/(promote|regenerate|preview-links|regenerate)\b/)
+    expect(apiSource).not.toMatch(/public\/brief/)
   })
 
   it('详情页读回答案只经适配层：题目名一个都不写在页面里', () => {
@@ -147,16 +156,38 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     expect(detail).not.toMatch(/summaryPreview\(/)
   })
 
-  it('详情页/站点页也不摆 P3 的按钮（出方案、预览、转正这些都还没后端口）', () => {
+  it('详情页门禁只到②为止：P4 的按钮一个不摆，§9-1 那句原话经常量引用；站点页状态控件口径不变', () => {
     const detail = textOf('BriefDetailView.vue')
-    // 调用点：一个花钱/推进状态的方法都不许出现（详情页只读需求单、词表、站点、租户）
-    expect(detail).not.toMatch(/\.(estimate|generate|regenerate|promote|previewLinks|run)\s*\(/)
-    expect(detail).not.toMatch(/一键|发起生成|开始生成|预估|估算/)
-    expect(detail).toMatch(/也不摆一个点了没反应的出方案按钮/)
+    // ②的门禁三口今天按 §5 契约接上（真实调用点）——原用例禁的是「P2 时还没有口」，
+    // P3 口有了，禁的对象挪到 P4：promote/regenerate/preview-links 仍一个都不许出现
+    expect(detail).toMatch(/briefGenerationApi\.estimate\(/)
+    expect(detail).toMatch(/briefGenerationApi\.generate\(/)
+    expect(detail).toMatch(/briefGenerationApi\.progress\(/)
+    expect(detail).not.toMatch(/\.(promote|regenerate|previewLinks|run)\s*\(/)
+    expect(detail).not.toMatch(/一键/)
+    // 「不谎报到哪一步」的两句：P4 原话 + 估算免责只许引用适配层常量（本地再抄一句就是第二份说法）
+    expect(detail).toMatch(/后端口还没有（P4/)
+    expect(detail).toMatch(/ESTIMATE_UNDERESTIMATE_DISCLAIMER/)
     const sites = textOf('SitesView.vue')
     // 站点管理不给候选/归档摆 status 下拉：那两态归流水线，写了就是会写坏数据的控件
     expect(sites).toMatch(/<template v-if="statusLockedInForm">[\s\S]{0,400}?<a-select v-else/)
     expect(sites).toMatch(/这一站的状态归建站流水线管/)
+  })
+
+  it('候选画廊：截图位只许空着配原话，中文全部走适配层常量与后端 label（§6.7 / §9-4 / I-1）', () => {
+    const gallery = textOf('CandidateGalleryView.vue')
+    // 假缩略图判红：画廊里不许出现任何 <img 标签（口径 = 空槽 + 一句为什么）
+    expect(gallery).not.toMatch(/<img\b/)
+    expect(gallery).toMatch(/CANDIDATE_SHOT_UNAVAILABLE_TEXT/)
+    expect(gallery).toMatch(/DEMO_CONTENT_DISCLAIMER_TEXT/)
+    expect(gallery).toMatch(/PREVIEW_LINK_PENDING_TEXT/)
+    // 预览地址只转述进度口的 previewUrl，前端不自己拼 token/域名
+    expect(gallery).toMatch(/previewUrl/)
+    expect(gallery).not.toMatch(/preview-links|token=/)
+    // 阶段/子任务状态中文只认后端 label，查不到露原码——不许出现第二份 stage→中文 映射
+    expect(gallery).toMatch(/row\.statusLabel \|\| row\.status/)
+    expect(gallery).toMatch(/row\.stageLabel \|\| row\.stage/)
+    expect(gallery).not.toMatch(/['"`](skeleton|copywriting|seo|demo_content|screenshot)['"`]\s*:\s*['""][\u4e00-\u9fff]/)
   })
 
   it('两页消费端收编后真的在读接口词表，并带诚实降级的那句话', () => {

@@ -488,3 +488,104 @@ export function isCandidateSite(site: { status?: string | null }): boolean {
 export function isArchivedSite(site: { status?: string | null }): boolean {
   return site.status === 'archived';
 }
+
+// ------------------------------------------------------------------
+// P3 生成链路：出方案这条主线的三个端点（Spec-C §5，路径/动词一字不差）
+// ------------------------------------------------------------------
+//
+// 这一族函数与上面 CRUD 的区别必须说清楚（谁的口今天真的在）：
+// - vocabulary / 需求单 CRUD / summary-preview：后端 SiteBriefController 已上线（P1，cc910ab），真口；
+// - estimate / generate / progress：Spec-C §5 的 **P3 契约**。路径与动词按 §5 定死，
+//   后端编排器（SiteProposalOrchestrator）同 Phase 在建；端点缺失时这一发会拿回一句错误，
+//   界面把错误原样透出去——不静默、不假装成功，也不在本地「演算」出一份假数。
+// - preview-links / promote / regenerate / public brief：**属 P4（含 §8 的令牌 site scope 一条），
+//   这里刻意不写函数**。写了没接线口的函数，就等于给界面埋一个「点了没反应」的按钮的源头。
+
+/**
+ * `POST /admin/site-briefs/{id}/estimate` 的回包（零模型调用）。
+ * 形状沿用组装预估的先例（`api/portalAssemble` 的 AssembleEstimate）：
+ * estimatedTokens/remainingTokens/aiEnabled/notice 四个名字是后端已验证的口径，不另发明。
+ * `breakdown` 是那句「N 套 × 每套几页 × 演示内容几篇」的人话，由后端拼、界面原样显示——
+ * 前端自己乘一遍就是抄了第二份口径（拍板 7 的数量归后端词表与配置管）。
+ */
+export interface BriefEstimate {
+  briefId: number;
+  candidateCount: number;
+  estimatedTokens: number;
+  remainingTokens: number | null;
+  /** 后端开关没开时给 false：这不是一个可以花的报价，界面据此连确认框都不给勾 */
+  aiEnabled: boolean;
+  breakdown?: string | null;
+  /** 「缺哪个开关」之类的中文说明，有就原样带上 */
+  notice?: string | null;
+  notices?: string[] | null;
+}
+
+/**
+ * `GET /admin/site-briefs/{id}/progress` 里每候选站的一条（§5：每候选站当前阶段与失败原因；
+ * §6.1 落库的 differentiation「这套侧重什么」与 §6.2 末尾签发的预览地址也从这一条下来）。
+ * 所有中文（statusLabel/stageLabel）都应由后端带；查不到就露原码，前端不抄第二份阶段词表。
+ */
+export interface BriefCandidateProgress {
+  siteId: number | null;
+  candidateNo: number | null;
+  /** V115 站点状态码（candidate/archived/…）：界面读 siteStatusText 那一份说法 */
+  siteStatus?: string | null;
+  /** 子任务状态码 + 后端给的中文（取不到中文就露码） */
+  status: string;
+  statusLabel?: string | null;
+  /** 当前阶段码（骨架/文案/SEO/演示内容/配图/截图/令牌…）：中文名只认 stageLabel */
+  stage?: string | null;
+  stageLabel?: string | null;
+  /** 这一套选定的骨架（key 与后端给的名字；没生成到那一步就没有） */
+  skeletonKey?: string | null;
+  skeletonName?: string | null;
+  /** plan 落库的「这套侧重什么」原话（§6.1）；界面一个字都不改写 */
+  differentiation?: string | null;
+  /** 失败原因中文（后端写的）；任一步失败只影响该套，界面照实列该套 */
+  errorMessage?: string | null;
+  /** 带 reviewToken 的预览地址：生成链路末尾签发后随进度下发；前端永不自己拼 */
+  previewUrl?: string | null;
+}
+
+export interface BriefProgress {
+  briefId: number;
+  /** 需求单当前状态码（进度头部用；中文仍走词表 statusLabels） */
+  briefStatus?: string | null;
+  candidates: BriefCandidateProgress[];
+}
+
+/**
+ * §9-1 的那句原话：`output-tokens-per-call` 不动（用户明令缓决），后果是估算闸门偏松，
+ * 所以「四个实测样本低估 1.23×~4.2×」必须作为人话摆在数字旁边——让人以为估出来的就是账单，
+ * 就是这一节明令不许的藏法。收在适配层一处，视图只引用，免得第二页抄一遍抄歪。
+ */
+export const ESTIMATE_UNDERESTIMATE_DISCLAIMER =
+  '这个预估按历史 4 个实测样本低估 1.2~4.2 倍算的，不是最终账单：实耗以逐笔落账为准';
+
+/** §6.7 / N-4 的截图口径原话：候选阶段截图位必须空着并说清为什么，不许放假缩略图 */
+export const CANDIDATE_SHOT_UNAVAILABLE_TEXT =
+  '截图这一档在内部预览域上不可用：sidecar 的内网 host 闸拒收预览域，口径是不为截图放宽 SSRF 闸。'
+  + '候选阶段给你的是可点开的预览链接，转正并绑上公网域名后截图链路才可用——所以这一格今天空着，不放一张假缩略图';
+
+/** §9-4 的防纠纷标注：演示内容在预览与画廊里必须原话挂着这一句 */
+export const DEMO_CONTENT_DISCLAIMER_TEXT = 'AI 生成的演示内容，交付后可替换';
+
+/** 预览链接还没有可手发的口（§5 的 preview-links 属 P4）时界面说的那句原话 */
+export const PREVIEW_LINK_PENDING_TEXT =
+  '这一段的后端口还没有（P4：手动补发/撤销预览令牌）；链路跑完后预览地址随进度下发，届时这里给可复制的链接';
+
+export const briefGenerationApi = {
+  /** 零模型调用的预估：只算不花，所以它不需要 confirm，也不该被省掉 */
+  estimate: (id: number) => http.post<BriefEstimate>(`/admin/site-briefs/${id}/estimate`),
+
+  /**
+   * 真正花钱的那一发：`confirm` 只可能是界面上人亲手勾的那个值，任何调用方都不许替它填 true。
+   * 未勾确认在界面层就被拦住（canGenerate），真发出去被后端中文拒时错误原样显示。
+   */
+  generate: (id: number, confirm: boolean) =>
+    http.post<{ briefId?: number }>(`/admin/site-briefs/${id}/generate`, { confirm }),
+
+  /** 每候选站一条子任务的进度：哪套在跑、哪套失败、失败缺什么（§6.2 任一步失败只影响该套） */
+  progress: (id: number) => http.get<BriefProgress>(`/admin/site-briefs/${id}/progress`)
+};
