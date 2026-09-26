@@ -1,6 +1,7 @@
 <template>
   <section v-if="hasContent" class="pb-hero">
     <div class="pb-hero__bg" aria-hidden="true">
+      <div v-if="photoStyle" class="pb-hero__photo" :style="photoStyle"></div>
       <span class="pb-hero__shape pb-hero__shape--1"></span>
       <span class="pb-hero__shape pb-hero__shape--2"></span>
     </div>
@@ -27,7 +28,14 @@ import type { BlockContext } from './types'
 import { text } from './types'
 import PortalBlockLink from './PortalBlockLink.vue'
 
-/** 主视觉：槽位全空就整块不渲染，不留一块只有渐变的空白高度。 */
+/**
+ * 主视觉：槽位全空就整块不渲染，不留一块只有渐变的空白高度。
+ *
+ * <p>{@code imageUrl} 这一格是 Spec-C §6.5-5 要的那张主视觉图：以前除了页头 logo，全站没有第二个
+ * 能填图的槽，"给 hero 配一张图"这句话在渲染层无处落笔。它按**底图**处理——铺在渐变之上、文字之下，
+ * 所以 {@code hasContent} 刻意不看它：一张图配零文案不是一个可用的主视觉，让这种组合渲染出来，
+ * 页首就只剩一张孤图，而缺文案这件事本该由"这一块没出来"暴露出去。</p>
+ */
 const props = defineProps<BlockContext>()
 
 const eyebrow = computed(() => text(props.blockProps, 'eyebrow'))
@@ -38,6 +46,24 @@ const primaryText = computed(() => text(props.blockProps, 'primaryText'))
 const primaryLink = computed(() => text(props.blockProps, 'primaryLink'))
 const secondaryText = computed(() => text(props.blockProps, 'secondaryText'))
 const secondaryLink = computed(() => text(props.blockProps, 'secondaryLink'))
+
+/**
+ * 只认「站内相对路径」或 https 绝对地址，且不含引号/括号/空白/反斜杠。
+ *
+ * <p>值来自素材库或 AI 输出，最后要拼进 CSS 的 {@code url("...")}。放行一个带引号或括号的字符串，
+ * 等于允许写图的人往这一格的样式里追加任意声明；认不下就当没有这张图，宁地图位空着。</p>
+ */
+const photoUrl = computed(() => {
+  const value = text(props.blockProps, 'imageUrl')
+  if (!value) {
+    return ''
+  }
+  const absolute = /^https:\/\/[^\s"'()\\]+$/i
+  const relative = /^\/[^\s"'()\\]*$/
+  return absolute.test(value) || relative.test(value) ? value : ''
+})
+
+const photoStyle = computed(() => (photoUrl.value ? { backgroundImage: `url("${photoUrl.value}")` } : null))
 
 const hasContent = computed(() => Boolean(title.value || subtitle.value || description.value || eyebrow.value))
 </script>
@@ -64,6 +90,17 @@ const hasContent = computed(() => Boolean(title.value || subtitle.value || descr
       linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
     background-size: 56px 56px;
+  }
+
+  /* 主视觉底图：压在渐变之上、文字之下，靠透明度让位给白色标题——
+     这里不做"图够暗就提亮"的判断，那需要知道图片内容，而区块层拿不到。 */
+  &__photo {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.34;
   }
 
   &__shape {
