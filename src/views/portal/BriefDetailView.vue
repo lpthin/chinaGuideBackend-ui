@@ -28,6 +28,7 @@ import {
   type RegenerateReceipt
 } from '@/api/siteBriefDelivery'
 import { siteApi, tenantApi } from '@/api/workspace'
+import SectionAdviceCard from './SectionAdviceCard.vue'
 import { formatDateTime } from '@/utils/format'
 import type { Site } from '@/types'
 import type { Tenant } from '@/types/workspace'
@@ -624,6 +625,11 @@ onUnmounted(stopPolling)
           </a-table>
         </template>
       </a-card>
+
+      <!-- Spec-D D4：栏目建议挂在这里——它是按这张需求单读出来的，超管看完建议再决定要不要动栏目。
+           写库仍然只有卡上那一条「保存到站点」，模型只出主意（拍板 N2）。 -->
+      <SectionAdviceCard class="brief-detail__panel" mode="save" :brief-id="brief.id"
+                         :site-id="brief.siteId ?? null" />
 
       <a-card size="small" class="brief-detail__panel">
         <template #title>② 出方案：预估 → 勾选确认 → 执行（花钱的门禁，一步都不合并）</template>

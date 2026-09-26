@@ -70,6 +70,51 @@ export interface SectionForm {
   navSort?: number | null;
 }
 
+/**
+ * 批量口的一行（后端 `SectionAdminController.SectionForm` 的批量形状）：
+ * 单行口的 key 在地址上，批量口的 key 只能在体里。
+ *
+ * <p>卡片页一次保存走的是这一条（Spec-D D4）：换序本来就是两栏一起动，逐栏点六次保存
+ * 会把中间态留在库里，而一次原子整批不会。</p>
+ */
+export interface SectionBulkItem extends SectionForm {
+  key: string;
+}
+
+/** AI 推导出来的一条栏目建议（后端 site-briefs 那条 advice 口的 items 元素） */
+export interface SectionAdviceItem {
+  /** 后端词表里的栏目 key；界面对不上这一页某一行时只当它是陌生 key，绝不新建一行 */
+  sectionKey: string;
+  /** 这一栏目的中文名，后端词表给的，前端不解释它的取值 */
+  label: string;
+  enabled: boolean;
+  navVisible: boolean;
+  navSort: number;
+  /** 模型给出的中文理由，原样透传，不改写也不归纳 */
+  reason: string;
+}
+
+/** 一条需求单的栏目建议全貌（generated=false 时 items 是空的，界面得能区分这两种「空」） */
+export interface SectionAdviceView {
+  generated: boolean;
+  items: SectionAdviceItem[];
+  generatedAt: string | null;
+}
+
+/**
+ * 「这一口后端还没上线」的判据。
+ *
+ * <p>状态码在 `api/http.ts` 的响应拦截器里就被压成了一句中文（`describeHttpError` 的 404 分支），
+ * 视图层拿不到 `error.response.status`。建议卡必须能区分「后端真的报错了」和「这一套还没做好」，
+ * 而眼下能拿到的只有这一句固定文案——所以在这里比对一次，视图只管用。</p>
+ */
+export const MISSING_ENDPOINT_MESSAGE = '请求的内容不存在或已被删除';
+
+export function isMissingEndpoint(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error ?? '');
+  return text.includes(MISSING_ENDPOINT_MESSAGE);
+}
+
 export const portalSectionsApi = {
   /** 租户侧只读：本站栏目词表 + 开通态，工作台这一页唯一的数据源 */
   list: (siteId?: number | null) =>
@@ -85,5 +130,25 @@ export const portalSectionsApi = {
     http.get<SectionState[]>(`/admin/sites/${siteId}/sections`),
 
   adminUpdate: (siteId: number, key: string, form: SectionForm) =>
-    http.put<SectionState>(`/admin/sites/${siteId}/sections/${encodeURIComponent(key)}`, form)
+    http.put<SectionState>(`/admin/sites/${siteId}/sections/${encodeURIComponent(key)}`, form),
+
+  /**
+   * 一次保存整批（Spec-D D4）。整批原子：任一 key 不认识或重复，后端一条都不写并给中文原因。
+   * 回的是改完之后的全量生效态——界面直接拿它覆盖本地，不自己拼「改了几条」。
+   */
+  adminBulkUpdate: (siteId: number, items: SectionBulkItem[]) =>
+    http.put<SectionState[]>(`/admin/sites/${siteId}/sections/bulk`, items),
+
+  /**
+   * AI 推导栏目建议（读的是需求单、改的是栏目，所以端点挂在 site-briefs 下、客户端写在这一份文件里：
+   * 它是栏目这件事的唯一接口面，另开一个 api 文件就会有两处找）。
+   *
+   * <p>生成那一发会真的调模型、要花租户配额，所以只有 `generate` 这一颗按钮发得出去，
+   * 界面也绝不自动调它（项目纪律：付模型的口默认要人明确点一次）。</p>
+   */
+  advice: (briefId: number) =>
+    http.get<SectionAdviceView>(`/admin/site-briefs/${briefId}/section-advice`),
+
+  generateAdvice: (briefId: number) =>
+    http.post<void>(`/admin/site-briefs/${briefId}/section-advice`)
 };
