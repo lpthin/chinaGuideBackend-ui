@@ -76,6 +76,12 @@ export interface PortalBlockMeta {
   /** $data 绑定的允许来源清单 */
   bindingSchema: { allowedSources?: string[]; note?: string } | null
   themeSlots: string[] | null
+  /**
+   * 「区块注册了、渲染器也在，但数据源永远接不通」——判据是后端 `PortalBlockCatalogue.UNWIRED_BLOCKS`，
+   * 由 `PortalBlockController` 逐行现算成这一格（落成表字段就会出现「表里没同步、界面照样让人拖空壳」）。
+   * 前端绝不自己列一份 team-grid/stats-band/logo-wall：那份清单一变，画廊里的标签就成了假话。
+   */
+  notWired?: boolean | null
 }
 
 export const portalPagesApi = {

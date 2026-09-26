@@ -12,7 +12,10 @@ import { portalPagesApi, type PortalBlockMeta } from '../../../api/portalPages'
  *    blockKey 与中文显示名，页面上出现它们才算真的没有第二份清单；
  * 2. 演示 props 由 dataSchema 推导（字符串槽给样例文案、列表槽给演示集合、
  *    enum/integer/boolean 给白名单内的合法值），不是一张 blockKey → props 的对照表；
- * 3. 渲染器没登记的区块要说清「为什么只能看名字」，而不是默默空一格。
+ * 3. 渲染器没登记的区块要说清「为什么只能看名字」，而不是默默空一格；
+ * 4. 「未接线 · 需要数据源」那一格只认接口回的 `notWired`（判据是后端
+ *    `PortalBlockCatalogue.UNWIRED_BLOCKS` 那一份）——用例专门喂一条 key 长得像空壳区块、
+ *    但 `notWired:false` 的数据：界面要是自己抄了一份清单，这条数据当场就被打标签。
  */
 
 vi.mock('../../../api/portalPages', () => ({
@@ -76,8 +79,17 @@ function meta(overrides: Partial<PortalBlockMeta>): PortalBlockMeta {
     dataSchema: { type: 'object', properties: { heading: BINDABLE(200) } },
     bindingSchema: { allowedSources: [] },
     themeSlots: [],
+    // 后端逐行现算的这一格永远有值（PortalBlockControllerTest 钉的就是 allSatisfy isNotNull）
+    notWired: false,
     ...overrides
   } as PortalBlockMeta
+}
+
+/** 气泡的内容走 title 属性：默认那份 PASS_THROUGH 不渲染它，这里单独给一个看得见说明的壳 */
+const TOOLTIP_STUB = {
+  name: 'ATooltip',
+  props: ['title'],
+  template: '<span class="tooltip-stub"><span class="tooltip-title">{{ title }}</span><slot /></span>'
 }
 
 async function mountView(blocks: PortalBlockMeta[] | Error) {
@@ -100,6 +112,7 @@ async function mountView(blocks: PortalBlockMeta[] | Error) {
         'a-alert': PASS_THROUGH('AAlert'),
         'a-spin': PASS_THROUGH('ASpin'),
         'a-tag': PASS_THROUGH('ATag'),
+        'a-tooltip': TOOLTIP_STUB,
         'a-empty': PASS_THROUGH('AEmpty'),
         PortalViewportPreview: PREVIEW_STUB
       }
@@ -218,5 +231,58 @@ describe('过滤只是少显示', () => {
     await flushPromises()
     expect(wrapper.findAllComponents(PREVIEW_STUB)).toHaveLength(0)
     expect(wrapper.text()).toContain('没有区块匹配这个关键字')
+  })
+})
+
+describe('未接线那一格只认接口回的那个布尔', () => {
+  const LABEL = '未接线 · 需要数据源'
+
+  it('后端打了标的格子才有标签与气泡说明，没打标的那格一个都不带', async () => {
+    await mountView([
+      meta({ blockKey: 'team-grid', name: '团队', rendererKey: 'teamGrid', notWired: true }),
+      meta({ blockKey: 'hero', name: '主视觉', rendererKey: 'hero', notWired: false })
+    ])
+    const cards = [...document.querySelectorAll('.ACard-stub')]
+    expect(cards).toHaveLength(2)
+    expect(cards[0].textContent).toContain(LABEL)
+    expect(cards[1].textContent).not.toContain(LABEL)
+    // 光有三个字没人看得懂：气泡要说清「渲得出结构但里面是空的」，并交代判据在后端
+    const tips = [...document.querySelectorAll('.tooltip-title')]
+    expect(tips).toHaveLength(1)
+    expect(tips[0].textContent).toContain('后端没有任何数据源')
+    expect(tips[0].textContent).toContain('不是前端抄')
+  })
+
+  /**
+   * 反方向的那一钉：key 就叫 team-grid / stats-band（后端那份 UNWIRED_BLOCKS 里的名字），
+   * 而接口这回说它不是空壳。界面要是自己抄了一份清单，这一条数据当场被补上标签——
+   * 那份清单不会跟着 Java 变，迟早变成假话（I 系列的老教训）。
+   */
+  it('key 正是后端那份清单里的名字、接口却没打标：界面不自己补一个标签', async () => {
+    const wrapper = await mountView([
+      meta({ blockKey: 'team-grid', rendererKey: 'teamGrid', notWired: false }),
+      meta({ blockKey: 'stats-band', rendererKey: 'statsBand', notWired: false })
+    ])
+    expect(wrapper.text()).not.toContain(LABEL)
+    expect(document.querySelectorAll('.tooltip-stub')).toHaveLength(0)
+  })
+
+  it('顶上的计数按每一格现算：三格空壳就说三格，不多不少', async () => {
+    const wrapper = await mountView([
+      meta({ blockKey: 'team-grid', notWired: true }),
+      meta({ blockKey: 'stats-band', notWired: true }),
+      meta({ blockKey: 'logo-wall', notWired: true }),
+      meta({ blockKey: 'hero', notWired: false })
+    ])
+    expect(wrapper.text()).toContain('这份清单里有 3 格')
+  })
+
+  it('后端没回这一格（接口比前端旧）时不打标也不报错，格子照常渲', async () => {
+    const legacy: any = meta({})
+    delete legacy.notWired
+    const wrapper = await mountView([legacy])
+    expect(wrapper.text()).not.toContain(LABEL)
+    expect(wrapper.text()).not.toContain('这份清单里有')
+    expect(wrapper.findAllComponents(PREVIEW_STUB)).toHaveLength(1)
   })
 })

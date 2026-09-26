@@ -133,6 +133,23 @@
   color: var(--portal-color-primary);
 }
 
+/**
+ * 页头的滚动态（`pb-header--scrolled` 这个类 SiteHeaderBlock.vue 一直在绑——滚过 24px 就加上，
+ * 而这份表里过去没有一条对应规则，等于一个死钩子：类换上了，什么都没人看见）。
+ *
+ * 为什么规则写在这份共享表里、`.pb-header` 本体却在组件的 scoped 样式里：组件的 scoped 选择器
+ * 自带 [data-v-xxx]，权重比这边高，在这边重写 `height` / `background` 只会稳输一场。
+ * 所以组件那边把这两个值留成变量口子（--pb-header-bar-height / --pb-header-bg），默认值就是静态那套，
+ * 这里只换变量的值 + 一条投影：谁都不必靠 !important 打架，而「滚动后长什么样」这件事集中在这几行。
+ */
+.pb-header--scrolled {
+  // 收紧一条高度：正文滚上来时导航条该让出更多首屏，而不是继续占着 68px
+  --pb-header-bar-height: 56px;
+  // 半透明 + 模糊换成实心底：正文从底下穿过时不该看穿，字要还读得清
+  --pb-header-bg: var(--portal-color-bg);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.1);
+}
+
 @container portal-viewport (max-width: 1024px) {
   /* 列数是区块配置，但窄屏必须压过它：4 列在手机上一屏放不下，宁可上下堆叠 */
   .pb-grid,

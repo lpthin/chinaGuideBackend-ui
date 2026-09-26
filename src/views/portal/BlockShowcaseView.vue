@@ -15,6 +15,11 @@
       </template>
     </a-alert>
 
+    <p v-if="unwiredCount" class="block-showcase__muted block-showcase__unwired">
+      这份清单里有 {{ unwiredCount }} 格带着「未接线 · 需要数据源」：拖进页面渲得出结构，里面却永远是空的。
+      这个数是按服务端回的每一格现算的，这一页不列区块 key。
+    </p>
+
     <a-form layout="inline" class="block-showcase__toolbar">
       <a-form-item label="关键字">
         <a-input v-model:value="keyword" allow-clear placeholder="按显示名、区块 key 或分类过滤" style="width: 240px" />
@@ -49,6 +54,11 @@
               <a-tag>{{ item.meta.blockKey }}</a-tag>
               <a-tag v-if="item.meta.category" color="blue">{{ item.meta.category }}</a-tag>
               <a-tag v-if="item.meta.maxInstances" color="default">单页最多 {{ item.meta.maxInstances }} 个</a-tag>
+              <!-- 「未接线」这条事实只活在后端 PortalBlockCatalogue.UNWIRED_BLOCKS 那一份里，
+                   这里读接口回的那一格：前端一抄清单，Java 改了这边就说假话。 -->
+              <a-tooltip v-if="item.meta.notWired" :title="UNWIRED_TIP">
+                <a-tag color="orange">未接线 · 需要数据源</a-tag>
+              </a-tooltip>
             </a-space>
           </template>
           <template #extra>
@@ -85,7 +95,8 @@ import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue
  * 区块画廊（Spec §7.2 演示形态第一层，Q2）。
  *
  * 三条纪律：
- * 1. 清单、显示名、分类、上限全部来自 `GET /api/portal/blocks`，这一页没有任何一份区块常量；
+ * 1. 清单、显示名、分类、上限、还有「这一格数据接不通」那一格（`notWired`）全部来自
+ *    `GET /api/portal/blocks`，这一页没有任何一份区块常量；
  * 2. 演示 props 由每个区块的 dataSchema 推导（见 blockDemo.ts），不是一张 blockKey → props 的对照表；
  * 3. 渲染走 `PortalViewportPreview` + 注册表里的真组件，和访客端、搭建器预览同一条路，
  *    所以「画廊里的样子」不会和「客户站点上的样子」长成两套。
@@ -104,6 +115,13 @@ const FRAME_OPTIONS = [
   { value: 768, label: '平板 768' },
   { value: 375, label: '手机 375' }
 ]
+
+/**
+ * 「未接线」那句话为什么说出口：渲染器真的在、区块也能拖进页面，缺的是数据源——
+ * 所以访客端渲出来是一个空壳。判据本身不在这里（见模板里那段注释），这里只有给人看的那句解释。
+ */
+const UNWIRED_TIP = '渲染器在、区块能拖，但后端没有任何数据源接得上它：放进页面渲出来就是空的。'
+  + '要么补数据源，要么把这个区块下线——这条判据来自服务端的区块元数据，不是前端抄的一份清单。'
 
 const metas = ref<PortalBlockMeta[]>([])
 const loading = ref(false)
@@ -128,6 +146,9 @@ const blocks = computed<ShowcaseItem[]>(() => metas.value.map((meta, index) => {
     propsText: JSON.stringify(props, null, 2)
   }
 }))
+
+/** 有几格被后端标成空壳：这个数从接口回的那一格现算，前端没有一份区块清单可数 */
+const unwiredCount = computed(() => metas.value.filter(meta => meta.notWired).length)
 
 const visibleBlocks = computed(() => {
   const needle = keyword.value.trim().toLowerCase()

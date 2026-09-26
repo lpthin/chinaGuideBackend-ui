@@ -48,6 +48,11 @@ import { text } from './types'
  * 页头：站点名/标志可由区块槽位覆盖，导航只有一份——来自后端 portal_page（PortalContentService.nav），
  * 前端不再自带六条硬编码链接，这正是旧模板「导航与页面脱节」的根因。
  * 这里也不放「联系我们」按钮：它会和导航里的同名项重复，而且路由写死在数据驱动的区块里。
+ *
+ * 滚动态：这个组件一直只在 <header> 上绑一个 `pb-header--scrolled` 类（滚动监听是下面那一条，
+ * passive，不额外加 rAF），而过去整仓库没有一条对应规则——类换了、什么都看不见。
+ * 规则现在在 portal-blocks.less 里（收紧导航条高度 + 实心底 + 一条投影），
+ * 组件这边只交出那两个值的口子：类的静态外观与滚动态外观各有一处归属，但都不必互相压权重。
  */
 const props = defineProps<BlockContext>()
 
@@ -76,7 +81,10 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255, 255, 255, 0.92);
+  // 这两个值都是「口子」：静态态就是这里的默认值，滚动态（pb-header--scrolled）在
+  // portal-blocks.less 里换变量的值——那边写死 height/background 会被这条 scoped 规则的权重压住，
+  // 换成变量谁都不必跟谁抢。类绑在模板第 2 行，规则今天真的存在（见那份 .less 的注释）。
+  background: var(--pb-header-bg, rgba(255, 255, 255, 0.92));
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--portal-color-border);
 
@@ -84,7 +92,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
     display: flex;
     align-items: center;
     gap: 20px;
-    height: 68px;
+    height: var(--pb-header-bar-height, 68px);
   }
 
   &__brand {
