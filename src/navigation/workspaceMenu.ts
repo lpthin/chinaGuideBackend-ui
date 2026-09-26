@@ -84,7 +84,7 @@ export const MENU_GROUPS: MenuGroupDef[] = [
   { key: 'site-info', label: '网站信息', domain: 'tenant', icon: 'building', hint: 'AI 填好的企业信息与站点配置，可审可改' },
   { key: 'site-effect', label: '效果与引用', domain: 'tenant', icon: 'chart', hint: '流量来源与被 AI 引用的情况' },
   { key: 'operation', label: '运营管理', domain: 'tenant', icon: 'pie-chart' },
-  { key: 'build-delivery', label: '建站交付', domain: 'platform', icon: 'rocket', hint: '建站流水线 → 页面搭建 → 整站组装' },
+  { key: 'build-delivery', label: '建站交付', domain: 'platform', icon: 'rocket', hint: '前采需求单 → 建站流水线 → 页面搭建 → 整站组装' },
   { key: 'build-assets', label: '站点资产', domain: 'platform', icon: 'database', hint: '站点、租户、栏目开通与骨架' },
   { key: 'build-style', label: '参考与样式', domain: 'platform', icon: 'bg-colors', hint: '参考站摄取、区块与皮肤' },
   { key: 'build-quality', label: '质量与效果（平台）', domain: 'platform', icon: 'safety', hint: '巡检、引用探测与改版工单' },
@@ -143,6 +143,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-operation-reports': 'operation',
   'workspace-operation-customers': 'operation',
   // 平台：建站交付
+  'workspace-portal-briefs': 'build-delivery',
   'workspace-portal-build': 'build-delivery',
   'workspace-portal-assemble-jobs': 'build-delivery',
   'workspace-portal-pages': 'build-delivery',

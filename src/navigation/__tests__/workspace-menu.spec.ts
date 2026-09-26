@@ -127,6 +127,23 @@ describe('平台段与租户段分家', () => {
     })
   })
 
+  it('前采需求单是平台项：进「建站交付」组，与邻页同一条闸，租户既看不见也进不去', () => {
+    const briefs = grouped.find(leaf => leaf.routeName === 'workspace-portal-briefs')
+    expect(briefs?.label).toBe('前采需求单')
+    expect(briefs?.group).toBe('build-delivery')
+    expect(briefs?.superAdminOnly).toBe(true)
+    expect(briefs?.permission).toBe('portal:build:manage')
+    // 新建/录入页藏在列表后面：不进菜单（group 为空串），但闸与列表同一条——敲地址也不给过
+    ;['workspace-portal-brief-new', 'workspace-portal-brief-intake'].forEach(routeName => {
+      const leaf = leaves.find(item => item.routeName === routeName)
+      expect(leaf, `${routeName} 必须还在路由表里`).toBeTruthy()
+      expect(leaf!.group).toBe('')
+      expect(leaf!.superAdminOnly).toBe(true)
+      expect(leaf!.permission).toBe('portal:build:manage')
+    })
+    expect(leafVisible(briefs!, TENANT)).toBe(false)
+  })
+
   it('租户视角仍看得见自己该做的事：内容、企业信息与联系平台', () => {
     const visible = buildMenuSections(leaves, TENANT)
       .flatMap(section => section.groups.flatMap(group => group.items.map(item => item.label)))

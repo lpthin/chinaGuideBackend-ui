@@ -65,6 +65,8 @@ const BlockShowcaseView = () => import('../views/portal/BlockShowcaseView.vue')
 const SkeletonLibraryView = () => import('../views/portal/SkeletonLibraryView.vue')
 const AssembleJobView = () => import('../views/portal/AssembleJobView.vue')
 const SiteBuildWorkbenchView = () => import('../views/portal/SiteBuildWorkbenchView.vue')
+const SiteBriefsView = () => import('../views/portal/SiteBriefsView.vue')
+const BriefIntakeView = () => import('../views/portal/BriefIntakeView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
@@ -439,6 +441,46 @@ export const routes: RouteRecordRaw[] = [
           icon: 'grid',
           breadcrumb: ['首页', '平台 · 站点资产', '栏目开通'],
           requiredPermission: 'portal:build:section'
+        }
+      },
+      {
+        path: 'portal/briefs',
+        name: 'workspace-portal-briefs',
+        component: SiteBriefsView,
+        // 前采需求单是建站主线的第一站（Spec §3.2）：超管录 13 题需求，后面才有候选站可出。
+        // 闸与相邻建设页同码（菜单显隐、路由守卫、后端 @RequirePermission 三处一个码，Spec §3.1 硬规则 1/5）。
+        meta: {
+          title: '前采需求单',
+          icon: 'form',
+          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单'],
+          requiredPermission: 'portal:build:manage',
+          requiresSuperAdmin: true
+        }
+      },
+      {
+        path: 'portal/brief/new',
+        name: 'workspace-portal-brief-new',
+        component: BriefIntakeView,
+        meta: {
+          title: '录入前采需求单',
+          icon: 'form',
+          hidden: true,
+          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单', '录入'],
+          requiredPermission: 'portal:build:manage',
+          requiresSuperAdmin: true
+        }
+      },
+      {
+        path: 'portal/brief/:id',
+        name: 'workspace-portal-brief-intake',
+        component: BriefIntakeView,
+        meta: {
+          title: '编辑前采需求单',
+          icon: 'form',
+          hidden: true,
+          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单', '编辑'],
+          requiredPermission: 'portal:build:manage',
+          requiresSuperAdmin: true
         }
       },
       {

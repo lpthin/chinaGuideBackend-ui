@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { siteApi, tenantApi } from '../../api'
+import { PROFILE_QUESTION_KEYS, findProfileQuestion, vocabularyApi } from '@/api/siteBriefs'
+import type { BriefVocabularyQuestion, SiteBriefVocabulary } from '@/api/siteBriefs'
 import { useAuthStore } from '../../stores/auth'
 import { useSiteStore } from '@/stores/site'
 import type { Site } from '../../types'
@@ -24,49 +26,60 @@ interface CascaderOption extends SelectOption {
   children?: SelectOption[]
 }
 
-const industryOptions: CascaderOption[] = [
-  { value: '入境旅游', label: '入境旅游', children: [
-    { value: '中国自由行', label: '中国自由行' },
-    { value: '支付指南', label: '支付指南' },
-    { value: '交通指南', label: '交通指南' },
-    { value: '住宿与酒店', label: '住宿与酒店' },
-    { value: '签证与入境', label: '签证与入境' }
-  ] },
-  { value: 'SaaS', label: 'SaaS', children: [
-    { value: 'AI工具', label: 'AI工具' },
-    { value: '营销自动化', label: '营销自动化' },
-    { value: '客户管理', label: '客户管理' },
-    { value: '数据分析', label: '数据分析' }
-  ] },
-  { value: '跨境电商', label: '跨境电商', children: [
-    { value: '独立站', label: '独立站' },
-    { value: '亚马逊', label: '亚马逊' },
-    { value: 'TikTok Shop', label: 'TikTok Shop' },
-    { value: '物流与支付', label: '物流与支付' }
-  ] },
-  { value: '本地生活', label: '本地生活', children: [
-    { value: '餐饮', label: '餐饮' },
-    { value: '酒旅', label: '酒旅' },
-    { value: '到店服务', label: '到店服务' }
-  ] }
-]
+/**
+ * 行业/市场/用户/商业模式这四份下拉的词表唯一真相在后端（Spec §5 回写补充第 1 条）：
+ * 这里只按题目 key 找题、把 code→label 透传给控件，取不到就明说「词表没取到」，
+ * 绝不退回任何写死的清单（I-1）。
+ */
+const profileVocabulary = ref<SiteBriefVocabulary | null>(null)
+const profileFailed = ref(false)
+const profileLoading = ref(true)
 
-const regionOptions = ['全球', '中国大陆', '香港', '澳门', '台湾', '美国', '加拿大', '英国', '德国', '法国', '西班牙', '日本', '韩国', '新加坡', '马来西亚', '泰国', '越南', '澳大利亚'].map((value) => ({ value, label: value }))
-const audienceOptions = ['首次来华游客', '背包客', '商务旅客', '留学生', '外籍工作者', '家庭亲子游客', '高端定制游客', '数字游民', '采购商', '企业决策者'].map((value) => ({ value, label: value }))
-const businessModelOptions = ['广告', 'Affiliate', '线索', '订阅', '会员', '电商', '咨询服务', 'SaaS授权', '品牌赞助'].map((value) => ({ value, label: value }))
+async function loadProfileVocabulary() {
+  profileFailed.value = false
+  try {
+    profileVocabulary.value = await vocabularyApi.portalVocabulary()
+  } catch (error) {
+    profileVocabulary.value = null
+    profileFailed.value = true
+  } finally {
+    profileLoading.value = false
+  }
+}
 
-const localeOptions: SelectOption[] = [
-  { value: 'zh-CN', label: '简体中文' },
-  { value: 'en', label: 'English' },
-  { value: 'ja', label: '日本語' },
-  { value: 'ko', label: '한국어' },
-  { value: 'es', label: 'Español' },
-  { value: 'fr', label: 'Français' },
-  { value: 'de', label: 'Deutsch' },
-  { value: 'ru', label: 'Русский' },
-  { value: 'th', label: 'ไทย' },
-  { value: 'vi', label: 'Tiếng Việt' }
-]
+function profileOptions(key: string): SelectOption[] {
+  const question = findProfileQuestion(profileVocabulary.value, key)
+  return (question?.options ?? []).map(option => ({ value: option.code, label: option.label }))
+}
+
+function profileQuestion(key: string): BriefVocabularyQuestion | null {
+  return findProfileQuestion(profileVocabulary.value, key)
+}
+
+/** 词表没取到 / 词表里没这一题：下拉里说的都是这句真话，不给空列表装样子 */
+function profileHint(key: string): string {
+  if (profileLoading.value) return '词表加载中…'
+  if (profileFailed.value) return '词表没取到，刷新重试'
+  if (!profileQuestion(key)) return '词表里没这道题，刷新重试'
+  return '没有可选项'
+}
+
+const industryOptions = computed<CascaderOption[]>(() => {
+  const question = profileQuestion(PROFILE_QUESTION_KEYS.industry)
+  return (question?.options ?? []).map(option => ({
+    value: option.code,
+    label: option.label,
+    children: (option.children ?? []).map(child => ({ value: child.code, label: child.label }))
+  }))
+})
+
+const regionOptions = computed(() => profileOptions(PROFILE_QUESTION_KEYS.targetRegions))
+const audienceOptions = computed(() => profileOptions(PROFILE_QUESTION_KEYS.targetAudience))
+const businessModelOptions = computed(() => profileOptions(PROFILE_QUESTION_KEYS.businessModel))
+
+// 语言清单同样只认后端那一份词表（见 PROFILE_QUESTION_KEYS.languages 上的注释）：
+// 以前这里和 CompanyInfoView 各抄了一份逐字相同的十语清单，第三处抄本就是第三个真相。
+const localeOptions = computed<SelectOption[]>(() => profileOptions(PROFILE_QUESTION_KEYS.languages))
 
 interface SiteForm extends Omit<Site, 'enabledLocales' | 'competitorDomains' | 'seedKeywords' | 'excludedKeywords' | 'industry' | 'subIndustry' | 'targetRegions' | 'targetAudience' | 'businessModel' | 'searchLocales'> {
   industryPath: string[]
@@ -224,6 +237,7 @@ onMounted(() => {
   }
   load()
   loadTenantNames()
+  loadProfileVocabulary()
 })
 </script>
 
@@ -239,6 +253,13 @@ onMounted(() => {
         新建站点
       </a-button>
     </div>
+
+    <a-alert v-if="profileFailed" type="warning" show-icon style="margin-bottom: 16px">
+      <template #message>
+        站点画像词表没取到，刷新重试：行业 / 目标市场 / 目标用户 / 商业模式的下拉暂时是空的，不是没有可选项。
+        <a-button size="small" type="link" @click="loadProfileVocabulary">重新取词表</a-button>
+      </template>
+    </a-alert>
 
     <a-table
       :data-source="sites"
@@ -330,26 +351,26 @@ onMounted(() => {
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="行业分类">
-              <a-cascader v-model:value="form.industryPath" :options="industryOptions" :show-search="true" allow-clear style="width:100%" placeholder="选择主行业 / 细分行业" />
+              <a-cascader v-model:value="form.industryPath" :options="industryOptions" :show-search="true" allow-clear :not-found-content="profileHint(PROFILE_QUESTION_KEYS.industry)" style="width:100%" placeholder="选择主行业 / 细分行业" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item label="目标市场">
-              <a-select v-model:value="form.targetRegionsList" mode="multiple" :show-search="true" allow-create default-first-option style="width:100%" placeholder="多选，可输入自定义市场">
+              <a-select v-model:value="form.targetRegionsList" mode="multiple" :show-search="true" allow-create default-first-option :not-found-content="profileHint(PROFILE_QUESTION_KEYS.targetRegions)" style="width:100%" placeholder="多选，可输入自定义市场">
                 <a-select-option v-for="item in regionOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item label="目标用户">
-              <a-select v-model:value="form.targetAudienceList" mode="multiple" :show-search="true" allow-create default-first-option style="width:100%" placeholder="多选，可输入自定义用户">
+              <a-select v-model:value="form.targetAudienceList" mode="multiple" :show-search="true" allow-create default-first-option :not-found-content="profileHint(PROFILE_QUESTION_KEYS.targetAudience)" style="width:100%" placeholder="多选，可输入自定义用户">
                 <a-select-option v-for="item in audienceOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item label="商业模式">
-              <a-select v-model:value="form.businessModelList" mode="multiple" :show-search="true" allow-create default-first-option style="width:100%" placeholder="多选，可输入自定义模式">
+              <a-select v-model:value="form.businessModelList" mode="multiple" :show-search="true" allow-create default-first-option :not-found-content="profileHint(PROFILE_QUESTION_KEYS.businessModel)" style="width:100%" placeholder="多选，可输入自定义模式">
                 <a-select-option v-for="item in businessModelOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
               </a-select>
             </a-form-item>
