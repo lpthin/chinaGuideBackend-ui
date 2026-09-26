@@ -62,6 +62,7 @@ const PortalDynamicPage = () => import('../portal/PortalDynamicPage.vue')
 const PortalArticleDetail = () => import('../portal/PortalArticleDetail.vue')
 const PortalCaseDetail = () => import('../portal/PortalCaseDetail.vue')
 const BannerManageView = () => import('../views/portal/BannerManageView.vue')
+const ShowcaseManageView = () => import('../views/portal/ShowcaseManageView.vue')
 const JobManageView = () => import('../views/portal/JobManageView.vue')
 const MessageManageView = () => import('../views/portal/MessageManageView.vue')
 const GuestbookManageView = () => import('../views/portal/GuestbookManageView.vue')
@@ -592,6 +593,15 @@ export const routes: RouteRecordRaw[] = [
         name: 'workspace-portal-banners',
         component: BannerManageView,
         meta: { title: 'Banner管理', icon: 'image', breadcrumb: ['首页', '门户网站', 'Banner管理'], requiredPermission: 'portal:siteinfo:manage' }
+      },
+      {
+        path: 'portal/showcase',
+        name: 'workspace-portal-showcase',
+        component: ShowcaseManageView,
+        // Spec-D D2：租户侧「展示内容」（团队/历程/客户标志/指标/评价/资质/FAQ 七类一页签）。
+        // 挂「网站内容维护」组、绝不进建站组（Spec-C §2.1 的混排老病）；权限码与后端
+        // PortalShowcaseItemController 类级同一条（菜单/守卫/后端一个码）。
+        meta: { title: '展示内容', icon: 'profile', breadcrumb: ['首页', '网站内容维护', '展示内容'], requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/jobs',

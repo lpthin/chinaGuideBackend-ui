@@ -127,6 +127,9 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // 所以它留在租户可见的一组，不因为「名字像建站」就挪进平台段——那会让租户丢掉唯一一个上线自检入口。
   'workspace-portal-launch': 'site-content',
   'workspace-portal-banners': 'site-content',
+  // Spec-D D2：展示内容（团队/历程/标志/指标/评价/资质/FAQ）是租户填的，进内容维护组，
+  // 绝不进任何 build-* 组（Spec-C §2.1 记过建站项与租户内容混排的老病）。
+  'workspace-portal-showcase': 'site-content',
   'workspace-portal-jobs': 'site-content',
   'workspace-portal-guestbook': 'site-content',
   'workspace-portal-messages': 'site-content',
