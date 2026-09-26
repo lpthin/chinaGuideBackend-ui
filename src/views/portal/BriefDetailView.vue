@@ -51,6 +51,8 @@ import type { Tenant } from '@/types/workspace'
  * 「③ 客户答复留痕 / ④ 转正交棒 / 重跑收口」是 P4 的三口（`api/siteBriefDelivery`），
  * 只按后端真回的东西渲染：转正按钮只认「留痕里有一条真的选了某一套」，客户没选就没有按钮；
  * 交付地址只认 promote 回执里的 `maintenanceUrl`，回执没拿到时写文案，不摆假链接、不造按钮。
+ * Spec-D D5-3 起回执里还带着交棒清单（`handoverNotice` 一句原话 + `handoverItems` 三条落地页）：
+ * 链接只用后端给的 `url`，这一页不拼第二份路径。
  */
 
 const route = useRoute()
@@ -789,6 +791,23 @@ onUnmounted(stopPolling)
             归档的候选：{{ promoteReceipt.archivedSiteIds.length ? promoteReceipt.archivedSiteIds.join('、') : '没有' }}
             · 撤销预览令牌 {{ promoteReceipt.revokedTokenCount }} 条
           </p>
+          <!-- D5-3 交棒清单：那句原话与三条链接都只用后端回执里给的内容（I-1——路径的真相在后端
+               那一份，这边绝不拼第二份）。`urlRelative` 时如实写明这是相对路径、要拼上后台域名才能
+               发给租户：这一页不猜域名，和上面维护地址那条同一口径。回执里没有这两格就不摆这一节，
+               不演「清单已备好」。 -->
+          <p v-if="promoteReceipt.handoverNotice" class="brief-detail__line">
+            <b>交棒清单（后端原话）：</b>{{ promoteReceipt.handoverNotice }}
+          </p>
+          <ul v-if="promoteReceipt.handoverItems?.length" class="brief-detail__handover">
+            <li v-for="item in promoteReceipt.handoverItems" :key="item.key">
+              <b>{{ item.label }}</b>：
+              <a class="brief-detail__handover-url" :href="item.url" target="_blank" rel="noopener">{{ item.url }}</a>
+              <span v-if="item.urlRelative" class="brief-detail__locked">
+                （这是相对路径：后端没配管理后台根地址，发给租户前要自己拼上后台域名——这里不猜）
+              </span>
+              <p v-if="item.notice" class="brief-detail__muted">{{ item.notice }}</p>
+            </li>
+          </ul>
         </template>
         <p v-else-if="alreadyPromoted" class="brief-detail__muted">
           这一单已是「{{ statusText }}」。交付回执（含租户维护地址那一条真链接）只在转正那一步的响应里给过，
@@ -899,6 +918,19 @@ onUnmounted(stopPolling)
 .brief-detail__line {
   margin: 6px 0;
   word-break: break-word;
+}
+/* D5-3 交棒清单：三条各一行，链接用等宽并允许断行——它是给人在后台地址栏里粘的，不许被裁掉 */
+.brief-detail__handover {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+  word-break: break-word;
+}
+.brief-detail__handover li {
+  margin-bottom: 6px;
+}
+.brief-detail__handover-url {
+  font-family: monospace;
+  word-break: break-all;
 }
 .brief-detail__summary-inline {
   padding: 2px 6px;

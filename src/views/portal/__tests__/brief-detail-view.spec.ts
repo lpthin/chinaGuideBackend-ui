@@ -10,6 +10,7 @@ import {
   ESTIMATE_UNDERESTIMATE_DISCLAIMER
 } from '../../../api/siteBriefs'
 import { siteApi, tenantApi } from '../../../api/workspace'
+import { siteBriefDeliveryApi } from '../../../api/siteBriefDelivery'
 
 /**
  * 需求单详情的「出方案」四步门禁（Spec-C §3.2 / 拍板 9A / §9-1 / §6.2，任务 P3）。
@@ -73,6 +74,20 @@ vi.mock('../../../api/workspace', () => ({
   tenantApi: { list: vi.fn() },
   siteApi: { list: vi.fn() }
 }))
+
+// P4 三口（留痕/转正/收口）：纯函数（hasChosenDecision）走真实现，只把网络口换成 vi.fn。
+// 默认在 mountView 里统一挂空回包——转正按钮的判据是「留痕里真有一条选定」，默认空 = 没按钮。
+vi.mock('../../../api/siteBriefDelivery', async importOriginal => {
+  const actual = await importOriginal<Record<string, any>>()
+  return {
+    ...actual,
+    siteBriefDeliveryApi: {
+      promote: vi.fn(),
+      regenerate: vi.fn(),
+      decisions: vi.fn()
+    }
+  }
+})
 
 const TABLE_STUB = defineComponent({
   name: 'ATable',
@@ -152,6 +167,10 @@ interface MountOptions {
   estimateData?: Record<string, unknown>
   generateError?: string
   generateData?: unknown
+  /** ③ 的留痕回包：转正按钮唯一的判据（默认空 = 没按钮） */
+  decisions?: unknown[]
+  /** ④ promote 的回执（D5-3 的交棒清单就挂在这一格里） */
+  promoteData?: Record<string, unknown> | null
 }
 
 /**
@@ -220,6 +239,10 @@ async function mountView(options: MountOptions = {}) {
   } else {
     vi.mocked(briefGenerationApi.generate).mockResolvedValue((options.generateData ?? { briefId: 12 }) as any)
   }
+  // 留痕默认是空的（没有客户真选定的记录 → 没有转正按钮）；要走到 ④ 的用例走 options 传自己的回包
+  vi.mocked(siteBriefDeliveryApi.decisions).mockResolvedValue((options.decisions ?? []) as any)
+  vi.mocked(siteBriefDeliveryApi.promote).mockResolvedValue((options.promoteData ?? null) as any)
+  vi.mocked(siteBriefDeliveryApi.regenerate).mockResolvedValue(null as any)
   const wrapper = mount(BriefDetailView, {
     attachTo: document.body,
     global: {
@@ -234,7 +257,9 @@ async function mountView(options: MountOptions = {}) {
         'a-descriptions': PASS_THROUGH('ADescriptions'),
         'a-descriptions-item': PASS_THROUGH('ADescriptionsItem'),
         'a-empty': PASS_THROUGH('AEmpty'),
-        'a-tooltip': PASS_THROUGH('ATooltip')
+        'a-tooltip': PASS_THROUGH('ATooltip'),
+        // 真 popconfirm 走 teleport + rAF，这里要钉的是 confirm 之后上屏的那份回执：换成把默认槽渲出来的壳
+        'a-popconfirm': PASS_THROUGH('APopconfirm')
       }
     }
   })
@@ -468,6 +493,73 @@ describe('P4 的诚实边界与每一步的真去处', () => {
     expect(text).toContain('第 1 套')
     expect(text).toContain('候选站')
     expect(text).toContain('已归档候选')
+    wrapper.unmount()
+  })
+})
+
+/**
+ * D5-3：转正回执里的交棒清单。三条纪律——
+ * 1. 那句原话与三条链接**只渲染后端回执给的内容**（前端不拼第二份路径，I-1）；
+ * 2. `urlRelative` 的行如实写明「相对路径、要自己拼后台域名」，绝对路径的行不挂这句；
+ * 3. 老回执（后端还没带这两格）时这一节整个不出现——没给就是没给，不演「清单已备好」。
+ */
+describe('④ 转正交棒：回执里的交棒清单原样上屏（D5-3）', () => {
+  const CHOSEN = [{ id: 3, sessionId: 9, chosenSiteId: 31, chosenSiteName: '纳欣官网', candidateNo: 1, clientNote: null, createdAt: null }]
+  const RECEIPT = {
+    briefId: 12, siteId: 31, siteName: '纳欣广告官网', briefStatus: 'promoted', briefStatusLabel: '已交付',
+    tenantName: '甲租户',
+    maintenanceUrl: '/workspace/portal/content?siteId=31', maintenanceUrlRelative: true,
+    archivedSiteIds: [32, 33], revokedTokenCount: 2,
+    archivedNotice: '另外 2 套候选已转为「已归档」，租户后台不会列出它们。',
+    handoverNotice: '这三处是示意内容，请替换：展示内容 / 案例 / 公司信息。'
+      + '另：本站的演示文章（标题带「示例｜」）同样是 AI 生成的示意内容，在「内容工作台」进来的文章列表里可以整篇替换或直接删除。',
+    handoverItems: [
+      { key: 'showcase', label: '展示内容', url: '/workspace/portal/showcase?siteId=31', urlRelative: true,
+        notice: '团队、里程碑、客户标志、数据、评价、资质、常见问题这七类里的示意条目（标题带「示例｜」），请逐条换成真实资料，不需要的直接删' },
+      { key: 'case', label: '案例', url: 'https://admin.test/workspace/case/list?siteId=31', urlRelative: false,
+        notice: 'AI 生成的演示案例：不写客户名称与效果数字，交付后可替换' },
+      { key: 'company', label: '公司信息', url: '/workspace/portal/company?siteId=31', urlRelative: true,
+        notice: '「关于我们」「联系我们」两栏读的那些字段还要人填' }
+    ]
+  }
+
+  it('点「转正交棒」后：那句原话与三条链接原样上屏，相对路径的行如实写明要拼后台域名', async () => {
+    const wrapper = await mountView({ status: 'decided', decisions: CHOSEN, promoteData: RECEIPT })
+    // 模板里 promote 在前、regenerate 在后：第一颗 popconfirm 就是转正那一发
+    wrapper.findAllComponents({ name: 'APopconfirm' })[0].vm.$emit('confirm')
+    await flushPromises()
+    const text = wrapper.text()
+    expect(siteBriefDeliveryApi.promote).toHaveBeenCalledWith(12)
+    // 原话一个字不改地挂出来
+    expect(text).toContain('这三处是示意内容，请替换：展示内容 / 案例 / 公司信息。')
+    expect(text).toContain('团队、里程碑、客户标志、数据、评价、资质、常见问题这七类里的示意条目')
+    // 链接只用后端给的那三条 url：href 逐字对得上，这一头一个字都没拼
+    // （ACard 的 PASS_THROUGH 桩会把默认槽渲两遍，所以断言 scope 在第一条清单里）
+    const list = wrapper.find('.brief-detail__handover')
+    const items = list.findAll('li')
+    expect(items).toHaveLength(3)
+    expect(items.map(node => node.find('a').attributes('href'))).toEqual([
+      '/workspace/portal/showcase?siteId=31',
+      'https://admin.test/workspace/case/list?siteId=31',
+      '/workspace/portal/company?siteId=31'
+    ])
+    // 相对路径的两条各挂一句「要拼后台域名」，绝对路径那条不挂（说了就是谎报）
+    expect(items[0].text()).toContain('这是相对路径')
+    expect(items[1].text()).not.toContain('这是相对路径')
+    expect(items[2].text()).toContain('这是相对路径')
+    wrapper.unmount()
+  })
+
+  it('后端还没带这两格的旧回执：这一节整个不出现，不演「清单已备好」', async () => {
+    const legacy = { ...RECEIPT } as Record<string, unknown>
+    delete legacy.handoverNotice
+    delete legacy.handoverItems
+    const wrapper = await mountView({ status: 'decided', decisions: CHOSEN, promoteData: legacy })
+    wrapper.findAllComponents({ name: 'APopconfirm' })[0].vm.$emit('confirm')
+    await flushPromises()
+    expect(wrapper.text()).toContain('已交付')
+    expect(wrapper.text()).not.toContain('交棒清单')
+    expect(document.querySelectorAll('.brief-detail__handover').length).toBe(0)
     wrapper.unmount()
   })
 })

@@ -130,6 +130,21 @@ export const clientBriefApi = {
 // 超管面：转正交棒 / 重跑收口 / 客户答复留痕（portal:build:manage）
 // ------------------------------------------------------------------
 
+/**
+ * `SiteBriefDeliveryService.HandoverItem`（Spec-D D5-3）：交棒清单里的一条落地页。
+ *
+ * <p>`key` 是稳定标识（showcase/case/company），中文 `label` 只给人读——界面拿 key 之外的一切
+ * 原样显示，绝不按 label 判断（改了措辞就判错的教训后端注释里写着）。`url` 是后端拼好的那一条，
+ * 前端不再抄第二份路径（I-1）；`urlRelative` 每条自带，因为这条链接要能被原样复制出去发给租户。</p>
+ */
+export interface HandoverItem {
+  key: string;
+  label: string;
+  url: string;
+  urlRelative: boolean;
+  notice: string | null;
+}
+
 /** `SiteBriefDeliveryService.PromoteReceipt`：字段名逐一对齐后端 record，界面只渲染它给了的那些 */
 export interface PromoteReceipt {
   briefId: number;
@@ -146,6 +161,10 @@ export interface PromoteReceipt {
   revokedTokenCount: number;
   /** N-3 那句原话：另外几套归档、需要对比找平台 */
   archivedNotice: string;
+  /** D5-3 那句原话：这三处是示意内容，请替换（逐条地址在 `handoverItems`） */
+  handoverNotice: string | null;
+  /** D5-3 的三条落地页：链接只用后端给的 `url`，这一头不拼第二份 */
+  handoverItems: HandoverItem[] | null;
 }
 
 /** `RegenerateReceipt`（拍板 3A）：归档几套、撤几条令牌、下一步做什么，全是后端那句话 */
@@ -203,9 +222,10 @@ export const GUESSED_SHAPES = [
     + '若门户与管理前端不同源，必须后端配那一项，前端拼不出来也不该拼。',
   'decide 的回执语义 —— 后端恒 200、recorded 不进响应体，所以前端无法知道「平台收没收到」。'
     + '提交后的文案因此只承诺本地锁（不再接受第二次答复），不承诺已入库。',
-  'promote 响应体里今天的形状 —— 按 SiteBriefDeliveryService.PromoteReceipt 的字段名逐字对齐（含 maintenanceUrlRelative）。'
+  'promote 响应体里今天的形状 —— 按 SiteBriefDeliveryService.PromoteReceipt 的字段名逐字对齐（含 maintenanceUrlRelative，'
+    + 'Spec-D D5-3 起还有 handoverNotice/handoverItems 两格，每条链接的 url 也只认后端那一份）。'
     + '它随 P4 一起在建，字段若变这里先红，不会把错字段演成空值。',
-  '重发/撤销预览令牌的手动口（§5 的 POST /api/admin/sites/{id}/preview-links 与 …/revoke）后端已经建出来了：'
+  '预览令牌的手动口（§5 的发放与撤销）后端已经建出来了：'
     + '声明在 `api/siteBriefs` 的 briefGenerationApi.previewLink / revokePreviewLinks（同一个 record 形状，'
-    + '不在这份文件里写第二份）。画廊里那一发是「点『签发预览地址』才调」，不在页面加载时给三套各签一枚。'
+    + '不在这份文件里写第二份）。D0-5 之后读口一条都不签，画廊只在人点「发放/重新发放预览地址」时调一次。'
 ].join('\n');
