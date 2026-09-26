@@ -495,11 +495,12 @@ export function isArchivedSite(site: { status?: string | null }): boolean {
 //
 // 这一族函数与上面 CRUD 的区别必须说清楚（谁的口今天真的在）：
 // - vocabulary / 需求单 CRUD / summary-preview：后端 SiteBriefController 已上线（P1，cc910ab），真口；
-// - estimate / generate / progress：Spec-C §5 的 **P3 契约**。路径与动词按 §5 定死，
-//   后端编排器（SiteProposalOrchestrator）同 Phase 在建；端点缺失时这一发会拿回一句错误，
-//   界面把错误原样透出去——不静默、不假装成功，也不在本地「演算」出一份假数。
-// - preview-links / promote / regenerate / public brief：**属 P4（含 §8 的令牌 site scope 一条），
-//   这里刻意不写函数**。写了没接线口的函数，就等于给界面埋一个「点了没反应」的按钮的源头。
+// - estimate / generate / progress：Spec-C §5 的 **P3 契约**，后端 SiteProposalController 已上线，真口。
+//   端点缺失时这一发会拿回一句错误，界面把错误原样透出去——不静默、不假装成功，也不在本地「演算」出一份假数。
+// - 客户答复留痕、转正交棒、重跑收口与那条免鉴权选择页：另在一族里（`api/siteBriefDelivery`，P4），
+//   本文件刻意不重复声明，同一个口的形状不许有两份真相（I-6）。
+// - 预览令牌的手动补发与撤销在站点那一侧（按站点 id 签，不按需求单），本文件也不写第二份签发口：
+//   重发一次候选链接 = 再读一次候选列表（拍板 11），够了。
 
 /**
  * `POST /admin/site-briefs/{id}/estimate` 的回包（零模型调用）。
@@ -571,9 +572,10 @@ export const CANDIDATE_SHOT_UNAVAILABLE_TEXT =
 /** §9-4 的防纠纷标注：演示内容在预览与画廊里必须原话挂着这一句 */
 export const DEMO_CONTENT_DISCLAIMER_TEXT = 'AI 生成的演示内容，交付后可替换';
 
-/** 预览链接还没有可手发的口（§5 的 preview-links 属 P4）时界面说的那句原话 */
+/** 预览链接这一格没有可发的地址时界面说的那句原话（口径见拍板 3A：转正/归档即收回全部令牌） */
 export const PREVIEW_LINK_PENDING_TEXT =
-  '这一段的后端口还没有（P4：手动补发/撤销预览令牌）；链路跑完后预览地址随进度下发，届时这里给可复制的链接';
+  '这一套现在没有可发的预览链接：要么出方案还没走到它，要么本单已转正/归档——按拍板 3A，'
+  + '转正那一刻候选令牌全部收回，界面不再补发。还是候选身份时，可复制的地址随进度下发到这一格';
 
 export const briefGenerationApi = {
   /** 零模型调用的预估：只算不花，所以它不需要 confirm，也不该被省掉 */

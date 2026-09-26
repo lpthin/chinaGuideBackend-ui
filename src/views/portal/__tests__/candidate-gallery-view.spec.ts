@@ -221,7 +221,7 @@ describe('截图位、预览链接与演示内容标注', () => {
     wrapper.unmount()
   })
 
-  it('进度回了 previewUrl 就给可复制的链接；没回就挂 P4 那句原话，不自己拼 token', async () => {
+  it('进度回了 previewUrl 就给可复制的链接；没回就挂那句原话（含转正/归档即收回），不自己拼 token', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     const wrapper = await mountView({
@@ -243,7 +243,9 @@ describe('截图位、预览链接与演示内容标注', () => {
     document.body.innerHTML = ''
     const none = await mountView({ sites: [site(31, 1)] })
     expect(none.text()).toContain(PREVIEW_LINK_PENDING_TEXT)
-    expect(none.text()).toContain('这一段的后端口还没有（P4')
+    // 那句原话必须点名「转正/归档即收回令牌」（拍板 3A），而不是再假装口还没上线
+    expect(none.text()).toContain('转正那一刻候选令牌全部收回')
+    expect(none.text()).not.toContain('这一段的后端口还没有')
     expect(byText('复制').length).toBe(0) // 没有链接就不摆复制按钮
     none.unmount()
   })
