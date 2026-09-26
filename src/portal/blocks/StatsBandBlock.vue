@@ -176,7 +176,7 @@ onBeforeUnmount(() => {
   &__value {
     font-size: calc(34px * var(--portal-font-scale));
     font-weight: 700;
-    color: var(--portal-color-primary);
+    color: var(--portal-color-accent);
 
     /* 滚动中数字位数在变，等宽数字位防止整行左右抽动 */
     font-variant-numeric: tabular-nums;

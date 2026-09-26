@@ -113,7 +113,7 @@ const hasContent = computed(() => Boolean(title.value || subtitle.value || descr
     position: absolute;
     border-radius: 50%;
     filter: blur(60px);
-    background: color-mix(in srgb, var(--portal-color-primary) 55%, transparent);
+    background: color-mix(in srgb, var(--portal-color-accent) 55%, transparent);
 
     &--1 {
       width: 320px;
@@ -205,6 +205,15 @@ const hasContent = computed(() => Boolean(title.value || subtitle.value || descr
     &--primary {
       background: #fff;
       color: var(--portal-color-text);
+
+      /* 主 CTA 的强调色落在交互态上：静止态仍是白底（与接这个变量之前一致），
+         悬停/键盘聚焦时底色翻成客户 VI 的那支辅助色、外圈同色半透明描边。
+         文字仍是正文色而不是白色——辅助色可能是 #ff6b35 这种亮色，白字压上去对比度不够。 */
+      &:hover,
+      &:focus-visible {
+        background: var(--portal-color-accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--portal-color-accent) 35%, transparent);
+      }
     }
 
     &--ghost {

@@ -9,6 +9,7 @@ import type { RenderedPage } from '../api/portalPublic'
  */
 export const THEME_VARS: Record<string, string> = {
   colorPrimary: '--portal-color-primary',
+  colorAccent: '--portal-color-accent',
   colorBg: '--portal-color-bg',
   colorText: '--portal-color-text',
   colorMuted: '--portal-color-muted',

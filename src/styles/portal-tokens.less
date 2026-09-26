@@ -7,10 +7,12 @@
  * 区块组件一律只消费变量，不再各自硬编码色值（决策 D4）。
  *
  * 键名必须与后端 LayoutValidator 的白名单一致：
- * colorPrimary / colorBg / colorText / colorMuted / radius / sectionMaxWidth / fontScale / spacingScale
+ * colorPrimary / colorAccent / colorBg / colorText / colorMuted / radius / sectionMaxWidth / fontScale / spacingScale
  */
 :root {
   --portal-color-primary: #6366f1;
+  /* 品牌辅助色（客户 VI 里那一支）：没下发时逐字等于主色，页面观感与接这个变量之前一致 */
+  --portal-color-accent: var(--portal-color-primary);
   --portal-color-bg: #ffffff;
   --portal-color-text: #1a1a2e;
   --portal-color-muted: #64748b;
@@ -20,4 +22,18 @@
   --portal-section-max-width: 1200px;
   --portal-font-scale: 1;
   --portal-spacing-scale: 1;
+}
+
+/**
+ * 「accent = primary」这条别名要在真正承载主色的那一层再写一遍。
+ *
+ * var() 是在写下它的那一层就算完的：上面 :root 那行取的是 :root 的 #6366f1，
+ * 而站点覆盖的主色是内联在 .portal-dynamic-page（访客页根）和 .pbv__frame（搭建器/画廊那个渲染框）上的，
+ * 后代换主色不会带着 :root 的别名一起变——只下发 colorPrimary、还没配强调色的老站点就会在
+ * CTA 条、数字条这些地方悄悄掉回默认靛蓝。补在这一层，取到的就是这一层自己的主色。
+ * 内联优先级高于选择器，所以站点确实下发 colorAccent 时这里自动让位。
+ */
+.portal-dynamic-page,
+.pbv__frame {
+  --portal-color-accent: var(--portal-color-primary);
 }

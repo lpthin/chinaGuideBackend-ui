@@ -11,6 +11,7 @@ import type { ThemeTokenField } from '../api/themePresets'
 
 const LABEL_BY_KEY: Record<string, string> = {
   colorPrimary: '主色',
+  colorAccent: '强调色',
   colorBg: '背景色',
   colorText: '正文色',
   colorMuted: '次要文字色',
@@ -22,6 +23,7 @@ const LABEL_BY_KEY: Record<string, string> = {
 
 const PLACEHOLDER_BY_KEY: Record<string, string> = {
   colorPrimary: '#1677ff',
+  colorAccent: '#ff6b35',
   colorBg: '#ffffff',
   colorText: '#1f1f1f',
   colorMuted: '#666666',

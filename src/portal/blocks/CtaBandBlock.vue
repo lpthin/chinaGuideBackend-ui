@@ -27,7 +27,7 @@ const primaryLink = computed(() => text(props.blockProps, 'primaryLink'))
 <style scoped lang="less">
 .pb-cta {
   padding: calc(72px * var(--portal-spacing-scale)) 0;
-  background: color-mix(in srgb, var(--portal-color-primary) 92%, #05010f);
+  background: color-mix(in srgb, var(--portal-color-accent) 92%, #05010f);
   color: #fff;
 
   &__inner {

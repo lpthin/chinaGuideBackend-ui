@@ -33,3 +33,15 @@ function keyOf(item: Record<string, unknown>, index: number) {
   return typeof item.id === 'number' ? item.id : `${index}`
 }
 </script>
+
+<style scoped lang="less">
+/* 卡片外壳（.pb-card 的底色/边框/悬停抬起）在 portal-blocks.less 里，是多类网格共用的，
+   这里只补本区块的强调色落点：静止态一动不动，悬停时顶边出现一条辅助色——
+   用 inset 投影而不是 border-top，是为了不改动盒子高度（真加 2px 边框会把整排卡片顶下去）。
+   阴影其余部分照抄公共样式：本选择器更具体，会把公共那条覆盖掉。 */
+.pb-card:hover {
+  box-shadow:
+    inset 0 3px 0 var(--portal-color-accent),
+    0 14px 30px rgba(15, 12, 41, 0.08);
+}
+</style>
