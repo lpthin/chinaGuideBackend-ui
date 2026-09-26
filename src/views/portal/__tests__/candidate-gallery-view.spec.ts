@@ -8,10 +8,20 @@ import {
   vocabularyApi,
   CANDIDATE_SHOT_UNAVAILABLE_TEXT,
   DEMO_CONTENT_DISCLAIMER_TEXT,
-  PREVIEW_LINK_PENDING_TEXT
+  PREVIEW_LINK_LIVE_HINT,
+  PREVIEW_LINK_LIVE_TEXT,
+  PREVIEW_LINK_NEVER_ISSUED_HINT,
+  PREVIEW_LINK_NEVER_ISSUED_TEXT,
+  PREVIEW_LINK_ONCE_TEXT,
+  PREVIEW_LINK_PENDING_TEXT,
+  PREVIEW_LINK_REVOKED_HINT,
+  PREVIEW_LINK_REVOKED_TEXT,
+  PREVIEW_LINK_STATE_UNKNOWN_TEXT,
+  type BriefCandidateSite
 } from '../../../api/siteBriefs'
 import { portalSkeletonsApi } from '../../../api/portalSkeletons'
 import { siteApi } from '../../../api/workspace'
+import { formatDateTime } from '../../../utils/format'
 
 /**
  * 候选画廊（Spec-C §7 新增页 / §3.2 三列卡 / §6.1 / §6.7 / §9-4，任务 P3 + #51 契约对齐）。
@@ -22,18 +32,21 @@ import { siteApi } from '../../../api/workspace'
  *    骨架的中文名只认骨架库那一份（进度口只回 key），查不到就露 key；
  * 3. 截图位今天必须空着并带 §6.7 那句原话（内网 host 闸拒收预览域，不为截图放宽 SSRF 闸），
  *    页面里出现任何 <img> 都是放假缩略图，判红；
- * 4. 预览地址**点一下才签**（§5 的 POST /admin/sites/{id}/preview-links）：不在页面加载时替三套
- *    各签一枚令牌，也不自己拼 token；后端对非候选身份的那一句中文拒原样挂在卡上；
+ * 4. 预览链接那一格是**四态**，判据只有 `candidates` 口回的那两个事实（`previewIssued` +
+ *    `previewExpiresAt`）：读口不签令牌、库里只有 SHA-256 散列，所以「未发送预览」「预览已失效」
+ *    「已发放但地址取不回来」「现状没取到」各挂各的实话，可复制的那条链接只在**刚发放成功这一次**
+ *    摆得出来（回执里的明文）；页面加载不替三套各签一枚，也不自己拼 token；
+ *    后端对非候选身份的那一句中文拒原样挂在卡上；
  * 5. 认槽先看进度行报的 siteId：重跑一轮后同号的上一轮站是 archived，
  *    只按 candidateNo 找就会把上一轮的站当成本轮那一套（站名/状态/链接三格说的都是别人的事）；
  * 6. 配图的三本账分开讲：skipped（按设计先不花这钱）与 failed（试了没成）混一格就是两句假话。
- * 另加数据口径：演示内容档位中文与 §9-4 那句防纠纷标注原样在卡上；进度口读失败时错误原文挂顶、
- * 卡面退回站点列表那份真相（不把「没取到」演成「没在跑」）。
+ * 另加数据口径：演示内容档位中文与 §9-4 那句防纠纷标注原样在卡上；进度口/候选列表口读失败时
+ * 错误原文挂顶、卡面退回还剩那份真相（不把「没取到」演成「没在跑」，也不演成「没发过」）。
  *
- * stub 的形状照 2026-09-26 的真回包抄：进度口回的是**一个数组**（每套一行），字段名是
- * `focus`/`skeletonKey`/`imageDone` 这一族——以前这一档按 `{candidates:[…]}` + `differentiation`
- * + `previewUrl` 造假数据，视图读不到真字段也照样一片绿，于是「这一格永远说后端还没给」被用例
- * 当成了正确行为。stub 说假话，用例就只是把假话钉住。
+ * stub 的形状照后端的 record 抄：进度口回的是**一个数组**（每套一行），字段名是
+ * `focus`/`skeletonKey`/`imageDone` 这一族；候选列表口每行带 `previewIssued`/`previewExpiresAt`，
+ * 而 `previewToken`/`previewUrl` **恒 null**（SiteProposalOrchestrator.CandidateSite 就是这么写的）。
+ * 给那两个字段填上值就是替后端说谎，而界面拿着那份假数据会「正确地」渲出一条不存在的链接。
  */
 
 const { pushSpy, routeParams } = vi.hoisted(() => ({
@@ -68,7 +81,9 @@ vi.mock('../../../api/siteBriefs', async (importOriginal) => {
       estimate: vi.fn(),
       generate: vi.fn(),
       progress: vi.fn(),
+      candidates: vi.fn(),
       previewLink: vi.fn(),
+      reissuePreviewLink: vi.fn(),
       revokePreviewLinks: vi.fn()
     }
   }
@@ -133,6 +148,24 @@ function row(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/**
+ * 候选列表口的一行：字段名与后端 `SiteProposalOrchestrator.CandidateSite` 逐字对齐。
+ * 默认是「还没发过」那一态（previewIssued=false 且 previewExpiresAt=null），
+ * 而 `previewToken`/`previewUrl` 无论哪一态都保持 null——读口不签令牌，明文只在签发回执里出现一次。
+ */
+function candidateSite(overrides: Record<string, unknown> = {}): BriefCandidateSite {
+  return {
+    candidateId: 71, siteId: 31, siteName: '候选站 31', siteCode: 's31',
+    attempt: 1, candidateNo: 1, skeletonKey: 'lead-gen',
+    focus: '这一套把案例与联系方式放在首屏，侧重点是把访客变成来电',
+    tone: 'professional', stage: 'preview', status: 'succeeded',
+    previewToken: null, previewUrl: null, previewExpiresAt: null, previewIssued: false,
+    needsHuman: false,
+    notices: [],
+    ...overrides
+  } as BriefCandidateSite
+}
+
 interface MountOptions {
   briefData?: Record<string, unknown> | null
   sites?: any[]
@@ -142,6 +175,8 @@ interface MountOptions {
   skeletonsError?: string
   progressData?: unknown
   progressError?: string
+  candidateData?: BriefCandidateSite[]
+  candidatesError?: string
 }
 
 async function mountView(options: MountOptions = {}) {
@@ -171,6 +206,11 @@ async function mountView(options: MountOptions = {}) {
   } else {
     // 真回包是一个数组，不是 {briefId, candidates}
     vi.mocked(briefGenerationApi.progress).mockResolvedValue((options.progressData ?? []) as any)
+  }
+  if (options.candidatesError) {
+    vi.mocked(briefGenerationApi.candidates).mockRejectedValue(new Error(options.candidatesError))
+  } else {
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue(options.candidateData ?? [])
   }
   const wrapper = mount(CandidateGalleryView, {
     attachTo: document.body,
@@ -324,7 +364,190 @@ describe('配图三本账与演示内容', () => {
   })
 })
 
-describe('截图位与预览链接（点一下才签）', () => {
+describe('预览链接：三态只认候选列表口的两个事实，链接只在发放回执里出现一次', () => {
+  it('页面加载一个令牌都不签：candidates 口只读现状，卡上挂「未发送预览」+发放入口', async () => {
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row()],
+      candidateData: [candidateSite()]
+    })
+    // 读一次列表 = 零签发（旧口径每刷新一次就给每套新签一条 14 天公开链接）
+    expect(briefGenerationApi.previewLink).not.toHaveBeenCalled()
+    expect(briefGenerationApi.candidates).toHaveBeenCalledWith(12)
+    const text = wrapper.text()
+    expect(text).toContain(PREVIEW_LINK_NEVER_ISSUED_TEXT)
+    expect(text).toContain(PREVIEW_LINK_NEVER_ISSUED_HINT)
+    expect(byText('发放预览地址').length).toBe(1)
+    expect(byText('复制').length).toBe(0)
+    expect(document.querySelectorAll('a.candidate-gallery__url').length).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('点「发放预览地址」才调那一口：回相对路径时按当前 origin 拼，复制的是同一条', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    vi.mocked(briefGenerationApi.previewLink).mockResolvedValue({
+      siteId: 31, previewToken: 'abc123', previewUrl: '/?reviewToken=abc123', expiresAt: null
+    } as any)
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row()],
+      candidateData: [candidateSite()]
+    })
+    click(byText('发放预览地址')[0])
+    await flushPromises()
+    expect(briefGenerationApi.previewLink).toHaveBeenCalledWith(31, expect.stringContaining('第 1 套'))
+    const href = document.querySelector('a.candidate-gallery__url')!.getAttribute('href') || ''
+    expect(href).toBe(`${window.location.origin}/?reviewToken=abc123`)
+    // 明文只在回执这一次摆得出来，旁边必须跟那句「恢复不了」的原话
+    expect(wrapper.text()).toContain(PREVIEW_LINK_ONCE_TEXT)
+    click(byText('复制')[0])
+    await flushPromises()
+    expect(writeText).toHaveBeenCalledWith(href)
+    expect(vi.mocked(message.success).mock.calls.flat().join()).toContain('已复制')
+    wrapper.unmount()
+  })
+
+  it('后端拒绝发放（已转正/已归档不再补发）：那句中文原话挂在卡上，不摆一条看起来对的链接', async () => {
+    vi.mocked(briefGenerationApi.previewLink).mockRejectedValue(
+      new Error('站点「候选站 31」当前状态是 已归档候选：预览令牌只对候选站签发与撤销')
+    )
+    const wrapper = await mountView({
+      sites: [site(31, 1, 'archived')],
+      progressData: [row()],
+      candidateData: [candidateSite()]
+    })
+    click(byText('发放预览地址')[0])
+    await flushPromises()
+    const text = wrapper.text()
+    expect(text).toContain('发放被后端拒了（原话）：站点「候选站 31」当前状态是 已归档候选')
+    expect(document.querySelectorAll('a.candidate-gallery__url').length).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('撤销回执那份数字照实用；撤完重读现状：卡上从此说「预览已失效」，旧明文不再挂着', async () => {
+    vi.mocked(briefGenerationApi.previewLink).mockResolvedValue({
+      siteId: 31, previewToken: 'abc123', previewUrl: 'https://demo-a.preview.internal/?reviewToken=abc123', expiresAt: null
+    } as any)
+    vi.mocked(briefGenerationApi.revokePreviewLinks).mockResolvedValue(2 as any)
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row()],
+      candidateData: [candidateSite()]
+    })
+    click(byText('发放预览地址')[0])
+    await flushPromises()
+    // 绝对地址原样透传，不重复拼 origin
+    expect(document.querySelector('a.candidate-gallery__url')!.getAttribute('href'))
+      .toBe('https://demo-a.preview.internal/?reviewToken=abc123')
+    // 撤销走的是二次确认：真控件是那颗 popconfirm 的 confirm 事件（点里面的按钮只会把弹层打开）
+    // 撤销后重读，后端回的就是「发过但已作废」那两个事实了：先把它换成下一次读取的返回，再按 confirm
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue(
+      [candidateSite({ previewExpiresAt: '2026-10-01T00:00:00' })] as any
+    )
+    wrapper.findComponent({ name: 'APopconfirm' }).vm.$emit('confirm')
+    await flushPromises()
+    expect(briefGenerationApi.revokePreviewLinks).toHaveBeenCalledWith(31)
+    expect(vi.mocked(message.success).mock.calls.flat().join()).toContain('已撤销 2 条')
+    expect(document.querySelectorAll('a.candidate-gallery__url').length).toBe(0)
+    // 撤销后重读的那一口回的是「发过但已作废」那两个事实：卡上改挂「预览已失效」+「重新发放」
+    expect(vi.mocked(briefGenerationApi.candidates).mock.calls.length).toBeGreaterThanOrEqual(2)
+    const text = wrapper.text()
+    expect(text).toContain(PREVIEW_LINK_REVOKED_TEXT)
+    expect(byText('重新发放预览地址').length).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('已发放且活着：只报现状与到期时刻；「发放」（只新增）不给，给的是重发与撤销', async () => {
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row()],
+      candidateData: [candidateSite({ previewIssued: true, previewExpiresAt: '2026-10-05T12:00:00' })]
+    })
+    const text = wrapper.text()
+    expect(text).toContain(PREVIEW_LINK_LIVE_TEXT)
+    expect(text).toContain('有效期至')
+    expect(text).toContain(formatDateTime('2026-10-05T12:00:00'))
+    expect(text).toContain(PREVIEW_LINK_LIVE_HINT)
+    // 明文早就不在了：这一态摆不出链接；也不许走「只新增」的发放口（那会让两条同时有效）
+    expect(byText('发放预览地址').length).toBe(0)
+    expect(document.querySelectorAll('a.candidate-gallery__url').length).toBe(0)
+    // 给的是「重新发放」（后端重发口：先撤全部旧令牌再签新的）与「撤销」，都带二次确认
+    expect(byText('重新发放预览地址').length).toBe(1)
+    expect(byText('撤销这一套全部令牌').length).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('活着时点「重新发放」：走的是重发口（撤旧+签新一次完成），新明文照旧只摆这一次', async () => {
+    vi.mocked(briefGenerationApi.reissuePreviewLink).mockResolvedValue({
+      siteId: 31, previewToken: 'new999', previewUrl: '/?reviewToken=new999', expiresAt: null
+    } as any)
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row()],
+      candidateData: [candidateSite({ previewIssued: true, previewExpiresAt: '2026-10-05T12:00:00' })]
+    })
+    // 重发也是一发写动作：走二次确认，第一颗 popconfirm 就是「重新发放」（撤销在它后面）
+    wrapper.findAllComponents({ name: 'APopconfirm' })[0].vm.$emit('confirm')
+    await flushPromises()
+    expect(briefGenerationApi.reissuePreviewLink).toHaveBeenCalledWith(31, expect.stringContaining('第 1 套'))
+    // 绝不拿「只新增」的发放口冒充重发
+    expect(briefGenerationApi.previewLink).not.toHaveBeenCalled()
+    expect(document.querySelector('a.candidate-gallery__url')!.getAttribute('href'))
+      .toBe(`${window.location.origin}/?reviewToken=new999`)
+    expect(vi.mocked(message.success).mock.calls.flat().join()).toContain('旧预览令牌已全部撤销')
+    wrapper.unmount()
+  })
+
+  it('现状没取到就是「没取到」：候选列表口失败时不许演成「未发送预览」', async () => {
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row()],
+      candidatesError: 'candidates 503'
+    })
+    const text = wrapper.text()
+    expect(text).toContain('预览令牌现状没取到（candidates 503）')
+    expect(text).toContain(PREVIEW_LINK_STATE_UNKNOWN_TEXT)
+    expect(text).not.toContain(PREVIEW_LINK_NEVER_ISSUED_TEXT)
+    // 发放按钮仍可点：回执里那条地址照旧给得到
+    expect(byText('发放预览地址').length).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('待人工（D5-5）单独一枚标记一句话：它与失败不是一格，needsHuman=false 时一个都不挂', async () => {
+    const flagged = await mountView({
+      briefData: brief({ candidateCount: 2 }),
+      sites: [site(31, 1), site(32, 2)],
+      progressData: [row(), row({ candidateId: 72, siteId: 32, candidateNo: 2 })],
+      candidateData: [
+        candidateSite({ needsHuman: true }),
+        candidateSite({ candidateId: 72, siteId: 32, candidateNo: 2, needsHuman: false })
+      ]
+    })
+    const cards = [...document.querySelectorAll('.ACard-stub')]
+    expect(cards).toHaveLength(2)
+    expect(cards[0].textContent).toContain('待人工')
+    expect(cards[0].textContent).toContain('系统不敢替客户签字')
+    // 一句话只挂在该挂的卡上：另一套没被打标就一个字都不多
+    expect(cards[1].textContent).not.toContain('待人工')
+    // 它不顶替子任务状态：这一套的进度仍按后端 label 说「已完成」，两句各说各的
+    expect(cards[0].textContent).toContain('已完成')
+    expect(cards[0].textContent).not.toContain('失败原因')
+    flagged.unmount()
+
+    document.body.innerHTML = ''
+    // 现状整口没取到时不许硬凑「待人工」：不知道就是不知道
+    const unknown = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row()],
+      candidatesError: 'candidates 503'
+    })
+    expect(unknown.text()).not.toContain('待人工')
+    unknown.unmount()
+  })
+})
+
+describe('截图位与连站都没有的那一套', () => {
   it('截图位空着并带 §6.7 原话；整页没有一张 <img>（放假缩略图就是把没有演成完成）', async () => {
     const wrapper = await mountView({ sites: [site(31, 1)] })
     expect(wrapper.text()).toContain(CANDIDATE_SHOT_UNAVAILABLE_TEXT)
@@ -333,71 +556,11 @@ describe('截图位与预览链接（点一下才签）', () => {
     wrapper.unmount()
   })
 
-  it('页面加载不替任何一套签令牌：预览地址那一格只有「签发」入口，没有已发出去的链接', async () => {
-    const wrapper = await mountView({ sites: [site(31, 1)], progressData: [row()] })
-    expect(briefGenerationApi.previewLink).not.toHaveBeenCalled()
-    expect(byText('签发预览地址').length).toBe(1)
-    expect(byText('复制').length).toBe(0)
-    wrapper.unmount()
-  })
-
-  it('点「签发预览地址」才调那一口：回相对路径时按当前 origin 拼，复制的是同一条', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    vi.mocked(briefGenerationApi.previewLink).mockResolvedValue({
-      siteId: 31, previewToken: 'abc123', previewUrl: '/?reviewToken=abc123', expiresAt: null
-    } as any)
-    const wrapper = await mountView({ sites: [site(31, 1)], progressData: [row()] })
-    click(byText('签发预览地址')[0])
-    await flushPromises()
-    expect(briefGenerationApi.previewLink).toHaveBeenCalledWith(31, expect.stringContaining('第 1 套'))
-    const href = document.querySelector('a.candidate-gallery__url')!.getAttribute('href') || ''
-    expect(href).toBe(`${window.location.origin}/?reviewToken=abc123`)
-    click(byText('复制')[0])
-    await flushPromises()
-    expect(writeText).toHaveBeenCalledWith(href)
-    expect(vi.mocked(message.success).mock.calls.flat().join()).toContain('已复制')
-    wrapper.unmount()
-  })
-
-  it('后端拒签（已转正/已归档不再补发）：那句中文原话挂在卡上，不摆一条看起来对的链接', async () => {
-    vi.mocked(briefGenerationApi.previewLink).mockRejectedValue(
-      new Error('站点「候选站 31」当前状态是 已归档候选：预览令牌只对候选站签发与撤销')
-    )
-    const wrapper = await mountView({ sites: [site(31, 1, 'archived')], progressData: [row()] })
-    click(byText('签发预览地址')[0])
-    await flushPromises()
-    const text = wrapper.text()
-    expect(text).toContain('签发被后端拒了（原话）：站点「候选站 31」当前状态是 已归档候选')
-    expect(document.querySelectorAll('a.candidate-gallery__url').length).toBe(0)
-    wrapper.unmount()
-  })
-
-  it('撤销回执那份数字照实用：撤了几条就说几条，不写「已撤销」就完事', async () => {
-    vi.mocked(briefGenerationApi.previewLink).mockResolvedValue({
-      siteId: 31, previewToken: 'abc123', previewUrl: 'https://demo-a.preview.internal/?reviewToken=abc123', expiresAt: null
-    } as any)
-    vi.mocked(briefGenerationApi.revokePreviewLinks).mockResolvedValue(2 as any)
-    const wrapper = await mountView({ sites: [site(31, 1)], progressData: [row()] })
-    click(byText('签发预览地址')[0])
-    await flushPromises()
-    // 绝对地址原样透传，不重复拼 origin
-    expect(document.querySelector('a.candidate-gallery__url')!.getAttribute('href'))
-      .toBe('https://demo-a.preview.internal/?reviewToken=abc123')
-    // 撤销走的是二次确认：真控件是那颗 popconfirm 的 confirm 事件（点里面的按钮只会把弹层打开）
-    wrapper.findComponent({ name: 'APopconfirm' }).vm.$emit('confirm')
-    await flushPromises()
-    expect(briefGenerationApi.revokePreviewLinks).toHaveBeenCalledWith(31)
-    expect(vi.mocked(message.success).mock.calls.flat().join()).toContain('已撤销 2 条')
-    expect(document.querySelectorAll('a.candidate-gallery__url').length).toBe(0)
-    wrapper.unmount()
-  })
-
   it('连站都没有的那一套只能挂那句原话（含「转正那一刻全部收回」），不编一条待发的链接', async () => {
     const wrapper = await mountView({ briefData: { candidateCount: 1 } })
     expect(wrapper.text()).toContain(PREVIEW_LINK_PENDING_TEXT)
     expect(wrapper.text()).toContain('转正那一刻候选令牌全部收回')
-    expect(byText('签发预览地址').length).toBe(0)
+    expect(byText('发放预览地址').length).toBe(0)
     expect(byText('复制').length).toBe(0)
     wrapper.unmount()
   })

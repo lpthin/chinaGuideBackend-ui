@@ -10,18 +10,28 @@ import {
   siteBriefsApi,
   vocabularyApi,
   CANDIDATE_SHOT_UNAVAILABLE_TEXT,
+  CANDIDATE_NEEDS_HUMAN_HINT,
+  CANDIDATE_NEEDS_HUMAN_TEXT,
   DEMO_CONTENT_DISCLAIMER_TEXT,
+  PREVIEW_LINK_ONCE_TEXT,
   PREVIEW_LINK_PENDING_TEXT,
+  previewLinkStateColor,
+  previewLinkStateHint,
+  previewLinkStateOf,
+  previewLinkStateText,
   siteStatusColor,
   siteStatusText,
   type BriefCandidateProgress,
+  type BriefCandidateSite,
   type BriefPreviewLink,
+  type PreviewLinkState,
   type SiteBrief,
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
 import { resolvePreviewUrl } from '@/api/siteBriefDelivery'
 import { portalSkeletonsApi, type SkeletonView } from '@/api/portalSkeletons'
 import { siteApi } from '@/api/workspace'
+import { formatDateTime } from '@/utils/format'
 import type { Site as SiteEntity } from '@/types'
 
 /**
@@ -31,9 +41,14 @@ import type { Site as SiteEntity } from '@/types'
  * 1. 骨架：进度口只回 `skeletonKey`，中文名去**骨架库**那一份列表里查（key→name 的唯一出处）；
  *    查不到就露 key 并说明查不到，绝不在这里写一份「site-brief-a → 商务风」的映射；
  * 2. 「这套侧重什么」：plan 落库的 `focus` 原话（§6.1），一个字都不改写、不概括；
- * 3. 预览链接：点了「签发预览地址」才调适配层那一个手动签发口（§5 第四行）。
- *    令牌是准入，不在一次页面加载里给三套各签一枚；后端回的是相对路径时按当前 origin 拼（唯一的拼法
- *    在 `siteBriefDelivery.resolvePreviewUrl`，这里不写第二份）。转正/归档之后后端明令拒签（拍板 3A），
+ * 3. 预览链接：三态只认 `GET /admin/site-briefs/{id}/candidates` 回的那两个事实
+ *    （`previewIssued` + `previewExpiresAt`）——读口今天一条令牌都不签，库里也只有 SHA-256 散列，
+ *    所以「未发送预览」「预览已失效」「已发放但地址取不回来」是三种不同的实话，各挂各的文案；
+ *    能复制的那条链接只在**刚发放成功这一次**摆得出来（回执里的明文，事后恢复不了），
+ *    发放走 `briefGenerationApi.previewLink`（只新增）、重新发放走 `briefGenerationApi.reissuePreviewLink`
+ *    （后端先撤该站全部旧令牌再签新的）——端点声明只在适配层那一份；
+ *    后端回的是相对路径时按当前 origin 拼（唯一的拼法在 `siteBriefDelivery.resolvePreviewUrl`，
+ *    这里不写第二份）。转正/归档之后后端明令拒签（拍板 3A），
  *    那一发的中文原话照挂，不摆一个永远点不出的假按钮；
  * 4. 演示内容：需求单档位原话 + 这一套真落库的篇数/条数（进度口带的）+ §9-4 那句防纠纷标注；
  * 5. 子任务状态与失败原因：按套各一条（§6.2 任一步失败只影响该套），没有总百分比；
@@ -42,9 +57,10 @@ import type { Site as SiteEntity } from '@/types'
  * 7. 截图位：今天必须空着并原话解释（§6.7：sidecar 的内网 host 闸拒收预览域，不为截图放宽 SSRF 闸），
  *    不放假缩略图——「拿不相干的图填」是把没有演成完成。
  *
- * 数据来源四条：需求单（套数/档位）、进度口（每套一行，含 focus 与三本账）、站点列表（V115
- * `build_brief_id` 认亲）、骨架库（key→中文名）。进度读不到时页面照常用站点列表渲染骨架卡，
- * 并把错误原文挂在顶上：不静默、不把没取到演成没在跑。
+ * 数据来源五条：需求单（套数/档位）、进度口（每套一行，含 focus 与三本账）、候选列表口
+ * （每套预览令牌的<em>现状</em>：纯读，一条都不签）、站点列表（V115 `build_brief_id` 认亲）、
+ * 骨架库（key→中文名）。任一读取口挂掉时页面照常用剩下那份真相渲染，并把错误原文挂在顶上：
+ * 不静默、不把没取到演成没在跑、也不把没取到的预览状态演成「没发过」。
  */
 
 const route = useRoute()
@@ -63,10 +79,21 @@ const progressError = ref('')
 /** 骨架库：进度口只给 key，中文名只有这一处出处（I-4：骨架是数据资产，不写进代码） */
 const skeletons = ref<SkeletonView[]>([])
 const skeletonsError = ref('')
-/** 已签发的预览地址：按站点 id 存，签一次留一次，刷新页面不会凭空多签几枚令牌 */
+/**
+ * 候选列表口（`/candidates`）：每套预览令牌的**现状**在这里，一条都不签。
+ * 预览那一格只认这份回包的 `previewIssued`/`previewExpiresAt`——进度口从来不含链接信息，
+ * 而这一口的 `previewToken`/`previewUrl` 恒 null（读口不签令牌，库里只有散列）。
+ */
+const candidateSites = ref<BriefCandidateSite[]>([])
+const candidatesError = ref('')
+/**
+ * 已经到手过明文的预览地址：按站点 id 存，只在**这一页这一次会话**里活着。
+ * 后端存的是散列，刷新页面就取不回来了，所以这里不是缓存、是那条地址唯一还在的地方。
+ */
 const previewLinks = ref<Record<number, BriefPreviewLink>>({})
 const previewErrors = ref<Record<number, string>>({})
 const issuingSiteId = ref<number | null>(null)
+const reissuingSiteId = ref<number | null>(null)
 const revokingSiteId = ref<number | null>(null)
 
 function errText(error: unknown): string {
@@ -223,29 +250,140 @@ function previewHref(slot: CandidateSlot): string {
 }
 
 /**
+ * 这一套在候选列表口里的那一行：先按站 id 认，其次按套号。
+ *
+ * <p>认法和 {@link siteOfSlot} 同一个道理——重跑一轮会再建一套同号的站，只按套号认就会把上一轮
+ * 那套的令牌现状报到这一套上来。站还没建起来时这一口的 `siteId` 也是 null，那只能按套号认。</p>
+ */
+function candidateRowOf(slot: CandidateSlot): BriefCandidateSite | null {
+  const id = siteIdOf(slot)
+  if (id !== null) {
+    const bySite = candidateSites.value.find(item => item.siteId === id)
+    if (bySite) {
+      return bySite
+    }
+  }
+  return candidateSites.value.find(item => item.candidateNo === slot.candidateNo) ?? null
+}
+
+/** 令牌现状：三态之外只有「这一口的数据没取到」这一种，那种情况界面直说没取到 */
+function previewStateOf(slot: CandidateSlot): PreviewLinkState {
+  return previewLinkStateOf(candidateRowOf(slot))
+}
+
+/**
+ * 「待人工」（D5-5）：判据只有候选列表口回的 `needsHuman` 那一格。
+ *
+ * <p>它与 failed 是两件事——那一套是<em>交付了</em>的，只是有措辞过了极限用语闸改写一遍仍命中，
+ * 系统不敢替客户签字。所以这里单独一枚标记、单独一句话，绝不并进子任务状态那一格，
+ * 也不在进度口没回时硬凑（现状没取到就是不知道，见 {@link previewStateOf} 同一条纪律）。</p>
+ */
+function needsHumanOf(slot: CandidateSlot): boolean {
+  const row = candidateRowOf(slot)
+  return row !== null && row.needsHuman === true
+}
+
+/** 到期时刻那句附注：时刻是后端给的最近一条全站令牌的到期时刻，格式走全局那一份 */
+function previewExpiryText(slot: CandidateSlot): string {
+  const expiresAt = candidateRowOf(slot)?.previewExpiresAt
+  return expiresAt ? `有效期至 ${formatDateTime(expiresAt)}` : ''
+}
+
+/**
+ * 按钮上的动词跟着现状走：从来没发过（或现状没取到）才是「发放」，发过（已撤销/已过期）才是「重新发放」。
+ *
+ * <p>「现在活着」那一态<b>不</b>走这一个发放按钮：发放口只会<em>再</em>签一枚、不动旧的，
+ * 摆在一条还能打开的链接旁边就成了「点了就换一条」的假承诺。那一态给的是另一颗按钮——
+ * 「重新发放」走重发口（后端先撤销该站全部旧令牌再签新的，旧链接当场作废），见 {@link reissuePreview}。</p>
+ */
+function issueLabelOf(slot: CandidateSlot): string {
+  return previewStateOf(slot) === 'expired' ? '重新发放预览地址' : '发放预览地址'
+}
+
+/** 状态旁边那一句解释（三态各有一句，没取到就不硬凑一句） */
+function previewHintOf(slot: CandidateSlot): string {
+  return previewLinkStateHint(previewStateOf(slot))
+}
+
+/**
+ * 读一次候选列表口（预览那一格的三态就靠它）。
+ *
+ * <p>发放/撤销之后也要再读一次：那两发动的都是令牌现状，不重读的话卡上会留着点之前的旧说法——
+ * 「已撤销」那一格还挂着「未发送预览」就是假话。</p>
+ */
+async function loadCandidates(id: number) {
+  candidatesError.value = ''
+  try {
+    candidateSites.value = (await briefGenerationApi.candidates(id)) || []
+  } catch (error) {
+    // 读不到现状不等于没发过：这一格改挂「状态没取到」，卡上按钮仍可点，签发那一下自有回执
+    candidateSites.value = []
+    candidatesError.value = errText(error)
+  }
+}
+
+/**
  * 手动签发这一套的预览地址（§5）。
  *
  * <p>它是**写动作**（给这一站新开一条 14 天的 review 会话），所以只在人点上时发一次，
  * 不在 loadAll 里替三套各签一枚。后端对非候选身份（已转正/已归档）回一句中文拒，
  * 那句话原样挂在卡上——这一格从此就是「为什么这里点不出链接」的答案。</p>
+ *
+ * <p>回执里那条明文地址是它**唯一一次**出现：库里只存散列，所以这一头把它挂在卡上、
+ * 并立刻重读一次现状（卡上从此说的是「已发放」+ 这条地址），刷新页面后链接就只报现状了。</p>
  */
 async function issuePreview(slot: CandidateSlot) {
   const id = siteIdOf(slot)
   if (id === null) return
+  const briefNumber = briefId.value
   issuingSiteId.value = id
   try {
-    const link = await briefGenerationApi.previewLink(id, `画廊手动签发：第 ${slot.candidateNo} 套`)
+    const link = await briefGenerationApi.previewLink(id, `画廊手动发放：第 ${slot.candidateNo} 套`)
     if (link) previewLinks.value = { ...previewLinks.value, [id]: link }
     const next = { ...previewErrors.value }
     delete next[id]
     previewErrors.value = next
-    message.success('已签发一条预览地址：带 reviewToken，别把它当正式域名发（转正才填客户域名）')
+    message.success('已发放一条预览地址：带 reviewToken，别把它当正式域名发（转正才填客户域名）。这条地址只在这一次给得到')
+    if (briefNumber !== null) await loadCandidates(briefNumber)
   } catch (error) {
     previewErrors.value = { ...previewErrors.value, [id]: errText(error) }
     message.error(errText(error))
   } finally {
     issuingSiteId.value = null
   }
+}
+
+/**
+ * 重新发放（走后端的重发口）：**先撤销这一站的全部旧令牌，再签一条新的**——和「只新增」的发放口分开。
+ *
+ * <p>「现在活着」与「已失效」两态下那颗「重新发放」都指到这里：一个词只指一个东西，
+ * 界面上写「重新发放」而底下不回收旧链接，就是拿旧口径的发放口冒充重发。回执里的新明文同样只摆这一次。</p>
+ */
+async function reissuePreview(slot: CandidateSlot) {
+  const id = siteIdOf(slot)
+  if (id === null) return
+  const briefNumber = briefId.value
+  reissuingSiteId.value = id
+  try {
+    const link = await briefGenerationApi.reissuePreviewLink(id, `画廊重新发放：第 ${slot.candidateNo} 套`)
+    if (link) previewLinks.value = { ...previewLinks.value, [id]: link }
+    const next = { ...previewErrors.value }
+    delete next[id]
+    previewErrors.value = next
+    message.success('已重新发放：这一套的旧预览令牌已全部撤销（旧链接当场打不开），新地址只在这次回执里摆一次')
+    if (briefNumber !== null) await loadCandidates(briefNumber)
+  } catch (error) {
+    previewErrors.value = { ...previewErrors.value, [id]: errText(error) }
+    message.error(errText(error))
+  } finally {
+    reissuingSiteId.value = null
+  }
+}
+
+/** 「发放」与「重新发放」两颗按钮的分工：只有「从来没发过/现状没取到」走只新增的发放口 */
+function onIssueClick(slot: CandidateSlot) {
+  if (previewStateOf(slot) === 'expired') reissuePreview(slot)
+  else issuePreview(slot)
 }
 
 async function copyPreview(slot: CandidateSlot) {
@@ -259,10 +397,16 @@ async function copyPreview(slot: CandidateSlot) {
   }
 }
 
-/** 撤销这一套发出去的全部令牌（拍板 11：可撤销可重发；站与内容都留着，只是不再可见） */
+/**
+ * 撤销这一套发出去的全部令牌（拍板 11：可撤销可重发；站与内容都留着，只是不再可见）。
+ *
+ * <p>撤销成功就把本地那份明文删掉并重读一次现状：卡上从此说的是「预览已失效」，
+ * 而不是继续挂着一条刚被自己作废的链接。</p>
+ */
 async function revokePreview(slot: CandidateSlot) {
   const id = siteIdOf(slot)
   if (id === null) return
+  const briefNumber = briefId.value
   revokingSiteId.value = id
   try {
     const count = await briefGenerationApi.revokePreviewLinks(id)
@@ -270,6 +414,7 @@ async function revokePreview(slot: CandidateSlot) {
     delete links[id]
     previewLinks.value = links
     message.success(`已撤销 ${count ?? 0} 条预览令牌：站与内容都还在，旧链接从此打不开`)
+    if (briefNumber !== null) await loadCandidates(briefNumber)
   } catch (error) {
     message.error(errText(error))
   } finally {
@@ -329,6 +474,8 @@ async function loadAll() {
     progress.value = null
     progressError.value = errText(error)
   }
+  // 预览令牌的现状单独一口：读它不签任何东西（旧口径每读一次就给每套新签一条 14 天公开链接）
+  await loadCandidates(id)
   loading.value = false
 }
 
@@ -373,6 +520,12 @@ onMounted(loadAll)
         这里不另起一个名字。
       </template>
     </a-alert>
+    <a-alert v-if="candidatesError" type="warning" show-icon class="candidate-gallery__alert">
+      <template #message>
+        预览令牌现状没取到（{{ candidatesError }}）：卡上那一格只能挂「状态没取到」——
+        读不到不等于没发过，也不等于还活着。发放按钮仍可点，回执里那条地址照旧给得到。
+      </template>
+    </a-alert>
     <p v-if="vocabularyFailed" class="candidate-gallery__muted">
       词表没取到：演示内容那一格只能露档位原码，中文刷新重试才有（这里不抄第二份）。
     </p>
@@ -393,8 +546,14 @@ onMounted(loadAll)
         </template>
         <div class="candidate-gallery__row">
           <a-tag :color="slotStatusColor(slot)">{{ slotStatusText(slot) }}</a-tag>
+          <!-- 待人工（D5-5）：单独一枚标记、单独一句话——它说的是「交付了但系统不敢替客户签字」，
+               与上面那枚状态（成功/失败/进行中）各指各的，谁也不许把谁顶替或并成一格 -->
+          <a-tag v-if="needsHumanOf(slot)" color="orange">{{ CANDIDATE_NEEDS_HUMAN_TEXT }}</a-tag>
           <span class="candidate-gallery__muted">子任务：{{ subtaskText(slot) }} · 阶段：{{ stageText(slot) }}</span>
         </div>
+        <p v-if="needsHumanOf(slot)" class="candidate-gallery__line">
+          <b>{{ CANDIDATE_NEEDS_HUMAN_TEXT }}：</b>{{ CANDIDATE_NEEDS_HUMAN_HINT }}
+        </p>
         <p v-if="slot.row?.errorMessage" class="candidate-gallery__error">
           失败原因（后端原话）：{{ slot.row.errorMessage }}
         </p>
@@ -419,6 +578,13 @@ onMounted(loadAll)
         <p v-if="imageText(slot)" class="candidate-gallery__line"><b>配图：</b>{{ imageText(slot) }}</p>
         <p class="candidate-gallery__line">
           <b>预览链接：</b>
+          <!-- 这一格有五种样子，对应五种不同的事实，谁也不许顶替谁：
+               ① 手上真有明文（刚发放成功那一次）→ 才摆得出一条可复制的链接；
+               ② 后端说现在活着，但明文只在签发那一刻存在过（库里只有散列）→ 只报现状与到期时刻，
+                  绝不摆一条看不见的链接、也绝不给一个「点了就换一条」的假按钮；
+               ③ 发过但已撤销/已过期 → 「预览已失效」+「重新发放」；
+               ④ 从来没发过 → 「未发送预览」+「发放」；
+               ⑤ 候选列表那一口没回这一套 → 直说没取到（没取到不等于没发过）。 -->
           <template v-if="previewOf(slot)">
             <a
               class="candidate-gallery__url"
@@ -437,18 +603,46 @@ onMounted(loadAll)
                 <a-button size="small" :loading="revokingSiteId === siteIdOf(slot)">撤销这一套全部令牌</a-button>
               </a-popconfirm>
             </a-space>
+            <span class="candidate-gallery__muted">{{ PREVIEW_LINK_ONCE_TEXT }}</span>
           </template>
           <template v-else-if="siteIdOf(slot) !== null">
-            <a-button
-              size="small"
-              :loading="issuingSiteId === siteIdOf(slot)"
-              @click="issuePreview(slot)"
-            >签发预览地址</a-button>
-            <span class="candidate-gallery__muted">这一格今天还没有地址：令牌要点一下才签，页面加载不替三套各签一枚。</span>
+            <a-tag :color="previewLinkStateColor(previewStateOf(slot))">
+              {{ previewLinkStateText(previewStateOf(slot)) }}
+            </a-tag>
+            <span v-if="previewExpiryText(slot)" class="candidate-gallery__muted">{{ previewExpiryText(slot) }}</span>
+            <a-space size="small" wrap>
+              <template v-if="previewStateOf(slot) === 'live'">
+                <!-- 「重新发放」只指重发口（先撤全部旧令牌再签新的）；「发放」（只新增）在这一态不给，
+                     摆在一条还能打开的链接旁边就是「点了就变两条」的假承诺 -->
+                <a-popconfirm
+                  title="重新发放会先撤销这一套现在的全部预览令牌（旧链接当场打不开），再签一条新的——新地址只在回执里摆这一次。确认？"
+                  ok-text="重新发放"
+                  cancel-text="先不"
+                  @confirm="reissuePreview(slot)"
+                >
+                  <a-button size="small" :loading="reissuingSiteId === siteIdOf(slot)">重新发放预览地址</a-button>
+                </a-popconfirm>
+                <a-popconfirm
+                  title="撤销会把这一套现在这条还能打开的预览令牌作废：站与内容都留着，旧链接当场打不开。确认？"
+                  ok-text="撤销"
+                  cancel-text="先不"
+                  @confirm="revokePreview(slot)"
+                >
+                  <a-button size="small" :loading="revokingSiteId === siteIdOf(slot)">撤销这一套全部令牌</a-button>
+                </a-popconfirm>
+              </template>
+              <a-button
+                v-else
+                size="small"
+                :loading="issuingSiteId === siteIdOf(slot)"
+                @click="onIssueClick(slot)"
+              >{{ issueLabelOf(slot) }}</a-button>
+            </a-space>
+            <span v-if="previewHintOf(slot)" class="candidate-gallery__muted">{{ previewHintOf(slot) }}</span>
           </template>
           <span v-else class="candidate-gallery__muted">{{ PREVIEW_LINK_PENDING_TEXT }}</span>
           <span v-if="siteIdOf(slot) !== null && previewErrors[siteIdOf(slot) as number]" class="candidate-gallery__error">
-            签发被后端拒了（原话）：{{ previewErrors[siteIdOf(slot) as number] }}
+            发放被后端拒了（原话）：{{ previewErrors[siteIdOf(slot) as number] }}
           </span>
         </p>
       </a-card>

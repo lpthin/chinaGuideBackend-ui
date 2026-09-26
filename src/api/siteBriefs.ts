@@ -873,8 +873,8 @@ export function previewLinkStateColor(state: PreviewLinkState): string {
 /** 「现在活着，可地址取不回来」那一句：这一态必须单独有话，否则人只会以为界面坏了 */
 export const PREVIEW_LINK_LIVE_HINT =
   '这一条现在还能打开，但链接的明文只在发放那一刻给过一次（库里存的是令牌散列）——'
-  + '刷新页面就取不回来了。要一条能复制的新地址：先撤销这一套全部令牌，再点一次发放'
-  + '（不撤销就直接发放会让两条同时有效）。';
+  + '刷新页面就取不回来了。要一条能复制的新地址就点「重新发放」：后端会先撤销这一套的全部旧令牌'
+  + '（旧链接当场打不开）再签一条新的，回执在这里只摆一次。';
 
 /** 「发过但已撤销/已过期」那一句 */
 export const PREVIEW_LINK_REVOKED_HINT =
@@ -892,6 +892,18 @@ export function previewLinkStateHint(state: PreviewLinkState): string {
   if (state === 'never-issued') return PREVIEW_LINK_NEVER_ISSUED_HINT;
   return '';
 }
+
+/** 「待人工」那枚标记本身（判据是候选列表口回的 `needsHuman`，D5-5 / V135） */
+export const CANDIDATE_NEEDS_HUMAN_TEXT = '待人工';
+
+/**
+ * 「待人工」旁边的那句解释。口径对着后端 V135 的列注释「交付了但仍要人看一眼」：
+ * 极限用语闸自动改写一遍仍命中的措辞已经落库，但系统不敢替客户签字——这与 failed
+ * （那一套根本没跑成）是两件事，两句话各挂各的，谁也不许顶替谁。
+ */
+export const CANDIDATE_NEEDS_HUMAN_HINT =
+  '这一套已交付、能预览，但有措辞被极限用语闸改写一遍后仍命中（广告法禁用的绝对化用语那一族）：'
+  + '系统不敢替客户签字，请先人工过目相关文案再发链接。它不是失败——失败的那套会单独写明原因。';
 
 /**
  * `GET /admin/site-briefs/{id}/candidates` 的一行（后端 `SiteProposalOrchestrator.CandidateSite`）。
@@ -923,6 +935,12 @@ export interface BriefCandidateSite {
   previewExpiresAt: string | null;
   /** 现在是不是有一条活着的全站预览令牌 */
   previewIssued: boolean;
+  /**
+   * Spec-D D5-5：这一套里交付了、但极限用语闸改写一遍仍没洗干净的措辞（V135 起后端单列存，
+   * 注释原话「交付了但仍要人看一眼」）。它<b>不是</b> failed：内容是落库的、站是能开的，
+   * 只是系统不敢替客户签字——画廊要如实挂「待人工」，不许并进失败那一格。
+   */
+  needsHuman: boolean;
   notices?: string[] | null;
 }
 
@@ -977,6 +995,18 @@ export const briefGenerationApi = {
   previewLink: (siteId: number, label?: string) =>
     http.post<BriefPreviewLink>(
       `/admin/sites/${siteId}/preview-links`,
+      undefined,
+      { params: label ? { label } : {} }
+    ),
+
+  /**
+   * 重发预览链接（`POST /admin/sites/{id}/preview-links/reissue`，拍板 11 里的那半个「重发」）：
+   * 后端<em>先撤销该站全部旧令牌、再签一条新的</em>——与上面那个「只新增不回收」的发放口分开。
+   * 「链接发错人了」要走这一条：两步并成一步，任何时刻都收得干净。回执同样只在这里出现一次明文。
+   */
+  reissuePreviewLink: (siteId: number, label?: string) =>
+    http.post<BriefPreviewLink>(
+      `/admin/sites/${siteId}/preview-links/reissue`,
       undefined,
       { params: label ? { label } : {} }
     ),
