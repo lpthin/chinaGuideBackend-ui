@@ -250,8 +250,21 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     expect(text).toContain('260000')
     expect(text).toContain('900000')
     expect(text).toContain('2 套 × 每套 7 页 × 演示内容 10 文章 + 3 案例')
-    // 这句一个字不许改：估算闸门偏松是明令缓决的后果，不许藏
+    // 后端没给 notice 时才允许出现本地兜底那句（它不许带具体倍数——倍数只有后端知道）
     expect(text).toContain(ESTIMATE_UNDERESTIMATE_DISCLAIMER)
+    wrapper.unmount()
+  })
+
+  it('后端给了 notice 就只显示那一份：界面不许在旁边再拼一遍本地常量（两处真相）', async () => {
+    const backendNotice = '这是预估，不是账单：实测 0.83～1.13 倍，更早的样本低估过 1.23～4.2 倍'
+    const wrapper = await mountView({
+      estimateData: { ...DEFAULT_ESTIMATE, notice: backendNotice }
+    })
+    click(byText('先估算消耗（不调模型）')[0])
+    await flushPromises()
+    const text = wrapper.text()
+    expect(text).toContain(backendNotice)
+    expect(text).not.toContain(ESTIMATE_UNDERESTIMATE_DISCLAIMER)
     wrapper.unmount()
   })
 

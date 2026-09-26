@@ -294,10 +294,11 @@ const estimateText = computed(() => {
     parts.push(`该租户剩余配额 ${current.remainingTokens} token`)
   }
   if (current.breakdown) parts.push(current.breakdown)
-  if (current.notice) parts.push(current.notice)
+  // §9-1 那句原话永远跟在数字旁边，一个字不改：估算闸门偏松是明令缓决的后果，不许藏。
+  // 但**只有一份**：后端 estimate.notice 就是那句话的出处（含实测倍数），界面再拼一遍本地常量
+  // 就成了两处真相——后端更新了样本、界面还在说旧倍数。所以只在后端没给时兜底。
+  parts.push(current.notice || ESTIMATE_UNDERESTIMATE_DISCLAIMER)
   if (current.notices?.length) parts.push(...current.notices)
-  // §9-1 那句原话永远跟在数字后面，一个字不改：估算闸门偏松是明令缓决的后果，不许藏
-  parts.push(ESTIMATE_UNDERESTIMATE_DISCLAIMER)
   return parts.join('。') 
 })
 
