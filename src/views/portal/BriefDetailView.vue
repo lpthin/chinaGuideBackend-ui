@@ -15,8 +15,8 @@ import {
   siteStatusText,
   siteBriefsApi,
   vocabularyApi,
+  type BriefCandidateProgress,
   type BriefEstimate,
-  type BriefProgress,
   type SiteBrief,
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
@@ -259,7 +259,8 @@ const estimate = ref<BriefEstimate | null>(null)
 const estimating = ref(false)
 const confirmChecked = ref(false)
 const generating = ref(false)
-const progress = ref<BriefProgress | null>(null)
+/** 进度回的是**数组**（每套一条），不是 `{candidates:[…]}`：读错一层就是「永远读不到进度」 */
+const progress = ref<BriefCandidateProgress[] | null>(null)
 const progressError = ref('')
 const loadingProgress = ref(false)
 /** 「开始出方案」拿回的中文（成功提示或失败原文）挂在门禁那一格里，不靠 toast 一闪而过 */
@@ -269,17 +270,27 @@ const busy = computed(
   () => estimating.value || generating.value || loadingProgress.value
 )
 
+/** 那颗价签本体：后端把数字装在 `estimate` 这一层里，外层是「哪一单的哪一次估算 + 凭据」 */
+const quote = computed(() => estimate.value?.estimate ?? null)
+
 /** 预估要属于当前这一单才能当确认的依据：换单之后的旧报价不能拿来确认（组装页同一条口径） */
 const estimateFresh = computed(
   () => !!estimate.value && !!brief.value && estimate.value.briefId === brief.value.id
+    && !!quote.value && !!estimate.value.estimateId
 )
 
 /** 门禁只对「还没发出去的单」开放：draft/ready 之外，钱要么在花、要么花完了，轮不到这里再按 */
 const gateOpen = computed(() => briefIsEditable(brief.value?.status))
 
-/** 确认框能勾的前提是「手里有一份属于当前单、而且真的能花的报价」：aiEnabled=false 时那不是报价 */
+/**
+ * 确认框能勾的前提是「手里有一份属于当前单、而且真的能花的报价」：`aiEnabled=false` 时那不是报价。
+ *
+ * <p>缺口只认这一个开关。<b>不看 `missingSwitches` 是否为空</b>——那份清单里「没有可用图像模型」
+ * 这一条在开关全开时也会出现，而拍板 8B 明令配图永远不阻塞一套候选（缺图就记 skipped 只出文字）。
+ * 拿它当闸等于把 8B 反着实现一遍：该给勾的时候不给勾。所以缺口在这里只显示、不门禁。</p>
+ */
 const canConfirm = computed(
-  () => gateOpen.value && estimateFresh.value && estimate.value?.aiEnabled === true && !busy.value
+  () => gateOpen.value && estimateFresh.value && quote.value?.aiEnabled === true && !busy.value
 )
 
 const canEstimate = computed(() => !!brief.value && !busy.value)
@@ -287,20 +298,24 @@ const canEstimate = computed(() => !!brief.value && !busy.value)
 const canGenerate = computed(() => canConfirm.value && confirmChecked.value && !busy.value)
 
 const estimateText = computed(() => {
-  const current = estimate.value
+  const current = quote.value
   if (!current) return ''
   const parts = [`预计 ${current.estimatedTokens} token`]
-  if (current.remainingTokens !== null && current.remainingTokens !== undefined) {
-    parts.push(`该租户剩余配额 ${current.remainingTokens} token`)
-  }
-  if (current.breakdown) parts.push(current.breakdown)
+  // 逐行口径（套数/文字/演示内容/配图/合计/当月剩余配额）全来自后端 breakdown：
+  // 「剩余配额」后端是拼在这一份里下发的，界面上没有第二个数字可拼
+  if (current.breakdown?.length) parts.push(...current.breakdown)
   // §9-1 那句原话永远跟在数字旁边，一个字不改：估算闸门偏松是明令缓决的后果，不许藏。
   // 但**只有一份**：后端 estimate.notice 就是那句话的出处（含实测倍数），界面再拼一遍本地常量
   // 就成了两处真相——后端更新了样本、界面还在说旧倍数。所以只在后端没给时兜底。
   parts.push(current.notice || ESTIMATE_UNDERESTIMATE_DISCLAIMER)
-  if (current.notices?.length) parts.push(...current.notices)
-  return parts.join('。') 
+  return parts.join('。')
 })
+
+/** 开关缺口（缺哪个开关、为什么这次没图）：后端原话逐条列，只说明不门禁（拍板 8B） */
+const missingSwitchLines = computed(() => quote.value?.missingSwitches ?? [])
+
+/** 这一档今天到底能不能出图：false 不是失败，图位会留空并由人补（拍板 8B） */
+const imageAvailable = computed(() => quote.value?.imageAvailable !== false)
 
 const generatingNow = computed(() => brief.value?.status === 'generating')
 
@@ -310,7 +325,8 @@ async function loadProgress() {
   loadingProgress.value = true
   progressError.value = ''
   try {
-    progress.value = await briefGenerationApi.progress(id)
+    const rows = await briefGenerationApi.progress(id)
+    progress.value = rows ?? []
   } catch (error) {
     // 后端口没上线/网络不通时把错误原文挂出来：不静默，也不把「没取到」演成「没在跑」
     progress.value = null
@@ -339,15 +355,21 @@ async function runEstimate() {
 
 async function runGenerate() {
   const current = brief.value
-  // 二次守卫（门禁的第三道）：这一发的语义是「花钱」，没勾确认就连函数层面都不许把它发出去
-  if (!current || !confirmChecked.value || !canGenerate.value) {
+  const priced = estimate.value
+  const price = quote.value
+  // 二次守卫（门禁的第三道）：这一发的语义是「花钱」，没勾确认就连函数层面都不许把它发出去；
+  // 凭据缺一样也不发——后端 9A 那道闸会原样拒回来，但把一次注定被拒的调用发出去不是「门禁」。
+  if (!current || !confirmChecked.value || !canGenerate.value || !priced || !price) {
     message.warning('没看过预估、或没亲手勾确认，这一发不会发出：花钱的调用不接受默认确认')
     return
   }
   generating.value = true
   generateNotice.value = ''
   try {
-    await briefGenerationApi.generate(current.id, true)
+    await briefGenerationApi.generate(current.id, true, {
+      estimateId: priced.estimateId,
+      expectedTokens: price.estimatedTokens
+    })
     confirmChecked.value = false
     estimate.value = null
     generateNotice.value = '出方案已启动：候选站是按套各一条子任务的，下面按套显示进度。要重来不会自动发生——失败的那套缺什么，修完再走一遍门禁。'
@@ -627,7 +649,7 @@ onUnmounted(stopPolling)
         <p v-if="!estimate && gateOpen" class="brief-detail__muted">
           还没有预估，确认框与「开始出方案」都是灭的：这是门禁，不是忘了做。
         </p>
-        <p v-else-if="estimate && !estimate.aiEnabled" class="brief-detail__locked">
+        <p v-else-if="quote && !quote.aiEnabled" class="brief-detail__locked">
           后端回了「这一路没开」：开关没开时那份预估不是可以花的报价，点下去只会拿回一条中文错误、模型一次都不调，
           所以确认框在这里给不了勾。
         </p>
@@ -635,6 +657,13 @@ onUnmounted(stopPolling)
           确认框已经勾上：再点「开始出方案」就会真的调用模型并扣配额。要收手先把勾去掉。
         </p>
         <a-alert v-if="estimate" type="info" show-icon class="brief-detail__alert" :message="estimateText" />
+        <!-- 缺口只说明、不门禁：配图缺了照样出一套纯文字候选（拍板 8B），拿它当闸就是反着实现一遍 -->
+        <ul v-if="missingSwitchLines.length" class="brief-detail__progress-list">
+          <li v-for="line in missingSwitchLines" :key="line" class="brief-detail__locked">{{ line }}</li>
+        </ul>
+        <p v-else-if="quote && imageAvailable" class="brief-detail__muted">
+          这一档没有开关缺口：出方案与配图两条路都认得出可用的模型。
+        </p>
         <p v-if="generateNotice" class="brief-detail__muted">{{ generateNotice }}</p>
 
         <template v-if="progressError">
@@ -650,18 +679,22 @@ onUnmounted(stopPolling)
             <p class="brief-detail__muted">
               进度按套显示（每套一条子任务，任一步失败只影响该套）；这里刻意没有总百分比。
             </p>
-            <div v-if="!progress.candidates.length" class="brief-detail__muted">
+            <div v-if="!progress.length" class="brief-detail__muted">
               后端回了空清单：这一单还没有候选子任务（刚提交还没排上，或还没出过方案）。
             </div>
             <ul v-else class="brief-detail__progress-list">
-              <li v-for="row in progress.candidates" :key="`${row.candidateNo ?? 'x'}-${row.siteId ?? 'nosite'}`">
+              <li v-for="row in progress" :key="`${row.candidateNo ?? 'x'}-${row.siteId ?? 'nosite'}`">
                 <b>{{ row.candidateNo == null ? '未编号的一套' : `第 ${row.candidateNo} 套` }}</b>
                 <a-tag>{{ row.statusLabel || row.status }}</a-tag>
                 <span class="brief-detail__muted">
                   阶段：{{ row.stageLabel || row.stage || '还没进入阶段' }}
                   <template v-if="row.siteId"> · 站点 #{{ row.siteId }}</template>
+                  <template v-if="row.estimatedTokens != null"> · 本套预计 {{ row.estimatedTokens }} token</template>
                 </span>
                 <span v-if="row.errorMessage" class="brief-detail__locked">失败原因（后端原话）：{{ row.errorMessage }}</span>
+                <span v-if="row.notices?.length" class="brief-detail__muted">
+                  这一套的降级说明（后端原话）：{{ row.notices.join('；') }}
+                </span>
               </li>
             </ul>
           </div>

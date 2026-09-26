@@ -205,6 +205,7 @@ export const GUESSED_SHAPES = [
     + '提交后的文案因此只承诺本地锁（不再接受第二次答复），不承诺已入库。',
   'promote 响应体里今天的形状 —— 按 SiteBriefDeliveryService.PromoteReceipt 的字段名逐字对齐（含 maintenanceUrlRelative）。'
     + '它随 P4 一起在建，字段若变这里先红，不会把错字段演成空值。',
-  '重发/撤销预览令牌的手动口（§5 的 POST /api/admin/sites/{id}/preview-links）后端今天还没有：'
-    + '本文件不写这个函数，界面上也就没有「重发链接」按钮——拍板 11A 的撤销已由 promote/regenerate 内部兑现。'
+  '重发/撤销预览令牌的手动口（§5 的 POST /api/admin/sites/{id}/preview-links 与 …/revoke）后端已经建出来了：'
+    + '声明在 `api/siteBriefs` 的 briefGenerationApi.previewLink / revokePreviewLinks（同一个 record 形状，'
+    + '不在这份文件里写第二份）。画廊里那一发是「点『签发预览地址』才调」，不在页面加载时给三套各签一枚。'
 ].join('\n');

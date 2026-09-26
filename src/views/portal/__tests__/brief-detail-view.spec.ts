@@ -18,11 +18,13 @@ import { siteApi, tenantApi } from '../../../api/workspace'
  * 守的行为一条不少：
  * 1. 预估 → 勾选 → 执行的顺序是闸：没出价之前确认框与执行按钮都是灭的（一次点击都不该在
  *    没人看过价格的情况下发生）；aiEnabled=false 的预估不是报价，连确认都不给勾；
- * 2. §9-1 那句「按历史低估 1.2~4.2 倍算的，不是最终账单」必须跟在数字旁边，一个字不改；
- * 3. generate 只发亲手勾过的那一发：confirm 参数来自 checkbox，不是代码默认值；
+ *    只缺图像模型（missingSwitches 有话）不是闸——拍板 8B 明令配图不阻塞一套候选；
+ * 2. §9-1 那句「这不是最终账单」必须跟在数字旁边，一个字不改，而且只显示后端那一份；
+ * 3. generate 只发亲手勾过的那一发，并且带着上一次那份凭据（estimateId + expectedTokens）：
+ *    缺凭据后端就中文拒、一次模型都不调（curl 实测），界面上点了必被拒等于这一发根本花不出去；
  *    后端拒（缺确认/开关没开）时那句中文原样挂在页面上；
  * 4. 进度按套列，没有总百分比；进度口读不到时错误原文挂出来，不把「没取到」演成「没在跑」；
- * 5. P4（转正/客户选择页）不摆按钮，只有一句原话；
+ * 5. ③④ 的判据是「留痕里真有一条选定」而不是状态看着像：没有可点动作时页面说清为什么没有；
  * 6. 每一步有真去处（吸收建站流水线旧用例的行为）：候选画廊、组装任务、录入页都是真跳转。
  *
  * 与同族用例同一口径：纯 helper 走真实现（importOriginal + spread），只把网络口换成 vi.fn；
@@ -152,14 +154,44 @@ interface MountOptions {
   generateData?: unknown
 }
 
-/** 缺省报价：aiEnabled=true，用于「正常报出价」的那几条；个别用例用自己的 estimateData 顶掉它 */
+/**
+ * 缺省报价：`aiEnabled=true`，用于「正常报出价」的那几条；个别用例用自己的 estimateData 顶掉它。
+ *
+ * <p><b>形状是照 2026-09-26 的真回包抄的，不是照界面想的</b>：外层是「哪一单的哪一次估算 + 凭据」，
+ * 数字装在 `estimate` 那一层里，`breakdown`/`missingSwitches` 是数组。
+ * 这一族用例以前按扁平形状 stub（`estimatedTokens` 与 `aiEnabled` 直接挂外层、`breakdown` 是一个字符串），
+ * 于是视图读嵌套回包时全读成 undefined：报价显示 undefined、确认框永远勾不上、
+ * 「开始出方案」在界面上根本发不出去——而这套用例一片绿。stub 必须说后端那句真话。</p>
+ */
+const DEFAULT_QUOTE = {
+  candidateCount: 2,
+  pagesPerCandidate: 7,
+  demoArticles: 10,
+  demoCases: 3,
+  imageSlots: 2,
+  tokenEquivalentsPerImage: 1500,
+  estimatedTokens: 260000,
+  aiEnabled: true,
+  imageAvailable: true,
+  breakdown: [
+    '合计预估：260000 token（2 套 × 130000 token/套）',
+    '当月剩余配额：900000 token'
+  ],
+  missingSwitches: [] as string[],
+  notice: null as string | null
+}
+
 const DEFAULT_ESTIMATE = {
   briefId: 12,
-  candidateCount: 2,
-  estimatedTokens: 260000,
-  remainingTokens: 900000,
-  aiEnabled: true,
-  breakdown: '2 套 × 每套 7 页 × 演示内容 10 文章 + 3 案例'
+  attempt: 1,
+  estimateId: 'est-2026-09-26-a1',
+  requirementsSummary: '后端渲染的那句需求原话',
+  estimate: DEFAULT_QUOTE
+}
+
+/** 造一份估算回包：只改里层那颗价签，外层凭据形状不动（免得又测回扁平那份假契约） */
+function estimateWith(overrides: Record<string, unknown>) {
+  return { ...DEFAULT_ESTIMATE, estimate: { ...DEFAULT_QUOTE, ...overrides } }
 }
 
 async function mountView(options: MountOptions = {}) {
@@ -175,8 +207,9 @@ async function mountView(options: MountOptions = {}) {
   if (options.progressError) {
     vi.mocked(briefGenerationApi.progress).mockRejectedValue(new Error(options.progressError))
   } else {
+    // 真回包就是**一个数组**（每套一行），不是 `{briefId, candidates:[…]}`
     vi.mocked(briefGenerationApi.progress).mockResolvedValue(
-      (options.progressData ?? { briefId: 12, candidates: [] }) as any
+      (options.progressData ?? []) as any
     )
   }
   // 口子的默认实现统一在这里挂：用例要通过 options 传自己的回包，
@@ -247,9 +280,10 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     await flushPromises()
     expect(briefGenerationApi.estimate).toHaveBeenCalledWith(12)
     const text = wrapper.text()
+    // 价签本体在 `estimate` 那一层：这一句红过一次就是「数字显示成 undefined」那四处假界面之一
     expect(text).toContain('260000')
-    expect(text).toContain('900000')
-    expect(text).toContain('2 套 × 每套 7 页 × 演示内容 10 文章 + 3 案例')
+    expect(text).toContain('当月剩余配额：900000 token')
+    expect(text).toContain('合计预估：260000 token（2 套 × 130000 token/套）')
     // 后端没给 notice 时才允许出现本地兜底那句（它不许带具体倍数——倍数只有后端知道）
     expect(text).toContain(ESTIMATE_UNDERESTIMATE_DISCLAIMER)
     wrapper.unmount()
@@ -258,7 +292,7 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
   it('后端给了 notice 就只显示那一份：界面不许在旁边再拼一遍本地常量（两处真相）', async () => {
     const backendNotice = '这是预估，不是账单：实测 0.83～1.13 倍，更早的样本低估过 1.23～4.2 倍'
     const wrapper = await mountView({
-      estimateData: { ...DEFAULT_ESTIMATE, notice: backendNotice }
+      estimateData: estimateWith({ notice: backendNotice })
     })
     click(byText('先估算消耗（不调模型）')[0])
     await flushPromises()
@@ -270,10 +304,9 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
 
   it('aiEnabled=false 的预估不是报价：开关没开时连确认框都不给勾', async () => {
     const wrapper = await mountView({
-      estimateData: {
-        briefId: 12, candidateCount: 2, estimatedTokens: 100, remainingTokens: null,
-        aiEnabled: false, notice: '组装开关没开'
-      }
+      estimateData: estimateWith({
+        estimatedTokens: 100, aiEnabled: false, notice: '组装开关没开'
+      })
     })
     click(byText('先估算消耗（不调模型）')[0])
     await flushPromises()
@@ -282,8 +315,37 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     wrapper.unmount()
   })
 
-  it('看过报价并亲手勾上后执行才会发出去，且 confirm 带的就是勾本身；成功后重拉单子与进度', async () => {
-    const wrapper = await mountView({ generateData: { briefId: 12 } })
+  /**
+   * 拍板 8B：配图那条路缺模型时 `missingSwitches` 有话，但 `aiEnabled` 仍是 true。
+   *
+   * 这一条守的是「缺口只显示、不门禁」：拿 missingSwitches 当闸就是把 8B 反着实现一遍——
+   * 该出一套纯文字候选的时候，界面上那颗确认框根本勾不上。2026-09-26 真跑第一次就是这样：
+   * 开关全开、图模型没配，后端照样让 generate 跑成了。
+   */
+  it('只缺图像模型（missingSwitches 有话、aiEnabled 仍 true）：缺口原话列出来，确认框照样能勾', async () => {
+    const reason = '演示内容与首页主视觉会没有图（没有 model_type=image 的图像模型）：要出图得同时配一条模型并打开 app.ai.image.enabled'
+    const wrapper = await mountView({
+      estimateData: estimateWith({
+        imageAvailable: false,
+        missingSwitches: [reason],
+        notice: '这是预估，不是账单：实测 0.83～1.13 倍'
+      })
+    })
+    click(byText('先估算消耗（不调模型）')[0])
+    await flushPromises()
+    expect(wrapper.text()).toContain(reason)
+    expect(checkbox()!.disabled).toBe(false)
+    // 门禁本身不松：不勾仍然点不动（缺图不是「可以不勾就花」的理由）
+    expect(byText('开始出方案（建2套候选）')[0].hasAttribute('disabled')).toBe(true)
+    checkbox()!.click()
+    await flushPromises()
+    expect(byText('开始出方案（建2套候选）')[0].hasAttribute('disabled')).toBe(false)
+    expect(briefGenerationApi.generate).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('看过报价并亲手勾上后执行才会发出去，且带着上一次那份凭据；成功后重拉单子与进度', async () => {
+    const wrapper = await mountView({ generateData: { briefId: 12, attempt: 1 } })
     click(byText('先估算消耗（不调模型）')[0])
     await flushPromises()
     expect(checkbox()!.disabled).toBe(false)
@@ -292,7 +354,12 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     expect(wrapper.text()).toContain('确认框已经勾上')
     click(byText('开始出方案（建2套候选）')[0])
     await flushPromises()
-    expect(briefGenerationApi.generate).toHaveBeenCalledWith(12, true)
+    // 9A 那道闸认的是这两样：少带一样后端就中文拒绝、一次模型都不调（curl 实测），
+    // 所以「只发 {confirm}」这一发在界面上永远花不出去——断言必须钉住凭据真的跟着走了
+    expect(briefGenerationApi.generate).toHaveBeenCalledWith(12, true, {
+      estimateId: 'est-2026-09-26-a1',
+      expectedTokens: 260000
+    })
     expect(briefGenerationApi.progress).toHaveBeenCalled()
     wrapper.unmount()
   })
@@ -327,13 +394,18 @@ describe('进度按套显示（§6.2：任一步失败只影响该套）', () =>
     const wrapper = await mountView({
       status: 'generating',
       sites: [site(31, { candidateNo: 1 }), site(32, { candidateNo: 2 })],
-      progressData: {
-        briefId: 12,
-        candidates: [
-          { siteId: 31, candidateNo: 1, status: 'running', statusLabel: '进行中', stage: 'demo_content', stageLabel: '演示内容生成' },
-          { siteId: 32, candidateNo: 2, status: 'failed', stage: 'image', errorMessage: '图片模型不可用：该图位交付后由你上传' }
-        ]
-      }
+      progressData: [
+        {
+          candidateId: 71, siteId: 31, attempt: 1, candidateNo: 1, status: 'running',
+          statusLabel: '进行中', stage: 'demo_content', stageLabel: '演示内容生成',
+          estimatedTokens: 130000, notices: ['演示内容是 AI 生成的，交付后可替换']
+        },
+        {
+          candidateId: 72, siteId: 32, attempt: 1, candidateNo: 2, status: 'failed',
+          stage: 'image', errorMessage: '图片模型不可用：该图位交付后由你上传',
+          imageDone: 1, imageFailed: 0, imageSkipped: 1
+        }
+      ]
     })
     const text = wrapper.text()
     expect(text).toContain('第 1 套')
@@ -344,6 +416,9 @@ describe('进度按套显示（§6.2：任一步失败只影响该套）', () =>
     expect(text).toContain('failed')
     // 失败原因是后端原话，挂在失败的那一套上
     expect(text).toContain('图片模型不可用：该图位交付后由你上传')
+    // 每套自己的降级说明与本套预估也照实列（进度口一行一套，不是整单一份）
+    expect(text).toContain('演示内容是 AI 生成的，交付后可替换')
+    expect(text).toContain('本套预计 130000 token')
     // 没有假装同步的东西：整页不许出现总百分比
     expect(text).not.toMatch(/\d+%/)
     expect(text).toContain('进度按套显示')

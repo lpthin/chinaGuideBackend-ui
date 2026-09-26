@@ -503,57 +503,89 @@ export function isArchivedSite(site: { status?: string | null }): boolean {
 //   重发一次候选链接 = 再读一次候选列表（拍板 11），够了。
 
 /**
- * `POST /admin/site-briefs/{id}/estimate` 的回包（零模型调用）。
- * 形状沿用组装预估的先例（`api/portalAssemble` 的 AssembleEstimate）：
- * estimatedTokens/remainingTokens/aiEnabled/notice 四个名字是后端已验证的口径，不另发明。
- * `breakdown` 是那句「N 套 × 每套几页 × 演示内容几篇」的人话，由后端拼、界面原样显示——
- * 前端自己乘一遍就是抄了第二份口径（拍板 7 的数量归后端词表与配置管）。
+ * `POST /admin/site-briefs/{id}/estimate` 回包里那一颗价签本体
+ * （后端 `SiteProposalEstimator.Estimate`，字段名逐字对齐 2026-09-26 的真回包）。
+ *
+ * <p>为什么强调"逐字"：这一族曾经按组装预估（`api/portalAssemble` 那份扁平形状）抄过一遍类型，
+ * 于是 `estimatedTokens` 与 `aiEnabled` 在真回包里根本不在界面上读的那一层——
+ * 数字显示成 undefined、确认框永远勾不上，花钱那一发在界面上永远发不出去，
+ * 而后端一切正常（同一发用 curl 带着凭据就真跑成了）。数字与开关口径都只信后端这一份。</p>
  */
-export interface BriefEstimate {
-  briefId: number;
+export interface BriefEstimateQuote {
   candidateCount: number;
+  pagesPerCandidate: number;
+  demoArticles: number;
+  demoCases: number;
+  /** 这一套有几个图位（hero 主视觉 / 站头 logo）：配图按张记账 */
+  imageSlots: number;
+  tokenEquivalentsPerImage: number;
   estimatedTokens: number;
-  remainingTokens: number | null;
-  /** 后端开关没开时给 false：这不是一个可以花的报价，界面据此连确认框都不给勾 */
+  /** 出方案开关没开时给 false：那不是可以花的报价，界面据此连确认框都不给勾 */
   aiEnabled: boolean;
-  breakdown?: string | null;
-  /** 「缺哪个开关」之类的中文说明，有就原样带上 */
+  /** 这一路有没有可用的图像模型；false 不等于失败，图位留空、交付后由人上传（拍板 8B） */
+  imageAvailable?: boolean;
+  /** 「N 套 × 每套几页 × 演示内容几篇」的人话，由后端逐行拼、界面原样列 */
+  breakdown?: string[] | null;
+  /** 缺哪个开关的中文原话；非空时确认框不该能勾 */
+  missingSwitches?: string[] | null;
   notice?: string | null;
-  notices?: string[] | null;
 }
 
 /**
- * `GET /admin/site-briefs/{id}/progress` 里每候选站的一条（§5：每候选站当前阶段与失败原因；
- * §6.1 落库的 differentiation「这套侧重什么」与 §6.2 末尾签发的预览地址也从这一条下来）。
- * 所有中文（statusLabel/stageLabel）都应由后端带；查不到就露原码，前端不抄第二份阶段词表。
+ * `POST /admin/site-briefs/{id}/estimate` 的回包（后端 `EstimateView`，零模型调用）。
+ *
+ * 外层是「这是哪一单的第几次估算 + 确认凭据」，里层 {@link estimate} 才是价签。
+ * `estimateId` 必须原样带回 `generate`（拍板 9A：没看过价格发不出去，看过还要带得回去）。
+ */
+export interface BriefEstimate {
+  briefId: number;
+  attempt?: number | null;
+  estimateId: string;
+  /** 喂给模型的那句需求原话（后端渲染，界面只转述） */
+  requirementsSummary?: string | null;
+  estimate: BriefEstimateQuote;
+}
+
+/**
+ * `GET /admin/site-briefs/{id}/progress` 里每候选站的一条（后端 `CandidateProgress`，
+ * 字段名逐字对齐 2026-09-26 的真回包：那一端点回的是**一个数组**，不是 `{candidates:[…]}`）。
+ *
+ * <p>这份类型以前写了四个后端从来不回的名字（`siteStatus`/`skeletonName`/`differentiation`/
+ * `previewUrl`），于是画廊上「这套侧重什么」和「预览链接」两格永远是那句「后端还没给」——
+ * 而真话在 `focus` 里，预览地址要另外按套签发（{@link siteProposalApi.previewLink}）。
+ * 界面读不到的字段就别写进类型：留着它，下一次还是照着一份不存在的契约写。</p>
  */
 export interface BriefCandidateProgress {
+  /** 这一套的候选行 id（进度与留痕都按它对齐） */
+  candidateId?: number | null;
   siteId: number | null;
+  /** 第几轮（重跑一次加一次）；归档的旧轮不会出现在这里 */
+  attempt?: number | null;
   candidateNo: number | null;
-  /** V115 站点状态码（candidate/archived/…）：界面读 siteStatusText 那一份说法 */
-  siteStatus?: string | null;
+  /** 这一套选定的骨架 key（没生成到 plan 那一步就没有） */
+  skeletonKey?: string | null;
+  /** plan 落库的「这套侧重什么」原话（§6.1）；界面一个字都不改写 */
+  focus?: string | null;
+  tone?: string | null;
+  /** 当前阶段码（plan/copy/seo/demo/image/shots/preview/done）：中文名只认 stageLabel */
+  stage?: string | null;
+  stageLabel?: string | null;
   /** 子任务状态码 + 后端给的中文（取不到中文就露码） */
   status: string;
   statusLabel?: string | null;
-  /** 当前阶段码（骨架/文案/SEO/演示内容/配图/截图/令牌…）：中文名只认 stageLabel */
-  stage?: string | null;
-  stageLabel?: string | null;
-  /** 这一套选定的骨架（key 与后端给的名字；没生成到那一步就没有） */
-  skeletonKey?: string | null;
-  skeletonName?: string | null;
-  /** plan 落库的「这套侧重什么」原话（§6.1）；界面一个字都不改写 */
-  differentiation?: string | null;
   /** 失败原因中文（后端写的）；任一步失败只影响该套，界面照实列该套 */
   errorMessage?: string | null;
-  /** 带 reviewToken 的预览地址：生成链路末尾签发后随进度下发；前端永不自己拼 */
-  previewUrl?: string | null;
-}
-
-export interface BriefProgress {
-  briefId: number;
-  /** 需求单当前状态码（进度头部用；中文仍走词表 statusLabels） */
-  briefStatus?: string | null;
-  candidates: BriefCandidateProgress[];
+  /** 这一套自己的降级说明（配图失败、演示内容口径、截图不可用…），后端原话逐条列 */
+  notices?: string[] | null;
+  estimatedTokens?: number | null;
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  demoArticles?: number | null;
+  demoCases?: number | null;
+  /** 配图的三本账：成功几张、失败几张、跳过几张（跳过不等于失败，拍板 8B） */
+  imageDone?: number | null;
+  imageFailed?: number | null;
+  imageSkipped?: number | null;
 }
 
 /**
@@ -572,10 +604,26 @@ export const CANDIDATE_SHOT_UNAVAILABLE_TEXT =
 /** §9-4 的防纠纷标注：演示内容在预览与画廊里必须原话挂着这一句 */
 export const DEMO_CONTENT_DISCLAIMER_TEXT = 'AI 生成的演示内容，交付后可替换';
 
-/** 预览链接这一格没有可发的地址时界面说的那句原话（口径见拍板 3A：转正/归档即收回全部令牌） */
+/**
+ * 预览链接这一格还没签发时界面说的那句原话（口径见拍板 3A/11）。
+ *
+ * <p>以前这一句写的是「地址随进度下发到这一格」——进度口从来不回 `previewUrl`，于是这一格
+ * 永远停在这句话上，而真口就在旁边（`POST /admin/sites/{id}/preview-links`）。
+ * 现在这一格是「点一下才签」：令牌是准入，不在一次页面加载里给三套各发一枚。</p>
+ */
 export const PREVIEW_LINK_PENDING_TEXT =
-  '这一套现在没有可发的预览链接：要么出方案还没走到它，要么本单已转正/归档——按拍板 3A，'
-  + '转正那一刻候选令牌全部收回，界面不再补发。还是候选身份时，可复制的地址随进度下发到这一格';
+  '这一套还没签发预览链接：点上面那一个「签发预览地址」才会新开一条带 reviewToken 的会话（14 天）。'
+  + '本单已转正/归档时后端会拒这一发并给一句中文——按拍板 3A，转正那一刻候选令牌全部收回，不再补发';
+
+
+/** 一套候选的预览链接回执（后端 `PreviewLink`）：令牌绑站不绑页 */
+export interface BriefPreviewLink {
+  siteId: number;
+  previewToken: string;
+  /** 未配 app.portal.candidate.preview-base-url 时后端回的是相对路径，由按当前 origin 拼这一头补 */
+  previewUrl: string;
+  expiresAt?: string | null;
+}
 
 export const briefGenerationApi = {
   /** 零模型调用的预估：只算不花，所以它不需要 confirm，也不该被省掉 */
@@ -583,11 +631,33 @@ export const briefGenerationApi = {
 
   /**
    * 真正花钱的那一发：`confirm` 只可能是界面上人亲手勾的那个值，任何调用方都不许替它填 true。
-   * 未勾确认在界面层就被拦住（canGenerate），真发出去被后端中文拒时错误原样显示。
+   *
+   * <p>凭据两样（{@link quote} 的 `estimateId` 与那颗价签的 `estimatedTokens`）必须跟着走——
+   * 后端 9A 那道闸认的就是这两样，缺一样它回一句中文并且一次模型都不调。这一头以前只发
+   * `{confirm}`，所以界面上「开始出方案」点了必被拒（同一发用 curl 带上凭据就真跑成了）。</p>
    */
-  generate: (id: number, confirm: boolean) =>
-    http.post<{ briefId?: number }>(`/admin/site-briefs/${id}/generate`, { confirm }),
+  generate: (id: number, confirm: boolean, quote: { estimateId: string; expectedTokens: number }) =>
+    http.post<{ briefId?: number }>(`/admin/site-briefs/${id}/generate`, {
+      confirm,
+      estimateId: quote.estimateId,
+      expectedTokens: quote.expectedTokens,
+    }),
 
-  /** 每候选站一条子任务的进度：哪套在跑、哪套失败、失败缺什么（§6.2 任一步失败只影响该套） */
-  progress: (id: number) => http.get<BriefProgress>(`/admin/site-briefs/${id}/progress`)
+  /** 每候选站一条子任务的进度：后端回的是数组，哪套在跑、哪套失败、失败缺什么都在各自那一行 */
+  progress: (id: number) => http.get<BriefCandidateProgress[]>(`/admin/site-briefs/${id}/progress`),
+
+  /**
+   * 单独给某一套候选签一条预览地址（§5 的那个手动口，后端是 POST /admin/sites/{id}/preview-links）。
+   * 画廊按套点「签发预览地址」才调它：令牌是准入，不该在一次页面加载里给三套各发一枚。
+   */
+  previewLink: (siteId: number, label?: string) =>
+    http.post<BriefPreviewLink>(
+      `/admin/sites/${siteId}/preview-links`,
+      undefined,
+      { params: label ? { label } : {} }
+    ),
+
+  /** 撤销这一套候选发出去的全部预览令牌（拍板 3A/11：站与内容都留着，只是不再可见） */
+  revokePreviewLinks: (siteId: number) =>
+    http.post<number>(`/admin/sites/${siteId}/preview-links/revoke`)
 };

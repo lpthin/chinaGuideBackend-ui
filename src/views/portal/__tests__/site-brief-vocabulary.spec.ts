@@ -10,7 +10,9 @@ import { describe, expect, it } from 'vitest'
  *
  * P3 改了「哪页许有什么按钮」的边界：出方案的 estimate/generate/progress 是 §5 定死的契约口，
  * 只许出现在适配层与需求单详情（门禁那一格）；录入页/列表页照旧一个花钱按钮都不许有。
- * P4 的口（promote/regenerate/preview-links/public brief）今天全族都不许出现——连函数都不写。
+ * 后端真落地后 §5 那一族是**四个**口：手动签发/撤销预览令牌挂在出方案那个控制器里（归 P3 这一族），
+ * promote/regenerate/公开选择页两口归 P4 那份适配层——判据从「连函数都不许写」挪成
+ * 「一个口只在一处声明，别处（含注释）都不许再写第二份端点形状」。
  *
  * 扫描分两圈：
  * - 四份旧抄本的词表中文（行业/市场/用户/商业模式）——六份文件里哪份出现都算复发；
@@ -25,6 +27,15 @@ const scanned = import.meta.glob(
 ) as Record<string, string>
 
 const entries = Object.entries(scanned)
+
+/**
+ * P4 那份适配层单独扫一次：它不在上面那份「需求单四件套」的名单里（那几份要查的是「有没有抄词表」），
+ * 这里只查一件事——同一个口不许在两处声明形状（I-6：两份真相迟早对不齐）。
+ */
+const deliveryAdapter = Object.values(import.meta.glob(
+  '../../../api/siteBriefDelivery.ts',
+  { eager: true, query: '?raw', import: 'default' }
+) as Record<string, string>)[0] ?? ''
 
 function textOf(path: string): string {
   const found = entries.find(([key]) => key.endsWith(path))
@@ -135,14 +146,21 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     expect(intake).toMatch(/不摆点不动的死链|也不摆一个点了没反应的/)  // 那句原话还在（注释/文案）
     const list = textOf('SiteBriefsView.vue')
     expect(list).not.toMatch(/briefGenerationApi|estimate|generate|发起生成|开始生成/)
-    // 适配层按 §5 定死的路径接三个口——这正是「用 exactly these paths, verbs」的落点
+    // 适配层按 §5 定死的路径接四个口——这正是「用 exactly these paths, verbs」的落点
     const apiSource = textOf('siteBriefs.ts')
     expect(apiSource).toMatch(/\/admin\/site-briefs\/\$\{id\}\/estimate/)
     expect(apiSource).toMatch(/\/admin\/site-briefs\/\$\{id\}\/generate/)
     expect(apiSource).toMatch(/\/admin\/site-briefs\/\$\{id\}\/progress/)
-    // P4 的口今天连函数都不许写：写了就是给「点了没反应」埋源头（§5 preview-links / promote）
-    expect(apiSource).not.toMatch(/\/(promote|regenerate|preview-links|regenerate)\b/)
+    // 边界挪过一次：这一条以前把 preview-links 一起禁在「P4 今天连函数都不许写」里。
+    // 后端真落地时那一口挂在 SiteProposalController（§5 的第四行，portal:build:manage），
+    // 也就是 P3 这一族——所以它归 `siteBriefs.ts`，而 promote/regenerate 仍在 `siteBriefDelivery.ts`。
+    // 判据从「不许出现」变成「一处声明、别处不许有第二份」：同一个口两份形状就是两次真相（I-6）。
+    expect(apiSource).toMatch(/\/admin\/sites\/\$\{siteId\}\/preview-links/)
+    expect(apiSource).not.toMatch(/\/(promote|regenerate)\b/)
     expect(apiSource).not.toMatch(/public\/brief/)
+    const deliverySource = deliveryAdapter
+    expect(deliverySource.length, 'P4 适配层没扫到：这条断言就成了假绿').toBeGreaterThan(0)
+    expect(deliverySource).not.toMatch(/http\.post[^;]*\/preview-links/)
   })
 
   it('详情页读回答案只经适配层：题目名一个都不写在页面里', () => {
@@ -182,9 +200,12 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     expect(gallery).toMatch(/CANDIDATE_SHOT_UNAVAILABLE_TEXT/)
     expect(gallery).toMatch(/DEMO_CONTENT_DISCLAIMER_TEXT/)
     expect(gallery).toMatch(/PREVIEW_LINK_PENDING_TEXT/)
-    // 预览地址只转述进度口的 previewUrl，前端不自己拼 token/域名
-    expect(gallery).toMatch(/previewUrl/)
-    expect(gallery).not.toMatch(/preview-links|token=/)
+    // 预览地址走适配层那一个手动签发口（点一下才签），拼法只认 resolvePreviewUrl 那一份；
+    // 端点路径与 token 字面量出现在页面里就是第二份端点口径（注释里也不写：那是第二份真相的起点）
+    expect(gallery).toMatch(/briefGenerationApi\.previewLink\(/)
+    expect(gallery).toMatch(/briefGenerationApi\.revokePreviewLinks\(/)
+    expect(gallery).toMatch(/resolvePreviewUrl\(/)
+    expect(gallery).not.toMatch(/preview-links|token=|reviewToken=/)
     // 阶段/子任务状态中文只认后端 label，查不到露原码——不许出现第二份 stage→中文 映射
     expect(gallery).toMatch(/row\.statusLabel \|\| row\.status/)
     expect(gallery).toMatch(/row\.stageLabel \|\| row\.stage/)
