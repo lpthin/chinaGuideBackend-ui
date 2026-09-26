@@ -57,6 +57,15 @@ const PARAGRAPH_SAMPLES = [
   + '由租户在自己的后台维护，骨架只负责把它放在这里。'
 ]
 
+/** 名字长得像图片位的链接槽：给一个内联占位图，免得画廊里出现裂图 */
+const IMAGE_SLOT_NAME = /(logo|icon|avatar|cover|image|photo|picture|favicon|banner)/i
+
+/** 一个不必联网、也不会裂掉的 1×1 占位图 */
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,'
+  + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">'
+    + '<rect width="640" height="360" fill="#e8edf5"/>'
+    + '<text x="50%" y="50%" font-size="28" fill="#6b7280" text-anchor="middle">演示图片位</text></svg>')
+
 /** 一份通用并集：每个列表区块按自己的字段名取它认得的那几个键，取不到就不渲染那一行 */
 const DEMO_ITEMS: Array<Record<string, unknown>> = [1, 2, 3, 4, 5, 6].map(index => ({
   id: index,
@@ -84,19 +93,26 @@ const DEMO_ITEMS: Array<Record<string, unknown>> = [1, 2, 3, 4, 5, 6].map(index 
   publishAt: '2026-01-0%d'.replace('%d', String(index)),
   value: `${index}00`,
   label: `演示指标 ${index}`,
+  // 评价（testimonial）：原话 + 姓名后面的那一小句身份；头像给现成的占位图，画廊不留灰圆
+  quote: `这是第 ${index} 条演示评价正文，正式内容里它是客户的原话，不是写在这里的第二份真相。`,
+  role: `演示身份 ${index}`,
+  avatar: PLACEHOLDER_IMAGE,
+  // 里程碑的时间点：库里是 VARCHAR（2016 / 2016-03 都行），这里按年份档演示
+  date: `202${index}`,
+  // 资质荣誉的颁发方；证书图沿用 image 槽位名，条目里刻意不给——缺图不留灰块这条也要在画廊里看得见
+  issuer: '演示颁发机构',
+  // 常见问题（faq）：问答成对，折叠区才有东西可展开
+  question: `演示问题 ${index}：这一行是问题标题`,
+  answer: `演示回答 ${index}：这是折叠区里的那段答案正文，只在有值时出现。`,
+  // 门店（stores）：地址口径照演示壳（一眼假），坐标给明显的整数近似值——真坐标带小数，看得出一眼是演示
+  address: `演示省演示市演示区演示路 ${index} 号`,
+  latitude: 30 + index,
+  longitude: 120 + index,
+  phone: `400-000-000${index}`,
   link: `/demo-page-${index}`,
   url: `/demo-page-${index}`,
   linkUrl: `/demo-page-${index}`
 }))
-
-/** 名字长得像图片位的链接槽：给一个内联占位图，免得画廊里出现裂图 */
-const IMAGE_SLOT_NAME = /(logo|icon|avatar|cover|image|photo|picture|favicon|banner)/i
-
-/** 一个不必联网、也不会裂掉的 1×1 占位图 */
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,'
-  + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">'
-    + '<rect width="640" height="360" fill="#e8edf5"/>'
-    + '<text x="50%" y="50%" font-size="28" fill="#6b7280" text-anchor="middle">演示图片位</text></svg>')
 
 function propertiesOf(schema: Record<string, unknown> | null): Record<string, PropertySchema> {
   const raw = schema?.properties as Record<string, PropertySchema> | undefined
