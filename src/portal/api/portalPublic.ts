@@ -48,6 +48,15 @@ export interface PortalCompanyBrief {
   phone: string | null
   email: string | null
   address: string | null
+  /**
+   * ICP 备案号（V132 起在 `portal_company_info` 上有列了）。
+   *
+   * <p>标成可选是因为后端**今天**还没把它放进壳里：`PortalContentDTO.CompanyBrief` 至今没有这一格，
+   * 备案号的真源目前只在门户数据那份（`companyInfo.icpNumber`，页脚区块经 $data 绑定拿到）。
+   * 壳哪天补上同名的一格，页脚不用改就读得到——写成必填就是照着一份不存在的契约写类型，
+   * 而这份仓库为这类字段名流过不止一次的红。</p>
+   */
+  icpNumber?: string | null
 }
 
 export interface PortalNavItem {
@@ -262,7 +271,11 @@ export function fetchArticle(idOrSlug: string | number): Promise<PortalArticleDe
   return get<PortalArticleDetail>(`${BASE}/articles/${encodeURIComponent(String(idOrSlug))}`)
 }
 
-export function fetchCases(params: { page?: number; size?: number } = {}) {
+/**
+ * 案例取数：industry 走后端精确匹配（PortalContentService.cases 的 eq 口径），
+ * 值必须原样取自 fetchCaseFacets()，自己拼「制造类」这种近似词只会筛出空。
+ */
+export function fetchCases(params: { industry?: string; page?: number; size?: number } = {}) {
   return get<PortalPage<PortalCaseItem>>(`${BASE}/cases`, params)
 }
 
@@ -274,6 +287,18 @@ export interface PortalCaseItem {
   summary: string | null
   coverImage: string | null
   link: string
+}
+
+/**
+ * 案例的可选行业（/cases/facets）。与 /cases 共用同一份可见性 wrapper，
+ * 所以筛选行里绝不会多出一个点开为空的行业；一条都没有时后端回空列表而不是 null。
+ */
+export interface PortalCaseFacets {
+  industries: string[]
+}
+
+export function fetchCaseFacets(): Promise<PortalCaseFacets> {
+  return get<PortalCaseFacets>(`${BASE}/cases/facets`)
 }
 
 export function fetchCase(id: number | string): Promise<PortalCaseDetail> {

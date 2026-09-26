@@ -1,5 +1,5 @@
 <template>
-  <section v-if="hasContent" class="pb-hero">
+  <section v-if="hasContent" class="pb-hero" :class="{ 'pb-hero--full': fullScreen }">
     <div class="pb-hero__bg" aria-hidden="true">
       <div v-if="photoStyle" class="pb-hero__photo" :style="photoStyle"></div>
       <span class="pb-hero__shape pb-hero__shape--1"></span>
@@ -25,7 +25,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { BlockContext } from './types'
-import { text } from './types'
+import { flag, text } from './types'
 import PortalBlockLink from './PortalBlockLink.vue'
 
 /**
@@ -64,6 +64,12 @@ const photoUrl = computed(() => {
 })
 
 const photoStyle = computed(() => (photoUrl.value ? { backgroundImage: `url("${photoUrl.value}")` } : null))
+
+/**
+ * 全屏槽（后端 hero dataSchema 里的 fullScreen 布尔）：为真时这一屏占满视口。
+ * 默认关——没有整屏视觉料的站，硬拉 100vh 只会露出一大片空渐变。
+ */
+const fullScreen = computed(() => flag(props.blockProps, 'fullScreen', false))
 
 const hasContent = computed(() => Boolean(title.value || subtitle.value || description.value || eyebrow.value))
 </script>
@@ -129,6 +135,28 @@ const hasContent = computed(() => Boolean(title.value || subtitle.value || descr
     position: relative;
     text-align: center;
     color: #fff;
+
+    /* 文字入场：逐层淡入上移。动效只长在装饰层，内容本身不依赖动画才可见——
+       reduced-motion 下整段关掉，文字直接以终态出现。 */
+    > * {
+      animation: pb-hero-rise 0.7s ease both;
+    }
+
+    > *:nth-child(2) {
+      animation-delay: 0.08s;
+    }
+
+    > *:nth-child(3) {
+      animation-delay: 0.16s;
+    }
+
+    > *:nth-child(4) {
+      animation-delay: 0.24s;
+    }
+
+    > *:nth-child(5) {
+      animation-delay: 0.32s;
+    }
   }
 
   &__eyebrow {
@@ -193,6 +221,32 @@ const hasContent = computed(() => Boolean(title.value || subtitle.value || descr
     &__title {
       font-size: calc(30px * var(--portal-font-scale));
     }
+  }
+}
+
+/* 全屏档：100vh 在移动浏览器上会把地址栏算进可视区（内容被顶出屏），
+   所以先给 100vh 兜旧浏览器、再用 100svh（最小视口高）覆盖新浏览器。 */
+.pb-hero--full {
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+@keyframes pb-hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 系统要求减少动效时，入场动画整段作废：这是无障碍硬约束，不是口味开关 */
+@media (prefers-reduced-motion: reduce) {
+  .pb-hero__content > * {
+    animation: none;
   }
 }
 </style>
