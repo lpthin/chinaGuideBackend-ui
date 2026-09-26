@@ -18,7 +18,13 @@ import http from './http';
  * 不许在这里或视图里自己拼句——拼了就等于抄了第二份词表。</p>
  */
 
-export type BriefSelectKind = 'single' | 'multi' | 'cascade' | 'text' | 'color';
+/**
+ * 后端 SiteBriefVocabulary.SELECT_KINDS 的镜像（V133 起八种）：
+ * textarea 是多行原话、pages 是页面清单逐条编辑、block-order 是首页区块顺序——
+ * 这三样都是「格子形状」而不是新题目，视图按 q.select 分支渲染，题目名一个都不认。
+ */
+export type BriefSelectKind =
+  | 'single' | 'multi' | 'cascade' | 'text' | 'textarea' | 'color' | 'pages' | 'block-order';
 
 /** 词表里的一个选项：code 是落库值，label 只用来显示（中文真相在后端） */
 export interface BriefVocabularyOption {
@@ -36,6 +42,11 @@ export interface BriefVocabularyOption {
 export interface BriefVocabularyQuestion {
   key: string;
   label: string;
+  /**
+   * 所属分段（basic/structure/content/constraint 之一，V133 起后端每题下发）。
+   * 段名中文只认词表顶层 `groups` 那一份；这里没有的段（存量/新加的段）界面兜底露码，不编段名。
+   */
+  group?: string | null;
   /** single/multi/cascade/text/color；出现不认识的新形态时界面退化成输入框，不猜语义 */
   select: BriefSelectKind;
   /** 必填题：录入页据此打星（真正的必填闸在服务端确定性渲染器里） */
@@ -53,9 +64,14 @@ export interface DemoContentMode {
   caseCount: number;
 }
 
-/** 后端 SiteBriefService.VocabularyView 的镜像：五个顶层字段名逐一对齐 */
+/** 后端 SiteBriefService.VocabularyView 的镜像：顶层字段名逐一对齐 */
 export interface SiteBriefVocabulary {
   questions: BriefVocabularyQuestion[];
+  /**
+   * 分段码 → 中文段名（V133 / Spec-D D1：`groups`，LinkedHashMap 保序下发）。
+   * 录入页的四段标题与锚点导航只读这一份——段名与「哪题属哪段」都是词表资产，界面抄一份就是第二个真相。
+   */
+  groups?: Record<string, string> | null;
   /** 站点画像专用词表（目标市场 regions / 9 项商业模式 business_models）——13 题里没有，画像下拉读这里 */
   siteProfile: BriefVocabularyQuestion[];
   /** 候选套数的硬上限（配置 app.portal.candidate.max-count，界面上限取它） */
@@ -97,6 +113,19 @@ export interface SiteBrief {
   createdBy: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  // ---- V133（Spec-D D1）：与后端 SiteBriefView 末尾的 11 栏逐字对齐；录入页据此原样回填 ----
+  brandName: string | null;
+  businessScope: string | null;
+  audienceNote: string | null;
+  uvp: string | null;
+  trustAnchors: string[];
+  /** 结构化两栏：后端把 JSON 列还原成条目/有序区块名再回（SiteBriefIntake 的形状） */
+  pagePlan: BriefPagePlanEntry[] | null;
+  homeLayout: string[] | null;
+  colorSecondary: string | null;
+  fontHint: string | null;
+  complianceNote: string | null;
+  notDoing: string[];
 }
 
 /**
@@ -125,6 +154,45 @@ export interface SiteBriefForm {
   brandColor: string | null;
   referenceUrls: string[];
   notes: string | null;
+  // ---- V133（Spec-D D1）：与后端 SiteBriefForm 的新字段逐字对齐（键名即 site_build_brief 新列的驼峰） ----
+  /** 品牌或公司全称（本期两题必填之一；D1 起录入页只有这一题与 primary_goal 打星） */
+  brandName?: string | null;
+  businessScope?: string | null;
+  audienceNote?: string | null;
+  uvp?: string | null;
+  trustAnchors?: string[];
+  pagePlan?: BriefPagePlanEntry[];
+  homeLayout?: string[];
+  /** 取值规则与 brandColor 逐字相同（#rrggbb / #rrggbbaa 或 ai） */
+  colorSecondary?: string | null;
+  /** 字体调性只存选项码这一个字符串：界面不引任何外部字体文件，落地由 theme token 负责 */
+  fontHint?: string | null;
+  complianceNote?: string | null;
+  /** 本期不做（与 avoid「永远别做」分两列，混成一份二期就分不清谁被暂缓了） */
+  notDoing?: string[];
+}
+
+/**
+ * 页面清单的一页（后端 `SiteBriefIntake.PagePlanEntry` 的镜像，字段名逐字对齐）。
+ *
+ * <p>为什么要单独 export 这一形状：page_plan 有三个读者（录入页的行编辑器、后端校验、
+ * 摘要渲染），「一页该有哪些字段」只允许有一个答案；界面对着一份镜像类型填，
+ * 就不会出现「界面收第七个字段、后端 record 里没有」。</p>
+ */
+export interface BriefPagePlanEntry {
+  /** 页的稳定标识：清单内唯一，也是「这一页是不是 home/contact」的引用点 */
+  key: string;
+  /** 对外的 URL 段（会直接进客户站地址栏） */
+  slug: string;
+  title: string;
+  /** 这一页干什么（给模型的一句话，不是页面正文） */
+  purpose: string;
+  /** 挂哪个栏目；可空：首页与自定义页本来就不属于任何栏目 */
+  sectionKey: string;
+  /** 这一页要哪些区块（可空＝交给规划的 plan 步骤挑） */
+  blocks: string[];
+  /** high / medium / low；可空＝客户没排先后 */
+  priority: string;
 }
 
 export const siteBriefsApi = {
@@ -443,6 +511,130 @@ export function readBriefSelections(
 }
 
 // ------------------------------------------------------------------
+// Spec-D D1：page_plan / home_layout 的本地即时提示（镜像判据，不是保存闸）
+// ------------------------------------------------------------------
+//
+// 下面这组常量与函数是后端 `SiteBriefIntake` 的**前端镜像**，目的只有一个：让人在点保存之前
+// 就看见「这一条多半会被拒」。真正的判据永远在服务端——镜像可能慢半拍，所以界面既不许说
+// 「本地校验过了就能存」，也不许在保存失败时把后端的中文原因换成自己编的话
+// （视图把 Error.message 原样列出来，那是唯一一份拒单理由）。
+
+/** 页面清单上限（镜像 SiteBriefIntake.PAGE_PLAN_MAX） */
+export const PAGE_PLAN_MAX = 12;
+/** 首页区块顺序上限（镜像 HOME_LAYOUT_MAX） */
+export const HOME_LAYOUT_MAX = 16;
+/** 页面标题长度（镜像 TITLE_MAX） */
+export const PAGE_TITLE_MAX = 60;
+/** 页面用途长度（镜像 PURPOSE_MAX） */
+export const PAGE_PURPOSE_MAX = 200;
+/** 优先级三档（镜像 PRIORITIES；中文说法后端没下发，界面就露这几个码 + 一句「留空＝没排先后」，不编映射） */
+export const PAGE_PRIORITY_CODES = ['high', 'medium', 'low'] as const;
+/** 非空清单必须含的两页（镜像 KEY_HOME / KEY_CONTACT：首页是访客点开链接第一眼，联系页是主目标的落点） */
+export const REQUIRED_PAGE_KEYS = ['home', 'contact'] as const;
+/** key/slug 的形状（镜像后端 SLUG 那一条：它会直接出现在客户网站的地址栏里） */
+export const PAGE_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,49}$/;
+
+/** 行编辑器加一页时的空白形状：与 {@link BriefPagePlanEntry} 逐字段对齐，blocks 给新数组防共享引用 */
+export function emptyPagePlanEntry(): BriefPagePlanEntry {
+  return { key: '', slug: '', title: '', purpose: '', sectionKey: '', blocks: [], priority: '' };
+}
+
+/** 整行一个字没填：提交前丢掉这种行（后端对 null 条目是中文拒，对全空行同样拒「key 没填」） */
+export function isBlankPagePlanEntry(entry: BriefPagePlanEntry): boolean {
+  return !String(entry.key ?? '').trim() && !String(entry.slug ?? '').trim()
+    && !String(entry.title ?? '').trim() && !String(entry.purpose ?? '').trim()
+    && !String(entry.sectionKey ?? '').trim() && !String(entry.priority ?? '').trim()
+    && (entry.blocks ?? []).every(block => !String(block ?? '').trim());
+}
+
+/**
+ * 提交前的一页：丢全空行、逐字段 trim（含 blocks 每项）。
+ * 只 trim 不删半空的行——「填了一半」是要被后端逐页点名的一页，规范化偷偷丢掉它就是界面谎报。
+ */
+export function cleanPagePlanForSubmit(plan: BriefPagePlanEntry[]): BriefPagePlanEntry[] {
+  // 存量单没填过时读回来可能是空串（readBriefSelections 对 null 列的回填形状）：按空清单处理，不炸
+  return (Array.isArray(plan) ? plan : [])
+    .filter(entry => entry && !isBlankPagePlanEntry(entry))
+    .map(entry => ({
+      key: String(entry.key ?? '').trim(),
+      slug: String(entry.slug ?? '').trim(),
+      title: String(entry.title ?? '').trim(),
+      purpose: String(entry.purpose ?? '').trim(),
+      sectionKey: String(entry.sectionKey ?? '').trim(),
+      blocks: (entry.blocks ?? []).map(block => String(block ?? '').trim()).filter(Boolean),
+      priority: String(entry.priority ?? '').trim()
+    }));
+}
+
+/**
+ * 逐条中文提示（镜像判据里最常被写错的几条：缺 home/缺 contact、key/slug 形状、
+ * key 与 slug 判重、标题与用途超长、优先级不认识、同页区块重名、超 12 页）。
+ * 返回的是给人看的提示行，不是能替代后端拒单的断言——全空清单返回空（没填页面清单是合法的）。
+ */
+export function pagePlanLocalHints(plan: BriefPagePlanEntry[]): string[] {
+  const rows = cleanPagePlanForSubmit(plan);
+  if (!rows.length) return [];
+  const hints: string[] = [];
+  if (rows.length > PAGE_PLAN_MAX) {
+    hints.push(`页面清单最多 ${PAGE_PLAN_MAX} 页，现在写了 ${rows.length} 页（保存会被拒，先把本期确实不做的挪去「本期不做」）`);
+  }
+  const seenKeys = new Map<string, number>();
+  const seenSlugs = new Map<string, number>();
+  rows.forEach((entry, index) => {
+    const at = `第 ${index + 1} 页`;
+    (['key', 'slug'] as const).forEach(field => {
+      const value = entry[field];
+      const label = field === 'key' ? '标识 key' : '网址段 slug';
+      if (!value) hints.push(`${at} 的${label}没填：每一页都要有稳定的标识与网址段`);
+      else if (!PAGE_SLUG_PATTERN.test(value)) hints.push(`${at} 的${label}「${value}」不合法：只能是小写字母、数字与连字符，且以字母或数字开头`);
+    });
+    if (!entry.title) hints.push(`${at}（${entry.key || '未填 key'}）没有页面标题——界面上那一个字不能靠猜`);
+    else if (entry.title.length > PAGE_TITLE_MAX) hints.push(`${at} 的页面标题超过 ${PAGE_TITLE_MAX} 字（现在 ${entry.title.length} 字）`);
+    if (entry.purpose.length > PAGE_PURPOSE_MAX) hints.push(`${at}（${entry.key}）的页面用途超过 ${PAGE_PURPOSE_MAX} 字：那是「这一页干什么」的一句话，不是页面正文`);
+    const keyLower = entry.key.toLowerCase();
+    const slugLower = entry.slug.toLowerCase();
+    if (keyLower) {
+      if (seenKeys.has(keyLower)) hints.push(`${at} 的 key 与第 ${seenKeys.get(keyLower)} 页重复`);
+      else seenKeys.set(keyLower, index + 1);
+    }
+    if (slugLower) {
+      if (seenSlugs.has(slugLower)) hints.push(`${at} 的 slug 与第 ${seenSlugs.get(slugLower)} 页重复：同一个站上 About 与 about 是同一页`);
+      else seenSlugs.set(slugLower, index + 1);
+    }
+    if (entry.sectionKey && entry.sectionKey.toLowerCase() === 'home') {
+      hints.push(`${at}（${entry.key}）不该把栏目写成 home：首页不属于任何栏目，这一格留空即可`);
+    }
+    if (entry.priority && !PAGE_PRIORITY_CODES.includes(entry.priority as typeof PAGE_PRIORITY_CODES[number])) {
+      hints.push(`${at}（${entry.key}）的优先级「${entry.priority}」不认识：只能是 ${PAGE_PRIORITY_CODES.join(' / ')}，或留空表示客户没排先后`);
+    }
+    const seenBlocks = new Set<string>();
+    entry.blocks.forEach(block => {
+      if (seenBlocks.has(block)) hints.push(`${at}（${entry.key}）里区块「${block}」出现了两次——同一页摆两个同名区块没有第二份内容可填`);
+      seenBlocks.add(block);
+    });
+  });
+  REQUIRED_PAGE_KEYS.forEach(requiredKey => {
+    if (!rows.some(entry => entry.key.toLowerCase() === requiredKey)) {
+      hints.push(requiredKey === REQUIRED_PAGE_KEYS[0]
+        ? '页面清单里没有首页（key 为 home 的那一页）：每个客户站都要有一页首页，它的栏目一格留空'
+        : '页面清单里没有联系页（key 为 contact 的那一页）：留资与电话线索的落点都在这页上，不写就等于不要线索');
+    }
+  });
+  return hints;
+}
+
+/** home_layout / 每页 blocks 的重名提示：同一份区块判据（后端「同页不许重名」）的本地镜像 */
+export function duplicatedBlockKeys(blocks: string[]): string[] {
+  const seen = new Set<string>();
+  const dup = new Set<string>();
+  (blocks ?? []).forEach(block => {
+    if (seen.has(block)) dup.add(block);
+    seen.add(block);
+  });
+  return [...dup];
+}
+
+// ------------------------------------------------------------------
 // 站点状态（V115 钉进列注释的那四码）——与需求单状态是两件事，别混用
 // ------------------------------------------------------------------
 
@@ -612,8 +804,127 @@ export const DEMO_CONTENT_DISCLAIMER_TEXT = 'AI 生成的演示内容，交付�
  * 现在这一格是「点一下才签」：令牌是准入，不在一次页面加载里给三套各发一枚。</p>
  */
 export const PREVIEW_LINK_PENDING_TEXT =
-  '这一套还没签发预览链接：点上面那一个「签发预览地址」才会新开一条带 reviewToken 的会话（14 天）。'
+  '这一套还没签发预览链接：点上面那一个「发放预览地址」才会新开一条带 reviewToken 的会话（14 天）。'
   + '本单已转正/归档时后端会拒这一发并给一句中文——按拍板 3A，转正那一刻候选令牌全部收回，不再补发';
+
+/** 三态之一：`previewIssued=false` 且 `previewExpiresAt=null`——这条链路上从来没签过令牌 */
+export const PREVIEW_LINK_NEVER_ISSUED_TEXT = '未发送预览';
+
+/** 三态之一：`previewIssued=false` 且 `previewExpiresAt` 有值——发过，但已撤销或已过期（旧链接从此打不开） */
+export const PREVIEW_LINK_REVOKED_TEXT = '预览已失效';
+
+/** 三态之一：`previewIssued=true`——现在有一条活着的全站令牌，可它的明文已经取不回来了 */
+export const PREVIEW_LINK_LIVE_TEXT = '预览已发放 · 还在有效期';
+
+/**
+ * 令牌现状没取到时说的那句（`candidates` 口失败/没回这一行）。
+ *
+ * <p>为什么要有第四种说法而不是退回「未发送预览」：那三个状态是后端用两个事实拼出来的，
+ * 一个都没取到就是不知道，把「不知道」演成「没发过」正好是这一页反复在避免的那类假话。</p>
+ */
+export const PREVIEW_LINK_STATE_UNKNOWN_TEXT = '预览状态没取到（候选列表那一口没回这一套）：下面的按钮点了仍然有效';
+
+/**
+ * 刚签发那一次才说得到的那句：地址只在回执里活一次。
+ *
+ * <p>库里存的是令牌的 SHA-256，明文从来没有第二份（`ReviewSessionService` 的口径），所以刷新一次页面
+ * 这一格就只能报「已发放」而摆不出链接。把这句话挂在能复制的那一次旁边，是要让人明白
+ * 「下一条链接要点重新发放，而不是刷新页面找回来的」。</p>
+ */
+export const PREVIEW_LINK_ONCE_TEXT =
+  '这条地址只在这次会话里给得到：库里存的是令牌散列，明文恢复不了——刷新后要重看就点重新发放（旧的那条先用旁边那颗撤销收干净）';
+
+/** 预览链接的三态（后端那两个事实的界面说法）；null = 这一套的现状没取到 */
+export type PreviewLinkState = 'never-issued' | 'expired' | 'live' | null;
+
+/**
+ * 把 `previewIssued` + `previewExpiresAt` 拼成界面说法的那一个判据。
+ *
+ * <p>只此一处：三个状态如果在模板里各写一遍 `v-if`，改一个忘两个是早晚的事，
+ * 而这里的任何一句说错都是直接对客户说错话（「已失效」其实还活着，或反之）。</p>
+ */
+export function previewLinkStateOf(
+    candidate: { previewIssued?: boolean | null; previewExpiresAt?: string | null } | null | undefined
+  ): PreviewLinkState {
+  if (!candidate) {
+    return null;
+  }
+  if (candidate.previewIssued) {
+    return 'live';
+  }
+  return candidate.previewExpiresAt ? 'expired' : 'never-issued';
+}
+
+/** 三态各自的那句中文（判据不在这里，见 {@link previewLinkStateOf}） */
+export function previewLinkStateText(state: PreviewLinkState): string {
+  if (state === 'live') return PREVIEW_LINK_LIVE_TEXT;
+  if (state === 'expired') return PREVIEW_LINK_REVOKED_TEXT;
+  if (state === 'never-issued') return PREVIEW_LINK_NEVER_ISSUED_TEXT;
+  return PREVIEW_LINK_STATE_UNKNOWN_TEXT;
+}
+
+/** 三态各自的标签颜色：失效与没发过都是灰的，只有「现在还活着」才给绿色 */
+export function previewLinkStateColor(state: PreviewLinkState): string {
+  if (state === 'live') return 'green';
+  if (state === 'expired') return 'red';
+  return 'default';
+}
+
+/** 「现在活着，可地址取不回来」那一句：这一态必须单独有话，否则人只会以为界面坏了 */
+export const PREVIEW_LINK_LIVE_HINT =
+  '这一条现在还能打开，但链接的明文只在发放那一刻给过一次（库里存的是令牌散列）——'
+  + '刷新页面就取不回来了。要一条能复制的新地址：先撤销这一套全部令牌，再点一次发放'
+  + '（不撤销就直接发放会让两条同时有效）。';
+
+/** 「发过但已撤销/已过期」那一句 */
+export const PREVIEW_LINK_REVOKED_HINT =
+  '这条预览链接已经作废或过期：客户手里的旧地址从此打不开，站与内容都还在。重新发放会签一条新的（14 天）。';
+
+/** 「从来没发过」那一句 */
+export const PREVIEW_LINK_NEVER_ISSUED_HINT =
+  '这一套的预览地址还没发过：点一下才会新开一条带 reviewToken 的 14 天会话。'
+  + '令牌即准入，页面加载不替三套各签一枚。';
+
+/** 三态各自的下一句解释（判据仍是 {@link previewLinkStateOf}，这里只是给人看的那段话） */
+export function previewLinkStateHint(state: PreviewLinkState): string {
+  if (state === 'live') return PREVIEW_LINK_LIVE_HINT;
+  if (state === 'expired') return PREVIEW_LINK_REVOKED_HINT;
+  if (state === 'never-issued') return PREVIEW_LINK_NEVER_ISSUED_HINT;
+  return '';
+}
+
+/**
+ * `GET /admin/site-briefs/{id}/candidates` 的一行（后端 `SiteProposalOrchestrator.CandidateSite`）。
+ *
+ * <p>这一档的要点全在那两个恒为 null 的字段上：读口<em>不再</em>签令牌（旧口径是每次读都给每套签一条
+ * 新的 14 天全站会话——刷新一次界面就多一条能打开候选站的公开地址，「撤销」永远只能撤到此刻之前）。
+ * 库里只有 SHA-256 散列，所以 `previewToken`/`previewUrl` 在这个视图里恒 null，链接内容只能经
+ * 发放/重发那两口拿到一次；界面这一侧的纪律是同一条：<b>没有明文就不摆链接</b>，
+ * 现状由 `previewIssued` + `previewExpiresAt` 两个事实说（判据收在 {@link previewLinkStateOf}）。</p>
+ */
+export interface BriefCandidateSite {
+  candidateId: number;
+  /** 站还没建起来（或被人删了）时后端回 null */
+  siteId: number | null;
+  siteName: string | null;
+  siteCode: string | null;
+  attempt?: number | null;
+  candidateNo?: number | null;
+  skeletonKey?: string | null;
+  focus?: string | null;
+  tone?: string | null;
+  stage?: string | null;
+  status?: string | null;
+  /** 读口恒为 null：令牌明文只在签发那一刻存在过，这里留着这一格是为了和后端字段逐字对齐，不是给界面当链接渲 */
+  previewToken: string | null;
+  /** 同上，恒为 null */
+  previewUrl: string | null;
+  /** 最近一条全站令牌的到期时刻；null 且未发放 = 从来没发过（这正是「未发送预览」的判据） */
+  previewExpiresAt: string | null;
+  /** 现在是不是有一条活着的全站预览令牌 */
+  previewIssued: boolean;
+  notices?: string[] | null;
+}
 
 
 /** 一套候选的预览链接回执（后端 `PreviewLink`）：令牌绑站不绑页 */
@@ -647,8 +958,21 @@ export const briefGenerationApi = {
   progress: (id: number) => http.get<BriefCandidateProgress[]>(`/admin/site-briefs/${id}/progress`),
 
   /**
+   * 候选站列表（含每套预览令牌的<b>现状</b>）：纯读，一条令牌都不签。
+   *
+   * <p>这一口与 progress 的分工要说清：进度口报的是子任务跑到哪一步，这一口报的是
+   * 「这一套站现在能不能被预览链接打开、那一条链接发没发过」。画廊两样都要，
+   * 但预览那一格只认这一口回的 `previewIssued`/`previewExpiresAt`——进度口从来不含链接内容，
+   * 而这一口的 `previewToken`/`previewUrl` 恒 null（见 {@link BriefCandidateSite}）。</p>
+   */
+  candidates: (id: number) => http.get<BriefCandidateSite[]>(`/admin/site-briefs/${id}/candidates`),
+
+  /**
    * 单独给某一套候选签一条预览地址（§5 的那个手动口，后端是 POST /admin/sites/{id}/preview-links）。
-   * 画廊按套点「签发预览地址」才调它：令牌是准入，不该在一次页面加载里给三套各发一枚。
+   * 画廊按套点「发放预览地址」才调它：令牌是准入，不该在一次页面加载里给三套各发一枚。
+   *
+   * <p>回执里的那条明文地址<b>只在这里出现一次</b>：库里存的是散列，刷新页面就再也读不出来了，
+   * 所以调用方要当场把它挂到卡上（界面那一侧见 CandidateGalleryView 的预览链接那一格）。</p>
    */
   previewLink: (siteId: number, label?: string) =>
     http.post<BriefPreviewLink>(

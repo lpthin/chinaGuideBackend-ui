@@ -6,34 +6,53 @@ import {
   briefIsEditable,
   briefStatusLabelOrCode,
   buildBriefForm,
+  cleanPagePlanForSubmit,
   EDITABLE_BRIEF_STATUSES,
+  emptyPagePlanEntry,
+  HOME_LAYOUT_MAX,
   intakeLoopQuestions,
+  PAGE_PLAN_MAX,
+  PAGE_PRIORITY_CODES,
+  PAGE_PURPOSE_MAX,
+  PAGE_TITLE_MAX,
+  pagePlanLocalHints,
   readBriefSelections,
   siteBriefsApi,
   vocabularyApi,
+  type BriefPagePlanEntry,
   type BriefVocabularyQuestion,
   type SiteBrief,
   type SiteBriefForm,
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
+import { portalPagesApi, type PortalBlockMeta } from '@/api/portalPages'
+import { portalSectionsApi, type SectionState } from '@/api/portalSections'
 import { siteApi, tenantApi } from '@/api/workspace'
 import type { Tenant } from '@/types/workspace'
 
 /**
- * 前采需求单录入（Spec §4.1 / §7，任务 P1）。
+ * 前采录入页（Spec-D D1：13 道选择题 → 24 题「四组分区 + 锚点导航」详录界面）。
  *
- * 三条纪律钉在这页：
- * 1. **13 题按词表循环渲染**——题目名、选项、单选还是多选全部来自
- *    `GET /admin/site-briefs/vocabulary`，模板里不许写死任何一个题目或选项
- *    （`site-brief-vocabulary.spec.ts` 扫源码守着）；
- * 2. **以勾选为主**：`notes` 是唯一自由文本且可空；
- * 3. **右侧那段话是后端渲染的**：只调 `summary-preview` 取（300ms debounce），
- *    失败时保留上一次结果并原话标「这段话还没刷新」——前端自己拼一句就等于抄了第二份词表。
+ * 这一页的四条纪律（每条都对应过一次的真实事故）：
+ * 1. **题目、选项、分段名全部按词表循环渲染**——`GET /admin/site-briefs/vocabulary` 一份为准
+ *    （`site-brief-vocabulary.spec.ts` 扫源码守着）；四段段名与「哪题属哪段」也是后端下发
+ *    （`groups` + 每题 `group`），界面一个字都不抄。锚点导航只是把段标题变成可点的那一排，
+ *    分区不改变提交形状：仍然一次交整张表单。
+ * 2. **必填只剩词表打了星的题**（D1 起：品牌或公司全称、最希望访客做完哪一件事）。星号来自
+ *    `q.required`，界面不自编第二份必填名单；其余一律可跳过。
+ * 3. **「跳过」要说人话**：没填的格子显式挂一句「客户未提供」——后端摘要段就是这么如实写给模型看的
+ *    （省略那一行会让模型分不清「客户没偏好」与「我们没问」），界面因此不许留一个看着像填好的空框。
+ * 4. **page_plan / home_layout 的本地提示不是闸**：`pagePlanLocalHints` 那组判据镜像自后端
+ *    `SiteBriefIntake`，只为少跑几回后端；保存那一闸永远在服务端，被拒时它的中文原因
+ *    （`BusinessException.message`，逐页点名）经 `Error.message` 原样列在页面底部，
+ *    一个字不改、一条不吞——这页不摆点不动的死链，也不摆一个「本地说可以存」的假闸。
  *
- * 这一页没有任何调用生成/估算的按钮（P3 才有），也不摆点不动的死链。
+ * 区块与栏目的名字不抄第二份：区块目录读 `GET /portal/blocks`（含后端现算的 notWired 标志，
+ * 未接线的空壳不进候选），栏目词表读 `GET /portal/sections`（别的 view 的取法，照旧）。
+ * 字体调性只把选项码存成一个字符串——这一页不引任何外部字体文件，落地由 theme token 负责。
  *
- * 两条交棒入口（任务 P2 第 3 件的接收端）：
- * - `/portal/brief/new?tenantId=15`（租户管理那行「去录前采」）：租户从地址预填，用户不用重挑；
+ * 两条交棒入口（P2 的接收端，未变）：
+ * - `/portal/brief/new?tenantId=15`：租户从地址预填，用户不用重挑；
  * - 编辑一单时若它已不在 `draft/ready`，页面顶部先说清「保存会被后端拒」，并给回详情页的入口。
  */
 
@@ -63,6 +82,12 @@ const tenantsFailed = ref(false)
 const sites = ref<Array<{ id?: number; name?: string; tenantId?: number }>>([])
 const sitesFailed = ref(false)
 
+// ---- 后端两份目录（区块名/栏目名的唯一来源；取不到就明说，绝不本地补一份） ----
+const blockCatalog = ref<PortalBlockMeta[]>([])
+const blocksFailed = ref(false)
+const sectionStates = ref<SectionState[]>([])
+const sectionsFailed = ref(false)
+
 const briefId = ref<number | null>(null)
 const status = ref('')
 /** 租户是从「租户管理 > 去录前采」那条链接带过来的：预填取自地址，不让人再挑一遍 */
@@ -77,9 +102,13 @@ const form = reactive({
   referenceRows: [''] as string[]
 })
 
-/** 勾选结果：key 只可能来自词表（q.key），这里从不登记任何固定题目名 */
-const selections = reactive<Record<string, string | string[]>>({})
+/** 勾选结果：key 只可能来自词表（q.key），这里从不登记任何固定题目名。
+ *  pages 形态存的是逐页条目数组（BriefPagePlanEntry），形状与后端 SiteBriefIntake 一一对齐 */
+type SelectionValue = string | string[] | BriefPagePlanEntry[]
+const selections = reactive<Record<string, SelectionValue>>({})
 const colorAuto = reactive<Record<string, boolean>>({})
+/** block-order 与每页 blocks 的下拉暂存值：按「题目 key(+页下标)」存，页面不认题目名 */
+const blockDraft = reactive<Record<string, string>>({})
 
 const summary = ref('')
 const summaryStale = ref(false)
@@ -100,7 +129,31 @@ function textOf(key: string): string {
 
 function listOf(key: string): string[] {
   const value = selections[key]
-  return Array.isArray(value) ? value : []
+  return Array.isArray(value) && typeof value[0] !== 'object' ? (value as string[]) : []
+}
+
+function pageRows(q: BriefVocabularyQuestion): BriefPagePlanEntry[] {
+  const value = selections[q.key]
+  if (!Array.isArray(value)) {
+    // 首次触到 pages 题：给一个空数组挂上，行编辑器才有可写的目标（ensureShape 之后不该再走到这）
+    selections[q.key] = []
+  }
+  return (selections[q.key] ?? []) as BriefPagePlanEntry[]
+}
+
+/** 后端读回的条目可能缺 blocks/带 null：归一成一个能直接编辑的形状 */
+function normalizePageRow(row: Partial<BriefPagePlanEntry> | null | undefined): BriefPagePlanEntry {
+  const base = emptyPagePlanEntry()
+  if (!row) return base
+  return {
+    key: String(row.key ?? ''),
+    slug: String(row.slug ?? ''),
+    title: String(row.title ?? ''),
+    purpose: String(row.purpose ?? ''),
+    sectionKey: String(row.sectionKey ?? ''),
+    blocks: Array.isArray(row.blocks) ? row.blocks.map(block => String(block ?? '')) : [],
+    priority: String(row.priority ?? '')
+  }
 }
 
 /**
@@ -125,7 +178,7 @@ function onPickColor(key: string, value: unknown) {
   selections[key] = value === null || value === undefined ? '' : String(value)
 }
 
-/** color 题的「AI 决定」开关：开 = 落哨兵值让后端自己定，关 = 回到取色器 */
+/** color 题的「AI 决定」开关：开 = 落哨兵值让后端自己定，关 = 回到取色器（主/辅色两题共用同一判据） */
 function onToggleAuto(key: string, checked: unknown) {
   const on = Boolean(checked)
   colorAuto[key] = on
@@ -139,6 +192,187 @@ function cascaderOptions(question: BriefVocabularyQuestion) {
     children: (option.children ?? []).map(child => ({ value: child.code, label: child.label }))
   }))
 }
+
+// ---------------- 四组分区与锚点导航（段名只认词表 `groups` 那一份） ----------------
+
+/** 词表声明顺序即分段顺序（后端 LinkedHashMap 保序下发），界面不重排也不猜 */
+const sectionAnchors = computed(() => {
+  const groups = vocabulary.value?.groups
+  if (!groups) return []
+  const seen: Array<{ code: string; label: string }> = []
+  questions.value.forEach(question => {
+    const code = question.group
+    if (!code || seen.some(entry => entry.code === code)) return
+    seen.push({ code, label: groups[code] || code })
+  })
+  return seen
+})
+
+/** 每题只在「本段第一题」前渲染一条段标题：分区只是视觉分组，题目循环仍是那一个 v-for */
+const sectionStartKeys = computed(() => {
+  const seen = new Set<string>()
+  const starts = new Set<string>()
+  questions.value.forEach(question => {
+    const code = question.group || ''
+    if (!code || seen.has(code)) return
+    seen.add(code)
+    starts.add(question.key)
+  })
+  return starts
+})
+
+function isSectionStart(q: BriefVocabularyQuestion): boolean {
+  return sectionStartKeys.value.has(q.key)
+}
+
+function sectionLabelOf(q: BriefVocabularyQuestion): string {
+  const code = q.group || ''
+  return (code && (vocabulary.value?.groups?.[code] || code)) || ''
+}
+
+function sectionDomId(code: string): string {
+  return `brief-intake-section-${code || 'none'}`
+}
+
+/** 锚点上露的那两个短字：段名全称挂在段标题那一行，导航条只取「：」前的短名，不另起一名 */
+function sectionShortName(label: string): string {
+  const cut = label.split('：')[0]
+  return cut || label
+}
+
+function scrollToSection(code: string) {
+  const el = document.getElementById(sectionDomId(code))
+  // jsdom 没有 scrollIntoView：判存在再调，测试环境里锚点断言的是「那一节真的在页面上」
+  if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// ---------------- page_plan 行编辑器（上下移动代替拖拽：点了就真的会动） ----------------
+
+function addPage(q: BriefVocabularyQuestion) {
+  pageRows(q).push(emptyPagePlanEntry())
+}
+
+/** 快捷补一页带 key/slug 预设的骨架页：只预填「稳定标识」这两格（后端判据认的就是这两个码），
+ *  标题与用途仍归客户原话，界面不替客户编 */
+function addPresetPage(q: BriefVocabularyQuestion, preset: 'home' | 'contact') {
+  pageRows(q).push({ ...emptyPagePlanEntry(), key: preset, slug: preset })
+}
+
+function removePage(q: BriefVocabularyQuestion, index: number) {
+  pageRows(q).splice(index, 1)
+}
+
+function movePage(q: BriefVocabularyQuestion, index: number, delta: number) {
+  moveInArray(pageRows(q), index, index + delta)
+}
+
+function moveInArray<T>(rows: T[], from: number, to: number) {
+  if (to < 0 || to >= rows.length) return
+  const [moved] = rows.splice(from, 1)
+  rows.splice(to, 0, moved)
+}
+
+function onPageField(q: BriefVocabularyQuestion, index: number, field: keyof BriefPagePlanEntry, value: unknown) {
+  const row = pageRows(q)[index] as unknown as Record<string, string>
+  row[field] = value === null || value === undefined ? '' : String(value)
+}
+
+function pickPageSection(q: BriefVocabularyQuestion, index: number, sectionKey: string) {
+  pageRows(q)[index].sectionKey = sectionKey
+}
+
+function pickPagePriority(q: BriefVocabularyQuestion, index: number, priority: string) {
+  // 再点一次已选中的档 = 清回「没排先后」：留空是合法取值（后端 PRIORITIES 之外的只有 null）
+  const row = pageRows(q)[index]
+  row.priority = row.priority === priority ? '' : priority
+}
+
+function addPageBlock(q: BriefVocabularyQuestion, index: number) {
+  const draftKey = `${q.key}|${index}`
+  const picked = blockDraft[draftKey]
+  if (!picked) return
+  pageRows(q)[index].blocks.push(picked)
+  blockDraft[draftKey] = ''
+}
+
+function movePageBlock(q: BriefVocabularyQuestion, index: number, blockIndex: number, delta: number) {
+  moveInArray(pageRows(q)[index].blocks, blockIndex, blockIndex + delta)
+}
+
+function removePageBlock(q: BriefVocabularyQuestion, index: number, blockIndex: number) {
+  pageRows(q)[index].blocks.splice(blockIndex, 1)
+}
+
+/** 本地即时提示（镜像判据，不是闸）：措辞在适配层，视图只列它给的行 */
+function pageHints(q: BriefVocabularyQuestion): string[] {
+  return pagePlanLocalHints(pageRows(q))
+}
+
+// ---------------- block-order 编辑器（home_layout 用；候选来自 /portal/blocks） ----------------
+
+/**
+ * 区块候选：后端逐行现算的 `notWired` 判据挡住空壳（摆上去就是一片空白的那类），
+ * 已加进来的不再重复出现——同页/首页重名都会被后端中文拒，候选里直接排掉。
+ */
+function blockOptions(excluded: string[]) {
+  return blockCatalog.value
+    .filter(block => block.notWired !== true && !excluded.includes(block.blockKey))
+    .map(block => ({ value: block.blockKey, label: `${block.name}（${block.blockKey}）` }))
+}
+
+/** 区块码换中文只认目录那一份；目录里没有（比如存量单里的旧码）就把码原样露出来 */
+function blockLabel(blockKey: string): string {
+  const found = blockCatalog.value.find(block => block.blockKey === blockKey)
+  return found ? `${found.name}（${found.blockKey}）` : `${blockKey}（区块目录里没这一码）`
+}
+
+function addLayoutBlock(q: BriefVocabularyQuestion) {
+  const picked = blockDraft[q.key]
+  if (!picked) return
+  if (!Array.isArray(selections[q.key])) selections[q.key] = []
+  ;(selections[q.key] as string[]).push(picked)
+  blockDraft[q.key] = ''
+}
+
+function moveLayoutBlock(q: BriefVocabularyQuestion, index: number, delta: number) {
+  const rows = selections[q.key]
+  if (Array.isArray(rows)) moveInArray(rows as string[], index, index + delta)
+}
+
+function removeLayoutBlock(q: BriefVocabularyQuestion, index: number) {
+  const rows = selections[q.key]
+  if (Array.isArray(rows)) (rows as string[]).splice(index, 1)
+}
+
+// ---------------- 栏目卡片（名字来自 /portal/sections；裸下拉被换掉的那一块） ----------------
+
+/** 首卡「不属于任何栏目」的说明是判据转述（后端对首页亲口返回 null），不是第二个栏目名 */
+const NONE_SECTION = ''
+const sectionChoices = computed(() => [
+  { key: NONE_SECTION, label: '不属于任何栏目', desc: '首页与自定义页本来就不挂栏目；填了 home 会被后端拒' },
+  ...sectionStates.value.map(section => ({
+    key: section.key,
+    label: section.displayName,
+    desc: section.publicPath ? `对外地址 ${section.publicPath}` : ''
+  }))
+])
+
+// ---------------- 必填与「客户未提供」 ----------------
+
+/** 这一题现在算不算没答：pages 看清洗后的行数，数组形态看非空项，字符串看 trim 后长度 */
+function isUnanswered(q: BriefVocabularyQuestion): boolean {
+  const value = selections[q.key]
+  if (q.select === 'pages') return cleanPagePlanForSubmit((value as BriefPagePlanEntry[]) ?? []).length === 0
+  if (Array.isArray(value)) {
+    return value.filter(item => item !== '' && item != null).length === 0
+  }
+  return String(value ?? '').trim() === ''
+}
+
+/** 缺的必填题（星来自词表；今天两题，词表变了界面跟着变，不写死名单） */
+const missingRequiredLabels = computed(() =>
+  questions.value.filter(question => question.required === true && isUnanswered(question)).map(question => question.label)
+)
 
 function clampCandidate(value: number): number {
   const safe = Number.isFinite(value) && value > 0 ? Math.trunc(value) : 1
@@ -176,16 +410,33 @@ function removeReference(index: number) {
   if (!form.referenceRows.length) form.referenceRows.push('')
 }
 
-function snapshotSelections(): Record<string, string | string[]> {
-  const copy: Record<string, string | string[]> = {}
+function snapshotSelections(): Record<string, SelectionValue> {
+  const copy: Record<string, SelectionValue> = {}
   Object.keys(selections).forEach(key => {
     const value = selections[key]
-    copy[key] = Array.isArray(value) ? [...value] : value
+    // 两种数组袋（string[] 与 BriefPagePlanEntry[]）各是各的形状：并成一项的联合 TS 不认，按原形状拷回去
+    copy[key] = Array.isArray(value)
+      ? [...(value as string[] | BriefPagePlanEntry[])] as SelectionValue
+      : value
   })
   return copy
 }
 
+/** 提交前的按形态清洗：pages 丢全空行并 trim（半空的行照发——那是后端要逐页点名的），
+ *  block-order 丢掉空的一格（后端对空格是中文拒，候选下拉本来就给不出空格） */
 function buildPayload(): SiteBriefForm {
+  const snapshot = snapshotSelections()
+  questions.value.forEach(question => {
+    if (question.select === 'pages') {
+      // 存量单没填过时读回来可能是空串：编辑器一律按数组处理（pageRows/listOf 同样自愈）
+      snapshot[question.key] = cleanPagePlanForSubmit(
+        Array.isArray(snapshot[question.key]) ? (snapshot[question.key] as BriefPagePlanEntry[]) : []
+      )
+    } else if (question.select === 'block-order') {
+      snapshot[question.key] = (Array.isArray(snapshot[question.key]) ? (snapshot[question.key] as string[]) : [])
+        .map(item => String(item ?? '').trim()).filter(Boolean)
+    }
+  })
   // 后端 SiteBriefForm 是平铺字段：勾选袋按 q.key 收，交给适配层拍平（级联拆 industry/subIndustry、
   // 语言包成数组、参考站与补充说明走元信息）。siteId 不在建单入参里——转正是后链路的回填动作。
   return buildBriefForm(
@@ -197,16 +448,22 @@ function buildPayload(): SiteBriefForm {
       notes: form.notes,
       referenceUrls: cleanReferenceUrls()
     },
-    snapshotSelections()
+    snapshot as Record<string, string | string[]>
   )
 }
 
-/** 保证每个词表题目都有形状（multi/cascade 是数组，其它是字符串），并认出 color 的哨兵值 */
+/** 保证每个词表题目都有形状（multi/cascade/block-order 是数组、pages 是条目数组，其它是字符串），并认出 color 的哨兵值 */
 function ensureShape() {
   questions.value.forEach(question => {
     const existing = selections[question.key]
     if (existing === undefined) {
-      selections[question.key] = question.select === 'multi' || question.select === 'cascade' ? [] : ''
+      selections[question.key] =
+        question.select === 'multi' || question.select === 'cascade' || question.select === 'block-order' || question.select === 'pages'
+          ? []
+          : ''
+    }
+    if (question.select === 'pages') {
+      selections[question.key] = ((selections[question.key] as BriefPagePlanEntry[]) ?? []).map(normalizePageRow)
     }
     if (question.select === 'color') {
       colorAuto[question.key] = existing === COLOR_AUTO
@@ -295,6 +552,26 @@ async function loadSites() {
   }
 }
 
+async function loadBlocks() {
+  blocksFailed.value = false
+  try {
+    blockCatalog.value = (await portalPagesApi.blocks()) || []
+  } catch (error) {
+    blocksFailed.value = true
+    message.error(errText(error))
+  }
+}
+
+async function loadSections() {
+  sectionsFailed.value = false
+  try {
+    sectionStates.value = (await portalSectionsApi.list()) || []
+  } catch (error) {
+    sectionsFailed.value = true
+    message.error(errText(error))
+  }
+}
+
 function applyBrief(brief: SiteBrief) {
   briefId.value = brief.id ?? null
   status.value = brief.status || ''
@@ -302,10 +579,11 @@ function applyBrief(brief: SiteBrief) {
   form.siteId = brief.siteId ?? null
   form.candidateCount = brief.candidateCount || 1
   form.demoContentMode = brief.demoContentMode || ''
-  // 平铺字段按题目 key 回填成勾选袋；参考站/补充说明走元信息
+  // 平铺字段按题目 key 回填成勾选袋；参考站/补充说明走元信息；新 11 栏里结构化那两栏随后归一
   Object.entries(readBriefSelections(questions.value, brief)).forEach(([key, value]) => {
     selections[key] = Array.isArray(value) ? [...value] : String(value ?? '')
   })
+  ensureShape()
   form.referenceRows = brief.referenceUrls?.length ? [...brief.referenceUrls] : ['']
   form.notes = brief.notes || ''
   if (brief.requirementsSummary) summary.value = brief.requirementsSummary
@@ -332,6 +610,11 @@ async function save() {
     message.warning('先选这一单给哪个租户')
     return
   }
+  if (missingRequiredLabels.value.length) {
+    // 星号来自词表 q.required；这一句只是让人少跑一趟，真正的拒单理由仍以服务端回的那句为准
+    message.warning(`还有打星的必填题没填：${missingRequiredLabels.value.join('、')}——其余题可以空着，摘要会按「客户未提供」如实写`)
+    return
+  }
   saving.value = true
   try {
     const payload = buildPayload()
@@ -339,13 +622,15 @@ async function save() {
     const saved = wasNew
       ? await siteBriefsApi.create(payload)
       : await siteBriefsApi.update(briefId.value as number, payload)
+    // 「保存成功」只在 create/update 真的回了一单之后才说；后端没回单就是没保存
     message.success('保存成功')
     if (saved) applyBrief(saved)
     if (wasNew && saved?.id) {
       router.replace({ name: 'workspace-portal-brief-intake', params: { id: String(saved.id) } })
     }
   } catch (error) {
-    // 只有 draft/ready 能改，其他状态后端回一句中文拒绝理由：原样显示，一个字不改
+    // 锁单理由、page_plan 逐页点名的中文……全是后端 `BusinessException.message` 原话：
+    // 换行分条只是排版，一个字都不改写（前端那份本地提示永远不冒充这一句）
     const reason = errText(error)
     saveError.value = reason
     message.error(reason)
@@ -411,7 +696,8 @@ function goDetail() {
 onMounted(async () => {
   booting.value = true
   const id = routeBriefId()
-  await Promise.all([loadTenants(), loadSites()])
+  // 三份目录并行取：词表决定渲什么题，区块目录与栏目词表只喂那两个编辑器
+  await Promise.all([loadTenants(), loadSites(), loadBlocks(), loadSections()])
   if (id === null) {
     const fromQuery = routeTenantId()
     if (fromQuery !== null) {
@@ -419,8 +705,10 @@ onMounted(async () => {
       tenantFromQuery.value = true
     }
   }
-  if (id !== null) await loadBrief(id)
+  // 词表必须先于存量单到手：D1 的 24 题里新栏（pagePlan/homeLayout/trustAnchors…）要按题目回填，
+  // 先取单的话 questions 还是空的，读回来的勾选袋一道题都挂不上——「改一个字重录整张单」就是这么来的
   await loadVocabulary()
+  if (id !== null) await loadBrief(id)
   ensureShape()
   await nextTick()
   booting.value = false
@@ -433,7 +721,9 @@ onMounted(async () => {
       <div>
         <h3>{{ briefId ? '编辑前采需求单' : '新建前采需求单' }}</h3>
         <p class="brief-intake__sub">
-          这条头上定三件事：这单给哪个租户、出几套候选、演示内容哪一档。下面每题按词表勾，只有「补充说明」可以打字，而且可空。
+          这条头上定三件事：这单给哪个租户、出几套候选、演示内容哪一档。下面按后端词表分四段收客户的原话，
+          必填只有打了星的题（星来自词表，今天两题），其余一律可跳过——没填的格子会显式写成「客户未提供」，
+          摘要段就是这么如实喂给模型的。分区只是视觉分组，保存仍然一次交整张表单。
         </p>
       </div>
       <a-space wrap>
@@ -482,7 +772,7 @@ onMounted(async () => {
 
     <a-alert v-if="tenantFromQuery && !briefId" type="info" show-icon class="brief-intake__alert">
       <template #message>
-        租户是从「租户管理」那一行带过来的（#{{ form.tenantId }}）：这一单就记在它名下，确认一下再往下勾题。
+        租户是从「租户管理」那一行带过来的（#{{ form.tenantId }}）：这一单就记在它名下，确认一下再往下录。
       </template>
     </a-alert>
 
@@ -498,68 +788,242 @@ onMounted(async () => {
 
     <a-alert v-if="vocabularyFailed" type="error" show-icon class="brief-intake__alert">
       <template #message>
-        前采词表没取到：下面的题目是空的，不是没有题可勾。
+        前采词表没取到：下面的题目是空的，不是没有题可录。
         <a-button size="small" type="link" @click="loadVocabulary">重新取词表</a-button>
       </template>
     </a-alert>
+
+    <!-- 锚点导航：段名只认词表 groups 下发的那一份；取不到的段名宁可露码也不编一个 -->
+    <nav v-if="sectionAnchors.length > 1" class="brief-intake__anchors" aria-label="分段导航">
+      <a-button
+        v-for="section in sectionAnchors"
+        :key="section.code"
+        size="small"
+        @click="scrollToSection(section.code)"
+      >
+        {{ sectionShortName(section.label) }}
+      </a-button>
+    </nav>
 
     <div class="brief-intake__body">
       <div class="brief-intake__form">
         <p v-if="!questions.length && !vocabularyFailed" class="brief-intake__muted">词表加载中…</p>
 
-        <div v-for="q in questions" :key="q.key" class="brief-intake__question">
-          <div class="brief-intake__q-label">{{ q.label }}</div>
-          <div v-if="q.evidence" class="brief-intake__q-hint">{{ q.evidence }}</div>
-
-          <a-radio-group
-            v-if="q.select === 'single'"
-            :value="textOf(q.key)"
-            @update:value="(value: unknown) => onPickSingle(q.key, value)"
+        <!-- 一个 v-for 走完全部门题：分段只是在「本段第一题」前插一条段标题，分区不改提交形状 -->
+        <template v-for="q in questions" :key="q.key">
+          <div
+            v-if="isSectionStart(q)"
+            :id="sectionDomId(q.group || '')"
+            class="brief-intake__section-head"
           >
-            <a-space wrap>
-              <a-radio v-for="opt in q.options" :key="opt.code" :value="opt.code">{{ opt.label }}</a-radio>
-            </a-space>
-          </a-radio-group>
-
-          <a-checkbox-group
-            v-else-if="q.select === 'multi'"
-            :value="listOf(q.key)"
-            @update:value="(value: unknown) => onPickList(q.key, value)"
-          >
-            <a-space wrap>
-              <a-checkbox v-for="opt in q.options" :key="opt.code" :value="opt.code">{{ opt.label }}</a-checkbox>
-            </a-space>
-          </a-checkbox-group>
-
-          <a-cascader
-            v-else-if="q.select === 'cascade'"
-            :value="listOf(q.key)"
-            :options="cascaderOptions(q)"
-            allow-clear
-            style="width: 100%"
-            placeholder="主分类 / 子分类"
-            @update:value="(value: unknown) => onPickList(q.key, value)"
-          />
-
-          <div v-else-if="q.select === 'color'" class="brief-intake__color">
-            <a-color-picker
-              :value="textOf(q.key)"
-              :disabled="colorAuto[q.key] === true"
-              show-value
-              @update:value="(value: unknown) => onPickColor(q.key, value)"
-            />
-            <a-switch :checked="colorAuto[q.key] === true" @update:checked="(checked: unknown) => onToggleAuto(q.key, checked)" />
-            <span class="brief-intake__q-hint">AI 决定</span>
+            {{ sectionLabelOf(q) }}
           </div>
 
-          <!-- 词表出现不认识的新形态时退化成输入框：宁可让人打字，也不猜语义 -->
-          <a-input
-            v-else
-            :value="textOf(q.key)"
-            :placeholder="q.evidence || ''"
-            @update:value="(value: unknown) => onPickText(q.key, value)"
-          />
-        </div>
+          <div class="brief-intake__question">
+            <div class="brief-intake__q-label">
+              {{ q.label }}
+              <span v-if="q.required" class="brief-intake__req">必填</span>
+              <span v-else class="brief-intake__opt">可跳过</span>
+            </div>
+            <div v-if="q.evidence" class="brief-intake__q-hint">{{ q.evidence }}</div>
+
+            <a-radio-group
+              v-if="q.select === 'single'"
+              :value="textOf(q.key)"
+              @update:value="(value: unknown) => onPickSingle(q.key, value)"
+            >
+              <a-space wrap>
+                <a-radio v-for="opt in q.options" :key="opt.code" :value="opt.code">{{ opt.label }}</a-radio>
+              </a-space>
+            </a-radio-group>
+
+            <a-checkbox-group
+              v-else-if="q.select === 'multi'"
+              :value="listOf(q.key)"
+              @update:value="(value: unknown) => onPickList(q.key, value)"
+            >
+              <a-space wrap>
+                <a-checkbox v-for="opt in q.options" :key="opt.code" :value="opt.code">{{ opt.label }}</a-checkbox>
+              </a-space>
+            </a-checkbox-group>
+
+            <a-cascader
+              v-else-if="q.select === 'cascade'"
+              :value="listOf(q.key)"
+              :options="cascaderOptions(q)"
+              allow-clear
+              style="width: 100%"
+              placeholder="主分类 / 子分类"
+              @update:value="(value: unknown) => onPickList(q.key, value)"
+            />
+
+            <!-- 客户原话的长格子：逐字进摘要，界面不缩写 -->
+            <a-textarea
+              v-else-if="q.select === 'textarea'"
+              :value="textOf(q.key)"
+              :rows="2"
+              placeholder="可空：客户的原话逐字进摘要"
+              @update:value="(value: unknown) => onPickText(q.key, value)"
+            />
+
+            <!-- 页面清单：逐页行编辑器。这些本地提示只是让人少跑几回后端，保存那一闸在服务端 -->
+            <div v-else-if="q.select === 'pages'" class="brief-intake__pages">
+              <div v-for="(page, pageIndex) in pageRows(q)" :key="pageIndex" class="brief-intake__page-row">
+                <div class="brief-intake__page-line">
+                  <span class="brief-intake__page-no">第 {{ pageIndex + 1 }} 页</span>
+                  <a-input
+                    class="brief-intake__page-key"
+                    :value="page.key"
+                    placeholder="标识 key（小写字母/数字/连字符）"
+                    @update:value="(value: unknown) => onPageField(q, pageIndex, 'key', value)"
+                  />
+                  <a-input
+                    class="brief-intake__page-slug"
+                    :value="page.slug"
+                    placeholder="网址段 slug（进客户站地址栏）"
+                    @update:value="(value: unknown) => onPageField(q, pageIndex, 'slug', value)"
+                  />
+                  <a-input
+                    class="brief-intake__page-title"
+                    :value="page.title"
+                    :maxlength="PAGE_TITLE_MAX"
+                    placeholder="页面标题（界面上那一个字，客户怎么说怎么写）"
+                    @update:value="(value: unknown) => onPageField(q, pageIndex, 'title', value)"
+                  />
+                  <a-button size="small" :disabled="pageIndex === 0" @click="movePage(q, pageIndex, -1)">上移</a-button>
+                  <a-button size="small" :disabled="pageIndex === pageRows(q).length - 1" @click="movePage(q, pageIndex, 1)">下移</a-button>
+                  <a-button size="small" @click="removePage(q, pageIndex)">删除</a-button>
+                </div>
+                <a-textarea
+                  class="brief-intake__page-purpose"
+                  :value="page.purpose"
+                  :maxlength="PAGE_PURPOSE_MAX"
+                  :rows="2"
+                  placeholder="这一页干什么（给模型的一句话，可空）"
+                  @update:value="(value: unknown) => onPageField(q, pageIndex, 'purpose', value)"
+                />
+                <div class="brief-intake__section-pick">
+                  <div class="brief-intake__q-hint">挂哪个栏目（栏目名来自后端栏目词表；换掉了以前的裸下拉）</div>
+                  <div class="brief-intake__section-cards">
+                    <button
+                      v-for="choice in sectionChoices"
+                      :key="choice.key"
+                      type="button"
+                      class="brief-intake__section-card"
+                      :class="{ 'is-active': (page.sectionKey || '') === choice.key }"
+                      @click="pickPageSection(q, pageIndex, choice.key)"
+                    >
+                      <span class="brief-intake__section-name">{{ choice.label }}</span>
+                      <span class="brief-intake__section-desc">{{ choice.desc }}</span>
+                    </button>
+                  </div>
+                  <p v-if="sectionsFailed" class="brief-intake__catalog-fail">
+                    栏目词表没取到：卡片只剩「不属于任何栏目」那一张。
+                    <a-button size="small" type="link" @click="loadSections">重新取栏目词表</a-button>
+                  </p>
+                </div>
+                <div class="brief-intake__page-blocks">
+                  <div class="brief-intake__q-hint">这一页要哪些区块（可空＝交给规划的 plan 步骤挑；候选来自区块目录）</div>
+                  <div v-for="(pageBlock, pageBlockIndex) in page.blocks" :key="pageBlockIndex" class="brief-intake__block-row">
+                    <span>{{ blockLabel(pageBlock) }}</span>
+                    <a-button size="small" :disabled="pageBlockIndex === 0" @click="movePageBlock(q, pageIndex, pageBlockIndex, -1)">上移</a-button>
+                    <a-button size="small" :disabled="pageBlockIndex === page.blocks.length - 1" @click="movePageBlock(q, pageIndex, pageBlockIndex, 1)">下移</a-button>
+                    <a-button size="small" @click="removePageBlock(q, pageIndex, pageBlockIndex)">删除</a-button>
+                  </div>
+                  <a-space wrap>
+                    <a-select
+                      :value="blockDraft[q.key + '|' + pageIndex] || undefined"
+                      :options="blockOptions(page.blocks)"
+                      :disabled="!blockCatalog.length"
+                      placeholder="从区块目录挑一个"
+                      style="width: 280px"
+                      @update:value="(value: unknown) => (blockDraft[q.key + '|' + pageIndex] = String(value ?? ''))"
+                    />
+                    <a-button size="small" :disabled="!blockDraft[q.key + '|' + pageIndex]" @click="addPageBlock(q, pageIndex)">添加区块</a-button>
+                  </a-space>
+                </div>
+                <div class="brief-intake__page-priority">
+                  <span class="brief-intake__q-hint">优先级（再点一次已选中的档＝清回没排先后）：</span>
+                  <a-button
+                    v-for="code in PAGE_PRIORITY_CODES"
+                    :key="code"
+                    size="small"
+                    :class="{ 'is-active': page.priority === code }"
+                    @click="pickPagePriority(q, pageIndex, code)"
+                  >
+                    {{ code }}
+                  </a-button>
+                  <span v-if="!page.priority" class="brief-intake__muted">没排先后</span>
+                </div>
+              </div>
+              <a-space wrap>
+                <a-button size="small" :disabled="pageRows(q).length >= PAGE_PLAN_MAX" @click="addPage(q)">添加一页</a-button>
+                <a-button size="small" @click="addPresetPage(q, 'home')">加一页：首页（home）</a-button>
+                <a-button size="small" @click="addPresetPage(q, 'contact')">加一页：联系页（contact）</a-button>
+              </a-space>
+              <ul v-if="pageHints(q).length" class="brief-intake__page-hints">
+                <li v-for="hint in pageHints(q)" :key="hint">{{ hint }}</li>
+              </ul>
+              <p class="brief-intake__muted">上面的提示镜像自后端判据、只为少跑几趟；保存被拒时，它的中文原因会逐条原样列在页面底部。</p>
+              <p v-if="blocksFailed" class="brief-intake__catalog-fail">
+                区块目录没取到：每页的区块候选是空的。
+                <a-button size="small" type="link" @click="loadBlocks">重新取区块目录</a-button>
+              </p>
+            </div>
+
+            <!-- 首页区块顺序：上下移动代替拖拽，候选来自 /portal/blocks（未接线的空壳被后端标志挡在候选外） -->
+            <div v-else-if="q.select === 'block-order'" class="brief-intake__layout">
+              <div v-for="(layoutBlock, layoutIndex) in listOf(q.key)" :key="layoutIndex" class="brief-intake__block-row">
+                <span>{{ blockLabel(layoutBlock) }}</span>
+                <a-button size="small" :disabled="layoutIndex === 0" @click="moveLayoutBlock(q, layoutIndex, -1)">上移</a-button>
+                <a-button size="small" :disabled="layoutIndex === listOf(q.key).length - 1" @click="moveLayoutBlock(q, layoutIndex, 1)">下移</a-button>
+                <a-button size="small" @click="removeLayoutBlock(q, layoutIndex)">删除</a-button>
+              </div>
+              <a-space wrap>
+                <a-select
+                  :value="blockDraft[q.key] || undefined"
+                  :options="blockOptions(listOf(q.key))"
+                  :disabled="!blockCatalog.length"
+                  placeholder="从区块目录挑一个"
+                  style="width: 280px"
+                  @update:value="(value: unknown) => (blockDraft[q.key] = String(value ?? ''))"
+                />
+                <a-button size="small" :disabled="!blockDraft[q.key]" @click="addLayoutBlock(q)">添加区块</a-button>
+              </a-space>
+              <p class="brief-intake__muted">
+                已排 {{ listOf(q.key).length }} 个；后端上限 {{ HOME_LAYOUT_MAX }} 个——超了保存会被逐条中文拒，这里不冒充那道闸。
+              </p>
+              <p v-if="blocksFailed" class="brief-intake__catalog-fail">
+                区块目录没取到：候选是空的，不是没有区块可排。
+                <a-button size="small" type="link" @click="loadBlocks">重新取区块目录</a-button>
+              </p>
+            </div>
+
+            <div v-else-if="q.select === 'color'" class="brief-intake__color">
+              <a-color-picker
+                :value="textOf(q.key)"
+                :disabled="colorAuto[q.key] === true"
+                show-value
+                @update:value="(value: unknown) => onPickColor(q.key, value)"
+              />
+              <a-switch :checked="colorAuto[q.key] === true" @update:checked="(checked: unknown) => onToggleAuto(q.key, checked)" />
+              <span class="brief-intake__q-hint">AI 决定</span>
+            </div>
+
+            <!-- 词表出现不认识的新形态时退化成输入框：宁可让人打字，也不猜语义 -->
+            <a-input
+              v-else
+              :value="textOf(q.key)"
+              :placeholder="q.evidence || ''"
+              @update:value="(value: unknown) => onPickText(q.key, value)"
+            />
+
+            <!-- 「跳过」要说人话：没填的格子不许看着像填好了（后端摘要段同样会照实写这一格没给） -->
+            <p v-if="isUnanswered(q)" class="brief-intake__skip" :class="{ 'brief-intake__skip--required': q.required }">
+              {{ q.required ? '必填：这一题还空着，保存会被后端拒（理由以它回的中文为准）' : '客户未提供——摘要里会照实写这一格没给，不留一个看着像填好的空框' }}
+            </p>
+          </div>
+        </template>
 
         <div class="brief-intake__question brief-intake__static">
           <div class="brief-intake__q-label">参考站（最多 {{ REFERENCE_MAX }} 个 URL，可空）</div>
@@ -583,7 +1047,7 @@ onMounted(async () => {
         </div>
 
         <div class="brief-intake__question brief-intake__static">
-          <div class="brief-intake__q-label">补充说明（唯一可打字的地方，可空）</div>
+          <div class="brief-intake__q-label">补充说明（兜底的自由文本，可空）</div>
           <a-textarea
             v-model:value="form.notes"
             :maxlength="NOTES_MAX"
@@ -597,7 +1061,7 @@ onMounted(async () => {
       <aside class="brief-intake__side">
         <div class="brief-intake__side-title">AI 将理解的这段话</div>
         <p v-if="summary" class="brief-intake__summary-text">{{ summary }}</p>
-        <p v-else class="brief-intake__muted">还没有这段话：勾几题后，这段由后端渲染的话会自动刷新。</p>
+        <p v-else class="brief-intake__muted">还没有这段话：录几题后，这段由后端渲染的话会自动刷新。</p>
         <div v-if="summaryStale" class="brief-intake__stale">这段话还没刷新</div>
         <div v-else-if="summaryPending" class="brief-intake__muted">刷新中…</div>
         <div class="brief-intake__side-note">
@@ -648,6 +1112,29 @@ onMounted(async () => {
 .brief-intake__alert {
   margin-bottom: 16px;
 }
+/* 锚点导航：吸顶在录入区上方，段名是词表下发的那一份 */
+.brief-intake__anchors {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+.brief-intake__section-head {
+  padding: 10px 0 6px;
+  margin-top: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #111827;
+  border-bottom: 2px solid #e5e7eb;
+  scroll-margin-top: 64px;
+}
 .brief-intake__body {
   display: flex;
   gap: 24px;
@@ -665,10 +1152,112 @@ onMounted(async () => {
   font-weight: 600;
   margin-bottom: 8px;
 }
+.brief-intake__req {
+  margin-left: 8px;
+  color: #cf1322;
+  font-size: 12px;
+}
+.brief-intake__opt {
+  margin-left: 8px;
+  color: #9ca3af;
+  font-size: 12px;
+}
 .brief-intake__q-hint {
   color: #9ca3af;
   font-size: 12px;
   margin-bottom: 8px;
+}
+/* 「客户未提供」：可跳过题的显式空态；必填还空着的那一句用红色，两样都不许看着像填好了 */
+.brief-intake__skip {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #d46b08;
+}
+.brief-intake__skip--required {
+  color: #cf1322;
+}
+.brief-intake__pages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.brief-intake__page-row {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.brief-intake__page-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.brief-intake__page-no {
+  color: #6b7280;
+  font-size: 12px;
+}
+.brief-intake__page-key,
+.brief-intake__page-slug {
+  width: 160px;
+}
+.brief-intake__page-title {
+  flex: 1;
+  min-width: 200px;
+}
+.brief-intake__section-cards {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* 栏目卡片：带说明的单选（客户/超管点名旧的裸下拉太丑）；名字一份都不抄，全来自后端栏目词表 */
+.brief-intake__section-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  padding: 8px 10px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.brief-intake__section-card.is-active {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.12);
+}
+.brief-intake__section-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.brief-intake__section-desc {
+  color: #9ca3af;
+  font-size: 12px;
+}
+.brief-intake__block-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.brief-intake__page-priority .is-active {
+  border-color: #1677ff;
+  color: #1677ff;
+}
+.brief-intake__page-hints {
+  margin: 0;
+  padding-left: 18px;
+  color: #d46b08;
+  font-size: 12px;
+}
+.brief-intake__catalog-fail {
+  margin: 4px 0 0;
+  color: #cf1322;
+  font-size: 12px;
 }
 .brief-intake__color {
   display: flex;
@@ -688,7 +1277,7 @@ onMounted(async () => {
   width: 340px;
   flex: none;
   position: sticky;
-  top: 16px;
+  top: 48px;
   padding: 16px;
   background: #f6ffed;
   border: 1px solid #b7eb8f;
@@ -721,5 +1310,7 @@ onMounted(async () => {
 .brief-intake__save-error {
   margin-top: 8px;
   color: #cf1322;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>
