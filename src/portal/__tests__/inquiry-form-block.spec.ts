@@ -7,11 +7,13 @@ import { fetchInquiryBudgets, submitInquiry } from '../api/portalPublic'
 /**
  * 留资表单（inquiry-form）。
  *
- * 钉住四条后端约定（口径全部来自 InquiryService，不在这里另立一套）：
+ * 钉住五条后端约定（口径全部来自 InquiryService，不在这里另立一套）：
  * 1. 长度上限与电话/邮箱格式在前端就地提醒——后端不合规是静默丢弃并回成功，访客拿不到第二次提醒；
  * 2. 提醒过的表单一次请求都不该发出去；
  * 3. website 是蜜罐，访客看不到、也永远不带初值；
- * 4. 返回值对「真收/限流/蜜罐」完全同形，所以成功分支只有一句回执，不判 accepted。
+ * 4. 返回值对「真收/限流/蜜罐」完全同形，所以成功分支只有一句回执，不判 accepted；
+ * 5. 后端那份 {@code previewAuthorized} 为真时这一套站还在预览阶段：表单不给提交，
+ *    与后端「预览视图的留资一行都不落」是同一句实话的两半（方案 B，2026-09-27）。
  */
 
 /** 后端 InquiryBudgets 的那六档：这里按码写死，测的就是「界面念的是端点给的码，不是自己编的」 */
@@ -213,6 +215,54 @@ describe('蜜罐与演示态', () => {
 
     expect(submitInquiry).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('提交不会发出请求')
+  })
+})
+
+/**
+ * 预览视图不收线索（方案 B，2026-09-27）。
+ *
+ * 现场翻过一次车：候选站那条预览链接上，访客填的留资真的落进了库——落到了另一个租户名下
+ * （公开写口不带令牌，域名兜底认到了默认站）。后端现在有一条同口径的闸（InquiryService），
+ * 界面这一半要跟着一起闭：按钮不给点、一句实话说明为什么，词表也不去取。
+ */
+describe('预览视图：这套站还没交付，表单不收线索', () => {
+  it('壳层带着 previewAuthorized 时按钮不可用，填满了也不发请求', async () => {
+    const wrapper = mountBlock({}, siteShell({ previewAuthorized: true }))
+    await flushPromises()
+    await fill(wrapper, { name: '客户本人', phone: '13800000000', content: '先试一下' })
+
+    expect(wrapper.find('[type="submit"]').attributes('disabled')).toBeDefined()
+    await submit(wrapper)
+    expect(submitInquiry).not.toHaveBeenCalled()
+  })
+
+  it('说的是「这一套方案还在预览阶段」，不是那句「没有能收线索的站点」', async () => {
+    // 演示壳那句「这里没有能收线索的站点」用在这一档就是谎话：站点是有的，只是还没交付。
+    // 客户看完会以为表单坏了，而不是「上线之后才收」
+    const wrapper = mountBlock({}, siteShell({ previewAuthorized: true }))
+
+    expect(wrapper.text()).toContain('还在预览阶段')
+    expect(wrapper.text()).toContain('不会进任何人的线索列表')
+    expect(wrapper.text()).not.toContain('没有能收线索的站点')
+  })
+
+  it('预览视图连预算词表都不取：这一档不会有访客来填', async () => {
+    mountBlock({}, siteShell({ previewAuthorized: true }))
+    await flushPromises()
+
+    expect(fetchInquiryBudgets).not.toHaveBeenCalled()
+  })
+
+  /** 反面对照：闸不能写成「永远不给提交」——正式访客拿的是同一份壳，只是没有那一个字段 */
+  it('同一份壳没有 previewAuthorized 时照常收线索', async () => {
+    const wrapper = mountBlock()
+    await flushPromises()
+    await fill(wrapper, { name: '真实访客', phone: '13800000000', content: '想了解报价' })
+    await submit(wrapper)
+
+    expect(submitInquiry).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.pb-inquiry__receipt').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('还在预览阶段')
   })
 })
 

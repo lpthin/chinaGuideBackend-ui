@@ -70,3 +70,15 @@ export function columnsClassOf(blockProps: BlockProps | undefined | null): strin
 export function isDemoContext(shell: PortalSiteShell | null | undefined): boolean {
   return !shell || shell.siteId === 0 || shell.siteCode === 'demo'
 }
+
+/**
+ * 这一份壳是靠预览令牌翻出来的（后端 {@code SiteShell.previewAuthorized}，
+ * 取值就是 {@code SiteVisibilityGuard.Access#previewAuthorized}，只有候选站那一档会为真）。
+ *
+ * <p>为什么只认这一个字段，不在这里读地址栏有没有 {@code reviewToken}：那种猜法会把
+ * 「正式站上带着上一轮预览链接的人」也算成预览视图，而服务端那条闸（{@code InquiryService}）
+ * 判的正是同一个事实。两边各猜一套，就会出现「界面说收、后端不收」那句谎话。</p>
+ */
+export function isPreviewContext(shell: PortalSiteShell | null | undefined): boolean {
+  return shell?.previewAuthorized === true
+}

@@ -98,7 +98,7 @@
         <button class="pb-primary-btn pb-inquiry__submit" type="submit" :disabled="readOnly || sending">
           {{ submitText }}
         </button>
-        <p v-if="readOnly" class="pb-inquiry__muted">演示/预览视图：这里没有能收线索的站点，提交不会发出请求。</p>
+        <p v-if="readOnlyNote" class="pb-inquiry__muted">{{ readOnlyNote }}</p>
       </form>
     </div>
   </section>
@@ -107,7 +107,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { BlockContext } from './types'
-import { isDemoContext, text } from './types'
+import { isDemoContext, isPreviewContext, text } from './types'
 import { fetchInquiryBudgets, submitInquiry } from '../api/portalPublic'
 
 /**
@@ -134,7 +134,27 @@ const submitText = computed(() => text(props.blockProps, 'submitText') || '提�
 const successText = computed(() => text(props.blockProps, 'successText') || '已收到，感谢留言')
 
 /** 画廊与搭建器预览里没有可信站点：提交是写操作，宁可不给点 */
-const readOnly = computed(() => isDemoContext(props.shell))
+const demoView = computed(() => isDemoContext(props.shell))
+/**
+ * 候选站那条预览链接翻开的视图：这一整套站还没交付，收线索的那个人还没决定要不要它。
+ * 只认后端壳层那一个事实（与 InquiryService 里那条闸同一份口径），
+ * 不在这里拿「地址栏有没有 reviewToken」猜第二套——猜出来的那份和后端对不上时，
+ * 界面就会当着客户的面谎报「这里收线索」。
+ */
+const previewView = computed(() => isPreviewContext(props.shell))
+const readOnly = computed(() => demoView.value || previewView.value)
+
+/** 不给点的两种原因是两回事，那句实话得分开说：一种是没有站点，一种是站点还没交付 */
+const readOnlyNote = computed(() => {
+  if (demoView.value) {
+    return '演示视图（区块画廊、骨架预览与搭建器）：这里没有能收线索的站点，提交不会发出请求。'
+  }
+  if (previewView.value) {
+    return '这一套方案还在预览阶段：提交不会发出请求，也不会进任何人的线索列表。'
+      + '等这一套在平台上被选定、上线之后，这张表单才收访客留资。'
+  }
+  return ''
+})
 
 const form = reactive({ name: '', phone: '', email: '', company: '', budget: '', content: '', website: '' })
 const errors = reactive<{ contact?: string; name?: string; company?: string; phone?: string; email?: string; content?: string }>({})

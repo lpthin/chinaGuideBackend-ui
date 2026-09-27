@@ -73,6 +73,8 @@ export interface PortalSiteShell {
   company: PortalCompanyBrief
   seo: PortalSeo | null
   nav: PortalNavItem[]
+  /** 这一份壳是预览令牌翻出来的（只有候选站那一档为 true）：界面上会写库的区块据此关掉操作 */
+  previewAuthorized?: boolean
 }
 
 export interface PortalArticleItem {
@@ -224,6 +226,9 @@ async function request<T>(method: 'get' | 'post', path: string, payload: Record<
   try {
     const response = method === 'get'
       ? await axios.get(path, config)
+      // POST 只有 /track 与 /inquiry 两条公开写口，两条都不认预览授权：埋点按域名归属，
+      // 留资在预览视图连提交按钮都不给（后端 InquiryService 里还有同一口径的一道闸）。
+      // 这里刻意不把令牌带过去——带上只是给一套还没交付的站多开一条写入口。
       : await axios.post(path, payload, { params })
     const body = response.data
     if (body && typeof body.success === 'boolean') {
