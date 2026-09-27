@@ -37,6 +37,7 @@ import {
   SearchOutlined,
   SettingOutlined,
   ShareAltOutlined,
+  ShopOutlined,
   ShoppingOutlined,
   TagsOutlined,
   TeamOutlined,
@@ -130,6 +131,9 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // Spec-D D2：展示内容（团队/历程/标志/指标/评价/资质/FAQ）是租户填的，进内容维护组，
   // 绝不进任何 build-* 组（Spec-C §2.1 记过建站项与租户内容混排的老病）。
   'workspace-portal-showcase': 'site-content',
+  // 门店是「联系我们」那张地图的数据源，和展示内容同一条命：有渲染口就得有录入页，
+  // 而且它归租户——平台侧不需要一家家替客户录实体网点。
+  'workspace-portal-stores': 'site-content',
   'workspace-portal-jobs': 'site-content',
   'workspace-portal-guestbook': 'site-content',
   'workspace-portal-messages': 'site-content',
@@ -265,6 +269,7 @@ const ICONS: Record<string, Component> = {
   search: SearchOutlined,
   setting: SettingOutlined,
   share: ShareAltOutlined,
+  shop: ShopOutlined,
   shopping: ShoppingOutlined,
   tag: TagsOutlined,
   team: TeamOutlined,

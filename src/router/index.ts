@@ -63,6 +63,7 @@ const PortalArticleDetail = () => import('../portal/PortalArticleDetail.vue')
 const PortalCaseDetail = () => import('../portal/PortalCaseDetail.vue')
 const BannerManageView = () => import('../views/portal/BannerManageView.vue')
 const ShowcaseManageView = () => import('../views/portal/ShowcaseManageView.vue')
+const StoreManageView = () => import('../views/portal/StoreManageView.vue')
 const JobManageView = () => import('../views/portal/JobManageView.vue')
 const MessageManageView = () => import('../views/portal/MessageManageView.vue')
 const GuestbookManageView = () => import('../views/portal/GuestbookManageView.vue')
@@ -602,6 +603,14 @@ export const routes: RouteRecordRaw[] = [
         // 挂「网站内容维护」组、绝不进建站组（Spec-C §2.1 的混排老病）；权限码与后端
         // PortalShowcaseItemController 类级同一条（菜单/守卫/后端一个码）。
         meta: { title: '展示内容', icon: 'profile', breadcrumb: ['首页', '网站内容维护', '展示内容'], requiredPermission: 'portal:siteinfo:manage' }
+      },
+      {
+        path: 'portal/stores',
+        name: 'workspace-portal-stores',
+        component: StoreManageView,
+        // Spec-D 收尾：门户「联系我们」的地图有渲染、没人往里写行——这一页就是那个写口。
+        // 权限码与后端 StoreController 类级同一条；门店按公司归属，不按站点，所以没有站点参数。
+        meta: { title: '门店', icon: 'shop', breadcrumb: ['首页', '网站内容维护', '门店'], requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/jobs',
