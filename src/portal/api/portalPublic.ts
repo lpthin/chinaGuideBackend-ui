@@ -379,6 +379,10 @@ export function submitReviewTicket(token: string, payload: ReviewTicketPayload):
  */
 export interface PortalInquiryPayload {
   name?: string
+  /** 访客公司名（可空）：后端收进 portal_guestbook.company_name，超 100 字整条不收 */
+  company?: string
+  /** 预算范围档位码：取值只可能是 fetchInquiryBudgets() 的那几个键，词表外的值后端只丢这一格 */
+  budget?: string
   phone?: string
   email?: string
   content?: string
@@ -390,6 +394,14 @@ export interface PortalInquiryPayload {
 
 export function submitInquiry(payload: PortalInquiryPayload): Promise<void> {
   return post<void>(`${BASE}/inquiry`, payload as Record<string, unknown>)
+}
+
+/**
+ * 预算范围档位词表（码 → 中文），唯一出处是后端 InquiryBudgets。
+ * 表单里那个下拉不许在 TS 抄第二份：档位是我们筛线索用的枚举，抄一份就会跟后端分家。
+ */
+export function fetchInquiryBudgets(): Promise<Record<string, string>> {
+  return get<Record<string, string>>(`${BASE}/inquiry-budgets`)
 }
 
 /**

@@ -132,6 +132,10 @@ export const guestbookApi = {
   types: () =>
     http.get<Record<string, string>>('/guestbook/types'),
 
+  /** 预算范围档位的中文标签：那一格库里存的是码，说法只有这一个来源（与 types 同一口径） */
+  budgets: () =>
+    http.get<Record<string, string>>('/guestbook/budgets'),
+
   // 回复留言
   reply: (id: number, replyContent: string, replierName?: string) =>
     http.put<Guestbook>(`/guestbook/${id}/reply`, { replyContent, replierName }),

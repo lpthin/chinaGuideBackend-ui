@@ -55,6 +55,32 @@
         </div>
 
         <div class="pb-inquiry__row">
+          <label class="pb-inquiry__label" for="pb-inquiry-company">公司</label>
+          <input id="pb-inquiry-company"
+                 v-model="form.company"
+                 class="pb-inquiry__input"
+                 name="company"
+                 type="text"
+                 autocomplete="organization">
+          <p v-if="errors.company" class="pb-inquiry__error">{{ errors.company }}</p>
+        </div>
+
+        <!-- 档位不在这里写死：那是我们筛线索用的枚举，唯一出处是后端 InquiryBudgets（I-1）。
+             拉不到词表时下拉只剩占位，访客照样能把线索留下——这一格本来就是可跳过的 -->
+        <div class="pb-inquiry__row">
+          <label class="pb-inquiry__label" for="pb-inquiry-budget">预算范围</label>
+          <select id="pb-inquiry-budget"
+                  v-model="form.budget"
+                  class="pb-inquiry__input"
+                  name="budget">
+            <option value="">{{ budgetOptions.length ? '请选择（可跳过）' : '档位暂时取不到，可在留言里说明' }}</option>
+            <option v-for="option in budgetOptions" :key="option.code" :value="option.code">
+              {{ option.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="pb-inquiry__row">
           <label class="pb-inquiry__label" for="pb-inquiry-content">
             留言<span class="pb-inquiry__required">必填</span>
           </label>
@@ -79,10 +105,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import type { BlockContext } from './types'
 import { isDemoContext, text } from './types'
-import { submitInquiry } from '../api/portalPublic'
+import { fetchInquiryBudgets, submitInquiry } from '../api/portalPublic'
 
 /**
  * 留资表单（inquiry-form）。
@@ -95,6 +121,7 @@ import { submitInquiry } from '../api/portalPublic'
 const props = defineProps<BlockContext>()
 
 const NAME_MAX = 50
+const COMPANY_MAX = 100
 const PHONE_MAX = 30
 const EMAIL_MAX = 120
 const CONTENT_MAX = 2000
@@ -109,19 +136,37 @@ const successText = computed(() => text(props.blockProps, 'successText') || '已
 /** 画廊与搭建器预览里没有可信站点：提交是写操作，宁可不给点 */
 const readOnly = computed(() => isDemoContext(props.shell))
 
-const form = reactive({ name: '', phone: '', email: '', content: '', website: '' })
-const errors = reactive<{ contact?: string; name?: string; phone?: string; email?: string; content?: string }>({})
+const form = reactive({ name: '', phone: '', email: '', company: '', budget: '', content: '', website: '' })
+const errors = reactive<{ contact?: string; name?: string; company?: string; phone?: string; email?: string; content?: string }>({})
 const sending = ref(false)
 const failure = ref('')
 const receipt = ref('')
 
+/** 预算档位：码与中文都来自后端那份词表，顺序就是它给的顺序（小档在前，「还没定」在最后） */
+const budgets = ref<Record<string, string>>({})
+const budgetOptions = computed(() => Object.entries(budgets.value).map(([code, label]) => ({ code, label })))
+
+onMounted(async () => {
+  if (readOnly.value) {
+    return
+  }
+  try {
+    budgets.value = await fetchInquiryBudgets()
+  } catch (error) {
+    // 词表拉不到只少一个下拉，不该让整张表单不能提交：这一格后端本来就可空
+    console.error('加载预算档位失败:', error)
+  }
+})
+
 function validate() {
   const name = form.name.trim()
+  const company = form.company.trim()
   const phone = form.phone.trim()
   const email = form.email.trim()
   const content = form.content.trim()
   errors.contact = !name && !phone && !email ? '姓名、电话、邮箱至少留一个' : undefined
   errors.name = name.length > NAME_MAX ? `姓名不超过 ${NAME_MAX} 个字` : undefined
+  errors.company = company.length > COMPANY_MAX ? `公司名不超过 ${COMPANY_MAX} 个字` : undefined
   errors.phone = phone.length > PHONE_MAX
     ? `电话不超过 ${PHONE_MAX} 位`
     : (phone && !PHONE_PATTERN.test(phone) ? '电话只能含数字与 + - ( ) 空格，至少 5 位' : undefined)
@@ -131,7 +176,7 @@ function validate() {
   errors.content = !content
     ? '请填写留言内容'
     : (content.length > CONTENT_MAX ? `留言不超过 ${CONTENT_MAX} 个字` : undefined)
-  return ![errors.contact, errors.name, errors.phone, errors.email, errors.content].some(Boolean)
+  return ![errors.contact, errors.name, errors.company, errors.phone, errors.email, errors.content].some(Boolean)
 }
 
 async function send() {
@@ -147,6 +192,8 @@ async function send() {
     // page 只作来源线索（后端有路径白名单）；website 恒为空，除非机器人自己填了
     await submitInquiry({
       name: form.name.trim(),
+      company: form.company.trim(),
+      budget: form.budget,
       phone: form.phone.trim(),
       email: form.email.trim(),
       content: form.content.trim(),

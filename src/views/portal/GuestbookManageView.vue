@@ -106,8 +106,8 @@
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'content'">
                 <div class="message-content">{{ record.content }}</div>
-                <div v-if="record.reply" class="reply-content">
-                  <span class="reply-label">回复：</span>{{ record.reply }}
+                <div v-if="record.replyContent" class="reply-content">
+                  <span class="reply-label">回复：</span>{{ record.replyContent }}
                 </div>
               </template>
               <template v-if="column.key === 'type'">
@@ -118,16 +118,22 @@
                   {{ getStatusName(record.status) }}
                 </a-tag>
               </template>
-              <template v-if="column.key === 'createdAt'">
-                {{ formatDateTime(record.createdAt) }}
+              <template v-if="column.key === 'company'">
+                {{ record.companyName || '—' }}
               </template>
-              <template v-if="column.key === 'replyAt'">
-                {{ formatDateTime(record.replyAt) }}
+              <template v-if="column.key === 'budget'">
+                {{ budgetLabelOf(record.budgetCode) }}
+              </template>
+              <template v-if="column.key === 'createTime'">
+                {{ formatDateTime(record.createTime) }}
+              </template>
+              <template v-if="column.key === 'replyTime'">
+                {{ formatDateTime(record.replyTime) }}
               </template>
               <template v-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="handleReply(record)">
-                    {{ record.reply ? '查看回复' : '回复' }}
+                    {{ record.replyContent ? '查看回复' : '回复' }}
                   </a-button>
                   <a-popconfirm
                     title="确定要删除这条留言吗？"
@@ -159,41 +165,41 @@
 
     <a-modal
       v-model:open="replyModalVisible"
-      :title="currentRecord?.reply ? '查看回复' : '回复留言'"
+      :title="currentRecord?.replyContent ? '查看回复' : '回复留言'"
       @ok="handleReplyOk"
       :confirmLoading="saving"
       width="600px"
-      :footer="currentRecord?.reply ? null : undefined"
+      :footer="currentRecord?.replyContent ? null : undefined"
     >
       <a-descriptions bordered :column="1" size="small">
         <a-descriptions-item label="留言用户">
-          {{ currentRecord?.name }}
+          {{ currentRecord?.userName || '—' }}
         </a-descriptions-item>
         <a-descriptions-item label="联系方式">
           <span v-if="currentRecord?.phone">电话：{{ currentRecord?.phone }}</span>
           <span v-if="currentRecord?.email" style="margin-left: 16px">邮箱：{{ currentRecord?.email }}</span>
         </a-descriptions-item>
         <a-descriptions-item label="公司">
-          {{ currentRecord?.company || '-' }}
+          {{ currentRecord?.companyName || '—' }}
         </a-descriptions-item>
-        <a-descriptions-item label="主题">
-          {{ currentRecord?.subject || '-' }}
+        <a-descriptions-item label="预算范围">
+          {{ budgetLabelOf(currentRecord?.budgetCode) }}
         </a-descriptions-item>
         <a-descriptions-item label="留言内容">
           <div style="white-space: pre-wrap">{{ currentRecord?.content }}</div>
         </a-descriptions-item>
         <a-descriptions-item label="留言时间">
-          {{ formatDateTime(currentRecord?.createdAt) }}
+          {{ formatDateTime(currentRecord?.createTime) }}
         </a-descriptions-item>
-        <a-descriptions-item v-if="currentRecord?.reply" label="回复内容">
-          <div style="white-space: pre-wrap">{{ currentRecord?.reply }}</div>
+        <a-descriptions-item v-if="currentRecord?.replyContent" label="回复内容">
+          <div style="white-space: pre-wrap">{{ currentRecord?.replyContent }}</div>
         </a-descriptions-item>
-        <a-descriptions-item v-if="currentRecord?.replyAt" label="回复时间">
-          {{ formatDateTime(currentRecord?.replyAt) }}
+        <a-descriptions-item v-if="currentRecord?.replyTime" label="回复时间">
+          {{ formatDateTime(currentRecord?.replyTime) }}
         </a-descriptions-item>
       </a-descriptions>
 
-      <template v-if="!currentRecord?.reply">
+      <template v-if="!currentRecord?.replyContent">
         <a-divider orientation="left">回复内容</a-divider>
         <a-form layout="vertical">
           <a-form-item label="回复内容">
@@ -257,30 +263,45 @@ const replyForm = reactive({
 const messageList = ref<Guestbook[]>([])
 
 const columns = [
-  { title: '用户姓名', dataIndex: 'name', key: 'name', width: 120 },
+  { title: '访客', dataIndex: 'userName', key: 'userName', width: 120 },
   { title: '类型', key: 'type', width: 110 },
   { title: '联系方式', dataIndex: 'phone', key: 'phone', width: 150 },
+  // 拍板 2026-09-27 补的两格：销售看线索时第一眼要找的就是「哪家公司、单子多大」
+  { title: '公司', key: 'company', width: 180 },
+  { title: '预算范围', key: 'budget', width: 120 },
   { title: '留言内容', key: 'content', width: 300 },
   { title: '状态', key: 'status', width: 100 },
-  { title: '留言时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
-  { title: '回复时间', dataIndex: 'replyAt', key: 'replyAt', width: 180 },
+  { title: '留言时间', dataIndex: 'createTime', key: 'createTime', width: 180 },
+  { title: '回复时间', dataIndex: 'replyTime', key: 'replyTime', width: 180 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 150 },
 ]
 
-/** 中文标签只有一个来源：GET /guestbook/types（I-1）。拉不到时原样显示代码，不自造一个「未知类型」 */
+/** 中文标签只有一个来源：GET /guestbook/types 与 GET /guestbook/budgets（I-1）。
+ *  拉不到时原样显示代码，不自造一个「未知类型」「未知档位」——那等于假装系统认得这个值 */
 const typeLabels = ref<Record<string, string>>({})
+const budgetLabels = ref<Record<string, string>>({})
 
 function typeLabelOf(type?: string | null): string {
   if (!type) return '—'
   return typeLabels.value[type] || type
 }
 
-async function loadTypes() {
+function budgetLabelOf(code?: string | null): string {
+  if (!code) return '—'
+  return budgetLabels.value[code] || code
+}
+
+async function loadVocabulary() {
   try {
     typeLabels.value = await guestbookApi.types()
   } catch (error) {
     // 词表拉不到不该挡住列表：徽标退化成后端原话，仍然是可信信息
     console.error('加载留言类型词表失败:', error)
+  }
+  try {
+    budgetLabels.value = await guestbookApi.budgets()
+  } catch (error) {
+    console.error('加载预算档位词表失败:', error)
   }
 }
 
@@ -304,7 +325,7 @@ function getStatusName(status: string): string {
 
 function handleReply(record: Guestbook) {
   currentRecord.value = record
-  replyForm.content = record.reply || ''
+  replyForm.content = record.replyContent || ''
   replyModalVisible.value = true
 }
 
@@ -392,7 +413,7 @@ function handleSizeChange(_current: number, size: number) {
 }
 
 onMounted(() => {
-  loadTypes()
+  loadVocabulary()
   loadData()
 })
 </script>

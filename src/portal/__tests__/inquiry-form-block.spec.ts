@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import InquiryFormBlock from '../blocks/InquiryFormBlock.vue'
 import type { PortalSiteShell } from '../api/portalPublic'
-import { submitInquiry } from '../api/portalPublic'
+import { fetchInquiryBudgets, submitInquiry } from '../api/portalPublic'
 
 /**
  * 留资表单（inquiry-form）。
@@ -14,8 +14,19 @@ import { submitInquiry } from '../api/portalPublic'
  * 4. 返回值对「真收/限流/蜜罐」完全同形，所以成功分支只有一句回执，不判 accepted。
  */
 
+/** 后端 InquiryBudgets 的那六档：这里按码写死，测的就是「界面念的是端点给的码，不是自己编的」 */
+const BUDGETS = {
+  under_5w: '5 万以内',
+  from_5w_to_10w: '5–10 万',
+  from_10w_to_30w: '10–30 万',
+  from_30w_to_50w: '30–50 万',
+  over_50w: '50 万以上',
+  not_sure: '还没定'
+}
+
 vi.mock('../api/portalPublic', () => ({
-  submitInquiry: vi.fn().mockResolvedValue(undefined)
+  submitInquiry: vi.fn().mockResolvedValue(undefined),
+  fetchInquiryBudgets: vi.fn().mockResolvedValue({})
 }))
 
 function siteShell(overrides: Partial<PortalSiteShell> = {}): PortalSiteShell {
@@ -66,17 +77,21 @@ function payloadOf(call: number): Record<string, unknown> {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(submitInquiry).mockResolvedValue(undefined)
+  vi.mocked(fetchInquiryBudgets).mockResolvedValue(BUDGETS)
 })
 
 describe('访客侧提交', () => {
   it('按后端 InquiryForm 的字段形状提交，并把来源页带上', async () => {
     const wrapper = mountBlock()
+    await flushPromises()
     await fill(wrapper, { name: ' 张三 ', phone: '13800000000', email: 'a@example.com', content: '想了解报价' })
     await submit(wrapper)
 
     expect(submitInquiry).toHaveBeenCalledTimes(1)
     expect(payloadOf(0)).toEqual({
       name: '张三',
+      company: '',
+      budget: '',
       phone: '13800000000',
       email: 'a@example.com',
       content: '想了解报价',
@@ -198,5 +213,66 @@ describe('蜜罐与演示态', () => {
 
     expect(submitInquiry).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('提交不会发出请求')
+  })
+})
+
+/** 拍板 2026-09-27 补的两格：公司名是自由文本（有长度上限），预算是码——档位这份词表不许在前端另立一份 */
+describe('公司与预算两格', () => {
+  it('下拉念的就是端点给的那几档：顺序、码、中文说法都来自后端词表', async () => {
+    const wrapper = mountBlock()
+    await flushPromises()
+
+    const options = wrapper.findAll<HTMLInputElement>('[name="budget"] option')
+    // 第一项是「可跳过」的占位，不占档位
+    expect(options.slice(1).map(option => option.element.value)).toEqual(Object.keys(BUDGETS))
+    expect(options.slice(1).map(option => option.text())).toEqual(Object.values(BUDGETS))
+    expect(options[0].element.value).toBe('')
+  })
+
+  it('公司名与预算档位一起提交，预算带的是码不是那句中文', async () => {
+    const wrapper = mountBlock()
+    await flushPromises()
+    await fill(wrapper, {
+      name: '张三',
+      company: ' 上海纳欣精密机械 ',
+      budget: 'from_10w_to_30w',
+      content: '想做企业门户'
+    })
+    await submit(wrapper)
+
+    expect(payloadOf(0).company).toBe('上海纳欣精密机械')
+    expect(payloadOf(0).budget).toBe('from_10w_to_30w')
+  })
+
+  it('词表拉不到时下拉只剩占位，表单照旧能提交', async () => {
+    vi.mocked(fetchInquiryBudgets).mockRejectedValueOnce(new Error('后端没起'))
+    const wrapper = mountBlock()
+    await flushPromises()
+
+    expect(wrapper.findAll('[name="budget"] option')).toHaveLength(1)
+    expect(wrapper.text()).toContain('档位暂时取不到')
+
+    await fill(wrapper, { name: '李四', content: '先留个电话' })
+    await submit(wrapper)
+
+    expect(submitInquiry).toHaveBeenCalledTimes(1)
+    expect(payloadOf(0).budget).toBe('')
+  })
+
+  it('公司名超出后端上限（100）时不发请求', async () => {
+    const wrapper = mountBlock()
+    await flushPromises()
+    await fill(wrapper, { name: '王五', company: '公'.repeat(101), content: '咨询' })
+    await submit(wrapper)
+
+    expect(submitInquiry).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('公司名不超过 100')
+  })
+
+  it('预算与公司在画廊演示壳里也不请求词表', async () => {
+    mountBlock({}, demoShell())
+    await flushPromises()
+
+    expect(fetchInquiryBudgets).not.toHaveBeenCalled()
   })
 })

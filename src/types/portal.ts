@@ -88,25 +88,27 @@ export interface PortalMessageBroadcast {
 }
 
 // 留言板
+// 留言板：字段名按后端实体 portal_guestbook 的列来（userName / replyContent / createTime…）。
+// 这里以前写的是 name / reply / createdAt 那一套——库里没这几个名字，界面上那几列因此一直是空的。
 export interface Guestbook {
   id: number
   tenantId: number
-  parentId: number | null
-  name: string
-  phone: string
-  email: string
-  company: string
-  subject: string
+  siteId: number | null
+  userName: string | null
+  phone: string | null
+  email: string | null
   content: string
-  reply: string
-  replyAt: string
-  replyUserId: number
-  status: string
+  /** 留资表单里的访客公司名（V139）：普通留言没有这一格 */
+  companyName?: string | null
+  /** 预算档位码（V139）：中文说法只来自 GET /guestbook/budgets，库里存的就是这个码 */
+  budgetCode?: string | null
   /** 留言种类：取值与中文名只来自 GET /guestbook/types（I-1，前端不抄第二份词表） */
   type?: string | null
-  ip: string
-  createdAt: string
-  updatedAt: string
+  status: string
+  replyContent?: string | null
+  replierName?: string | null
+  replyTime?: string | null
+  createTime?: string | null
 }
 
 // 企业信息
