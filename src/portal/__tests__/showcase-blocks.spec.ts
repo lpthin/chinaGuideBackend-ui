@@ -174,6 +174,30 @@ describe('map-block 门店', () => {
     expect(link.attributes('target')).toBe('_blank')
   })
 
+  // 拍板 2026-09-27：store 表一行都没有时，聚合退回公司地址当唯一点位（标记见 DTO 的 companyAddress）
+  it('兜底那条写着公司上门地址；全是这种点位时示意块跟着改口', () => {
+    const wrapper = mountBlock(MapBlock, {
+      items: [{ name: '上海纳欣精密机械', address: '青浦区汇金路 100 号', companyAddress: true }]
+    })
+    expect(wrapper.find('.pb-map__kind').text()).toBe('公司上门地址')
+    expect(wrapper.find('.pb-map__canvas-note').text()).toBe('上门地址示意')
+    // 没有经纬度，跳转只能是按地址搜：链接里出现的必须是那条真地址
+    expect(wrapper.find('a.pb-map__link').attributes('href'))
+      .toContain(encodeURIComponent('青浦区汇金路 100 号'))
+  })
+
+  it('门店与兜底点位同时在场时，示意块仍说门店，标记只出现在那一条上', () => {
+    const wrapper = mountBlock(MapBlock, {
+      items: [
+        { name: '阿里云谷店', address: '演示路 1 号' },
+        { name: '公司总部', address: '演示路 2 号', companyAddress: true }
+      ]
+    })
+    expect(wrapper.find('.pb-map__canvas-note').text()).toBe('门店位置示意')
+    expect(wrapper.findAll('.pb-map__item')).toHaveLength(2)
+    expect(wrapper.findAll('.pb-map__kind')).toHaveLength(1)
+  })
+
   it('有合法经纬度时跳落点标记，position 是经度在前', () => {
     const wrapper = mountBlock(MapBlock, {
       items: [{ name: '有坐标的门店', address: '演示路 2 号', latitude: 31.2, longitude: 121.4 }]
