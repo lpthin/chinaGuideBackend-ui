@@ -2,7 +2,7 @@
   <div class="assemble-job-page">
     <a-alert type="info" show-icon class="assemble-job-page__notice">
       <template #message>
-        AI 整站组装要跑两步模型（整站规划 + 逐页文案），扣的是这个站点所属租户的 token 配额，
+        AI 整站组装要跑两步模型（整站规划 + 逐页文案），{{ costOwnerLine }}，
         所以这一页没有「一键整站上线」：先估算、看过预估再亲手勾确认才调用模型；调用之后拿到的仍然只是逐页草稿，
         访客能看到什么，只由「应用这一页」这一个一个的点击决定。这条路只有平台侧走得通（N4：组件搭建与组装归超管），租户侧没有它。
       </template>
@@ -136,7 +136,7 @@
             class="assemble-job-page__confirm"
             :disabled="!canConfirm"
           >
-            我已看过这次预估，确认整站组装会消耗租户配额
+            我已看过这次预估，确认整站组装{{ costOwnerShort }}
           </a-checkbox>
           <a-button type="primary" :disabled="!canRun" :loading="running" @click="runAssemble">
             开始整站组装
@@ -151,7 +151,7 @@
           <a-button :loading="detailLoading" @click="refreshDetail">刷新产出</a-button>
         </a-space>
         <p class="assemble-job-page__muted">
-          「先估算消耗」只算不调模型；「开始整站组装」会真的跑两步并扣配额，所以必须先看过预估、再亲手勾选上面那个确认框。
+          「先估算消耗」只算不调模型；「开始整站组装」会真的跑两步、{{ costOwnerShort }}，所以必须先看过预估、再亲手勾选上面那个确认框。
           组装是同步的：这一发请求回来就是结果，没有轮询，也不需要有人在这儿替它「推进状态」。
         </p>
         <p v-if="!estimate && !settled" class="assemble-job-page__muted">
@@ -418,10 +418,31 @@ const noDraftCount = computed(() => drafts.value.filter(row => draftRowState(row
 /** 回滚要真的退回过东西才有意义：一页都没应用过时灭着，省一次 ASSEMBLE_NOTHING_APPLIED */
 const canRollback = computed(() => !!job.value && appliedCount.value > 0 && !busy.value)
 
+/** 钱算不算在租户头上只认后端 V142 的读数；后端没给字段时按「算他的」说，宁可多警告一句 */
+const tenantBearsCost = computed(() => estimate.value?.tenantBearsCost !== false)
+
+/**
+ * 「这一趟记在谁头上」的一句人话，页面三处共用一个出处。
+ * 还没出价时不猜：交付态是后端的账，界面上没有第二个来源。
+ */
+const costOwnerLine = computed(() => {
+  if (!estimate.value) return '这笔消耗记在谁头上要看第 2 步那张价签（该租户已交付才计入他的额度）'
+  return tenantBearsCost.value
+    ? '扣的是这个站点所属租户的 token 配额'
+    : '这一次由平台承担、不进该租户的账单（超管确定交付之后才开始计他的额度）'
+})
+
+const costOwnerShort = computed(() => {
+  if (!estimate.value) return '按第 2 步的价签记账'
+  return tenantBearsCost.value ? '扣这个租户的配额' : '由平台承担、不进他的账单'
+})
+
 const estimateMessage = computed(() => {
   const current = estimate.value
   if (!current) return ''
-  const base = `预计 ${current.estimatedTokens} token，该租户剩余配额 ${current.remainingTokens} token`
+  const base = tenantBearsCost.value
+    ? `预计 ${current.estimatedTokens} token，该租户剩余配额 ${current.remainingTokens} token`
+    : `预计 ${current.estimatedTokens} token，这一趟由平台承担、不进该租户的账单`
   return current.notice ? `${base}。${current.notice}` : base
 })
 

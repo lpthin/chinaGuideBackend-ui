@@ -714,6 +714,14 @@ export interface BriefEstimateQuote {
   estimatedTokens: number;
   /** 出方案开关没开时给 false：那不是可以花的报价，界面据此连确认框都不给勾 */
   aiEnabled: boolean;
+  /**
+   * 这一次的钱算不算在该租户头上（V142 交付态）。
+   *
+   * <p>超管确定交付之前，前采与候选站都是平台自己承担：这一格是 false，后端的
+   * {@code breakdown} 里那句「当月剩余配额」也不会出现。界面据此改口，是因为「扣这个租户的配额」
+   * 写在没交付的单子上就是一句谎话——照着它勾选确认，事后对账会发现一分钱都没扣。</p>
+   */
+  tenantBearsCost?: boolean;
   /** 这一路有没有可用的图像模型；false 不等于失败，图位留空、交付后由人上传（拍板 8B） */
   imageAvailable?: boolean;
   /** 「N 套 × 每套几页 × 演示内容几篇」的人话，由后端逐行拼、界面原样列 */

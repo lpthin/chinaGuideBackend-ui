@@ -191,6 +191,8 @@ const DEFAULT_QUOTE = {
   tokenEquivalentsPerImage: 1500,
   estimatedTokens: 260000,
   aiEnabled: true,
+  /** 缺省按「已交付」给：这一格是后端 V142 交付态的读数，界面只转述不自己判 */
+  tenantBearsCost: true,
   imageAvailable: true,
   breakdown: [
     '合计预估：260000 token（2 套 × 130000 token/套）',
@@ -311,6 +313,26 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     expect(text).toContain('合计预估：260000 token（2 套 × 130000 token/套）')
     // 后端没给 notice 时才允许出现本地兜底那句（它不许带具体倍数——倍数只有后端知道）
     expect(text).toContain(ESTIMATE_UNDERESTIMATE_DISCLAIMER)
+    wrapper.unmount()
+  })
+
+  it('未交付（售前）的那一趟不许说「扣这个租户的配额」：V142 起这一趟由平台承担', async () => {
+    const wrapper = await mountView({
+      estimateData: estimateWith({
+        tenantBearsCost: false,
+        breakdown: [
+          '合计预估：260000 token（2 套 × 130000 token/套）',
+          '计费：该租户尚未交付（超管确定交付后才计入其额度），本次由平台承担，不进它的账单'
+        ]
+      })
+    })
+    click(byText('先估算消耗（不调模型）')[0])
+    await flushPromises()
+    const text = wrapper.text()
+    expect(text).toContain('由平台承担')
+    // 反向：说明、确认框都不许再宣称扣他的配额；剩余额度是后端在该交付时才念的数，界面不自己拼
+    expect(text).not.toContain('扣这个租户的 token 配额')
+    expect(text).not.toContain('确认出方案会消耗租户配额')
     wrapper.unmount()
   })
 

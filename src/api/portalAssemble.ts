@@ -68,6 +68,11 @@ export interface AssembleEstimate {
   jobId: number
   estimatedTokens: number
   remainingTokens: number
+  /**
+   * 这笔钱算不算在该租户头上（V142 交付态）。超管确定交付之前整站组装是给租户看 demo 的趟，
+   * 由平台承担；界面据此改口，别让确认框替一次没发生的扣费背书。
+   */
+  tenantBearsCost?: boolean
   aiEnabled: boolean
   /** 后端给的那句「当前未开启，确认也不会调用」原话，界面上不重写一遍 */
   notice: string | null

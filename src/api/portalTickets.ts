@@ -86,6 +86,8 @@ export interface TicketEstimate {
   pageId: number
   estimatedTokens: number
   remainingTokens: number
+  /** 这笔钱算不算在该租户头上（V142 交付态）：客户在 demo 预览上提的工单由平台垫 */
+  tenantBearsCost?: boolean
   aiEnabled: boolean
   notice: string | null
 }

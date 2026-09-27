@@ -304,8 +304,8 @@ const estimateText = computed(() => {
   const current = quote.value
   if (!current) return ''
   const parts = [`预计 ${current.estimatedTokens} token`]
-  // 逐行口径（套数/文字/演示内容/配图/合计/当月剩余配额）全来自后端 breakdown：
-  // 「剩余配额」后端是拼在这一份里下发的，界面上没有第二个数字可拼
+  // 逐行口径（套数/文字/演示内容/配图/合计，以及已交付时的「当月剩余配额」）全来自后端 breakdown：
+  // 后端是拼在这一份里下发的，界面上没有第二个数字可拼；售前那一趟后端根本不给剩余额度那一句
   if (current.breakdown?.length) parts.push(...current.breakdown)
   // §9-1 那句原话永远跟在数字旁边，一个字不改：估算闸门偏松是明令缓决的后果，不许藏。
   // 但**只有一份**：后端 estimate.notice 就是那句话的出处（含实测倍数），界面再拼一遍本地常量
@@ -319,6 +319,12 @@ const missingSwitchLines = computed(() => quote.value?.missingSwitches ?? [])
 
 /** 这一档今天到底能不能出图：false 不是失败，图位会留空并由人补（拍板 8B） */
 const imageAvailable = computed(() => quote.value?.imageAvailable !== false)
+
+/**
+ * 这一次的钱算不算在该租户头上——只认后端 V142 下发的布尔值，界面不自己判交付态。
+ * 后端没给这个字段时按「算他的」说：宁可多警告一句，也不许把在烧钱的趟说成免费。
+ */
+const tenantBearsCost = computed(() => quote.value?.tenantBearsCost !== false)
 
 const generatingNow = computed(() => brief.value?.status === 'generating')
 
@@ -636,7 +642,10 @@ onUnmounted(stopPolling)
       <a-card size="small" class="brief-detail__panel">
         <template #title>② 出方案：预估 → 勾选确认 → 执行（花钱的门禁，一步都不合并）</template>
         <p class="brief-detail__muted">
-          出方案会按套建候选站并真的调模型，扣这个租户的 token 配额；这一格先把价报给你看，
+          出方案会按套建候选站并真的调模型，{{ tenantBearsCost
+            ? '扣这个租户的 token 配额'
+            : '这一次由平台承担、不进该租户的账单（超管确定交付之后才开始计他的额度）' }}；
+          这一格先把价报给你看，
           看过、而且后端明确这一路开着，才轮得到勾确认；没勾，执行按钮就是灭的——一次点击都不该在没人看过价格的情况下发生。
         </p>
         <p v-if="brief && !gateOpen" class="brief-detail__locked">
@@ -646,7 +655,7 @@ onUnmounted(stopPolling)
         <a-space wrap class="brief-detail__actions">
           <a-button :disabled="!canEstimate" :loading="estimating" @click="runEstimate">先估算消耗（不调模型）</a-button>
           <a-checkbox v-model:checked="confirmChecked" :disabled="!canConfirm">
-            我已看过这次预估，确认出方案会消耗租户配额
+            我已看过这次预估，确认出方案{{ tenantBearsCost ? '会消耗租户配额' : '的这次消耗由平台承担' }}
           </a-checkbox>
           <a-button type="primary" :disabled="!canGenerate" :loading="generating" @click="runGenerate">
             开始出方案（建 {{ brief?.candidateCount ?? '?' }} 套候选）
@@ -662,7 +671,8 @@ onUnmounted(stopPolling)
           所以确认框在这里给不了勾。
         </p>
         <p v-else-if="confirmChecked" class="brief-detail__locked">
-          确认框已经勾上：再点「开始出方案」就会真的调用模型并扣配额。要收手先把勾去掉。
+          确认框已经勾上：再点「开始出方案」就会真的调用模型{{
+            tenantBearsCost ? '并扣配额' : '（这一趟由平台承担，不进该租户的账单）' }}。要收手先把勾去掉。
         </p>
         <a-alert v-if="estimate" type="info" show-icon class="brief-detail__alert" :message="estimateText" />
         <!-- 缺口只说明、不门禁：配图缺了照样出一套纯文字候选（拍板 8B），拿它当闸就是反着实现一遍 -->

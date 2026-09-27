@@ -155,7 +155,10 @@ function row(overrides: Partial<AssembleDraftRow> = {}): AssembleDraftRow {
 }
 
 function estimate(overrides: Partial<AssembleEstimate> = {}): AssembleEstimate {
-  return { jobId: 12, estimatedTokens: 3800, remainingTokens: 90000, aiEnabled: true, notice: null, ...overrides }
+  return {
+    jobId: 12, estimatedTokens: 3800, remainingTokens: 90000,
+    tenantBearsCost: true, aiEnabled: true, notice: null, ...overrides
+  }
 }
 
 interface Options {
@@ -454,6 +457,19 @@ describe('组装：先出价、再亲手勾确认，两道都过了才发那一�
     run.forEach(node => click(node))
     await flushPromises()
     expect(portalAssembleApi.run).not.toHaveBeenCalled()
+  })
+
+  /** V142：该租户还没被确定交付时，这一趟不进他的账单——界面三处「扣配额」的说法都得跟着改口 */
+  it('未交付租户的组装说「由平台承担」，不再念他的剩余配额', async () => {
+    const wrapper = await mountView({ estimateValue: estimate({ tenantBearsCost: false }) })
+    await openDetail(wrapper)
+    click(buttonContaining('先估算消耗')[0])
+    await flushPromises()
+    const text = wrapper.text()
+    expect(text).toContain('由平台承担')
+    expect(text).not.toContain('扣的是这个站点所属租户的 token 配额')
+    expect(text).not.toContain('该租户剩余配额 90000')
+    expect(text).not.toContain('确认整站组装扣这个租户的配额')
   })
 })
 

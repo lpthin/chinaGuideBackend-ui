@@ -126,7 +126,7 @@
             <a-button :loading="draftsLoading" @click="loadDrafts">刷新草稿</a-button>
           </a-space>
           <p class="revision-ticket-page__muted">
-            「先估算消耗」只算不调用模型；下一句按钮会真的产生一次 AI 调用并扣租户配额，所以必须先看一眼预估。
+            「先估算消耗」只算不调用模型；下一句按钮会真的产生一次 AI 调用、{{ costOwner }}，所以必须先看一眼预估。
           </p>
 
           <a-alert
@@ -134,7 +134,7 @@
             type="info"
             show-icon
             style="margin-top: 8px"
-            :message="`预计 ${estimate.estimatedTokens} token，本站剩余配额 ${estimate.remainingTokens} token`"
+            :message="`预计 ${estimate.estimatedTokens} token，${costOwner}`"
             :description="estimate.notice || (estimate.aiEnabled ? null : 'AI 起草当前未开启，确认也不会调用模型')"
           />
 
@@ -225,14 +225,13 @@
       @ok="runDraft"
     >
       <p v-if="estimate">
-        预计消耗 <b>{{ estimate.estimatedTokens }}</b> token，
-        本站剩余配额 <b>{{ estimate.remainingTokens }}</b> token。
+        预计消耗 <b>{{ estimate.estimatedTokens }}</b> token，{{ costOwner }}。
       </p>
       <p v-else class="revision-ticket-page__error">还没有取到预估，请先点「先估算消耗」。</p>
       <p class="revision-ticket-page__muted">
         产出的是草稿，要点「应用到页面」才会对访客生效；被门禁拦下的草稿只留档、不能应用，但 token 已经花掉了。
       </p>
-      <a-checkbox v-model:checked="confirmChecked">我已看过预估，确认这次调用会消耗租户配额</a-checkbox>
+      <a-checkbox v-model:checked="confirmChecked">我已看过预估，确认这次调用{{ costOwner }}</a-checkbox>
     </a-modal>
   </div>
 </template>
@@ -319,6 +318,15 @@ const draftsLoading = ref(false)
 const drafts = ref<RevisionDraft[]>([])
 const draftModalOpen = ref(false)
 const confirmChecked = ref(false)
+
+/**
+ * 这一趟的钱算不算在该租户头上：只认后端 V142 交付态的读数（{@code tenantBearsCost}）。
+ * 客户在 demo 预览里提的工单发生在转正之前，由平台承担；没出价时不猜，按「算他的」这句更保守的话说。
+ */
+const costOwner = computed(() => {
+  if (!estimate.value) return '扣租户配额（以预估为准）'
+  return estimate.value.tenantBearsCost === false ? '由平台承担、不进该租户的账单' : '扣该租户的配额'
+})
 
 // ---------------- 预览链接 ----------------
 const sessionOpen = ref(false)
