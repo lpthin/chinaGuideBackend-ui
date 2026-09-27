@@ -142,6 +142,37 @@ describe('门户访客埋点 usePortalTrack', () => {
     await Promise.resolve()
   })
 
+  /**
+   * 预览那一眼（Spec-D §9.2 收口）：判据只写在后端一处（带有效预览令牌就不收），
+   * 界面这一侧的职责是把地址栏那枚令牌<em>递过去</em>——它不判「该不该记」。
+   * 不递的代价就是那条残留：本地 ?site= 兜底时解析到的是另一个已上线的站。
+   */
+  it('预览链接上的埋点把令牌一并上报，让后端那一刀能够落下', async () => {
+    window.history.replaceState({}, '', '/?reviewToken=tok_site_1&site=acme-portal')
+    const { trackPortalPageView } = await loadTracking()
+    trackPortalPageView('/')
+
+    expect(mocks.post.mock.calls[0][0]).toContain('reviewToken=tok_site_1')
+  })
+
+  it('sendBeacon 那条同样带令牌：这条通道加不了请求头，形状必须只有一种', async () => {
+    window.history.replaceState({}, '', '/?reviewToken=tok_beacon')
+    const { trackPortalPageView, flushActiveDuration } = await loadTracking()
+    trackPortalPageView('/about')
+    vi.advanceTimersByTime(4200)
+    flushActiveDuration()
+
+    expect(mocks.beacon.mock.calls[0][0]).toContain('reviewToken=tok_beacon')
+  })
+
+  it('正常公开浏览的埋点不凭空多出一个令牌参数', async () => {
+    window.history.replaceState({}, '', '/')
+    const { trackPortalPageView } = await loadTracking()
+    trackPortalPageView('/news')
+
+    expect(mocks.post.mock.calls[0][0]).toBe('/api/portal/public/track?site=acme-portal')
+  })
+
   it('isPortalRoute 只认 portal-* 命名，后台路由一律不计', async () => {
     const { isPortalRoute } = await loadTracking()
 

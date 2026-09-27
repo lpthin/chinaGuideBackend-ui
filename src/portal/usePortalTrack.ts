@@ -10,10 +10,18 @@
  *
  * <p>上报的 path 只取不含查询串的路径（后端有路由白名单，带 ?category= 的会被拒），
  * 站点身份沿用域名解析 + 本地预览的 ?site= 会话值。</p>
+ *
+ * <p><strong>预览那一眼为什么也照发，只是把令牌一并递过去</strong>：「候选阶段的浏览不进租户的统计」
+ * 这一条判据只写在后端一处（{@code PortalTrackingService#publicSurfaceSite}：请求带着有效预览令牌就不收）。
+ * 这里如果再判一次「该不该记」，就是同一句话的第二份真相——而它偏偏有第二种错法：
+ * 本地 {@code ?site=} 兜底时，正在看的候选站与会被记上的那个站是两行，界面自己判只会把这段流量
+ * 记到别人家账上。所以这里只做一件事：把地址栏那枚令牌原样附上（{@code sendBeacon} 带不了请求头，
+ * 所以两条通道统一用查询参数，形状只有一种）。</p>
  */
 import type { Router } from 'vue-router'
 import axios from 'axios'
 import { resolveSiteCode } from './api/portalData'
+import { PREVIEW_TOKEN_PARAM, previewTokenOfUrl } from './api/portalPublic'
 
 const TRACK_ENDPOINT = '/api/portal/public/track'
 const SESSION_KEY = 'portal.track.session'
@@ -50,10 +58,24 @@ export function portalSessionId(): string {
   }
 }
 
+/** 埋点请求的 URL：站点码与预览令牌都取自当前地址栏，一条形状同时给 axios 与 sendBeacon 用 */
+function trackUrl(): string {
+  const params = new URLSearchParams()
+  const site = resolveSiteCode()
+  if (site) {
+    params.set('site', site)
+  }
+  const previewToken = previewTokenOfUrl()
+  if (previewToken) {
+    params.set(PREVIEW_TOKEN_PARAM, previewToken)
+  }
+  const query = params.toString()
+  return query ? `${TRACK_ENDPOINT}?${query}` : TRACK_ENDPOINT
+}
+
 /** 独立可调：单元测试与手动补报都走这里 */
 export function trackPortalEvent(payload: TrackPayload, viaBeacon = false): void {
-  const site = resolveSiteCode()
-  const url = site ? `${TRACK_ENDPOINT}?site=${encodeURIComponent(site)}` : TRACK_ENDPOINT
+  const url = trackUrl()
   const body = { ...payload, sessionId: payload.sessionId || portalSessionId() }
   if (viaBeacon && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
     // 页面已经在卸载，普通请求大概率来不及发出去；sendBeacon 不收 axios 的错误也无妨，
