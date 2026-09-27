@@ -12,6 +12,7 @@ import { defineAsyncComponent, type Component } from 'vue'
 const RENDERERS: Record<string, () => Promise<Component>> = {
   siteHeader: () => import('./SiteHeaderBlock.vue'),
   hero: () => import('./HeroBlock.vue'),
+  pageHero: () => import('./PageHeroBlock.vue'),
   bannerCarousel: () => import('./BannerCarouselBlock.vue'),
   serviceCards: () => import('./ServiceCardsBlock.vue'),
   caseGrid: () => import('./CaseGridBlock.vue'),

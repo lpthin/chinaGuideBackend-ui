@@ -9,7 +9,7 @@ import { slugOfPath } from '../portalPath'
  * 那种页面在访客侧就是一串空白区块，而后端校验还会判它合法。
  */
 const RENDERER_KEYS = [
-  'siteHeader', 'hero', 'bannerCarousel', 'serviceCards', 'caseGrid', 'caseList',
+  'siteHeader', 'hero', 'pageHero', 'bannerCarousel', 'serviceCards', 'caseGrid', 'caseList',
   'newsList', 'jobList', 'aboutRich', 'textBand', 'teamGrid', 'statsBand', 'logoWall',
   'testimonialCards', 'milestoneTimeline', 'awardGrid', 'faqAccordion', 'mapBlock',
   'ctaBand', 'contactBlock', 'inquiryForm', 'siteFooter'
