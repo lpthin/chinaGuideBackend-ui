@@ -88,8 +88,11 @@
           </p>
         </a-form-item>
         <a-form-item label="最多抓几页">
-          <a-input-number v-model:value="createForm.maxPages" :min="1" :max="6" />
-          <span class="reference-site-page__muted"> 个页面（1–6，超出后端会直接按 6 收）</span>
+          <a-input-number v-model:value="createForm.maxPages" :min="1" :max="maxPagesLimit" />
+          <span class="reference-site-page__muted">
+            个页面（1–{{ maxPagesLimit }}，超出后端会直接按 {{ maxPagesLimit }} 收）。
+            模板站常有 9~11 条路由，卡在 6 页的表现是「清单列了十条、抓完只剩六页」，看不出是漏了还是没有
+          </span>
         </a-form-item>
         <a-form-item v-if="createForm.mode === 'url'" label="遵守对方 robots.txt">
           <a-switch v-model:checked="createForm.obeyRobots" />
@@ -122,12 +125,10 @@
           </a-descriptions>
 
           <a-space style="margin-top: 16px" wrap>
-            <a-button
-              v-if="task.mode === 'url' && task.status === 'pending'"
-              :loading="crawling"
-              @click="startCrawl"
-            >
-              开始抓取
+            <a-button v-if="canAddRoute" @click="openRouteModal">补录一条路由</a-button>
+            <a-button v-if="canDiscover" :loading="discovering" @click="runDiscover">只列路由清单</a-button>
+            <a-button v-if="canCrawl" :loading="crawling" type="primary" @click="startCrawl">
+              {{ selectedPageIds.length ? `抓取勾中的 ${selectedPageIds.length} 页` : '开始抓取' }}
             </a-button>
             <a-button :loading="estimating" @click="runEstimate">先估算消耗</a-button>
             <a-button type="primary" :disabled="!estimate" :loading="analyzing" @click="openAnalyzeModal">
@@ -136,6 +137,11 @@
             <a-button :disabled="task.status !== 'done'" @click="openApplyModal">生成草稿页</a-button>
             <a-button :loading="detailLoading" @click="refreshDetail">刷新进度</a-button>
           </a-space>
+          <p class="reference-site-page__muted">
+            抓取分两步：<b>只列路由清单</b>不抓页面、只读一次首页，把这一站有哪几条路由列出来（不花钱、不改状态）；
+            勾完再<b>开始抓取</b>。一条都不勾就是老行为——从首页顺着链接自己找，抓满上面那个页数上限。
+            <b>补录一条路由</b>给「页面上没有入口、只能靠代码跳过去」的那些页用，它只往清单里加一行，不发请求。
+          </p>
           <p class="reference-site-page__muted">
             「先估算消耗」只算不调用模型；「开始 AI 摄取」会真的产生两次 AI 调用并扣租户配额，所以必须先看过预估再勾选确认。
             抓取与 AI 摄取都在后台排队执行，这里的进度是靠刷新看出来的，不是按了就算完成的。
@@ -151,20 +157,56 @@
           />
 
           <a-tabs v-model:activeKey="tab" style="margin-top: 16px">
-            <a-tab-pane key="pages" :tab="`抓到的页面（${pages.length}）`">
+            <a-tab-pane key="pages" :tab="`路由清单（${crawledCount} / ${pages.length}）`">
+              <a-alert
+                v-if="vocabError"
+                type="warning"
+                show-icon
+                style="margin-bottom: 12px"
+                :message="`路由清单的词表没读到，下面几列显示的是后端原值而不是中文标签（${vocabError}）。`
+                  + `清单本身照样能看，重试请点页面顶部的「刷新」`"
+              />
+              <a-alert
+                v-if="hydratedRoutes"
+                type="info"
+                show-icon
+                style="margin-bottom: 12px"
+                :message="`${hydratedRoutes} 条路由的版面是 JS 渲染出来的：HTTP 原文只是一具壳，链接与分区都取自浏览器渲染后的版面。`
+                  + `本地截图服务不可用时这一路会退化成「一条都没发现」，那种情况下结论写在上面的「最近一次结果」里`"
+              />
+              <a-alert
+                v-if="deadRoutes.length"
+                type="warning"
+                show-icon
+                style="margin-bottom: 12px"
+                :message="`${deadRoutes.length} 条路由在清单里但抓不开，它们的抓取状态那一格写着为什么。`
+                  + `死链仍然留在清单里（那是这一站的真实结构），但不会被当成页入库、也不进摘要与草稿`"
+              />
               <a-table
+                class="reference-site-page__routes"
                 :data-source="pages"
                 :columns="pageColumns"
                 :loading="pagesLoading"
                 :pagination="false"
+                :row-selection="pageSelection"
                 row-key="id"
                 size="small"
-                :scroll="{ x: 980 }"
+                :scroll="{ x: 1420 }"
               >
                 <template #bodyCell="{ column, record }">
-                  <template v-if="column.key === 'url'">
-                    <span v-if="record.url">{{ record.url }}</span>
-                    <span v-else class="reference-site-page__muted">（只传了截图，没抓过页面）</span>
+                  <template v-if="column.key === 'route'">
+                    <div class="reference-site-page__route">{{ record.routePath || record.url || '—' }}</div>
+                    <div v-if="record.pageName" class="reference-site-page__muted">{{ record.pageName }}</div>
+                    <div v-else-if="record.url" class="reference-site-page__muted">{{ record.url }}</div>
+                  </template>
+                  <template v-else-if="column.key === 'provenance'">
+                    <div>{{ vocabLabel('renderMode', record.renderMode) }}</div>
+                    <div class="reference-site-page__muted">{{ vocabLabel('linkSource', record.linkSource) }}</div>
+                  </template>
+                  <template v-else-if="column.key === 'crawlState'">
+                    <a-tag :color="crawlStateColor(record.crawlState)">
+                      {{ vocabLabel('crawlState', record.crawlState) }}
+                    </a-tag>
                     <div v-if="record.fetchedAt" class="reference-site-page__muted">
                       抓取于 {{ formatDateTime(record.fetchedAt) }}
                     </div>
@@ -189,17 +231,18 @@
                   </template>
                   <template v-else-if="column.key === 'robots'">
                     <a-tag v-if="record.robotsAllowed === false" color="red">被对方限制</a-tag>
-                    <a-tag v-else color="green">允许</a-tag>
+                    <a-tag v-else-if="record.fetchedAt" color="green">允许</a-tag>
+                    <span v-else class="reference-site-page__muted">还没抓，没判过</span>
                   </template>
                   <template v-else-if="column.key === 'sections'">
-                    <a-tooltip v-if="record.observedSectionsJson" :title="rolesOf(record)">
+                    <a-tooltip v-if="rolesOf(record)" :title="rolesOf(record)">
                       <span>{{ rolesOf(record) }}</span>
                     </a-tooltip>
                     <span v-else class="reference-site-page__muted">还没归纳</span>
                   </template>
                 </template>
                 <template #emptyText>
-                  <a-empty description="还没有页面：网址任务点「开始抓取」，截图任务在下面上传" />
+                  <a-empty description="清单还是空的：网址任务点「只列路由清单」或直接「开始抓取」，截图任务在下面上传" />
                 </template>
               </a-table>
 
@@ -312,10 +355,142 @@
                 </template>
               </a-table>
             </a-tab-pane>
+
+            <a-tab-pane key="package" :tab="`拆出来的模板证据${packageTabSuffix}`">
+              <a-space style="margin-bottom: 12px" wrap>
+                <a-button :loading="packageLoading" @click="loadPackage">
+                  {{ templatePackage ? '重新载入模板包' : '载入模板包' }}
+                </a-button>
+                <span class="reference-site-page__muted">
+                  这一份就是「出方案时喂给模型」的那份东西，界面上显示它不是为了好看：
+                  这里看得见、模型读不到，那才是最难发现的一种能力浪费。它只读，不花钱，也不含对方的文案与图片地址。
+                </span>
+              </a-space>
+
+              <template v-if="templatePackage">
+                <a-descriptions :column="3" size="small" bordered>
+                  <a-descriptions-item label="认出的家族">{{ packageFamilyText }}</a-descriptions-item>
+                  <a-descriptions-item label="清单里的路由">{{ templatePackage.routeCount }} 条</a-descriptions-item>
+                  <a-descriptions-item label="有版面的路由">{{ templatePackage.crawledCount }} 条</a-descriptions-item>
+                  <a-descriptions-item label="站级 token" :span="2">
+                    {{ siteTokenText }}
+                  </a-descriptions-item>
+                  <a-descriptions-item label="段级取值不一致">{{ variedTokenText }}</a-descriptions-item>
+                </a-descriptions>
+
+                <a-alert
+                  type="info"
+                  show-icon
+                  style="margin-top: 12px"
+                  message="段级那一半只是证据，不会变成站点样式：能被搬进真的样式变量的只有浏览器量出来的站级取值"
+                  description="「这一格里出现过 12px」和「这一站的圆角是 12px」可信度差一个量级，所以它们分列在两处显示。"
+                />
+
+                <a-divider orientation="left">每一格装得下什么（槽位形状）</a-divider>
+                <a-table
+                  :data-source="slotShapeRows"
+                  :columns="slotShapeColumns"
+                  :pagination="false"
+                  row-key="rowKey"
+                  size="small"
+                  :scroll="{ x: 900 }"
+                >
+                  <template #bodyCell="{ column, record }">
+                    <template v-if="column.key === 'slots'">
+                      <div v-for="(slot, index) in record.slots" :key="index" class="reference-site-page__slot">
+                        <span class="reference-site-page__slot-key">{{ slot.key }}</span>
+                        {{ vocabLabel('slotKind', slot.kind) }}
+                        <span v-if="slot.isArray">· 按数组给</span>
+                        <span v-if="slot.imageSpec?.w || slot.imageSpec?.h">
+                          · 图位约 {{ slot.imageSpec.w }}×{{ slot.imageSpec.h }}
+                        </span>
+                        <span v-if="slot.imageSpec?.prompt">· 需求单描述：{{ slot.imageSpec.prompt }}</span>
+                        <span v-if="slot.requiredSignal" class="reference-site-page__muted">
+                          · {{ vocabLabel('requiredSignal', slot.requiredSignal) }}
+                        </span>
+                      </div>
+                      <div v-if="record.slotNote" class="reference-site-page__error">{{ record.slotNote }}</div>
+                    </template>
+                  </template>
+                  <template #emptyText>
+                    <a-empty description="还没有槽位形状：抓取那一步（T4 之后）才会产出" />
+                  </template>
+                </a-table>
+                <p class="reference-site-page__muted">
+                  「必填」那一行说的是<b>必填是从哪一路看出来的</b>，不是「这个字段必须填」：
+                  我们的表单必填归服务端写死，区块侧没有必填开关槽。它最终的去处是前采里问客户的一道题。
+                </p>
+
+                <a-divider orientation="left">这一站用过的枚举组（栏目候选的原料）</a-divider>
+                <a-table
+                  :data-source="vocabularyRows"
+                  :columns="vocabularyColumns"
+                  :pagination="false"
+                  row-key="rowKey"
+                  size="small"
+                  :scroll="{ x: 900 }"
+                >
+                  <template #bodyCell="{ column, record }">
+                    <template v-if="column.key === 'items'">
+                      <a-tag v-for="item in record.items" :key="item.slug || item.label">{{ item.label || item.slug }}</a-tag>
+                    </template>
+                    <template v-else-if="column.key === 'seenOn'">
+                      <span class="reference-site-page__muted">{{ (record.seenOn || []).join('、') }}</span>
+                    </template>
+                  </template>
+                  <template #emptyText>
+                    <a-empty description="没有认出成组的枚举（下拉 / 单选复选 / 筛选 tabs / 卡片栅格标题）" />
+                  </template>
+                </a-table>
+                <p class="reference-site-page__muted">
+                  同一组枚举常在三处复用，所以带「出现在哪几条路由」。<b>它们是候选，不是栏目</b>：
+                  真正建栏目要过内容完整度与词表闸，这里只是把原料递过去。
+                </p>
+
+                <a-divider orientation="left">看得见的交互形状</a-divider>
+                <div v-if="templatePackage.interactionHints.length" class="reference-site-page__hints">
+                  <a-tag v-for="hint in templatePackage.interactionHints" :key="hint.kind" color="blue">
+                    {{ vocabLabel('interaction', hint.kind) }}（{{ hint.seenOn.length }} 条路由）
+                  </a-tag>
+                </div>
+                <p v-else class="reference-site-page__muted">
+                  没有记到任何交互形状。这一栏是「有就记、没有就不记」，空白不代表对方站点没有动效，
+                  只代表这一次抓取没看见——它不是待办清单。
+                </p>
+              </template>
+
+              <a-empty v-else description="还没载入：这一栏是只读的取证快照，载入它不改变任务状态" />
+            </a-tab-pane>
           </a-tabs>
         </template>
       </a-spin>
     </a-drawer>
+
+    <!-- ---------------- 人工补录一条路由 ---------------- -->
+    <a-modal
+      v-model:open="routeOpen"
+      title="补录一条路由"
+      ok-text="加进清单"
+      :confirm-loading="addingRoute"
+      @ok="submitRoute"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="站内路径">
+          <a-input v-model:value="routeForm.path" :maxlength="200" placeholder="/appointment" />
+          <p class="reference-site-page__muted">
+            只填路径，以 <b>/</b> 开头。地址由后端按参考站本站的 origin 拼：贴完整 URL 就意味着这里要再判一次
+            SSRF 与跨站，而那一判在出站闸那里已经有一份了，不该抄第二份。
+          </p>
+        </a-form-item>
+        <a-form-item label="这一页叫什么（可选，只用于清单上认行）">
+          <a-input v-model:value="routeForm.pageName" :maxlength="100" placeholder="例如：预约表单" />
+        </a-form-item>
+      </a-form>
+      <p class="reference-site-page__muted">
+        补录只往清单里加一行（来源写「人工补录」），不发请求；要抓它还得回列表勾上再按「开始抓取」，
+        那一趟同样要过 robots 与限流，不会因为是人写的就开后门。
+      </p>
+    </a-modal>
 
     <!-- ---------------- AI 摄取确认：烧钱动作必须显式确认 ---------------- -->
     <a-modal
@@ -425,18 +600,21 @@ import { LoadingOutlined } from '@ant-design/icons-vue'
 import {
   portalReferenceApi,
   referenceIsRunning,
+  referenceLabel,
   referenceModeLabel,
-  designTokensOf,
-  domSummaryOf,
   observedSectionsOf,
   propsSuggestionOf,
   sectionCountOf,
+  tokenLayersOf,
+  REFERENCE_MAX_PAGES_LIMIT,
   REFERENCE_VIEWPORTS,
   type ApplyForm,
   type ReferenceEstimate,
   type ReferenceMapping,
   type ReferencePage,
-  type ReferenceSite
+  type ReferenceSite,
+  type ReferenceVocabularies,
+  type TemplatePackage
 } from '../../api/referenceSites'
 import { portalPagesApi, type PortalBlockMeta } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'
@@ -445,18 +623,27 @@ import { formatDateTime } from '../../utils/format'
 /**
  * 参考站摄取任务视图（Spec §7）。
  *
- * 界面上刻意做到的三件事：
- * 1. 状态标签全部来自 GET /portal/reference-sites/statuses，一个字都不抄；
+ * 界面上刻意做到的四件事：
+ * 1. 状态与词表标签全部来自 GET /portal/reference-sites/{statuses,vocabularies}，一个字都不抄；
+ *    认不出的取值原样显示——显示空白会让人以为「这格没值」，而它其实是「有值，只是这份词表旧了」；
  * 2. 异步受理的动作用轮询跟到落定为止——按完按钮就弹「已完成」是最像成功的假通；
  * 3. 花钱的动作一律先预估再确认，包括「只有截图时让视觉模型看图」这一路（见 Spec §7.9）；
  *    能不能看图不是这里猜的，后端在预估里给中文原因，界面只负责把它显示出来。
+ * 4. 抓取拆成「只列路由清单」与「勾完再抓」两步（Spec-E T2）：SPA 模板站的原文里根本没有导航，
+ *    让工具自己决定抓哪几页，结果就是「清单明明十条、抓完只剩六页」而没人知道差在哪。
  *
  * 唯一能写进线上的动作是「生成草稿页」，而它出的是 draft，发布仍归租户自己按。
  */
 
 const EMPTY_STATUS_LABELS: Record<string, string> = {}
 
+/** 页数上限的真源在后端 clamp；这里只是把输入框的上限对齐，免得填 20 存成 12 而没人知道 */
+const maxPagesLimit = REFERENCE_MAX_PAGES_LIMIT
+
 const statusLabels = ref<Record<string, string>>({ ...EMPTY_STATUS_LABELS })
+const vocabularies = ref<ReferenceVocabularies | null>(null)
+/** 词表读不到时界面仍然照跑（标签退回后端原值），但要把「这份词表旧了/没读到」说在明处 */
+const vocabError = ref<string | null>(null)
 const tasks = ref<ReferenceSite[]>([])
 const loading = ref(false)
 const statusFilter = ref<string | undefined>(undefined)
@@ -484,12 +671,34 @@ const columns = [
   { title: '操作', key: 'op', width: 90, fixed: 'right' as const }
 ]
 
+/**
+ * 路由清单：一条路由一行，从「只列清单」到「抓完了」都写在这一行上。
+ *
+ * <p>刻意不给「未抓」的页算失败：清单里有 10 条、抓开 6 条是这一站的真实结构（页脚那条 /contact
+ * 常常就是死的），差别必须落在「抓取状态」那一格里，而不是变成一次红色报错。</p>
+ */
 const pageColumns = [
-  { title: '页面', key: 'url', width: 260 },
+  { title: '路由', key: 'route', width: 220 },
+  { title: '版面与来源', key: 'provenance', width: 240 },
+  { title: '抓取状态', key: 'crawlState', width: 200 },
   { title: '三视口截图', key: 'shots', width: 260 },
   { title: '结构与 token', key: 'structure', width: 220 },
-  { title: 'robots', key: 'robots', width: 110 },
-  { title: '归纳出的分区', key: 'sections', width: 220 }
+  { title: 'robots', key: 'robots', width: 130 },
+  { title: '归纳出的分区', key: 'sections', width: 200 }
+]
+
+const slotShapeColumns = [
+  { title: '在哪条路由', dataIndex: 'route', key: 'route', width: 180 },
+  { title: '第几格', dataIndex: 'order', key: 'order', width: 80 },
+  { title: '元素', dataIndex: 'tag', key: 'tag', width: 90 },
+  { title: '这一格装得下什么', key: 'slots', width: 520 }
+]
+
+const vocabularyColumns = [
+  { title: '组名', dataIndex: 'key', key: 'key', width: 160 },
+  { title: '从哪种形状读出来的', dataIndex: 'source', key: 'source', width: 160 },
+  { title: '取值', key: 'items', width: 380 },
+  { title: '出现在哪几条路由', key: 'seenOn', width: 220 }
 ]
 
 const mappingColumns = [
@@ -523,11 +732,26 @@ const unmatched = ref<ReferenceMapping[]>([])
 const unmatchedLoading = ref(false)
 
 const crawling = ref(false)
+const discovering = ref(false)
+const addingRoute = ref(false)
+const routeOpen = ref(false)
+const routeForm = reactive<{ path: string; pageName: string }>({ path: '', pageName: '' })
+/** 勾选要抓的那几条路由。只在还能开始抓取的任务上有意义，见 pageSelection 的注释 */
+const selectedPageIds = ref<number[]>([])
 const estimating = ref(false)
 const analyzing = ref(false)
 const applying = ref(false)
 const uploading = ref(false)
 const estimate = ref<ReferenceEstimate | null>(null)
+
+/**
+ * 模板包：不随任务自动载入，是这一栏里一个显式的只读快照。
+ *
+ * <p>为什么不在打开抽屉时顺手拉：一份包里带着每页的槽位形状，抽屉每次轮询都重取一遍毫无意义；
+ * 更重要的是「载入模板包」不该给人「它在推进什么」的错觉——它什么都不推进。</p>
+ */
+const templatePackage = ref<TemplatePackage | null>(null)
+const packageLoading = ref(false)
 
 const analyzeOpen = ref(false)
 const confirmChecked = ref(false)
@@ -555,7 +779,7 @@ const statusOptions = computed(() =>
 const pageOptions = computed(() =>
   pages.value.map(page => ({
     value: page.id,
-    label: page.url || `第 ${page.id} 号页面（截图）`
+    label: page.routePath || page.url || `第 ${page.id} 号页面（截图）`
   }))
 )
 const viewportOptions = computed(() => viewports.map(item => ({ value: item.value, label: item.label })))
@@ -565,6 +789,100 @@ const blockOptions = computed(() =>
 const siteOptions = computed(() => sites.value.map(site => ({ value: site.id, label: site.name })))
 
 const detailTitle = computed(() => (task.value ? `摄取任务 #${task.value.id}` : '摄取任务'))
+
+/** 后端只有两个模式常量，且认不出家族时直接不写这一格：所以「没写」要说成没认出，不能说成某一种 */
+const packageFamilyText = computed(() => {
+  const family = templatePackage.value?.family
+  return family ? family : '没认出固定家族（按通用判据处理，这一路同样能出结构）'
+})
+
+const siteTokenText = computed(() => {
+  const tokens = templatePackage.value?.tokens
+  const keys = tokens ? Object.keys(tokens) : []
+  return keys.length ? `${keys.length} 项（只有这一层会上身成站点样式）` : '没有站级取值：sidecar 没在线，或这一页没被渲染采样'
+})
+
+const variedTokenText = computed(() => {
+  const keys = templatePackage.value?.tokenVariedKeys || []
+  return keys.length ? `${keys.length} 项各格不一致：${keys.join('、')}` : '各格一致'
+})
+
+const packageTabSuffix = computed(() => {
+  if (!templatePackage.value) return ''
+  return `（${templatePackage.value.crawledCount} 页有版面）`
+})
+
+/** 段级证据摊平成一行一格。缺这一段（T4 之前的老行）就是空表，界面显「还没有」 */
+const slotShapeRows = computed(() => {
+  const rows: Array<{
+    rowKey: string
+    route: string
+    order: number | string
+    tag: string
+    slots: TemplatePackage['pages'][number]['slotShapes'][number]['slots']
+    slotNote?: string
+  }> = []
+  for (const page of templatePackage.value?.pages || []) {
+    for (const shape of page.slotShapes || []) {
+      rows.push({
+        rowKey: `${page.path}-${shape.order}`,
+        route: page.path || '—',
+        order: shape.order ?? '—',
+        tag: shape.tag || '—',
+        slots: shape.slots || [],
+        slotNote: shape.slotNote
+      })
+    }
+  }
+  return rows
+})
+
+/** 词表行没有天然主键：同一组可能在多条路由上都出现过，用「组名 + 来源 + 首项」拼一个够稳的 */
+const vocabularyRows = computed(() =>
+  (templatePackage.value?.vocabulary || []).map((group, index) => ({
+    ...group,
+    rowKey: `${group.key}-${group.source}-${index}`
+  }))
+)
+
+/**
+ * 三个动作各自能按的时机，判据全部跟后端同源：
+ * requestCrawl 只认 pending → crawling，requestDiscover 只拒绝「正在抓」，addRoute 只要有个本站地址就能补。
+ * 界面自己放宽一次，就是让用户点下去才知道被拒。
+ */
+const canCrawl = computed(() => task.value?.mode === 'url' && task.value?.status === 'pending')
+const canDiscover = computed(
+  () => task.value?.mode === 'url' && !!task.value?.sourceUrl && task.value?.status !== 'crawling'
+)
+const canAddRoute = computed(() => task.value?.mode === 'url' && !!task.value?.sourceUrl)
+
+const crawledCount = computed(
+  () => pages.value.filter(page => !page.crawlState || page.crawlState === 'ok').length
+)
+const hydratedRoutes = computed(
+  () => pages.value.filter(page => page.renderMode === 'hydrated').length
+)
+/** 死链与被挡：清单里留着它们，但它们不是「抓到的页」 */
+const deadRoutes = computed(() =>
+  pages.value.filter(page => page.crawlState === 'not_found' || page.crawlState === 'blocked')
+)
+
+/**
+ * 路由清单的勾选框只在还能开始抓取时给。
+ *
+ * <p>任务一旦跑过，后端就不再接受 pending → crawling，这时候给一排勾得动、按下去报红的勾选框，
+ * 等于界面自己造一个假入口。要重跑某一页，仍然可以走「不勾选、整站按上限重抓」那一路。</p>
+ */
+const pageSelection = computed(() =>
+  canCrawl.value
+    ? {
+        selectedRowKeys: selectedPageIds.value,
+        onChange: (keys: Array<string | number>) => {
+          selectedPageIds.value = keys.map(Number)
+        }
+      }
+    : undefined
+)
 
 const estimateMessage = computed(() => {
   if (!estimate.value) return ''
@@ -582,6 +900,19 @@ function statusColor(status: string) {
   if (status === 'failed') return 'red'
   if (status === 'needs_human') return 'orange'
   if (referenceIsRunning(status)) return 'blue'
+  return 'default'
+}
+
+/** 认不出的取值原样显示，理由见 api/referenceSites.ts 里 referenceLabel 的注释 */
+function vocabLabel(group: keyof ReferenceVocabularies, value: string | null | undefined) {
+  return referenceLabel(vocabularies.value, group, value)
+}
+
+/** 颜色的判据用后端字面量，标签用词表：词表会跟着变，颜色不会（这是表现层，不是第二份词表） */
+function crawlStateColor(state: string | null | undefined) {
+  if (state === 'ok') return 'green'
+  if (state === 'not_found' || state === 'blocked') return 'red'
+  if (state === 'discovered') return 'blue'
   return 'default'
 }
 
@@ -618,10 +949,15 @@ function sectionText(page: ReferencePage) {
 }
 
 function tokensText(page: ReferencePage) {
-  const tokens = designTokensOf(page)
-  if (!tokens) return '无 token 采样'
-  const keys = Object.keys(tokens)
-  return keys.length ? `token 采样：${keys.length} 组` : '无 token 采样'
+  const layers = tokenLayersOf(page)
+  if (!layers) return '无 token 采样'
+  const siteKeys = layers.site ? Object.keys(layers.site).length : 0
+  const hintCount = layers.sectionHints.length
+  // 老行是扁平的一份，当时还没有「站级 / 段级」这层区分，别把它说成两层都采过
+  if (layers.legacy) return `token 采样：${siteKeys} 项（分层之前的老行，按站级看）`
+  const parts = [siteKeys ? `站级 ${siteKeys} 项` : '站级无（sidecar 没采样到）']
+  if (hintCount) parts.push(`段级提示 ${hintCount} 格（只作取证，不上身）`)
+  return parts.join(' · ')
 }
 
 function rolesOf(page: ReferencePage) {
@@ -655,7 +991,7 @@ function onTableChange(pagination: { current?: number; pageSize?: number }) {
 }
 
 async function reload() {
-  await Promise.all([loadTasks(), loadStaticOptions()])
+  await Promise.all([loadVocabularies(), loadTasks(), loadStaticOptions()])
 }
 
 async function loadTasks() {
@@ -668,6 +1004,16 @@ async function loadTasks() {
     message.error((error as Error).message || '任务列表加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+/** 词表只有一份，在后端。读不到时标签退回原值，并把这件事写在路由清单顶上 */
+async function loadVocabularies() {
+  try {
+    vocabularies.value = await portalReferenceApi.vocabularies()
+    vocabError.value = null
+  } catch (error) {
+    vocabError.value = (error as Error).message || '接口没有响应'
   }
 }
 
@@ -741,6 +1087,8 @@ async function openTask(id: number) {
   mappings.value = []
   unmatched.value = []
   shotUrls.value = {}
+  selectedPageIds.value = []
+  templatePackage.value = null
   await refreshDetail()
   startPollIfNeeded()
 }
@@ -817,6 +1165,8 @@ async function loadPages() {
   pagesLoading.value = true
   try {
     pages.value = await portalReferenceApi.pages(currentId)
+    // 清单会重排甚至少几行，勾中一个已经不存在的号会让后端整次抓取被拒（它逐条核对归属）
+    selectedPageIds.value = selectedPageIds.value.filter(id => pages.value.some(page => page.id === id))
     if (shotForm.referencePageId === null && pages.value.length) {
       shotForm.referencePageId = pages.value[0].id
     }
@@ -874,7 +1224,8 @@ async function startCrawl() {
   if (!currentId) return
   crawling.value = true
   try {
-    task.value = await portalReferenceApi.crawl(currentId)
+    // 一条都不勾 = 不带 pageIds = 后端按老行为从首页顺链接抓；勾了 = 只跑勾的那几条
+    task.value = await portalReferenceApi.crawl(currentId, selectedPageIds.value)
     message.success('抓取已受理，正在后台执行；进度看这里')
     await Promise.all([loadPages(), loadMappings()])
     startPollIfNeeded()
@@ -883,6 +1234,98 @@ async function startCrawl() {
     message.error((error as Error).message || '抓取启动失败')
   } finally {
     crawling.value = false
+  }
+}
+
+/**
+ * 第一步：只列路由。它<b>不改状态</b>，所以按完之后不能靠状态轮询看结果——
+ * 唯一诚实的做法是等后端把结论写进「最近一次结果」那一格，然后重读清单。
+ *
+ * <p>这里复用同一个 {@code pollTimer}：结论落地就是 signature 变了（后端 report 写的就是那一格）。
+ * 到点还没变就说「没有新进展」而不是弹一个「发现完成」——后者是假通。</p>
+ */
+async function runDiscover() {
+  if (!currentId) return
+  discovering.value = true
+  try {
+    const accepted = await portalReferenceApi.discoverRoutes(currentId)
+    task.value = accepted
+    message.success('路由发现已受理：这一趟不抓页面、不花钱，跑完清单会自己变长')
+    // 任务本身还在跑（比如结构归纳中）时不抢那个轮询：那一头的进度更重要，清单靠「刷新进度」看
+    if (referenceIsRunning(accepted.status)) startPollIfNeeded()
+    else startDiscoverPoll(signatureOf(accepted))
+  } catch (error) {
+    message.error((error as Error).message || '路由清单启动失败')
+  } finally {
+    discovering.value = false
+  }
+}
+
+function startDiscoverPoll(baseline: string) {
+  stopPoll()
+  pollLeft = 24
+  pollTimer = setInterval(async () => {
+    pollLeft -= 1
+    if (pollLeft <= 0) {
+      stopPoll()
+      message.warning('路由清单还没有新结果。如果上面「最近一次结果」那一格已经写了原因，那是它在等你决定，不是还在跑')
+      return
+    }
+    try {
+      const latest = await portalReferenceApi.get(currentId)
+      task.value = latest
+      if (signatureOf(latest) !== baseline) {
+        stopPoll()
+        await loadPages()
+        loadTasks()
+      }
+    } catch (error) {
+      stopPoll()
+      message.error((error as Error).message || '路由清单刷新失败')
+    }
+  }, 2500)
+}
+
+function openRouteModal() {
+  routeForm.path = ''
+  routeForm.pageName = ''
+  routeOpen.value = true
+}
+
+async function submitRoute() {
+  if (!currentId) return
+  const path = routeForm.path.trim()
+  if (!path.startsWith('/')) {
+    message.warning('路由要写成站内路径，比如 /services')
+    return
+  }
+  addingRoute.value = true
+  try {
+    const row = await portalReferenceApi.addRoute(currentId, {
+      path,
+      pageName: routeForm.pageName.trim() || null
+    })
+    routeOpen.value = false
+    message.success(`已加进清单：${row.routePath || path}。勾上它再按「开始抓取」才会真的发请求`)
+    await loadPages()
+  } catch (error) {
+    message.error((error as Error).message || '补录失败')
+  } finally {
+    addingRoute.value = false
+  }
+}
+
+/** 只读取证快照：失败就显式说失败，别让上一份包的旧数据留在屏幕上被当成新结果 */
+async function loadPackage() {
+  if (!currentId) return
+  packageLoading.value = true
+  try {
+    templatePackage.value = await portalReferenceApi.templatePackage(currentId)
+  } catch (error) {
+    templatePackage.value = null
+    message.error((error as Error).message || '模板包载入失败')
+  } finally {
+    packageLoading.value = false
   }
 }
 
@@ -1033,6 +1476,7 @@ onMounted(async () => {
   } catch (error) {
     message.error((error as Error).message || '状态词表加载失败')
   }
+  await loadVocabularies()
   await Promise.all([loadTasks(), loadStaticOptions()])
 })
 
@@ -1088,6 +1532,28 @@ onUnmounted(stopPoll)
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
+  }
+
+  &__route {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-weight: 600;
+  }
+
+  &__slot {
+    line-height: 1.7;
+  }
+
+  &__slot-key {
+    display: inline-block;
+    min-width: 62px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-weight: 600;
+  }
+
+  &__hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 }
 </style>

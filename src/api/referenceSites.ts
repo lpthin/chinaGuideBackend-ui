@@ -31,13 +31,30 @@ export interface ReferenceSite {
   finishedAt: string | null
 }
 
-/** 任务里抓到的一个页面（或一组截图）。rawHtmlKey 只是取证材料，前端拿不到也不该拿 */
+/**
+ * 一行 portal_reference_page：它同时就是「路由清单」里的那一行。
+ *
+ * <p>一条路由从被发现到抓完都写在这同一行上（后端 V140 的那几列），所以界面不该长成两张表：
+ * 「清单里有条目、页表里没这行」和反过来都是同一份数据的两个说法，两套口径迟早对不上。</p>
+ *
+ * <p>{@code rawHtmlKey} 只是后端自己的取证材料，前端拿不到也不该拿。</p>
+ */
 export interface ReferencePage {
   id: number
   referenceId: number
   tenantId?: number | null
   url: string | null
   depth: number | null
+  /** 站内路径（如 /services）。一行 = 一条路由，同一页换个写法不会再长一行 */
+  routePath: string | null
+  /** 人工补录时给这一页起的名字，只在校对清单时用得上 */
+  pageName: string | null
+  /** static / hydrated，取值见 vocabularies().renderMode；空 = 这一页还没判过 */
+  renderMode: string | null
+  /** discovered / ok / not_found / blocked / offsite，见 vocabularies().crawlState；空 = T2 之前的老行 */
+  crawlState: string | null
+  /** 这一页是靠什么被发现的（原文链接 / 渲染后版面 / 人工补录），见 vocabularies().linkSource */
+  linkSource: string | null
   shotDesktopId: number | null
   shotTabletId: number | null
   shotMobileId: number | null
@@ -70,6 +87,110 @@ export interface ReferenceCreateForm {
   mode: string
   maxPages?: number | null
   obeyRobots?: boolean | null
+}
+
+/**
+ * 人工补录一条路由。只收站内路径，不接受完整 URL：
+ * 后端按本站 origin 拼地址，贴绝对地址就要在那里再判一次 SSRF 与跨站，而那一判已经有一份了。
+ */
+export interface ReferenceRouteForm {
+  path: string
+  pageName?: string | null
+}
+
+/**
+ * 路由清单与取证证据那几套词的显示名，来自 `GET /portal/reference-sites/vocabularies`。
+ *
+ * <p>与 `/statuses` 同一条纪律：TS 里不抄第二份。这些取值会跟着家族判据与取证口径变，
+ * 抄一份的结果是「后端写了一个新值、界面显示空白」——那是最难查的一种显示 bug。</p>
+ *
+ * <p>`requiredSignal` 尤其不能自己翻：那一格说的是「必填是从哪一路看出来的」，
+ * 界面若把它写成「这个字段必填」，就把一条**取证线索**说成了一条**约束**
+ * （我们的表单必填归服务端写死，区块侧没有必填开关槽）。原话照抄。</p>
+ */
+export interface ReferenceVocabularies {
+  renderMode: Record<string, string>
+  crawlState: Record<string, string>
+  linkSource: Record<string, string>
+  requiredSignal: Record<string, string>
+  slotKind: Record<string, string>
+  contentSlot: Record<string, string>
+  interaction: Record<string, string>
+}
+
+/** 一格里图位的「需求单」：只有期望尺寸与一个语义描述词，没有别人的图片地址 */
+export interface TemplateImageSpec {
+  count?: number
+  w?: number
+  h?: number
+  prompt?: string
+}
+
+/** 一格装得下什么槽位。key 的口径是我们自己区块的字段名，不是从别人页面上读来的 */
+export interface TemplateSlotShape {
+  key: string
+  kind: string
+  isArray?: boolean
+  requiredSignal?: string
+  imageSpec?: TemplateImageSpec
+}
+
+export interface TemplateSlotSection {
+  order?: number
+  tag?: string
+  route?: string
+  slots: TemplateSlotShape[]
+  /** 槽位超过上限时后端给的那句中文，原样透出，不替它圆场 */
+  slotNote?: string
+}
+
+/** 一组枚举（下拉 / 单选复选 / 筛选 tabs / 栅格卡片标题）。seenOn 是它出现在哪几条路由上 */
+export interface TemplateVocabulary {
+  key: string
+  /** select / radio / checkbox / tabs / grid，来源形状，不是我们的栏目 */
+  source: string
+  items: Array<{ slug?: string; label?: string }>
+  seenOn: string[]
+}
+
+export interface TemplateInteractionHint {
+  kind: string
+  seenOn: string[]
+}
+
+/**
+ * 模板包（Spec-E §4）：这一站拆出来的 L0~L5 拼成的一份 JSON。
+ *
+ * <p>界面拿它给人看结构，出方案拿它当模型输入，两份共用同一个形状——所以这里不另设一套字段、
+ * 也不在界面上替后端多算一个数。后端刻意不导出的东西（对方的文案、图片地址、原始 HTML）
+ * 在这里也不该有对应字段。</p>
+ */
+export interface TemplatePackage {
+  referenceSiteId: number
+  sourceUrl: string | null
+  status: string
+  /** 认不出的家族后端直接不写这一格，界面原样显示即可 */
+  family?: string | null
+  routeCount: number
+  crawledCount: number
+  routes: Array<{
+    path: string | null
+    renderMode: string | null
+    crawlState: string | null
+    linkSource: string | null
+  }>
+  pages: Array<{ path: string | null; roles: string[]; slotShapes: TemplateSlotSection[] }>
+  vocabulary: TemplateVocabulary[]
+  /** 站级 token（这九支才是品牌色/圆角/密度的出处），段级值只作提示、不在此列 */
+  tokens: Record<string, unknown>
+  tokenVariedKeys: string[]
+  interactionHints: TemplateInteractionHint[]
+  unmatched: Array<{
+    path: string | null
+    observedBlock: string | null
+    note: string | null
+    confidence: number | null
+  }>
 }
 
 /** 上传一张截图的结果：url 是后端签好的短期预览地址（默认 15 分钟），可直接给 img，过期后要重新取 */
@@ -170,6 +291,9 @@ export function referenceIsRunning(status: string | null | undefined): boolean {
 export const portalReferenceApi = {
   statusLabels: () => http.get<Record<string, string>>('/portal/reference-sites/statuses'),
 
+  /** 路由清单与取证证据的七套显示名。见 {@link ReferenceVocabularies} 为什么不能在 TS 里抄 */
+  vocabularies: () => http.get<ReferenceVocabularies>('/portal/reference-sites/vocabularies'),
+
   list: (status?: string | null) =>
     http.get<ReferenceSite[]>('/portal/reference-sites', { params: { status: status || undefined } }),
 
@@ -177,8 +301,28 @@ export const portalReferenceApi = {
 
   create: (data: ReferenceCreateForm) => http.post<ReferenceSite>('/portal/reference-sites', data),
 
-  /** 异步受理：返回的是刚推到 crawling 的任务行，不是「抓完了」 */
-  crawl: (id: number) => http.post<ReferenceSite>(`/portal/reference-sites/${id}/crawl`),
+  /**
+   * 异步受理：返回的是刚推到 crawling 的任务行，不是「抓完了」。
+   *
+   * `pageIds` 空 = 老行为（从首页顺着链接爬）；传了就是「只跑我勾的那几条路由」。
+   * 抓取不花钱，所以这一路不像 analyze 那样先 estimate。
+   */
+  crawl: (id: number, pageIds?: number[] | null) =>
+    http.post<ReferenceSite>(`/portal/reference-sites/${id}/crawl`,
+      pageIds?.length ? { pageIds } : undefined),
+
+  /**
+   * 路由清单第一步：只列路由，不抓页面、不调模型。异步受理，
+   * 结论（发现几条、为什么一条都没有）写在任务行的「最近一次结果」那一格，清单本身从 {@link pages} 读。
+   *
+   * <p>它不改状态，所以跑完只能靠重读 /pages 看清单变没变长，不能收到 200 就弹「发现完成」。</p>
+   */
+  discoverRoutes: (id: number) =>
+    http.post<ReferenceSite>(`/portal/reference-sites/${id}/discover-routes`),
+
+  /** 人工补录一条路由：SPA 里那些只能靠代码跳过去、页面上没有入口的页 */
+  addRoute: (id: number, data: ReferenceRouteForm) =>
+    http.post<ReferencePage>(`/portal/reference-sites/${id}/routes`, data),
 
   pages: (id: number) => http.get<ReferencePage[]>(`/portal/reference-sites/${id}/pages`),
 
@@ -199,6 +343,15 @@ export const portalReferenceApi = {
 
   /** 「需要新区块」的积压清单：mapped_block_key 为空的那些行 */
   unmatched: (id: number) => http.get<ReferenceMapping[]>(`/portal/reference-sites/${id}/unmatched`),
+
+  /**
+   * 模板包：这一站拆出来的 L0~L5 拼成的一份只读 JSON。
+   *
+   * <p>为什么界面上要显示它而不是自己从 /pages 拼：出方案时喂给模型的就是这一份。两边各拼一遍，
+   * 就会出现「审阅页看得见、模型读不到」——那是最难发现的一种能力浪费。</p>
+   */
+  templatePackage: (id: number) =>
+    http.get<TemplatePackage>(`/portal/reference-sites/${id}/package`),
 
   /**
    * 参考站截图的素材地址（id → 后端现签的短期预览地址，默认 15 分钟）。
@@ -244,6 +397,27 @@ export const portalReferenceApi = {
     }),
 }
 
+/**
+ * 一次任务最多几页。真相在后端的 clamp（超出会被静默改小），这里只是把输入框的上限对齐，
+ * 免得填了 20 却存成 12 而没人知道发生了什么。
+ */
+export const REFERENCE_MAX_PAGES_LIMIT = 12
+
+/**
+ * 词表查名：认不出的取值原样显示。
+ *
+ * <p>后端写了一个前端没见过的新值时，界面宁可显示 `offsite` 这样的原文，也不要显示空白——
+ * 空白会让人以为「这一格没值」，而它其实「有值，只是这份词表旧了」。</p>
+ */
+export function referenceLabel(
+  vocabularies: ReferenceVocabularies | null,
+  group: keyof ReferenceVocabularies,
+  value: string | null | undefined
+): string {
+  if (!value) return '—'
+  return vocabularies?.[group]?.[value] || value
+}
+
 /** 结构摘要的形状：{title,textLength,sections:[{tag,name,heading,textLength,links,images,listItems,buttons,forms}],headings,navLinks,signals} */
 export interface DomSummary {
   title?: string
@@ -271,6 +445,38 @@ export function observedSectionsOf(
 /** 浏览器计算样式采样出的 design token 集，值域受 LayoutValidator 白名单约束 */
 export function designTokensOf(page: Pick<ReferencePage, 'designTokensJson'>): Record<string, unknown> | null {
   return parseJson<Record<string, unknown>>(page.designTokensJson, value => typeof value === 'object')
+}
+
+/**
+ * token 的两层：`site` 是浏览器量出来的、会搬进真的样式变量；`sectionHints` 只是「这一格里出现过
+ * 哪些取值」的证据，永不上身（拍板 P-9）。
+ *
+ * <p>为什么界面必须把它们分开说：这两半的可信度差一个量级，而「这一站的圆角是 12px」和
+ * 「这一格的 class 里出现过 12px」在旧的扁平形状里长得一模一样。T3 之前的老行没有分层，
+ * 后端按站级读，这里也按站级显示，并保持 `legacy` 为真——别把老行说成「分层采样过」。</p>
+ */
+export interface TokenLayers {
+  site: Record<string, unknown> | null
+  sectionHints: Array<{ tag?: string; name?: string; tokens?: Record<string, string[]> }>
+  /** 这一行是 T3 之前的扁平形状：它的取值仍按站级看，但它没有段级证据 */
+  legacy: boolean
+}
+
+export function tokenLayersOf(page: Pick<ReferencePage, 'designTokensJson'>): TokenLayers | null {
+  const tokens = designTokensOf(page)
+  if (!tokens) return null
+  const layered = 'site' in tokens || 'sectionHints' in tokens
+  if (!layered) return { site: tokens, sectionHints: [], legacy: true }
+  const site = tokens.site
+  return {
+    site: site && typeof site === 'object' && Object.keys(site as object).length
+      ? (site as Record<string, unknown>)
+      : null,
+    sectionHints: Array.isArray(tokens.sectionHints)
+      ? (tokens.sectionHints as TokenLayers['sectionHints'])
+      : [],
+    legacy: false
+  }
 }
 
 /** 建议填进槽位的内容：只允许字面文本或 {"$data":键} 绑定 */
