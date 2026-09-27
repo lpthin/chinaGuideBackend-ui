@@ -66,6 +66,18 @@ describe('portalReferenceApi', () => {
     ]) {
       expect(source).not.toMatch(label)
     }
+    // 页数上限同理：那一头是后端 clamp，这一头只许有一个常量，用它的地方一律引常量。
+    // 界面写死 :max="12" 的表现是后端放宽上限后这里还在拦人，而且没人知道是谁拦的。
+    expect([...source.matchAll(/^\s*export const REFERENCE_MAX_PAGES_LIMIT = \d+$/gm)]).toHaveLength(1)
+    const view = import.meta.glob('../../views/portal/ReferenceSiteView.vue', {
+      eager: true,
+      query: '?raw',
+      import: 'default'
+    }) as Record<string, string>
+    const viewSource = Object.values(view).join('')
+    expect(viewSource).toMatch(/:max="maxPagesLimit"/)
+    expect(viewSource).not.toMatch(/:max="12"/)
+    expect(viewSource).not.toMatch(/1–12/)
   })
 
   it('依赖体检是一个只读快照：不带 tenantId 时把参数留空，让后端按平台探', async () => {
