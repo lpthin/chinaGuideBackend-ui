@@ -35,7 +35,7 @@ vi.mock('../../../api/referenceSites', async () => {
       addRoute: fn(),
       pages: fn(),
       mappings: fn(),
-      unmatched: fn(),
+      unmatchedGroups: fn(),
       templatePackage: fn(),
       analyzeEstimate: fn(),
       analyze: fn(),
@@ -347,13 +347,18 @@ function templatePackage() {
  * 打开某一个任务的抽屉。
  *
  * rows 必须由调用方传：这里默认会重新挂一遍 pages fixture，任何在调用前 mockResolvedValue 过的
- * 行数据都会被抹掉——那等于测试改了自己的前提。
+ * 行数据都会被抹掉——那等于测试改了自己的前提。积压清单同理，所以它也是参数。
  */
-async function openDrawer(wrapper: any, site = task(), rowsOverride?: Array<Record<string, unknown>>) {
+async function openDrawer(
+  wrapper: any,
+  site = task(),
+  rowsOverride?: Array<Record<string, unknown>>,
+  backlog: Array<Record<string, unknown>> = []
+) {
   vi.mocked(portalReferenceApi.get).mockResolvedValue(site as any)
   vi.mocked(portalReferenceApi.pages).mockResolvedValue((rowsOverride ?? pages()) as any)
   vi.mocked(portalReferenceApi.mappings).mockResolvedValue([])
-  vi.mocked(portalReferenceApi.unmatched).mockResolvedValue([])
+  vi.mocked(portalReferenceApi.unmatchedGroups).mockResolvedValue(backlog as any)
   const review = wrapper.findAll('button').filter((item: any) => item.text() === '审阅')
   await review[0].trigger('click')
   await flushPromises()
@@ -589,6 +594,71 @@ describe('路由清单的诚实口径', () => {
     const legacy = routeText(wrapper, '/contact')
     expect(legacy).toContain('2 项（分层之前的老行')
     expect(legacy).not.toContain('段级提示')
+  })
+})
+
+describe('需要新区块那一栏按「类」报数，不按行', () => {
+  /** 2026-09-28 第二家参考站的真实形状：11 页把页脚重复声明了 11 次，真缺口只有一类 */
+  function backlog() {
+    return [
+      {
+        observedBlock: '文章列表筛选',
+        capabilityKnown: false,
+        rowCount: 3,
+        paths: ['/', '/articles', '/about'],
+        note: '白名单里没有能长出筛选 tabs 的区块'
+      },
+      {
+        observedBlock: '页脚',
+        capabilityKnown: true,
+        rowCount: 11,
+        paths: ['/', '/articles'],
+        note: '重复的页脚，无需映射'
+      }
+    ]
+  }
+
+  function backlogTab(wrapper: any) {
+    const found = wrapper
+      .findAll('.tab-pane-stub')
+      .find((node: any) => (node.attributes('data-tab') || '').startsWith('需要新区块'))
+    if (!found) {
+      throw new Error('找不到「需要新区块」那一栏')
+    }
+    return found
+  }
+
+  it('标签页上的数字是真缺口类数：14 行对不上不等于缺 14 类', async () => {
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('needs_human'), undefined, backlog())
+    expect(backlogTab(wrapper).attributes('data-tab')).toBe('需要新区块（1）')
+  })
+
+  it('归并后的总类数与真缺口分开说，逐条处置指回「区块映射」那一栏', async () => {
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('needs_human'), undefined, backlog())
+    const message = alerts(wrapper, 'info').join('|')
+    expect(message).toContain('归并后 2 类')
+    expect(message).toContain('其中 1 类白名单里真没有')
+    expect(message).toContain('这一趟没再映射')
+    expect(message).toContain('归并成 2 类')
+    expect(message).toContain('说成「缺 14 类」')
+    expect(message).toContain('逐条改映射在「区块映射」那一栏')
+  })
+
+  it('每一行点名它是哪一种、出现在哪几页、按页重复了几次', async () => {
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('needs_human'), undefined, backlog())
+    const texts = backlogTab(wrapper)
+      .findAll('.row')
+      .map((row: any) => row.text())
+      .join('|')
+    expect(texts).toContain('白名单里还没有')
+    expect(texts).toContain('已有能力，这一趟重复声明')
+    expect(texts).toContain('/、/articles、/about（3 页 / 3 条）')
+    expect(texts).toContain('2 页 / 11 条')
+    // 这一栏不再逐行给「改成映射到…」：一行现在代表十几条，一次点击改不完，反而会看着像改完了
+    expect(texts).not.toContain('改成映射到')
   })
 })
 

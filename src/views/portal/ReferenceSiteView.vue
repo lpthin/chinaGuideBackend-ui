@@ -329,28 +329,32 @@
               </a-table>
             </a-tab-pane>
 
-            <a-tab-pane key="unmatched" :tab="`需要新区块（${unmatched.length}）`">
+            <a-tab-pane key="unmatched" :tab="`需要新区块（${unmatchedTrueGapCount}）`">
               <a-alert
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                message="这些是白名单里对不上的观察区块。我们不会为了凑数把它塞进一个万能容器——那样区块库三个月就变成垃圾桶"
-                description="留着它们就是积压清单：哪一类反复出现，就该由人开发一个真区块补进白名单，而不是让模型即兴发挥。"
+                :message="`对不上的观察区块归并后 ${unmatchedGroups.length} 类，其中 ${unmatchedTrueGapCount} 类白名单里真没有（其余 ${unmatchedGroups.length - unmatchedTrueGapCount} 类我们有这个能力，只是这一趟没再映射）`"
+                :description="unmatchedExplainText"
               />
               <a-table
-                :data-source="unmatched"
+                :data-source="unmatchedGroups"
                 :columns="unmatchedColumns"
                 :loading="unmatchedLoading"
                 :pagination="false"
-                row-key="id"
+                row-key="observedBlock"
                 size="small"
-                :scroll="{ x: 720 }"
+                :scroll="{ x: 900 }"
               >
                 <template #bodyCell="{ column, record }">
-                  <template v-if="column.key === 'note'">{{ record.note || '—' }}</template>
-                  <template v-else-if="column.key === 'op'">
-                    <a-button size="small" type="link" @click="openVerifyModal(record, true)">改成映射到…</a-button>
+                  <template v-if="column.key === 'kind'">
+                    <a-tag v-if="record.capabilityKnown" color="orange">已有能力，这一趟重复声明</a-tag>
+                    <a-tag v-else color="red">白名单里还没有</a-tag>
                   </template>
+                  <template v-else-if="column.key === 'paths'">
+                    {{ record.paths.join('、') || '—' }}（{{ record.paths.length }} 页 / {{ record.rowCount }} 条）
+                  </template>
+                  <template v-else-if="column.key === 'note'">{{ record.note || '—' }}</template>
                 </template>
                 <template #emptyText>
                   <a-empty description="没有对不上的区块" />
@@ -616,7 +620,8 @@ import {
   type ReferencePage,
   type ReferenceSite,
   type ReferenceVocabularies,
-  type TemplatePackage
+  type TemplatePackage,
+  type UnmatchedGroup
 } from '../../api/referenceSites'
 import { portalPagesApi, type PortalBlockMeta } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'
@@ -715,8 +720,9 @@ const mappingColumns = [
 
 const unmatchedColumns = [
   { title: '观察到的区块', dataIndex: 'observedBlock', key: 'observedBlock', width: 200 },
-  { title: '为什么对不上', key: 'note', width: 380 },
-  { title: '操作', key: 'op', width: 140 }
+  { title: '定性', key: 'kind', width: 200 },
+  { title: '出现在哪几页', key: 'paths', width: 260 },
+  { title: '为什么对不上', key: 'note', width: 320 }
 ]
 
 // ---------------- 详情 ----------------
@@ -730,8 +736,23 @@ const pagesLoading = ref(false)
 const shotUrls = ref<Record<number, string>>({})
 const mappings = ref<ReferenceMapping[]>([])
 const mappingsLoading = ref(false)
-const unmatched = ref<ReferenceMapping[]>([])
+const unmatchedGroups = ref<UnmatchedGroup[]>([])
 const unmatchedLoading = ref(false)
+/** 真缺口类数：白名单里还没有的那些。标签页上的数字只用它，不用行数也不用归并后的总类数 */
+const unmatchedTrueGapCount = computed(
+  () => unmatchedGroups.value.filter(group => !group.capabilityKnown).length
+)
+/** 归并前的行数，只用来把「按条数会夸大多少」说给人听，不上任何标题 */
+const unmatchedRowCount = computed(() =>
+  unmatchedGroups.value.reduce((sum, group) => sum + group.rowCount, 0)
+)
+const unmatchedExplainText = computed(
+  () =>
+    `为什么按类不按条：这一趟有 ${unmatchedRowCount.value} 条对不上，归并成 ${unmatchedGroups.value.length} 类——` +
+    '页头页脚这类站级公共格子几乎每页都会被重新看一遍，按条报数就会把「缺 ' +
+    `${unmatchedTrueGapCount.value} 类」说成「缺 ${unmatchedRowCount.value} 类」，那是新增区块时最贵的一种误判。` +
+    '逐条改映射在「区块映射」那一栏，那里每条都在。'
+)
 
 const crawling = ref(false)
 const discovering = ref(false)
@@ -1088,7 +1109,7 @@ async function openTask(id: number) {
   task.value = null
   pages.value = []
   mappings.value = []
-  unmatched.value = []
+  unmatchedGroups.value = []
   shotUrls.value = {}
   selectedPageIds.value = []
   templatePackage.value = null
@@ -1215,9 +1236,9 @@ async function loadMappings() {
     mappingsLoading.value = false
   }
   try {
-    unmatched.value = await portalReferenceApi.unmatched(currentId)
-  } catch (error) {
-    unmatched.value = []
+    unmatchedGroups.value = await portalReferenceApi.unmatchedGroups(currentId)
+  } catch {
+    unmatchedGroups.value = []
   } finally {
     unmatchedLoading.value = false
   }
