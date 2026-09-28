@@ -71,7 +71,7 @@ export interface ReferenceMapping {
   referencePageId: number
   tenantId?: number | null
   observedBlock: string | null
-  /** null 表示映射不上，出现在「需要新区块」的积压清单里，而不是塞进 generic 容器 */
+  /** null 表示映射不上，出现在「暂未对上现有区块」的积压清单里，而不是塞进 generic 容器 */
   mappedBlockKey: string | null
   confidence: number | null
   propsSuggestionJson: string | null
@@ -83,7 +83,7 @@ export interface ReferenceMapping {
 }
 
 /**
- * 「需要新区块」积压清单的归并视图一行（后端 `/unmatched-groups`）：同一个观察区块只有一条。
+ * 「暂未对上现有区块」积压清单的归并视图一行（后端 `/unmatched-groups`）：同一个观察区块只有一条。
  *
  * <p>为什么要有它而不是直接用 `ReferenceMapping[]`：按行显示时「47 条对不上」听着像缺 47 类能力，
  * 实际 18 行是页头页脚这类站级公共格子——模型只在第一页映射一次，其余每页各回一句「重复」。
@@ -358,7 +358,7 @@ export const portalReferenceApi = {
   mappings: (id: number) => http.get<ReferenceMapping[]>(`/portal/reference-sites/${id}/mappings`),
 
   /**
-   * 「需要新区块」的积压清单，归并后的视图：同一个观察区块只有一条，带它出现在哪几页。
+   * 「暂未对上现有区块」的积压清单，归并后的视图：同一个观察区块只有一条，带它出现在哪几页。
    *
    * 为什么界面不用 `/unmatched` 那份逐行清单：那一份是「后端事实的原始形状」，适合导出与机检；
    * 而人要看的是「我们缺几类能力」。两者差多少，2026-09-28 那趟第二家参考站实测过——47 行对不上，归并只有 5 类。

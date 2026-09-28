@@ -597,7 +597,7 @@ describe('路由清单的诚实口径', () => {
   })
 })
 
-describe('需要新区块那一栏按「类」报数，不按行', () => {
+describe('「暂未对上现有区块」那一栏按「类」报数，且不替人决定要不要新增区块', () => {
   /** 2026-09-28 第二家参考站的真实形状：11 页把页脚重复声明了 11 次，真缺口只有一类 */
   function backlog() {
     return [
@@ -621,9 +621,9 @@ describe('需要新区块那一栏按「类」报数，不按行', () => {
   function backlogTab(wrapper: any) {
     const found = wrapper
       .findAll('.tab-pane-stub')
-      .find((node: any) => (node.attributes('data-tab') || '').startsWith('需要新区块'))
+      .find((node: any) => (node.attributes('data-tab') || '').startsWith('暂未对上现有区块'))
     if (!found) {
-      throw new Error('找不到「需要新区块」那一栏')
+      throw new Error('找不到「暂未对上现有区块」那一栏')
     }
     return found
   }
@@ -631,7 +631,20 @@ describe('需要新区块那一栏按「类」报数，不按行', () => {
   it('标签页上的数字是真缺口类数：14 行对不上不等于缺 14 类', async () => {
     const wrapper = await mountView()
     await openDrawer(wrapper, task('needs_human'), undefined, backlog())
-    expect(backlogTab(wrapper).attributes('data-tab')).toBe('需要新区块（1）')
+    expect(backlogTab(wrapper).attributes('data-tab')).toBe('暂未对上现有区块（1）')
+  })
+
+  /**
+   * 2026-09-28 第三家参考站（任务 49）把这一栏的名字喊破了：清单里唯一一类是「全站菜单导航列表」，
+   * 而导航在区块白名单里已有四块。这一栏说的必须是「模型这一趟没对上」这件库外可查的事实，
+   * 不是「要新增区块」那个还没人做的决定。
+   */
+  it('这一栏只说「没对上」，不替人写下「需要新区块」那个决定', async () => {
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('needs_human'), undefined, backlog())
+    expect(backlogTab(wrapper).attributes('data-tab')).not.toContain('需要新区块')
+    expect(alerts(wrapper, 'info').join('|')).not.toContain('需要新区块')
+    expect(wrapper.text()).not.toContain('需要新区块')
   })
 
   it('归并后的总类数与真缺口分开说，逐条处置指回「区块映射」那一栏', async () => {
@@ -639,7 +652,7 @@ describe('需要新区块那一栏按「类」报数，不按行', () => {
     await openDrawer(wrapper, task('needs_human'), undefined, backlog())
     const message = alerts(wrapper, 'info').join('|')
     expect(message).toContain('归并后 2 类')
-    expect(message).toContain('其中 1 类白名单里真没有')
+    expect(message).toContain('其中 1 类这一趟没对上任何区块')
     expect(message).toContain('这一趟没再映射')
     expect(message).toContain('归并成 2 类')
     expect(message).toContain('说成「缺 14 类」')
@@ -653,7 +666,7 @@ describe('需要新区块那一栏按「类」报数，不按行', () => {
       .findAll('.row')
       .map((row: any) => row.text())
       .join('|')
-    expect(texts).toContain('白名单里还没有')
+    expect(texts).toContain('这一趟没有区块对上')
     expect(texts).toContain('已有能力，这一趟重复声明')
     expect(texts).toContain('/、/articles、/about（3 页 / 3 条）')
     expect(texts).toContain('2 页 / 11 条')

@@ -329,12 +329,12 @@
               </a-table>
             </a-tab-pane>
 
-            <a-tab-pane key="unmatched" :tab="`需要新区块（${unmatchedTrueGapCount}）`">
+            <a-tab-pane key="unmatched" :tab="`暂未对上现有区块（${unmatchedTrueGapCount}）`">
               <a-alert
                 type="info"
                 show-icon
                 style="margin-bottom: 12px"
-                :message="`对不上的观察区块归并后 ${unmatchedGroups.length} 类，其中 ${unmatchedTrueGapCount} 类白名单里真没有（其余 ${unmatchedGroups.length - unmatchedTrueGapCount} 类我们有这个能力，只是这一趟没再映射）`"
+                :message="`对不上的观察区块归并后 ${unmatchedGroups.length} 类，其中 ${unmatchedTrueGapCount} 类这一趟没对上任何区块（其余 ${unmatchedGroups.length - unmatchedTrueGapCount} 类我们有这个能力，只是这一趟没再映射）`"
                 :description="unmatchedExplainText"
               />
               <a-table
@@ -349,7 +349,7 @@
                 <template #bodyCell="{ column, record }">
                   <template v-if="column.key === 'kind'">
                     <a-tag v-if="record.capabilityKnown" color="orange">已有能力，这一趟重复声明</a-tag>
-                    <a-tag v-else color="red">白名单里还没有</a-tag>
+                    <a-tag v-else color="red">这一趟没有区块对上</a-tag>
                   </template>
                   <template v-else-if="column.key === 'paths'">
                     {{ record.paths.join('、') || '—' }}（{{ record.paths.length }} 页 / {{ record.rowCount }} 条）
@@ -565,7 +565,7 @@
           <a-input v-model:value="verifyForm.note" :maxlength="500" placeholder="例如：这一格其实是导航，白名单里的导航区块不该用它当首页主视觉" />
         </a-form-item>
         <p class="reference-site-page__muted">
-          「不认」会把这条打回「需要新区块」那张清单，不是删掉——删了以后就没人知道模型这次错了多少。
+          「不认」会把这条打回「暂未对上现有区块」那张清单，不是删掉——删了以后就没人知道模型这次错了多少。
         </p>
       </a-form>
     </a-modal>
@@ -738,7 +738,16 @@ const mappings = ref<ReferenceMapping[]>([])
 const mappingsLoading = ref(false)
 const unmatchedGroups = ref<UnmatchedGroup[]>([])
 const unmatchedLoading = ref(false)
-/** 真缺口类数：白名单里还没有的那些。标签页上的数字只用它，不用行数也不用归并后的总类数 */
+/**
+ * 真缺口类数：这一趟没对上任何区块的那些。标签页上的数字只用它，不用行数也不用归并后的总类数。
+ *
+ * <p>这一栏原来叫「需要新区块」。2026-09-28 第三家参考站（任务 49，vue3 模板）把它喊错了：
+ * 清单里只剩一类「全站菜单导航列表」，而导航在我们这边是 site-header / utility-bar /
+ * breadcrumb / site-footer 四块加栏目派生页面的能力——模型只是对不到「整页菜单」这一形，
+ * 不等于要新增一块。标签写着「需要新区块」就等于替读的人做完了决定，那是界面不许的谎报。
+ * 但清单本身必须留着：#100 补的那四类（辅助条、面包屑、参考文献、相关推荐）正是从这里长出来的，
+ * 只是「要不要新增」由人判，界面上只说「模型没对上」这一件事实。</p>
+ */
 const unmatchedTrueGapCount = computed(
   () => unmatchedGroups.value.filter(group => !group.capabilityKnown).length
 )
@@ -750,7 +759,7 @@ const unmatchedExplainText = computed(
   () =>
     `为什么按类不按条：这一趟有 ${unmatchedRowCount.value} 条对不上，归并成 ${unmatchedGroups.value.length} 类——` +
     '页头页脚这类站级公共格子几乎每页都会被重新看一遍，按条报数就会把「缺 ' +
-    `${unmatchedTrueGapCount.value} 类」说成「缺 ${unmatchedRowCount.value} 类」，那是新增区块时最贵的一种误判。` +
+    `${unmatchedTrueGapCount.value} 类」说成「缺 ${unmatchedRowCount.value} 类」，那是决定要不要新增区块时最贵的一种误判。` +
     '逐条改映射在「区块映射」那一栏，那里每条都在。'
 )
 
@@ -1456,7 +1465,7 @@ async function submitVerify() {
       note: verifyForm.note || null
     })
     verifyOpen.value = false
-    message.success(verifyAccept.value ? '这条映射已确认' : '已打回「需要新区块」')
+    message.success(verifyAccept.value ? '这条映射已确认' : '已打回「暂未对上现有区块」')
     await Promise.all([loadMappings(), loadTasks()])
     task.value = await portalReferenceApi.get(currentId)
   } catch (error) {
