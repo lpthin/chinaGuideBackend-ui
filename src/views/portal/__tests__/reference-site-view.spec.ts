@@ -487,8 +487,26 @@ describe('两步走：先列清单，勾完再抓', () => {
     expect(buttons(wrapper, '只列路由清单')).toHaveLength(1)
   })
 
-  it('勾选后按钮点名勾了几条，点下去交的是 pageIds 而不是整站重抓', async () => {
+  /** 商用 #108：失败的任务不必新建一个重做——已抓的页面与截图都还在旧任务里 */
+  it('停在「失败」的任务仍然给抓取按钮', async () => {
     const wrapper = await mountView()
+    await openDrawer(wrapper, task('failed', { errorMessage: '截图服务没起：连接被拒', finishedAt: '2026-09-28T11:00:00' }))
+
+    expect(buttons(wrapper, '开始抓取')).toHaveLength(1)
+    expect(wrapper.text()).toContain('不用新建一个重做')
+    // 失败是终态，上一趟的结束时间在这一格是有意义的（描述项的标签不在测试桩的文本里，认时间值）
+    expect(wrapper.text()).toContain('2026-09-28 11:00')
+  })
+
+  /** 重跑一趟时后端不清上一趟的结束时间；还在跑却显示着它，等于界面自己谎报「这趟结束了」 */
+  it('任务还在跑的时候不显示结束时间', async () => {
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('crawling', { pagesCrawled: 1, finishedAt: '2026-09-27T18:00:00' }))
+
+    expect(wrapper.text()).not.toContain('2026-09-27 18:00')
+  })
+
+  it('勾选后按钮点名勾了几条，点下去交的是 pageIds 而不是整站重抓', async () => {    const wrapper = await mountView()
     await openDrawer(wrapper)
     const boxes = wrapper.findAll('input[type="checkbox"]')
     await boxes[0].trigger('change')

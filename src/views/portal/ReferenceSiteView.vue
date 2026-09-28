@@ -118,7 +118,11 @@
             <a-descriptions-item label="robots.txt">{{ task.obeyRobots === false ? '不遵守' : '遵守' }}</a-descriptions-item>
             <a-descriptions-item label="创建人">{{ task.createdBy || '—' }}</a-descriptions-item>
             <a-descriptions-item label="创建时间">{{ formatDateTime(task.createdAt) }}</a-descriptions-item>
-            <a-descriptions-item label="结束时间">{{ formatDateTime(task.finishedAt) }}</a-descriptions-item>
+            <!-- 重跑一趟时后端不会清掉上一趟的结束时间（那一列只在终态写）：还在跑就别显示它，
+                 否则界面拿着上一次的结束时刻说这一趟「已经结束了」 -->
+            <a-descriptions-item v-if="!referenceIsRunning(task.status)" label="结束时间">
+              {{ formatDateTime(task.finishedAt) }}
+            </a-descriptions-item>
             <a-descriptions-item v-if="task.errorMessage" label="最近一次结果" :span="3">
               <span class="reference-site-page__error">{{ task.errorMessage }}</span>
             </a-descriptions-item>
@@ -147,6 +151,12 @@
             token 账单</b>（参考站拆解是平台自己的研发动作，V142 起由平台承担），所以预估数字只是给我们看成本，
             不是向客户收钱的报价。必须先看过预估再勾选确认这条规矩照旧。
             抓取与 AI 摄取都在后台排队执行，这里的进度是靠刷新看出来的，不是按了就算完成的。
+          </p>
+          <p class="reference-site-page__muted">
+            停在「失败」或「需人工处理」的任务<b>不用新建一个重做</b>：已抓到的页面与已上传的截图都还在这个任务里，
+            按「最近一次结果」那一栏说的补好料（起截图服务、去掉打不开的路由、或改地址），再点一次上面那两个按钮就行。
+            而「结构归纳中」「区块映射中」迟迟不动时，先确认后端有没有重启过——那一趟的执行者跟着进程一起没了，
+            界面只能等下一次启动把它收尾。
           </p>
 
           <a-alert v-if="estimate" type="info" show-icon style="margin-top: 8px" :message="estimateMessage" />
@@ -879,10 +889,13 @@ const vocabularyRows = computed(() =>
 
 /**
  * 三个动作各自能按的时机，判据全部跟后端同源：
- * requestCrawl 只认 pending → crawling，requestDiscover 只拒绝「正在抓」，addRoute 只要有个本站地址就能补。
+ * requestCrawl 认 pending 与 failed 两个来路（后者是商用 #108：截图服务没起这类失败修好之后该能原地重跑），
+ * requestDiscover 只拒绝「正在抓」，addRoute 只要有个本站地址就能补。
  * 界面自己放宽一次，就是让用户点下去才知道被拒。
  */
-const canCrawl = computed(() => task.value?.mode === 'url' && task.value?.status === 'pending')
+const canCrawl = computed(
+  () => task.value?.mode === 'url' && ['pending', 'failed'].includes(task.value?.status || '')
+)
 const canDiscover = computed(
   () => task.value?.mode === 'url' && !!task.value?.sourceUrl && task.value?.status !== 'crawling'
 )
