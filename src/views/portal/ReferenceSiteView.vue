@@ -159,7 +159,15 @@
             界面只能等下一次启动把它收尾。
           </p>
 
-          <a-alert v-if="estimate" type="info" show-icon style="margin-top: 8px" :message="estimateMessage" />
+          <!-- 后端给了 notice 就是「这一轮跑不了 / 不该跑」，用 warning 而不是 info：
+               它念的是拒绝理由，用信息色等于把闸说成提示 -->
+          <a-alert
+            v-if="estimate"
+            :type="estimate.notice ? 'warning' : 'info'"
+            show-icon
+            style="margin-top: 8px"
+            :message="estimateMessage"
+          />
           <a-alert
             v-if="referenceIsRunning(task.status)"
             type="warning"
@@ -512,8 +520,8 @@
     <a-modal
       v-model:open="analyzeOpen"
       title="确认让 AI 读这个参考站？"
-      :ok-text="confirmChecked ? '确认并开始摄取' : '请先勾选确认'"
-      :ok-button-props="{ disabled: !confirmChecked, loading: analyzing }"
+      :ok-text="estimate?.notice ? '这一轮不会受理' : confirmChecked ? '确认并开始摄取' : '请先勾选确认'"
+      :ok-button-props="{ disabled: !confirmChecked || !!estimate?.notice, loading: analyzing }"
       @ok="runAnalyze"
     >
       <p v-if="estimate">
@@ -521,8 +529,8 @@
         这一族由平台承担、<b>不计入该租户的额度</b>。
       </p>
       <p v-else class="reference-site-page__error">还没有取到预估，请先点「先估算消耗」。</p>
-      <p v-if="estimate && !estimate.aiEnabled" class="reference-site-page__error">
-        {{ estimate.notice || '参考站 AI 摄取当前未开启，确认也不会调用模型' }}
+      <p v-if="estimate && estimate.notice" class="reference-site-page__error">
+        {{ estimate.notice }}
       </p>
       <p class="reference-site-page__muted">
         这一步产出的是「观察到的结构 + 映射建议」，还要你逐条确认，最后按「生成草稿页」才会出现一份草稿；

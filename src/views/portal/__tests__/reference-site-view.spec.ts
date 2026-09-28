@@ -759,3 +759,52 @@ describe('页数上限（Spec-E §4 把 6 放宽到 12）', () => {
     expect(wrapper.text()).toContain(`1–${REFERENCE_MAX_PAGES_LIMIT}`)
   })
 })
+
+/**
+ * 成本闸（#107）的界面那一半：后端给了拒绝理由就必须看得见，而不是等按下确认再吃一个报错。
+ *
+ * <p>这条测试守的是「预估弹窗只念数字不念闸」那种假通：租户看到「预计 42 万 token，平台承担」，
+ * 旁边没有任何一句「这一轮不会受理」，他会认为按下去就能跑。</p>
+ */
+describe('成本闸的拒绝理由要念给看预估的那个人', () => {
+  it('超预算的预估用 warning 色，确认框里照原文再念一遍', async () => {
+    vi.mocked(portalReferenceApi.analyzeEstimate).mockResolvedValue({
+      referenceId: 7,
+      estimatedTokens: 210_000,
+      remainingTokens: 900_000,
+      aiEnabled: true,
+      notice: '这个任务按预估一轮要烧 420000 token，超过了单任务上限 120000 token'
+        + '（app.portal.reference.max-tokens-per-task），这一轮不会受理。少喂几页再跑。'
+    } as any)
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('analyzing'))
+    await buttons(wrapper, '先估算消耗')[0].trigger('click')
+    await flushPromises()
+
+    expect(alerts(wrapper, 'warning').join(' ')).toContain('超过了单任务上限')
+
+    await buttons(wrapper, '开始 AI 摄取')[0].trigger('click')
+    await flushPromises()
+    // 按下去也只会得到一个报错的按钮，不如把它写成不可点：按钮文案自己说清为什么是死的。
+    // 这里找的是所有弹窗的确定按钮——只有摄取那一个的 ok-text 会跟着 notice 变
+    expect(wrapper.findAll('.modal-ok').map((node: any) => node.text())).toContain('这一轮不会受理')
+    expect(portalReferenceApi.analyze).not.toHaveBeenCalled()
+  })
+
+  it('没给理由时预估还是 info：warning 只留给真的拦住了的那一次', async () => {
+    vi.mocked(portalReferenceApi.analyzeEstimate).mockResolvedValue({
+      referenceId: 7,
+      estimatedTokens: 12_000,
+      remainingTokens: 900_000,
+      aiEnabled: true,
+      notice: null
+    } as any)
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('analyzing'))
+    await buttons(wrapper, '先估算消耗')[0].trigger('click')
+    await flushPromises()
+
+    expect(alerts(wrapper, 'info').join(' ')).toContain('预计 12000 token')
+    expect(alerts(wrapper, 'warning').join(' ')).not.toContain('超过了单任务上限')
+  })
+})
