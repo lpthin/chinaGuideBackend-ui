@@ -25,7 +25,7 @@ import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
 import { formatDateTime } from '../../utils/format'
 import { PH_DASH } from '../../utils/display'
-import { campaignRunSummary, runPercent } from './geoCampaignModel'
+import { campaignRunSummary, judgeCostText, runPercent } from './geoCampaignModel'
 
 const router = useRouter()
 
@@ -193,6 +193,7 @@ onMounted(async () => {
           <div v-for="item in recentRuns" :key="item.run.id" class="geo-workbench__recent-card">
             <div class="geo-workbench__recent-head">
               <StatusTag domain="geoRun" :status="item.run.status" :label="statusLabel(item.run.status)" />
+              <StatusTag domain="geoJudgeState" :status="item.run.judgeState" :label="item.run.judgeStateLabel" />
               <span class="geo-workbench__recent-name">{{ item.campaign.name }} · 轮次 {{ item.run.id }}</span>
             </div>
             <p class="geo-workbench__recent-meta">
@@ -200,9 +201,17 @@ onMounted(async () => {
               {{ item.run.repeatTimes ?? PH_DASH }} 次 · 取到 <MeasuredCount :value="item.run.callCount" /> 次 ·
               未取到 <MeasuredCount :value="item.run.failedCallCount" /> 次 · {{ formatDateTime(item.run.finishedAt || item.run.startedAt) }}
             </p>
+            <p class="geo-workbench__recent-meta">{{ judgeCostText(item.run) }}</p>
             <p v-if="item.run.stageText" class="geo-workbench__recent-stage">{{ item.run.stageText }}</p>
             <a-progress v-if="geoRunIsInFlight(item.run.status)" :percent="runPercent(item.run)" size="small" />
+            <p v-if="item.run.stalledReason" class="geo-workbench__recent-stalled">{{ item.run.stalledReason }}</p>
+            <p v-if="item.run.judgeStalledReason" class="geo-workbench__recent-stalled">
+              {{ item.run.judgeStalledReason }}
+            </p>
             <p v-if="item.run.errorMessage" class="geo-workbench__recent-error">{{ item.run.errorMessage }}</p>
+            <p v-if="item.run.judgeErrorMessage" class="geo-workbench__recent-error">
+              {{ item.run.judgeErrorMessage }}
+            </p>
             <a-button
               v-if="item.run.status === 'SUCCEEDED' || item.run.status === 'PARTIAL'"
               size="small"
@@ -228,7 +237,8 @@ onMounted(async () => {
               {{ (record as GeoCampaign).questionCount }} 题 × {{ (record as GeoCampaign).platformCount }} 平台 ×
               {{ (record as GeoCampaign).repeatTimes }} 次
               <span class="geo-workbench__shape-estimate">
-                预估 {{ (record as GeoCampaign).costEstimateCalls }} 次 / {{ (record as GeoCampaign).costEstimateTokens }} token
+                预估提问 {{ (record as GeoCampaign).costEstimateCalls }} 次 /
+                {{ (record as GeoCampaign).costEstimateTokens }} token（判定另算，进第⑤步看两段）
               </span>
             </span>
           </template>
@@ -307,6 +317,13 @@ onMounted(async () => {
   &__recent-error {
     margin: 8px 0 0;
     color: #ff4d4f;
+    font-size: 12px;
+  }
+
+  // 「停着不动」是警告不是失败：状态词一个字没改（#108），这里只补那句出路
+  &__recent-stalled {
+    margin: 8px 0 0;
+    color: #d46b08;
     font-size: 12px;
   }
 

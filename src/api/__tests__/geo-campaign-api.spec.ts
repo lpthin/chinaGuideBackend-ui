@@ -28,7 +28,14 @@ vi.mock('../http', () => ({
   describeHttpError: (e: unknown) => String(e),
 }))
 
-import { geoCampaignApi, geoRunIsInFlight, geoRunIsSettled, GEO_QUEUE_FULL_CODE } from '../geoCampaign'
+import {
+  geoCampaignApi,
+  geoJudgeIsInFlight,
+  geoRunIsInFlight,
+  geoRunIsSettled,
+  GEO_JUDGE_QUEUE_FULL_CODE,
+  GEO_QUEUE_FULL_CODE,
+} from '../geoCampaign'
 
 function lastCall(spy: { mock: { calls: unknown[][] } }): unknown[] {
   const calls = spy.mock.calls
@@ -107,6 +114,21 @@ describe('端点形状：与后端 GeoCampaignController 逐字一致', () => {
     expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/vocabulary')
   })
 
+  it('judge 的 confirm 同样不许有默认值：判定是第二次花钱，那段路也要先看价再点头', async () => {
+    await geoCampaignApi.judge(88, false)
+    expect(httpMock.post).toHaveBeenLastCalledWith('/geo/campaign/run/88/judge', { confirm: false })
+    await geoCampaignApi.judge(88, true)
+    expect((lastCall(httpMock.post)[1] as { confirm: boolean }).confirm).toBe(true)
+  })
+
+  it('判定明细与原文溯源两条读口都是 GET：抽屉一次模型都不调，所以它不挂写码也不该发 POST', async () => {
+    await geoCampaignApi.judgments(88)
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/run/88/judgments')
+    await geoCampaignApi.answer(900)
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/answer/900')
+    expect(httpMock.post.mock.calls).toHaveLength(0)
+  })
+
   it('没有「一键全站诊断」这种批量口子：起跑只按 campaignId 一发一发来', () => {
     const risky = Object.keys(geoCampaignApi).filter((name) =>
       /runAll|batch|all|apply|publish/i.test(name),
@@ -136,6 +158,24 @@ describe('轮次状态分档（进度轮询的停表判据）', () => {
 
   it('队列满是错误码，不是状态：界面靠它给「重按不会重复扣钱」那一句', () => {
     expect(GEO_QUEUE_FULL_CODE).toBe('GEO_CAMPAIGN_QUEUE_FULL')
+    expect(GEO_JUDGE_QUEUE_FULL_CODE).toBe('GEO_JUDGE_QUEUE_FULL')
+  })
+
+  it('判定的在飞判据只认 JUDGING：null（没判过）与 FAILED（判过但失败了）是两件事', () => {
+    expect(geoJudgeIsInFlight('JUDGING')).toBe(true)
+    expect(geoJudgeIsInFlight('DONE')).toBe(false)
+    expect(geoJudgeIsInFlight('FAILED')).toBe(false)
+    expect(geoJudgeIsInFlight(null)).toBe(false)
+    expect(geoJudgeIsInFlight(undefined)).toBe(false)
+  })
+
+  it('判定词表与提问词表互不重叠：JUDGING 不是轮次状态，SUCCEEDED 也不是判定状态（§11.4 两份词表）', () => {
+    for (const state of ['JUDGING', 'DONE', 'FAILED']) {
+      expect(geoRunIsInFlight(state), `${state} 不该被当成提问在跑`).toBe(false)
+    }
+    for (const status of ['PENDING', 'RUNNING', 'SUCCEEDED', 'PARTIAL']) {
+      expect(geoJudgeIsInFlight(status), `${status} 不该被当成判定在跑`).toBe(false)
+    }
   })
 })
 
@@ -169,6 +209,7 @@ describe('I-1：P2 前端不抄第二份词表', () => {
       'CampaignRunPanel.vue',
       'GeoCampaignReportView.vue',
       'GeoCampaignWorkbenchView.vue',
+      'GeoJudgmentDrawer.vue',
       'WizardPlatformStep.vue',
       'geoCampaign.ts',
       'geoCampaignModel.ts',
@@ -180,6 +221,22 @@ describe('I-1：P2 前端不抄第二份词表', () => {
     for (const label of ['排队中', '诊断中', '部分完成', '待确认', '已确认', '已完成']) {
       expect(raw, `「${label}」来自后端词表，不该在这里出现第二份`).not.toContain(label)
     }
+  })
+
+  it('判定那一段的三份词表也不抄：状态、档位、情感都只念接口给的 label', () => {
+    const raw = allCode()
+    for (const label of ['判定中', '已判定', '判定失败', '在推荐位', '提到但未推荐', '被绕开']) {
+      expect(raw, `「${label}」来自 /vocabulary.judgeStates / prominences，界面抄一份就是下一次对不上的来源`).not.toContain(label)
+    }
+    // 情感三档的中文同理——只有那句「没有净情感」的解释例外，它不指任何一个档位
+    for (const label of ['正面档', '中立档', '负面档']) {
+      expect(raw).not.toContain(label)
+    }
+  })
+
+  it('§5 禁令：这一族文件里不出现「排名」那个词，位置只念词表给的 positionLabel', () => {
+    expect(allCode()).not.toContain('排名')
+    expect(allCode()).toContain('positionLabel')
   })
 
   it('状态英文 key 也没有被就地映射成中文常量（映射表在后端 GeoRunStatuses）', () => {

@@ -244,7 +244,7 @@ onMounted(async () => {
             <span class="geo-step-platform__plan-name">{{ item.name }}</span>
             <span class="geo-step-platform__plan-meta">
               {{ item.questionCount }} 题 × {{ item.platformCount }} 平台 × {{ item.repeatTimes }} 次 ·
-              {{ item.confirmStateLabel }} · 预估 {{ item.costEstimateCalls }} 次 / {{ item.costEstimateTokens }} token
+              {{ item.confirmStateLabel }} · 预估提问 {{ item.costEstimateCalls }} 次 / {{ item.costEstimateTokens }} token（判定另算）
             </span>
             <a-button size="small" type="link" @click="useCampaign(item)">用它</a-button>
             <a-button v-if="item.latestRun" size="small" type="link" @click="emit('view-report', item.latestRun.id)">

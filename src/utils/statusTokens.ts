@@ -22,6 +22,7 @@ export type StatusDomain =
   | 'run'
   | 'geoRun'
   | 'geoConfirmState'
+  | 'geoJudgeState'
   | 'revision'
   | 'invoice'
   | 'guestbook'
@@ -84,6 +85,20 @@ export const GEO_RUN_STATUS: Record<string, StatusMeta> = {
 export const GEO_CONFIRM_STATE: Record<string, StatusMeta> = {
   PENDING_CONFIRM: { label: 'PENDING_CONFIRM', color: 'gold' },
   CONFIRMED: { label: 'CONFIRMED', color: 'green' },
+}
+
+/**
+ * 语义判定那一段的状态（Spec-F §11.4）：这里只钉颜色，中文名唯一出处是
+ * `/geo/campaign/vocabulary.judgeStates` + 轮次行自带的 `judgeStateLabel`。
+ *
+ * 它刻意不与 {@link GEO_RUN_STATUS} 合并：那五个词说的是【提问】花的钱，这三个词说的是【判定】
+ * 花的钱，两轮可以同时成立（「提问已完成、判定还在跑」）。合并就是把报告上那些空格说成已经跑完。
+ * 色值也跟提问那一族走：进行中蓝、完成绿、失败红，眼睛在同一屏里读到同一个约定。
+ */
+export const GEO_JUDGE_STATE: Record<string, StatusMeta> = {
+  JUDGING: { label: 'JUDGING', color: 'blue' },
+  DONE: { label: 'DONE', color: 'green' },
+  FAILED: { label: 'FAILED', color: 'red' },
 }
 
 /**
@@ -165,6 +180,7 @@ const TABLES: Record<StatusDomain, Record<string, StatusMeta>> = {
   run: RUN_STATUS,
   geoRun: GEO_RUN_STATUS,
   geoConfirmState: GEO_CONFIRM_STATE,
+  geoJudgeState: GEO_JUDGE_STATE,
   revision: REVISION_STATUS,
   invoice: INVOICE_STATUS,
   guestbook: GUESTBOOK_STATUS,
@@ -186,7 +202,11 @@ export type { ArticleStatus, QueueStatus, JobStatus }
  * 空值 → label '-'（不是 '—'，各页今天显示的就是 ASCII 横杠）；未知状态原样显示、default 色。
  */
 export function statusMeta(domain: StatusDomain, status?: string | null, labelOverride?: string | null): StatusMeta {
-  if (!status) return { label: '-', color: 'default' }
+  if (!status) {
+    // 没状态但后端给了中文名（判定那一段的 null = 「未判定」，是一个真语义不是缺值）时念那句话，
+    // 没给才落到 '-'——原样显示状态码这一条兜底不许变
+    return labelOverride ? { label: labelOverride, color: 'default' } : { label: '-', color: 'default' }
+  }
   const table = TABLES[domain]
   const hit = table[status] ?? table[status.toLowerCase()] ?? table[status.toUpperCase()]
   const base = hit ?? { label: status, color: 'default' }

@@ -5,7 +5,14 @@
  * 视图与用例认的是同一份。这里只放「怎么把接口给的数说成人话」，不放任何指标口径句子——
  * 分母口径那一句跟着数据走（每行自带 `definition`），页面再抄一份就是下一次对不上的来源（§9.2）。
  */
-import { geoRunIsInFlight, type GeoEstimate, type GeoRun } from '../../api/geoCampaign'
+import {
+  geoJudgeIsInFlight,
+  geoRunIsInFlight,
+  geoRunIsSettled,
+  type GeoEstimate,
+  type GeoMetricRow,
+  type GeoRun,
+} from '../../api/geoCampaign'
 import { formatPercent } from '../../utils/format'
 import { PH_DASH, PH_NOT_MEASURED } from '../../utils/display'
 
@@ -39,18 +46,40 @@ function toNumber(value: number | string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** 预估那三行（§10-3）：次数 / token / 耗时，一个数都不自己乘出来——乘积是后端算的 */
+/**
+ * 预估那几行（§10-3 + §11.4 两段式）：提问与判定<b>各归各的账</b>，所以各占自己的两行。
+ *
+ * 这里刻意不自己乘：`callCount / judgeCallCount / total*` 全是后端 `priceOf` 给的数，
+ * 前端做一次乘法就是第二个真相来源。也把两段合成一行「预计 token 60000」——那正是
+ * §11.4 反对的形状：判定第二段花多少钱必须看得见它是单独一笔，否则「我先只跑提问」
+ * 就变成了替用户偷偷多点一次模型。
+ */
 export function estimateLines(estimate: GeoEstimate): Array<{ label: string; value: string; note: string }> {
   return [
     {
-      label: '调用次数',
+      label: '提问 · 调用次数',
       value: `${estimate.callCount} 次`,
       note: `${estimate.questionCount} 题 × ${estimate.platformCount} 个平台 × 每题重复 ${estimate.repeatTimes} 次`,
     },
     {
-      label: '预计 token',
+      label: '提问 · 预计 token',
       value: `${estimate.estimatedTokens}`,
       note: '按题面长度与单次输出上限估的，实际以这一轮真跑的数为准',
+    },
+    {
+      label: '判定 · 调用次数',
+      value: `${estimate.judgeCallCount} 次`,
+      note: '一条成功回答送进模型一次，一次把本品牌与勾选竞品全判了；这一轮一条回答都没取到时它是 0',
+    },
+    {
+      label: '判定 · 预计 token',
+      value: `${estimate.judgeEstimatedTokens}`,
+      note: '推荐位与情感三档要的是语义判定，不是后处理，所以它单独记一笔（AI_GEO_CAMPAIGN_JUDGE）',
+    },
+    {
+      label: '两段合计',
+      value: `${estimate.totalCallCount} 次 / ${estimate.totalEstimatedTokens} token`,
+      note: '合计只是给你看总价；点「确认并开始诊断」只花提问那一段，判定要另外点头',
     },
     {
       label: '预计耗时',
@@ -107,6 +136,115 @@ export function liveRunOf(runs: GeoRun[]): GeoRun | null {
   return runs.find((run) => geoRunIsInFlight(run.status) && !run.stalledReason) ?? null
 }
 
+/** 提问那一段跑完了没有（判定只有在它跑完之后才有的东西可判） */
+function askSettled(run: GeoRun): boolean {
+  return geoRunIsSettled(run.status)
+}
+
+/**
+ * 「判定这一轮」按钮的状态，顺序逐条对着后端 `requestJudge` 的拒绝顺序（§11.4）。
+ *
+ * 三条不能省的差别：
+ * - `judgeState === 'DONE'` ⇒ 按不动并说「同一轮不原地重判」，因为覆盖掉上一版就没法按当时的判据解释了；
+ * - `JUDGING` 且没有 `judgeStalledReason` ⇒ 还在判，重按就是两次判定抢同一批回答；
+ * - `JUDGING` 但停着 ⇒ <b>放行</b>：重按只补缺的那几条（后端「只剔不删」），已判过的不重判、不重复扣钱。
+ */
+export function judgeGate(input: {
+  run: GeoRun | null
+  confirmChecked: boolean
+  submitting: boolean
+}): RunGate {
+  const run = input.run
+  if (input.submitting) return { disabled: true, text: '正在提交判定' }
+  if (!run) return { disabled: true, text: '还没有可判定的轮次' }
+  if (!askSettled(run)) return { disabled: true, text: '这一轮还在提问，先等它' }
+  if (run.judgeState === 'DONE') return { disabled: true, text: '这一轮判过了' }
+  if (geoJudgeIsInFlight(run.judgeState) && !run.judgeStalledReason) return { disabled: true, text: '正在判定，等它跑完' }
+  if ((run.callCount ?? 0) <= 0) return { disabled: true, text: '这一轮没有可判的回答' }
+  if (!input.confirmChecked) return { disabled: true, text: '请先勾选确认' }
+  return { disabled: false, text: '确认并判定这一轮' }
+}
+
+/**
+ * 判定按钮旁边那一句实话：跟 `runGate` 的放行判据同源，所以「能按」与「怎么说」不会各说一套。
+ * 停着的那一条要说清重按只补缺——那句出路是 #108 那条判据在这一屏的落点。
+ */
+export function judgeHint(run: GeoRun | null): string {
+  if (!run) return '先看一轮跑完的账，再来判定。'
+  if (!askSettled(run)) return '提问那一段还没跑完：判定要的是这一轮最终那批回答，半批判出来的推荐率没有分母可解释。'
+  if (run.judgeState === 'DONE') {
+    return `这一轮已经按提示词版本 ${run.judgePromptVersion || '（未记录）'} 判过 ${run.judgeCallCount ?? 0} 条。同一轮不原地重判：想换一套判据请新建一轮，两轮各留各的行。`
+  }
+  if (run.judgeState === 'JUDGING' && run.judgeStalledReason) {
+    return `${run.judgeStalledReason} 重按这一发只补还缺的那几条，已经判过的不会重判，也不会重复扣钱。`
+  }
+  if (run.judgeState === 'FAILED') {
+    return '上一回判定没跑成。修好模型配置或额度再按一次：这一次从头补判缺的那些，提问那一段一次都不会重跑。'
+  }
+  if ((run.callCount ?? 0) <= 0) return '这一轮库里一次成功的回答都没有，判定没有东西可判——先重跑提问那一段。'
+  return '判定是第二段花钱的动作：一条成功回答送进模型一次，一次把本品牌与勾选竞品全判了。它不会重跑提问，也不会新增轮次。'
+}
+
+export interface SentimentSegment {
+  key: string
+  label: string
+  numerator: number
+  /** 0~100 的条宽：直接对着分母算，不是把三档自己归一化（归一化会把「判不了」抹平掉） */
+  percent: number
+}
+
+export interface SentimentBar {
+  segments: SentimentSegment[]
+  denominator: number
+  /** 三档之外的那一段 = 分母 - 三档分子之和，也就是「判不了、降级成未测量」的那些 */
+  unmeasured: { count: number; percent: number } | null
+  /** 三档加起来的百分比：不足 100 正是那句诚实话的数值形态 */
+  measuredPercent: number
+}
+
+/**
+ * 情感三档那一根条（§5 口径 + §11.4 第四条）。
+ *
+ * 行的顺序与档位名都照接口给的（后端按 {@code GeoSentiments.ordered()} 排），这里不再列一份词表。
+ * 关键在 `unmeasured` 那一段：三档加起来不到 100% 时，界面上必须看得见「另有 N 条判不了」，
+ * 否则就是把模型的判据缺口画成了一次成功观测。
+ */
+export function sentimentBar(rows: GeoMetricRow[]): SentimentBar | null {
+  const tiers = rows.filter((row) => row.sentiment)
+  if (!tiers.length) return null
+  const denominator = toNumber(tiers[0]?.denominator) ?? 0
+  const segments = tiers.map((row) => {
+    const numerator = toNumber(row.numerator) ?? 0
+    return {
+      key: row.sentiment as string,
+      label: row.sentimentLabel || (row.sentiment as string),
+      numerator,
+      percent: denominator > 0 ? roundTenth((numerator / denominator) * 100) : 0,
+    }
+  })
+  const measured = segments.reduce((sum, segment) => sum + segment.numerator, 0)
+  const rest = Math.max(denominator - measured, 0)
+  return {
+    segments,
+    denominator,
+    unmeasured: rest > 0 ? { count: rest, percent: roundTenth((rest / denominator) * 100) } : null,
+    measuredPercent: denominator > 0 ? roundTenth((measured / denominator) * 100) : 0,
+  }
+}
+
+function roundTenth(value: number): number {
+  return Math.round(value * 10) / 10
+}
+
+/**
+ * 「提及率」与「推荐率」是两个数，不是一个数的两半（§11.4 第三条）。
+ * 这一句只在这里写一次，报告那一屏把它摆在两卡之间，界面别处不许把它们相加或合并成一格。
+ * 档位名（那三档叫什么）一律念接口给的 label，这里不抄——抄一遍就归不了版本。
+ */
+export const MENTION_VS_RECOMMEND_NOTE =
+  '「提及率」与「推荐率」各占一格、共用同一个分母（该平台成功拿到回答的总次数），所以这两个数永远不相加：'
+  + '提到 12 次里有 4 次是被推荐的那一档，12 已经包含 4。'
+
 /** 平台选得少于建议值时的提示：建议式，不拦（§10-2 ⑤） */
 export function platformHint(picked: number, available: number): string | null {
   if (available === 0) {
@@ -157,6 +295,55 @@ export function fractionText(numerator: number | null | undefined, denominator: 
   const d = toNumber(denominator)
   if (d === null) return PH_DASH
   return `${n} / ${d}`
+}
+
+export interface HighlightPart {
+  text: string
+  hit: boolean
+}
+
+/**
+ * 把回答原文切成「高亮段 / 普通段」交替的序列（溯源抽屉用）。
+ *
+ * 这里刻意不用 v-html：回答文本是第三方模型产出的内容，拼进 HTML 就是把不可信内容当标记解析。
+ * `needle` 是确定性匹配命中的那一段字（后端保证它在这段原文里，§11.4 的 containsVerbatim），
+ * 所以匹配走大小写敏感的直连查找即可；找不到就整段返回，界面上不留「凭空亮起来的一块」。
+ */
+export function highlightParts(text: string | null | undefined, needle: string | null | undefined): HighlightPart[] {
+  const body = text ?? ''
+  const want = (needle ?? '').trim()
+  if (!body) return []
+  if (!want) return [{ text: body, hit: false }]
+  const parts: HighlightPart[] = []
+  let cursor = 0
+  let found = body.indexOf(want)
+  while (found >= 0) {
+    if (found > cursor) parts.push({ text: body.slice(cursor, found), hit: false })
+    parts.push({ text: want, hit: true })
+    cursor = found + want.length
+    found = body.indexOf(want, cursor)
+  }
+  if (cursor < body.length) parts.push({ text: body.slice(cursor), hit: false })
+  return parts
+}
+
+/**
+ * 档位 → 色块类名后缀（界面唯一的三处色值在 CSS 里）。
+ * 认不出来的档位落 `other`：宁可画成中性灰，也不许借「正面/负面」那两色把没词表的值说成有态度。
+ */
+export function sentimentSegmentClass(key: string | null | undefined): string {
+  if (key === 'POS') return 'pos'
+  if (key === 'NEU') return 'neu'
+  if (key === 'NEG') return 'neg'
+  return 'other'
+}
+
+/** 这一轮判定那一段花掉的钱（报告头部念的那一行，两个 token 数各归各的账） */
+export function judgeCostText(run: GeoRun): string {
+  const judged = run.judgeCallCount ?? 0
+  if (judged <= 0 && !run.judgeState) return '判定那一段一次都没跑过'
+  const tokens = (run.judgePromptTokens ?? 0) + (run.judgeCompletionTokens ?? 0)
+  return `判定 ${judged} 条 · ${tokens} token${run.judgePromptVersion ? ` · 提示词版本 ${run.judgePromptVersion}` : ''}`
 }
 
 export interface CampaignDraft {

@@ -9,10 +9,12 @@ import type { GeoEstimate, GeoRun } from '../../../api/geoCampaign'
  * 预估与确认面板（Spec-F §10-3 + §6.2，P2 唯一的花钱出口）。
  *
  * §10-3 那三句判据在这里逐句钉：
- * 1. 「三行：调用次数 / 预计 token / 预计耗时」——数字只转述接口，前端不做乘法；
+ * 1. 「六行：提问两行 + 判定两行 + 合计 + 耗时」——数字只转述接口，前端不做乘法，
+ *    也不把两段合成一行的「预计 token」（那是 §11.4 反对的形状）；
  * 2. 「`estimate.notice` 存在时主按钮禁用并把理由念出来」——理由必须**原样**出现，
  *    不改写成「参数错误」，也不因为摆了 notice 就顺手摆一个能点的确认框；
  * 3. 「勾选确认才能跑」——`api.run` 只可能在勾选之后被调起来，且带的是 true；
+ *    而这一发点的只是【提问那一段】，判定要另外点头（§6.2 两段式）；
  * 4. 「同一计划已经有一轮在跑 ⇒ 第二发起不来」（#125）——按钮文字念的是在等谁，
  *    而被判定为「停着」的那一条不算在飞，否则一条死行会把这个计划永久锁死。
  *
@@ -93,6 +95,10 @@ function estimate(overrides: Partial<GeoEstimate> = {}): GeoEstimate {
     campaignEnabled: true,
     tenantBearsCost: true,
     notice: null,
+    judgeCallCount: 30,
+    judgeEstimatedTokens: 18000,
+    totalCallCount: 60,
+    totalEstimatedTokens: 60000,
     ...overrides,
   }
 }
@@ -118,6 +124,14 @@ function run(overrides: Partial<GeoRun> = {}): GeoRun {
     completionTokens: 800,
     errorMessage: null,
     stalledReason: null,
+    judgeState: null,
+    judgeStateLabel: '未判定',
+    judgeCallCount: null,
+    judgePromptTokens: null,
+    judgeCompletionTokens: null,
+    judgePromptVersion: null,
+    judgeErrorMessage: null,
+    judgeStalledReason: null,
     startedAt: '2026-09-29T10:00:00',
     finishedAt: '2026-09-29T10:06:00',
     createdBy: 'admin',
@@ -166,7 +180,7 @@ beforeEach(() => {
   vi.mocked(geoCampaignApi.run).mockResolvedValue(run() as never)
 })
 
-describe('先看价，再点头（§10-3 三行 + 两段式）', () => {
+describe('先看价，再点头（§10-3 六行 + 两段式）', () => {
   it('没取预估时主按钮是死的，说的是「请先看预估」，也不摆确认框', async () => {
     const wrapper = await mountPanel()
     expect(primaryButton(wrapper).attributes('disabled')).toBeDefined()
@@ -185,17 +199,24 @@ describe('先看价，再点头（§10-3 三行 + 两段式）', () => {
     expect(geoCampaignApi.run).not.toHaveBeenCalled()
   })
 
-  it('预估到手：三行数字原样转述接口，乘积不自己算', async () => {
+  it('预估到手：六行数字原样转述接口，乘积不自己算，两段也不合成一行', async () => {
     vi.mocked(geoCampaignApi.estimate).mockResolvedValue(estimate({ callCount: 31 }) as never)
     const wrapper = await mountPanel()
     await buttonsByText(wrapper, '先估算这一轮')[0].trigger('click')
     await flushPromises()
     const rows = wrapper.findAll('.geo-run-panel__estimate tbody tr')
-    expect(rows).toHaveLength(3)
+    expect(rows).toHaveLength(6)
     expect(rows.map((row: any) => row.text()).join('\n')).toContain('31 次')
     expect(rows[0].text()).toContain('5 题 × 2 个平台 × 每题重复 3 次')
     expect(rows[1].text()).toContain('42000')
-    expect(rows[2].text()).toContain('约 6 分钟')
+    // 判定那一段单独两行：合起来写「预计 token 60000」就等于把第二次花钱藏进第一次的账里
+    expect(rows[2].text()).toContain('判定 · 调用次数')
+    expect(rows[2].text()).toContain('30 次')
+    expect(rows[3].text()).toContain('18000')
+    expect(rows[4].text()).toContain('60 次 / 60000 token')
+    // 合计那句必须同时说清「这一发只花提问那一段」，否则六行读起来像一次付款
+    expect(rows[4].text()).toContain('只花提问那一段')
+    expect(rows[5].text()).toContain('约 6 分钟')
     // 计费方向跟着 tenantBearsCost 走（true = 扣本租户额度并报名剩余）
     expect(wrapper.find('.geo-run-panel__billing').text()).toContain('计入本租户额度')
     expect(wrapper.find('.geo-run-panel__billing').text()).toContain('900000')
@@ -216,13 +237,16 @@ describe('先看价，再点头（§10-3 三行 + 两段式）', () => {
     const wrapper = await mountPanel()
     await buttonsByText(wrapper, '先估算这一轮')[0].trigger('click')
     await flushPromises()
-    // 确认框那句得把次数念出来：勾的是「30 次」，不是一个抽象的同意
-    expect(wrapper.find('.check-text').text()).toContain('调用模型 30 次')
+    // 确认框那句得把次数念出来：勾的是「提问 30 次」，不是一个抽象的同意
+    expect(wrapper.find('.check-text').text()).toContain('调用模型提问 30 次')
     await tickConfirm(wrapper)
     expect(primaryButton(wrapper).attributes('disabled')).toBeUndefined()
     await primaryButton(wrapper).trigger('click')
     await flushPromises()
     expect(geoCampaignApi.run).toHaveBeenCalledWith(12, true)
+    // 两段式：这一发点下去只花提问那一段，判定（推荐位与情感三档）是第二次点头
+    expect(wrapper.find('.geo-run-panel__confirm-note').text()).toContain('判定')
+    expect(wrapper.find('.geo-run-panel__confirm-note').text()).toContain('另一次点头')
   })
 
   it('重取一次预估就把勾选清零：留着它等于替一个没看过的数字签字', async () => {
@@ -293,6 +317,48 @@ describe('轮次那一排：状态中文只来自词表', () => {
     await buttonsByText(withoutVocab, '刷新轮次')[0].trigger('click')
     await flushPromises()
     expect(withoutVocab.find('.tag-stub').text()).toBe('偏了')
+  })
+
+  it('提问与判定是两份词表、两个标签：判定的中文只来自接口的 judgeStateLabel（§11.4）', async () => {
+    vi.mocked(geoCampaignApi.runs).mockResolvedValue([
+      run({
+        status: 'SUCCEEDED', judgeState: 'JUDGING', judgeStateLabel: '判定中',
+        judgeCallCount: 12, judgePromptTokens: 3000, judgeCompletionTokens: 400,
+      }),
+    ] as never)
+    const wrapper = await mountPanel({ runStatusLabels: { SUCCEEDED: '已完成' } })
+    await buttonsByText(wrapper, '刷新轮次')[0].trigger('click')
+    await flushPromises()
+    const tags = wrapper.findAll('.tag-stub')
+    expect(tags[0].text()).toBe('已完成')
+    expect(tags[1].text()).toBe('判定中')
+    // 两段的账各念各的，不合成一个「本轮 token」
+    const meta = wrapper.find('.geo-run-panel__run-meta').text()
+    expect(meta).toContain('2000 + 800 token')
+    expect(meta).toContain('判定 12 条 3400 token')
+  })
+
+  it('判定停着不动与判定失败各念各的：一个补一句出路，一个念后端那句原因（#108）', async () => {
+    vi.mocked(geoCampaignApi.runs).mockResolvedValue([
+      run({
+        status: 'PARTIAL', judgeState: 'JUDGING', judgeStateLabel: '判定中',
+        judgeStalledReason: '判定已经 18 分钟没有新进度，只补还缺的那几条。',
+      }),
+    ] as never)
+    const wrapper = await mountPanel({ runStatusLabels: { PARTIAL: '部分完成' } })
+    await buttonsByText(wrapper, '刷新轮次')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.geo-run-panel__run-stalled').text()).toContain('18 分钟没有新进度')
+    // 状态词还是词表给的那一个：卡住不改状态
+    expect(wrapper.findAll('.tag-stub')[0].text()).toBe('部分完成')
+
+    vi.mocked(geoCampaignApi.runs).mockResolvedValue([
+      run({ status: 'SUCCEEDED', judgeState: 'FAILED', judgeStateLabel: '判定失败', judgeErrorMessage: '默认对话模型那一行已经被停用。' }) as never,
+    ] as never)
+    const failed = await mountPanel()
+    await buttonsByText(failed, '刷新轮次')[0].trigger('click')
+    await flushPromises()
+    expect(failed.find('.geo-run-panel__run-error').text()).toContain('默认对话模型那一行已经被停用')
   })
 
   it('跑完的那一轮给「看报告」并按 id 跳过去，跑挂的那一轮不给（报告页没有账可翻）', async () => {

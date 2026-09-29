@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  MENTION_VS_RECOMMEND_NOTE,
   REPEAT_MAX,
   REPEAT_MIN,
   SUGGESTED_PLATFORM_MIN,
@@ -11,14 +12,20 @@ import {
   formatInterval,
   formatRate,
   gapLines,
+  highlightParts,
+  judgeCostText,
+  judgeGate,
+  judgeHint,
   liveRunOf,
   parseWizardState,
   platformHint,
   runGate,
   runPercent,
+  sentimentBar,
+  sentimentSegmentClass,
   wizardStateJson,
 } from '../geoCampaignModel'
-import type { GeoEstimate, GeoRun } from '../../../api/geoCampaign'
+import type { GeoEstimate, GeoMetricRow, GeoRun } from '../../../api/geoCampaign'
 import { PH_DASH, PH_NOT_MEASURED } from '../../../utils/display'
 
 /**
@@ -39,6 +46,10 @@ function estimate(overrides: Partial<GeoEstimate> = {}): GeoEstimate {
     campaignEnabled: true,
     tenantBearsCost: true,
     notice: null,
+    judgeCallCount: 30,
+    judgeEstimatedTokens: 18000,
+    totalCallCount: 60,
+    totalEstimatedTokens: 60000,
     ...overrides,
   }
 }
@@ -64,6 +75,14 @@ function run(overrides: Partial<GeoRun> = {}): GeoRun {
     completionTokens: 800,
     errorMessage: null,
     stalledReason: null,
+    judgeState: null,
+    judgeStateLabel: '未判定',
+    judgeCallCount: null,
+    judgePromptTokens: null,
+    judgeCompletionTokens: null,
+    judgePromptVersion: null,
+    judgeErrorMessage: null,
+    judgeStalledReason: null,
     startedAt: '2026-09-29T10:00:00',
     finishedAt: '2026-09-29T10:06:00',
     createdBy: 'admin',
@@ -144,19 +163,223 @@ describe('liveRunOf：哪一轮算「真的在跑」（#125 的判据，跟后�
   })
 })
 
-describe('预估那三行（§10-3）', () => {
-  it('正好三行：调用次数 / 预计 token / 预计耗时，乘积原样念后端的数', () => {
+describe('预估那六行：提问与判定各归各的账（§10-3 + §11.4 两段式）', () => {
+  it('提问两行、判定两行、合计一行、耗时一行，数字原样念后端的', () => {
     const lines = estimateLines(estimate())
-    expect(lines.map((line) => line.label)).toEqual(['调用次数', '预计 token', '预计耗时'])
+    expect(lines.map((line) => line.label)).toEqual([
+      '提问 · 调用次数',
+      '提问 · 预计 token',
+      '判定 · 调用次数',
+      '判定 · 预计 token',
+      '两段合计',
+      '预计耗时',
+    ])
     expect(lines[0].value).toBe('30 次')
     expect(lines[0].note).toBe('5 题 × 2 个平台 × 每题重复 3 次')
-    expect(lines[1].value).toBe('42000')
-    expect(lines[2].value).toBe('约 6 分钟')
+    expect(lines[2].value).toBe('30 次')
+    expect(lines[3].value).toBe('18000')
+    expect(lines[4].value).toBe('60 次 / 60000 token')
+    expect(lines[5].value).toBe('约 6 分钟')
   })
 
   it('前端不自己重算乘积：接口给 30 就念 30，哪怕 5×2×3 看着也是 30', () => {
     const lines = estimateLines(estimate({ callCount: 31 }))
     expect(lines[0].value).toBe('31 次')
+  })
+
+  it('合计用的是接口的 total*，不是前端把两段加出来的（加一遍就有第二份账）', () => {
+    const lines = estimateLines(estimate({ callCount: 30, judgeCallCount: 30, totalCallCount: 61, totalEstimatedTokens: 999 }))
+    expect(lines[4].value).toBe('61 次 / 999 token')
+  })
+
+  it('判定那一行自己说清「一条回答判一次、判全部主体」，也说不成功回答时是 0', () => {
+    const lines = estimateLines(estimate({ judgeCallCount: 0 }))
+    expect(lines[2].note).toContain('一条成功回答送进模型一次')
+    expect(lines[2].value).toBe('0 次')
+  })
+
+  it('勾选确认那一发只提提问：合计那行自己写明判定要另外点头', () => {
+    const lines = estimateLines(estimate())
+    expect(lines[4].note).toContain('点「确认并开始诊断」只花提问那一段')
+  })
+})
+
+describe('judgeGate：判定这一发的六道闸，顺序对着后端 requestJudge（§11.4）', () => {
+  it('提问还在跑 → 按不动，说的是「这一轮还在提问」而不是「参数错误」', () => {
+    const gated = judgeGate({ run: run({ status: 'RUNNING', judgeState: null }), confirmChecked: true, submitting: false })
+    expect(gated).toEqual({ disabled: true, text: '这一轮还在提问，先等它' })
+  })
+
+  it('已经判过 → 按不动，按钮那句说的是「不重判」这条纪律', () => {
+    const gated = judgeGate({ run: run({ judgeState: 'DONE', judgeCallCount: 30 }), confirmChecked: true, submitting: false })
+    expect(gated.disabled).toBe(true)
+    expect(gated.text).toBe('这一轮判过了')
+  })
+
+  it('正在判定且没停着 → 按不动：两次判定抢同一批回答，后那一笔钱不在预估里', () => {
+    const gated = judgeGate({ run: run({ judgeState: 'JUDGING', judgeCallCount: 8 }), confirmChecked: true, submitting: false })
+    expect(gated).toEqual({ disabled: true, text: '正在判定，等它跑完' })
+  })
+
+  it('判定停着不动的那一轮 → 放行，重按只补缺（出路跟着判据走，#108）', () => {
+    const stalled = run({ judgeState: 'JUDGING', judgeCallCount: 8, judgeStalledReason: '这一轮判定已经 18 分钟没有新进度' })
+    expect(judgeGate({ run: stalled, confirmChecked: true, submitting: false }))
+      .toEqual({ disabled: false, text: '确认并判定这一轮' })
+    expect(judgeHint(stalled)).toContain('只补还缺的那几条')
+    expect(judgeHint(stalled)).toContain('18 分钟没有新进度')
+  })
+
+  it('一次成功回答都没取到 → 按不动，说的是「没有可判的回答」', () => {
+    const gated = judgeGate({ run: run({ callCount: 0 }), confirmChecked: true, submitting: false })
+    expect(gated).toEqual({ disabled: true, text: '这一轮没有可判的回答' })
+    expect(judgeHint(run({ callCount: 0 }))).toContain('先重跑提问')
+  })
+
+  it('没勾确认 → 按不动：判定是第二次花钱，勾选就是它那道闸', () => {
+    expect(judgeGate({ run: run(), confirmChecked: false, submitting: false }))
+      .toEqual({ disabled: true, text: '请先勾选确认' })
+  })
+
+  it('全过才放行：文字是「确认并判定这一轮」', () => {
+    expect(judgeGate({ run: run(), confirmChecked: true, submitting: false }))
+      .toEqual({ disabled: false, text: '确认并判定这一轮' })
+  })
+
+  it('轮次为 null 时不假装能按', () => {
+    expect(judgeGate({ run: null, confirmChecked: true, submitting: false }).text).toBe('还没有可判定的轮次')
+    expect(judgeGate({ run: run(), confirmChecked: true, submitting: true }).text).toBe('正在提交判定')
+  })
+
+  it('上一次判定失败过 → 放行并说清「从头补判缺的那些，提问一次都不重跑」', () => {
+    const failed = run({ judgeState: 'FAILED', judgeErrorMessage: '默认对话模型不可用' })
+    expect(judgeGate({ run: failed, confirmChecked: true, submitting: false }).disabled).toBe(false)
+    expect(judgeHint(failed)).toContain('从头补判')
+    // 「先重跑提问」是另一条路（库里没回答时）的说法，判定失败不该把人支去重跑第一段
+    expect(judgeHint(failed)).not.toContain('先重跑提问')
+  })
+})
+
+describe('judgeCostText：判定那一段的钱单独一行（两段各记各的）', () => {
+  it('判过之后条数与 token 都在，并带上提示词版本', () => {
+    expect(judgeCostText(run({ judgeState: 'DONE', judgeCallCount: 30, judgePromptTokens: 900, judgeCompletionTokens: 210, judgePromptVersion: 'geo-judge-v1' })))
+      .toBe('判定 30 条 · 1110 token · 提示词版本 geo-judge-v1')
+  })
+
+  it('从没判过时说「一次都没跑过」，不报一个 0 token 装作判过了', () => {
+    expect(judgeCostText(run())).toBe('判定那一段一次都没跑过')
+  })
+})
+
+function sentimentRow(overrides: Partial<GeoMetricRow> = {}): GeoMetricRow {
+  return {
+    id: Math.floor(Math.random() * 100000),
+    scope: 'BRAND',
+    subject: '纳欣口腔',
+    modelConfigId: 4,
+    modelLabel: 'DeepSeek',
+    metric: 'sentiment_share',
+    metricLabel: '情感占比',
+    definition: '该档情感的回答数 ÷ 提到本品牌的回答数。每一档都要带判定理由与原文引句，缺任一不进统计',
+    numerator: 3,
+    denominator: 12,
+    value: 0.25,
+    ciLow: null,
+    ciHigh: null,
+    computedAt: '2026-09-29T10:20:00',
+    sentiment: 'POS',
+    sentimentLabel: '正面',
+    notMeasuredCount: 2,
+    judgePromptVersion: 'geo-judge-v1',
+    ...overrides,
+  }
+}
+
+function tiers(nums: [number, number, number], denominator = 12): GeoMetricRow[] {
+  const keys = ['POS', 'NEU', 'NEG'] as const
+  const labels = ['正面', '中立', '负面']
+  return keys.map((key, index) => sentimentRow({
+    sentiment: key,
+    sentimentLabel: labels[index],
+    numerator: nums[index],
+    denominator,
+    value: denominator > 0 ? nums[index] / denominator : null,
+  }))
+}
+
+describe('sentimentBar：三档之外那一段必须看得见（§11.4 第四道校验的界面形态）', () => {
+  it('三档各占一段，宽度对着分母算，不是把三档自己归一化', () => {
+    const bar = sentimentBar(tiers([6, 3, 1]))
+    expect(bar?.denominator).toBe(12)
+    expect(bar?.segments.map((segment) => [segment.key, segment.percent])).toEqual([['POS', 50], ['NEU', 25], ['NEG', 8.3]])
+    expect(bar?.measuredPercent).toBe(83.3)
+    expect(bar?.unmeasured).toEqual({ count: 2, percent: 16.7 })
+  })
+
+  it('判得一条不漏时不摆「未测量」那一段：零缺口写成有缺口也是谎报', () => {
+    const bar = sentimentBar(tiers([6, 3, 3]))
+    expect(bar?.unmeasured).toBeNull()
+    expect(bar?.measuredPercent).toBe(100)
+  })
+
+  it('档位名与顺序都跟着接口走：这里不列第二份词表', () => {
+    const bar = sentimentBar(tiers([1, 1, 1]))
+    expect(bar?.segments.map((segment) => segment.label)).toEqual(['正面', '中立', '负面'])
+    const shuffled = sentimentBar(tiers([1, 1, 1]).reverse())
+    expect(shuffled?.segments.map((segment) => segment.key)).toEqual(['NEG', 'NEU', 'POS'])
+  })
+
+  it('分母为 0（一条都没提到本品牌）时不除零：百分比 0、不摆未测量段', () => {
+    const bar = sentimentBar(tiers([0, 0, 0], 0))
+    expect(bar?.segments.every((segment) => segment.percent === 0)).toBe(true)
+    expect(bar?.unmeasured).toBeNull()
+    expect(bar?.measuredPercent).toBe(0)
+  })
+
+  it('没有带档位的行（这一轮没判过）返回 null，界面走「未取到」那一态', () => {
+    expect(sentimentBar([sentimentRow({ sentiment: null, sentimentLabel: null })])).toBeNull()
+    expect(sentimentBar([])).toBeNull()
+  })
+
+  it('认不出来的档位落到 other 那档灰，不借正面/负面那两色', () => {
+    expect(sentimentSegmentClass('POS')).toBe('pos')
+    expect(sentimentSegmentClass('NEU')).toBe('neu')
+    expect(sentimentSegmentClass('NEG')).toBe('neg')
+    expect(sentimentSegmentClass('MIXED')).toBe('other')
+    expect(sentimentSegmentClass(null)).toBe('other')
+  })
+})
+
+describe('「提到」与「在推荐位」这两个数：各占一格、永不相加（§11.4 第三条）', () => {
+  it('那句话就写在这里，说明的是包含关系而不是两笔观测', () => {
+    expect(MENTION_VS_RECOMMEND_NOTE).toContain('永远不相加')
+    expect(MENTION_VS_RECOMMEND_NOTE).toContain('共用同一个分母')
+    expect(MENTION_VS_RECOMMEND_NOTE).toContain('12 已经包含 4')
+  })
+
+  it('这一句里没有任何相加的写法（把两个数加起来才是违规）', () => {
+    expect(MENTION_VS_RECOMMEND_NOTE).not.toMatch(/[+\-]\s*\d+\s*=\s*\d+/)
+  })
+})
+
+describe('highlightParts：原文高亮不靠 v-html（回答是模型产出的不可信内容）', () => {
+  it('命中段切成 hit，前后各留普通段', () => {
+    expect(highlightParts('去纳欣口腔看看，纳欣口腔的医生不错', '纳欣口腔')).toEqual([
+      { text: '去', hit: false },
+      { text: '纳欣口腔', hit: true },
+      { text: '看看，', hit: false },
+      { text: '纳欣口腔', hit: true },
+      { text: '的医生不错', hit: false },
+    ])
+  })
+
+  it('needle 不在原文里时整段原样返回，界面上不凭空亮一块', () => {
+    expect(highlightParts('今天的回答里没有那家', '纳欣口腔')).toEqual([{ text: '今天的回答里没有那家', hit: false }])
+  })
+
+  it('空原文 / 空 needle 都不炸', () => {
+    expect(highlightParts(null, 'x')).toEqual([])
+    expect(highlightParts('正文', null)).toEqual([{ text: '正文', hit: false }])
+    expect(highlightParts('正文', '   ')).toEqual([{ text: '正文', hit: false }])
   })
 })
 

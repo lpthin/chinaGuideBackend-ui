@@ -174,8 +174,9 @@ defineExpose({ loadEstimate, loadRuns, reset })
     </div>
 
     <p class="geo-run-panel__note">
-      「先估算这一轮」一次模型都不调用，它只把「题数 × 平台数 × 重复次数」算出来给你看；
+      「先估算这一轮」一次模型都不调用，它只把「题数 × 平台数 × 重复次数」与判定那一段的条数算出来给你看；
       按「确认并开始诊断」才会真的向第三方模型逐个发问并消耗 token 配额。
+      表里那六行分成两段：提问与判定（推荐位、情感三档）各花各的钱，这一屏只放行提问那一段。
     </p>
 
     <StateBlock v-if="!campaignId" state="empty" title="还没有诊断计划"
@@ -205,8 +206,12 @@ defineExpose({ loadEstimate, loadRuns, reset })
 
       <div v-if="estimate && !estimate.notice" class="geo-run-panel__confirm">
         <a-checkbox v-model:checked="confirmChecked">
-          我已看过上面那三行，确认这一轮会真的调用模型 {{ estimate.callCount }} 次并消耗 token 配额
+          我已看过上面那几行，确认这一轮会真的调用模型提问 {{ estimate.callCount }} 次并消耗 token 配额
         </a-checkbox>
+        <p class="geo-run-panel__confirm-note">
+          这一发只花「提问」那一段的钱。判定（推荐位与情感三档）是第二段、另一次点头，
+          报告那一屏才按得到——它不会跟着这一轮偷偷扣。
+        </p>
       </div>
 
       <div class="geo-run-panel__actions">
@@ -236,10 +241,12 @@ defineExpose({ loadEstimate, loadRuns, reset })
           <li v-for="run in runs" :key="run.id" class="geo-run-panel__run">
             <div class="geo-run-panel__run-head">
               <StatusTag domain="geoRun" :status="run.status" :label="statusLabel(run)" />
+              <StatusTag domain="geoJudgeState" :status="run.judgeState" :label="run.judgeStateLabel" />
               <span class="geo-run-panel__run-meta">
                 第 {{ run.id }} 轮 · {{ formatDateTime(run.createdAt) }} ·
                 取到 {{ run.callCount ?? 0 }} 次、未取到 {{ run.failedCallCount ?? 0 }} 次 ·
-                {{ run.promptTokens ?? 0 }} + {{ run.completionTokens ?? 0 }} token
+                提问 {{ run.promptTokens ?? 0 }} + {{ run.completionTokens ?? 0 }} token ·
+                判定 {{ run.judgeCallCount ?? 0 }} 条 {{ (run.judgePromptTokens ?? 0) + (run.judgeCompletionTokens ?? 0) }} token
               </span>
               <a-button
                 v-if="run.status === 'SUCCEEDED' || run.status === 'PARTIAL'"
@@ -256,7 +263,9 @@ defineExpose({ loadEstimate, loadRuns, reset })
               :show-info="false"
             />
             <div v-if="run.stalledReason" class="geo-run-panel__run-stalled">{{ run.stalledReason }}</div>
+            <div v-if="run.judgeStalledReason" class="geo-run-panel__run-stalled">{{ run.judgeStalledReason }}</div>
             <div v-if="run.errorMessage" class="geo-run-panel__run-error">{{ run.errorMessage }}</div>
+            <div v-if="run.judgeErrorMessage" class="geo-run-panel__run-error">{{ run.judgeErrorMessage }}</div>
           </li>
         </ul>
       </div>
@@ -343,6 +352,12 @@ defineExpose({ loadEstimate, loadRuns, reset })
 
   &__confirm {
     margin-top: 12px;
+  }
+
+  &__confirm-note {
+    margin: 6px 0 0;
+    color: #8c8c8c;
+    font-size: 12px;
   }
 
   &__actions {

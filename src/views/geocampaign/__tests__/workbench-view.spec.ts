@@ -130,6 +130,9 @@ function campaign(overrides: Partial<GeoCampaign> = {}): GeoCampaign {
         accessChannel: 'Web API', questionCount: 5, platformCount: 2, repeatTimes: 3,
         callCount: 30, failedCallCount: 0, promptTokens: 2000, completionTokens: 800,
         errorMessage: null, stalledReason: null,
+        judgeState: null, judgeStateLabel: '未判定', judgeCallCount: null,
+        judgePromptTokens: null, judgeCompletionTokens: null, judgePromptVersion: null,
+        judgeErrorMessage: null, judgeStalledReason: null,
         startedAt: '2026-09-29T10:00:00', finishedAt: '2026-09-29T10:06:00',
         createdBy: 'admin', createdAt: '2026-09-29T10:00:00',
       }
@@ -199,9 +202,50 @@ describe('计划表：只报形状、确认态与最近一轮', () => {
     const wrapper = await mountView()
     const row = rowText(wrapper)
     expect(row).toContain('5 题 × 2 平台 × 3 次')
-    expect(row).toContain('预估 30 次 / 42000 token')
+    // `costEstimateCalls/Tokens` 是【提问那一段】的账：这里写成两段合计就是把第二次花钱说成第一次
+    expect(row).toContain('预估提问 30 次 / 42000 token')
+    expect(row).toContain('判定另算')
+    expect(row).not.toContain('预估 60')
     expect(row).toContain('待确认')
     expect(row).toContain('第 88 轮')
+  })
+
+  it('最近一轮卡上判定那一段各念各的：没判过就说没判过，判过的报条数与 token', async () => {
+    const wrapper = await mountView()
+    const recent = wrapper.find('.geo-workbench__recent')
+    expect(recent.text()).toContain('判定那一段一次都没跑过')
+    expect(recent.findAll('.tag-stub')[1].text()).toBe('未判定')
+
+    const judged = await mountView([campaign({
+      latestRun: {
+        ...campaign().latestRun!,
+        judgeState: 'DONE', judgeStateLabel: '已判定', judgeCallCount: 30,
+        judgePromptTokens: 6000, judgeCompletionTokens: 900, judgePromptVersion: 'geo-judge-v1',
+      },
+    })])
+    expect(judged.find('.geo-workbench__recent').text()).toContain('判定 30 条 · 6900 token · 提示词版本 geo-judge-v1')
+    expect(judged.findAll('.tag-stub')[1].text()).toBe('已判定')
+  })
+
+  it('判定停着与判定失败在卡上各念各的：加的是话，不是状态词（#108）', async () => {
+    const stalled = await mountView([campaign({
+      latestRun: {
+        ...campaign().latestRun!,
+        judgeState: 'JUDGING', judgeStateLabel: '判定中',
+        judgeStalledReason: '判定已经 18 分钟没有新进度，重按只补缺的那几条。',
+      },
+    })])
+    expect(stalled.find('.geo-workbench__recent-stalled').text()).toContain('18 分钟没有新进度')
+    expect(stalled.findAll('.tag-stub')[1].text()).toBe('判定中')
+
+    const failed = await mountView([campaign({
+      latestRun: {
+        ...campaign().latestRun!,
+        judgeState: 'FAILED', judgeStateLabel: '判定失败',
+        judgeErrorMessage: '默认对话模型那一行已经被停用。',
+      },
+    })])
+    expect(failed.find('.geo-workbench__recent-error').text()).toContain('默认对话模型那一行已经被停用')
   })
 
   it('整页没有总分格：列标题与正文里都不出现合并得分那一类', async () => {
