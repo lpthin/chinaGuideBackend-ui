@@ -117,9 +117,12 @@ describe('菜单从路由单源生成', () => {
     const companyLeaves = grouped.filter(leaf => leaf.label === '企业信息')
     expect(companyLeaves.length).toBe(1)
     expect(companyLeaves[0].routeName).toBe('workspace-portal-company')
-    // geoseo 的两条「假数据」路由仍在（竞品/关键词，改存量用），只是不进菜单
-    expect(MENU_EXCLUDED['workspace-geoseo-competitors']).toBeTruthy()
-    expect(MENU_EXCLUDED['workspace-geoseo-keywords']).toBeTruthy()
+    // geoseo 那两条「假数据」页已从路由表绝迹（Spec-F Q6/Q7-A）：菜单不用摘，因为地址本身没了。
+    // 排除表里也不留记录——留一条指向不存在路由的理由，本身就是第二份假真相。
+    expect(childNames).not.toContain('workspace-geoseo-competitors')
+    expect(childNames).not.toContain('workspace-geoseo-keywords')
+    expect(MENU_EXCLUDED['workspace-geoseo-competitors']).toBeUndefined()
+    expect(MENU_EXCLUDED['workspace-geoseo-keywords']).toBeUndefined()
   })
 })
 

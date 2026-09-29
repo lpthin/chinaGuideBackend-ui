@@ -202,11 +202,9 @@ export const MENU_EXCLUDED: Record<string, string> = {
   'workspace-dashboard': '它是面包屑的「首页」与登录落点，固定在菜单最上方单独渲染，不分组',
   'workspace-portal-support': '租户的「联系平台」：与内容/建站两域都不属于，固定在菜单最下方单独渲染',
   'workspace-user-profile': '从右上角头像进，不占侧边栏',
-  // 这两条是「假功能」下线：菜单里挂着就等于承诺看得到数（Spec-A §13.4 的「下线并注明」）。
-  // geoseo/company 不再列在这里——它与 geoseo/config 已在 P5 随「网站信息」合并一起删了路由与视图，
-  // 排除表里留一条指向不存在路由的记录，本身就是第二份假真相。
-  'workspace-geoseo-competitors': '排名与竞品数字全是人工抄录，不进菜单（路由留着改存量）',
-  'workspace-geoseo-keywords': '同上：没有真数据源就不摆一个看着能用的入口'
+  // geoseo/competitors 与 geoseo/keywords 那两条不再需要排除理由——路由与视图整体删除了
+  // （Spec-F Q6/Q7-A：排名与竞品数字全是人工抄录，`/keywords/{id}/check` 现在返回 501）。
+  // 排除表里留一条指向不存在路由的记录，本身就是第二份假真相（与上面 geoseo/company 同一判据）。
 }
 
 /** 菜单上下两端各固定一项：路由名写死在这里，视图只认这两个名字，不再手抄标签 */

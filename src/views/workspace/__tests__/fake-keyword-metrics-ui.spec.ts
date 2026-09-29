@@ -8,12 +8,13 @@ import { describe, it, expect } from 'vitest'
  * FakeKeywordMetricsGuardTest），但界面只要还留着 `record.searchVolume` 这种读法，
  * 将来谁把列接回别的接口就又是一条假数据通道。判据落在源码上更难绕过，也更便宜。
  *
- * 只扫这五份文件：它们正是当年那三个数和两张排名表的落脚点。
+ * 只扫这三份文件：它们正是当年那三个数的落脚点。
+ * 两张排名表的旧页（GeoSeoCompetitorView / GeoSeoKeywordView）已随 Spec-F Q6/Q7-A 整体删除，
+ * 那部分断言改成在路由表与 geoseo 视图目录上对账（见下面两条）。
  */
 
 const scanned = import.meta.glob(
-  ['../KeywordLibraryView.vue', '../ArticleGeneratePanel.vue', '../../geoseo/GeoSeoCompetitorView.vue',
-    '../../geoseo/GeoSeoKeywordView.vue', '../WorkspaceView.vue'],
+  ['../KeywordLibraryView.vue', '../ArticleGeneratePanel.vue', '../WorkspaceView.vue'],
   { eager: true, query: '?raw', import: 'default' }
 ) as Record<string, string>
 
@@ -23,6 +24,13 @@ const raw = Object.values(scanned).join('\n')
 const apiSources = import.meta.glob(['../../../api/workspace.ts', '../../../api/index.ts'],
   { eager: true, query: '?raw', import: 'default' }) as Record<string, string>
 
+/** 路由表与 geoseo 视图目录：Q6/Q7-A 删掉那两页之后，证据改在这儿对账 */
+const routerSources = import.meta.glob(['../../../router/index.ts'],
+  { eager: true, query: '?raw', import: 'default' }) as Record<string, string>
+const routerSource = Object.values(routerSources).join('\n')
+const geoseoViews = Object.keys(import.meta.glob('../../../views/geoseo/*.vue',
+  { eager: true, query: '?raw', import: 'default' }) as Record<string, string>)
+
 function textOf(path: string): string {
   const found = Object.entries(scanned).find(([key]) => key.endsWith(path))
   return found ? String(found[1]) : ''
@@ -30,7 +38,7 @@ function textOf(path: string): string {
 
 describe('I-8：搜索量/竞争度/意图价值在界面上没有任何读法', () => {
   it('扫到了文件本身（路径写错会让这条用例静默通过）', () => {
-    expect(Object.keys(scanned).length).toBe(5)
+    expect(Object.keys(scanned).length).toBe(3)
   })
 
   it('关键词列表不再读这三个字段，也不留下能读回来的形状', () => {
@@ -56,8 +64,20 @@ describe('I-8：搜索量/竞争度/意图价值在界面上没有任何读法',
     expect(textOf('ArticleGeneratePanel.vue')).not.toMatch(/\bsearchVolume\b|\bintentValue\b/)
   })
 
-  it('竞品页不再承诺系统会去抓排名', () => {
-    expect(textOf('GeoSeoCompetitorView.vue')).not.toMatch(/系统会追踪|可以查看您和竞品的排名对比/)
+  it('竞品页不再承诺系统会去抓排名，而且这一页整个绝迹（Q6-A）', () => {
+    // 以前这条只断言「那句话没出现」，页面还留着；现在连页面带路由一起删了，
+    // 断言从「不承诺」升级成「没有可以承诺的地方」。
+    expect(geoseoViews.some(path => path.endsWith('GeoSeoCompetitorView.vue'))).toBe(false)
+    expect(raw + routerSource).not.toMatch(/系统会追踪|可以查看您和竞品的排名对比/)
+  })
+
+  it('关键词排名页同样绝迹，接口也不留可调用的形状（Q7-A）', () => {
+    expect(geoseoViews.some(path => path.endsWith('GeoSeoKeywordView.vue'))).toBe(false)
+    expect(routerSource).not.toMatch(/name: 'workspace-geoseo-keywords'/)
+    expect(routerSource).not.toMatch(/name: 'workspace-geoseo-competitors'/)
+    // 后端 `/api/geoseo/keywords/{id}/check` 现在是 501 NOT_IMPLEMENTED：前端不该再有一条能打过去的路
+    expect(routerSource).not.toMatch(/path: 'geoseo\/(keywords|competitors)'/)
+    expect([...geoseoViews].map(path => path.split('/').pop()).sort()).toEqual(['GeoSeoDashboardView.vue'])
   })
 
   it('两张排名表从菜单里摘了（N10：这一期不做引用/排名监控）', () => {
@@ -66,8 +86,8 @@ describe('I-8：搜索量/竞争度/意图价值在界面上没有任何读法',
     expect(menu).not.toMatch(/key="geoseo\/keywords"/)
   })
 
-  it('手工录入那两页仍然如实写着自己是人工抄录', () => {
-    // 路由留着是为了看得见存量，但话要说白：没有数据源，就没有「一键检测」
-    expect(raw).toMatch(/手动录入|人工抄录/)
+  it('那两页当年如实写着自己是人工抄录，这句实话现在写在路由与菜单的注释里', () => {
+    // 页面删了不等于理由删了：下一个碰 geoseo 的人要能在原址读到「为什么这儿曾经有过两页假数」。
+    expect(routerSource).toMatch(/人工抄录/)
   })
 })

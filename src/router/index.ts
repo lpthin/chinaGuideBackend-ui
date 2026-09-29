@@ -93,8 +93,6 @@ const SupportTicketView = () => import('../views/portal/SupportTicketView.vue')
 // Spec-C §7 P5：站点级 SEO/GEO 那两页（GeoSeoConfigView、GeoSeoCompanyView）已并入「网站信息」
 // （portal/site-info，租户可读可写），这两个视图与其路由一起删除；企业信息只剩 portal/company 一处。
 const GeoSeoDashboardView = () => import('../views/geoseo/GeoSeoDashboardView.vue')
-const GeoSeoCompetitorView = () => import('../views/geoseo/GeoSeoCompetitorView.vue')
-const GeoSeoKeywordView = () => import('../views/geoseo/GeoSeoKeywordView.vue')
 
 // 🤖 AI 配置模块
 const ModelConfigView = () => import('../views/ai/ModelConfigView.vue')
@@ -770,20 +768,9 @@ export const routes: RouteRecordRaw[] = [
       // 原 geoseo/config（站点配置）与 geoseo/company（重名的第二处企业信息）已随 P5 并入
       // 「网站信息」（portal/site-info）并删除路由与视图：站点级 SEO/GEO 从此只有一处入口、
       // 一份真相（I-6），企业信息只剩 portal/company 一处（§7 那张「删三份重复」的表）。
-      // 这两条按 N10 从菜单里摘了，路由留着：排名与竞品数字全是人工抄录，
-      // 挂在菜单上等于我们承诺「能看到排名」。存量记录仍要有人能进来改（Spec §13.4「下线并注明」）。
-      {
-        path: 'geoseo/competitors',
-        name: 'workspace-geoseo-competitors',
-        component: GeoSeoCompetitorView,
-        meta: { title: '竞品追踪', icon: 'team', breadcrumb: ['首页', 'SEO & GEO', '竞品追踪'] }
-      },
-      {
-        path: 'geoseo/keywords',
-        name: 'workspace-geoseo-keywords',
-        component: GeoSeoKeywordView,
-        meta: { title: '关键词排名', icon: 'search', breadcrumb: ['首页', 'SEO & GEO', '关键词排名'] }
-      },
+      // geoseo/competitors 与 geoseo/keywords 这两条路由与它们的视图已整体删除（Spec-F §0.4 Q6/Q7-A）：
+      // 排名与竞品数字全是人工抄录，`/api/geoseo/keywords/{id}/check` 现在返回 501 NOT_IMPLEMENTED，
+      // 留着地址等于留一个点了没反应、还会让人以为能接上的僵尸页。表保留，界面不保留。
 
       // ===== 🤖 AI 配置中心 =====
       {

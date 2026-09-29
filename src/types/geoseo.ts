@@ -10,29 +10,15 @@ export interface GeoSeoConfig {
   geoCitationSummary: string
 }
 
-export interface GeoSeoCompetitor {
-  id?: number
-  tenantId?: number
-  domain: string
-  name: string
-  trackingKeywords: string
-  notes: string
-}
-
-export interface GeoSeoKeywordRank {
-  id?: number
-  tenantId?: number
-  keyword: string
-  searchEngine: string  // 'google' | 'baidu'
-  currentRank: number | null
-  previousRank: number | null
-  bestRank: number | null
-  trackedUrl: string
-  competitorRank: string
-  checkedAt: string | null
-}
+// 旧 GeoSeoCompetitor / GeoSeoKeywordRank 两个形状已随 geoseo/competitors、geoseo/keywords 两页删除
+// （Spec-F Q6/Q7-A）：表还在库里（存量不动），但前端不再声明「能读回来」的形状。
 
 export interface GeoDashboard {
+  /**
+   * 后端 GeoDashboardController 当场用「配置字段填没填」算出来的加权数
+   * （`:90` crawlerAccessibility = robotsTxt 非空 ? 100 : 50 那一族）。
+   * Spec-F Q2-A 定稿删总分：界面上不再渲染这两个字段，替代物是「分平台 × 分指标」矩阵 + 体检清单。
+   */
   totalScore: number
   dimensions: {
     aiCitability: number
@@ -49,11 +35,5 @@ export interface GeoDashboard {
   suggestions: Array<{
     severity: string  // 'high' | 'medium' | 'low'
     message: string
-  }>
-  rankChanges?: Array<{
-    keyword: string
-    currentRank: number
-    previousRank: number
-    searchEngine: string
   }>
 }
