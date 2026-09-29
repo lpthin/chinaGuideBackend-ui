@@ -26,6 +26,30 @@ export type StatusDomain =
   | 'supportTicket'
   | 'case'
   | 'caseReview'
+  | 'keywordStage'
+  | 'healthFinding'
+
+/**
+ * 门户页面巡检的问题状态：颜色逐字搬自 api/portalHealth.ts 的 healthStatusColor()（已删）。
+ * label 这里刻意不放中文——巡检状态的中文名只有后端 `/portal/health/options.statuses` 一份，
+ * 页面渲染时用 <StatusTag :label> 覆盖进来；这里的兜底就是原样显示状态码。
+ */
+export const HEALTH_FINDING_STATUS: Record<string, StatusMeta> = {
+  open: { label: 'open', color: 'red' },
+  resolved: { label: 'resolved', color: 'green' },
+  dismissed: { label: 'dismissed', color: 'default' },
+}
+
+/**
+ * 热词库（搜索联想）的「生产状态」：这一档不是后端状态机，是页面按两个计数派生的
+ * （有文章 > 有建议 > 新词）。三档文案与颜色逐字搬自原 stageTag()，
+ * 搬进来的目的是让颜色只有一个出处——页面不再自备第四份色表。
+ */
+export const KEYWORD_STAGE_STATUS: Record<string, StatusMeta> = {
+  articled: { label: '已生成文章', color: 'green' },
+  suggested: { label: '已有内容建议', color: 'orange' },
+  new: { label: '新词库', color: 'default' },
+}
 
 export const RUN_STATUS: Record<string, StatusMeta> = {
   // 引用探测 / 参考站摄取 / 组装任务共用的一族异步状态
@@ -88,6 +112,8 @@ const TABLES: Record<StatusDomain, Record<string, StatusMeta>> = {
   supportTicket: SUPPORT_TICKET_STATUS,
   case: CASE_STATUS,
   caseReview: CASE_REVIEW_STATUS,
+  keywordStage: KEYWORD_STAGE_STATUS,
+  healthFinding: HEALTH_FINDING_STATUS,
 }
 
 export { ARTICLE_STATUS, QUEUE_STATUS, JOB_STATUS }

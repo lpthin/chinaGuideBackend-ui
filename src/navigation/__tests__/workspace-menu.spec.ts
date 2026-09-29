@@ -267,4 +267,29 @@ describe('选中态与面包屑', () => {
     // 反向对照：不同名时父级照留，别把这条修成「永远没有父级」
     expect(menuCrumb('knowledge/dashboard', leaves).parent).toBe('知识库')
   })
+
+  it('Q10-A：路由 meta 里那批死面包屑删干净了，面包屑仍然只从菜单树算出来', () => {
+    const workspace = routes.find(route => route.name === 'workspace')
+    const children = workspace?.children ?? []
+    expect(children.length).toBeGreaterThan(0)
+    // 逐条判 meta，而不是拿源码字符串数：以后谁再往 meta 里塞 breadcrumb 就直接红
+    children.forEach(child => {
+      const meta = (child.meta ?? {}) as Record<string, unknown>
+      expect(meta, `${String(child.name)} 的 meta 又长出 breadcrumb`).not.toHaveProperty('breadcrumb')
+    })
+    // 删了那批字符串之后，界面那一行还是算得出来：当前级 = meta.title，父级 = 组表
+    expect(menuCrumb('keywords', leaves)).toEqual({ parent: '内容生产', current: '热词库（搜索联想）' })
+    expect(menuCrumb('geoseo/dashboard', leaves)).toEqual({ parent: '效果与引用', current: '总览仪表盘' })
+    // 跨组再验一条（巡检项挪过组）：父级跟着组表走，不是跟着某个写死的数组走
+    expect(menuCrumb('portal/health', leaves).parent).toBe('质量与效果（平台）')
+  })
+
+  it('Q11-A：菜单里这一项改叫「热词库（搜索联想）」，「关键词库」这个旧名不再出现在菜单', () => {
+    const keywords = grouped.find(leaf => leaf.routeName === 'workspace-keywords')
+    expect(keywords, '热词库没进菜单').toBeTruthy()
+    expect(keywords?.label).toBe('热词库（搜索联想）')
+    // 组仍是「内容生产」：只改名，没挪位置（挪组会让用户找不到它）
+    expect(keywords?.group).toBe('content')
+    expect(grouped.map(leaf => leaf.label)).not.toContain('关键词库')
+  })
 })

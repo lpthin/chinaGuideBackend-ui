@@ -1,38 +1,37 @@
 <template>
   <div class="portal-health-page">
-    <a-form layout="inline" class="portal-health-page__filter">
-      <a-form-item label="状态">
-        <a-select
-          v-model:value="filters.status"
-          style="width: 130px"
-          allow-clear
-          :options="statusOptions"
-          placeholder="待处理"
-          @change="load"
-        />
-      </a-form-item>
-      <a-form-item label="类型">
-        <a-select
-          v-model:value="filters.type"
-          style="width: 160px"
-          allow-clear
-          :options="typeOptions"
-          placeholder="全部类型"
-          @change="load"
-        />
-      </a-form-item>
-      <a-form-item v-if="siteOptions.length > 1" label="站点">
+    <filter-bar>
+      <span class="portal-health-page__filter-label">状态</span>
+      <a-select
+        v-model:value="filters.status"
+        style="width: 130px"
+        allow-clear
+        :options="statusOptions"
+        placeholder="待处理"
+        @change="load"
+      />
+      <span class="portal-health-page__filter-label">类型</span>
+      <a-select
+        v-model:value="filters.type"
+        style="width: 160px"
+        allow-clear
+        :options="typeOptions"
+        placeholder="全部类型"
+        @change="load"
+      />
+      <template v-if="siteOptions.length > 1">
+        <span class="portal-health-page__filter-label">站点</span>
         <a-select v-model:value="filters.siteId" style="width: 180px" allow-clear :options="siteOptions" @change="load" />
-      </a-form-item>
-      <a-form-item class="toolbar-actions">
+      </template>
+      <template #actions>
         <a-space>
           <a-button :loading="loading" @click="load">刷新</a-button>
           <a-popconfirm title="扫描只读页面与内容表，不会改动任何内容，确认开始？" @confirm="runScan">
             <a-button type="primary" :loading="scanning">立即巡检</a-button>
           </a-popconfirm>
         </a-space>
-      </a-form-item>
-    </a-form>
+      </template>
+    </filter-bar>
 
     <a-alert type="info" show-icon class="portal-health-page__notice">
       <template #message>
@@ -41,7 +40,9 @@
       </template>
     </a-alert>
 
-    <a-table
+    <state-block v-if="!loading && findings.length === 0" state="empty" title="没有待处理的巡检结果——还没扫过的话，点右上角「立即巡检」" />
+    <data-table
+      v-else
       :data-source="findings"
       :columns="columns"
       :loading="loading"
@@ -63,7 +64,7 @@
           <div class="portal-health-page__message">{{ record.message }}</div>
         </template>
         <template v-else-if="column.key === 'status'">
-          <a-tag :color="healthStatusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
+          <status-tag domain="healthFinding" :status="record.status" :label="statusLabel(record.status)" />
         </template>
         <template v-else-if="column.key === 'seen'">
           <div>{{ formatDateTime(record.firstSeenAt) }}</div>
@@ -77,7 +78,7 @@
           <a-button v-else-if="record.suggestionJson" size="small" type="link" @click="expand(record.id)">
             查看建议
           </a-button>
-          <span v-else class="portal-health-page__muted">—</span>
+          <span v-else class="portal-health-page__muted">{{ PH_DASH }}</span>
         </template>
         <template v-else-if="column.key === 'op'">
           <a-space size="4">
@@ -194,12 +195,7 @@
         </div>
       </template>
 
-      <template #emptyText>
-        <a-empty description="没有待处理的巡检结果——还没扫过的话，点右上角「立即巡检」">
-          <template #image><span /></template>
-        </a-empty>
-      </template>
-    </a-table>
+    </data-table>
 
     <a-modal v-model:open="dismissOpen" title="忽略这条巡检结果" :confirm-loading="saving" @ok="submitDismiss">
       <a-form layout="vertical">
@@ -225,7 +221,7 @@
           <a-descriptions-item label="这条问题">{{ activeFinding?.message }}</a-descriptions-item>
           <a-descriptions-item label="预计消耗">
             <span v-if="estimate">{{ estimate.estimatedTokens }} tokens（当前余额 {{ estimate.remainingTokens }}）</span>
-            <span v-else>—</span>
+            <span v-else>{{ PH_DASH }}</span>
           </a-descriptions-item>
           <a-descriptions-item label="产出形态">{{ outputShape }}</a-descriptions-item>
         </a-descriptions>
@@ -248,7 +244,6 @@ import { message } from 'ant-design-vue'
 import {
   HEALTH_AI_DRAFT,
   HEALTH_AI_NONE,
-  healthStatusColor,
   portalHealthApi,
   seoSuggestionOf,
   suggestionAppliedOf,
@@ -261,6 +256,11 @@ import { portalTicketsApi, type RevisionDraft } from '../../api/portalTickets'
 import DraftReviewCard from './builder/DraftReviewCard.vue'
 import { siteApi } from '../../api/workspace'
 import { formatDateTime } from '../../utils/format'
+import { PH_DASH } from '../../utils/display'
+import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
+import StateBlock from '../../components/StateBlock.vue'
+import StatusTag from '../../components/StatusTag.vue'
 import { useAuthStore } from '../../stores/auth'
 
 /**
@@ -604,8 +604,11 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.portal-health-page__filter {
-  margin-bottom: 12px;
+/* 筛选栏的排版交给 components/FilterBar.vue（原来这里是页面自写的 .portal-health-page__filter + 一个 a-form）；
+   这里只留标签那几个字的小字样式 */
+.portal-health-page__filter-label {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 13px;
 }
 
 .portal-health-page__notice {

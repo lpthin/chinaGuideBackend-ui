@@ -44,7 +44,9 @@ const ArticleEditView = () => import('../views/article/ArticleEditView.vue')
 const ArticleTemplateManageView = () => import('../views/article/ArticleTemplateManageView.vue')
 const ImageLibraryView = () => import('../views/article/ImageLibraryView.vue')
 
-// 📚 关键词库模块（原热词管理→企业关键词生产体系，统一走 keyword SOT）
+// 📚 热词库模块（原热词管理→企业关键词生产体系，统一走 keyword SOT）
+// 菜单标签叫「热词库（搜索联想）」（Spec-F Q11-A）：这一页装的是百度联想抓来的真词，
+// 与 GEO 向导里那列「核心词」（人给 AI 出的题定锚点用的）不是同一个东西，一个词只指一个东西。
 const KeywordLibraryView = () => import('../views/workspace/KeywordLibraryView.vue')
 
 // 💼 案例管理模块
@@ -133,6 +135,16 @@ const AlertChannelView = () => import('../views/workspace/AlertChannelView.vue')
 const NotificationInboxView = () => import('../views/workspace/NotificationInboxView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
+/**
+ * 路由 meta 里那 80 条 `breadcrumb: ['首页', '…', '…']` 已整体删除（Spec-F Q10-A）。
+ *
+ * 删的理由不是「太长」，而是它没有任何读者：界面上那行面包屑由
+ * `views/workspace/WorkspaceView.vue` 的 `menuCrumb(currentMenuKey, menuLeaves)` 现算，
+ * 父级取自菜单组表、当前页取自 `meta.title`——这份 breadcrumb 数组是它的第二份真相，
+ * 而且已经和菜单对不上（组改名、项挪组时没人回来改它）。
+ * 于是「面包屑」这件事只有一个来源：路由 meta.title（标签）+ navigation/workspaceMenu.ts（分组）。
+ * 用例见 navigation/__tests__/workspace-menu.spec.ts 里「面包屑仍然只从菜单树算出来」那一条。
+ */
 export const routes: RouteRecordRaw[] = [
   // 🌐 门户网站前台页面。内置页的短路径都挂同一个组件：slug 由路径换算（见 portalPath.ts），
   // 取数与渲染只此一条路。这里曾经是「灰度闸门」PortalHome——站点没开页面模型就
@@ -238,7 +250,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'dashboard',
         name: 'workspace-dashboard',
         component: DashboardView,
-        meta: { title: '工作台', icon: 'dashboard', breadcrumb: ['首页', '工作台'] }
+        meta: { title: '工作台', icon: 'dashboard' }
       },
 
       // ===== 📚 内容生产工作流 =====
@@ -246,43 +258,43 @@ export const routes: RouteRecordRaw[] = [
         path: 'keywords',
         name: 'workspace-keywords',
         component: KeywordLibraryView,
-        meta: { title: '关键词库', icon: 'database', breadcrumb: ['首页', '内容生产', '关键词库'] }
+        meta: { title: '热词库（搜索联想）', icon: 'database' }
       },
       {
         path: 'article-templates',
         name: 'workspace-article-templates',
         component: ArticleTemplateManageView,
-        meta: { title: '软文模板', icon: 'file-text', breadcrumb: ['首页', '文章管理', '软文模板'] }
+        meta: { title: '软文模板', icon: 'file-text' }
       },
       {
         path: 'cluster',
         name: 'workspace-cluster',
         component: ClusterPanel,
-        meta: { title: '聚类分析', icon: 'cluster', breadcrumb: ['首页', '内容生产', '聚类分析'] }
+        meta: { title: '聚类分析', icon: 'cluster' }
       },
       {
         path: 'article-generate',
         name: 'workspace-article-generate',
         component: ArticleGeneratePanel,
-        meta: { title: 'AI生成', icon: 'ai', breadcrumb: ['首页', '内容生产', 'AI生成'] }
+        meta: { title: 'AI生成', icon: 'ai' }
       },
       {
         path: 'review',
         name: 'workspace-review',
         component: ReviewPanel,
-        meta: { title: '审核管理', icon: 'audit', breadcrumb: ['首页', '内容生产', '审核管理'] }
+        meta: { title: '审核管理', icon: 'audit' }
       },
       {
         path: 'publish',
         name: 'workspace-publish',
         component: PublishCenterView,
-        meta: { title: '发布中心', icon: 'upload', breadcrumb: ['首页', '内容生产', '发布中心'] }
+        meta: { title: '发布中心', icon: 'upload' }
       },
       {
         path: 'publish-config',
         name: 'workspace-publish-config',
         component: PublishConfigView,
-        meta: { title: '发布配置', icon: 'setting', breadcrumb: ['首页', '内容生产', '发布配置'] }
+        meta: { title: '发布配置', icon: 'setting' }
       },
       {
         // 发布队列已合并进发布中心，保留旧地址可达
@@ -295,19 +307,19 @@ export const routes: RouteRecordRaw[] = [
         path: 'articles',
         name: 'workspace-articles',
         component: ArticlesPanel,
-        meta: { title: '文章管理', icon: 'article', breadcrumb: ['首页', '文章管理'] }
+        meta: { title: '文章管理', icon: 'article' }
       },
       {
         path: 'articles/:id',
         name: 'workspace-article-detail',
         component: ArticleDetailView,
-        meta: { title: '文章详情', hidden: true, breadcrumb: ['首页', '文章管理', '详情'] }
+        meta: { title: '文章详情', hidden: true }
       },
       {
         path: 'articles/edit/:id?',
         name: 'workspace-article-edit',
         component: ArticleEditView,
-        meta: { title: '编辑文章', hidden: true, breadcrumb: ['首页', '文章管理', '编辑'] }
+        meta: { title: '编辑文章', hidden: true }
       },
       {
         path: 'categories',
@@ -316,7 +328,7 @@ export const routes: RouteRecordRaw[] = [
         // 改名（Spec「建站重构」§2.1）：这一项管的是**文章的分类**，
         // 而「栏目」在这个系统里指的是访客侧的站点栏目（`site_section`，超管开通）。
         // 两个不同东西共用「栏目管理」这四个字，是用户说「不知道哪个入口好」的直接来源之一。
-        meta: { title: '文章分类', icon: 'category', breadcrumb: ['首页', '文章管理', '文章分类'] }
+        meta: { title: '文章分类', icon: 'category' }
       },
       {
         path: 'media/library',
@@ -326,7 +338,7 @@ export const routes: RouteRecordRaw[] = [
         // 它读的是 /api/media 那一族，素材的使用次数/标签/改动时间现在是真数据（V103 起）。
         // 权限码用库里既有且已授角色的 media:manage——后端的 /api/media 本身只吃 JWT + 租户归属，
         // 这里挂码只是不让没有码的角色看到一个点了必报错的入口。
-        meta: { title: '图片库', icon: 'image', breadcrumb: ['首页', '文章管理', '图片库'], requiredPermission: 'media:manage' }
+        meta: { title: '图片库', icon: 'image', requiredPermission: 'media:manage' }
       },
 
       // ===== 📚 知识库 =====
@@ -334,55 +346,55 @@ export const routes: RouteRecordRaw[] = [
         path: 'knowledge/dashboard',
         name: 'workspace-knowledge-dashboard',
         component: KnowledgeDashboardView,
-        meta: { title: '知识库仪表板', icon: 'dashboard', breadcrumb: ['首页', '知识库', '仪表板'] }
+        meta: { title: '知识库仪表板', icon: 'dashboard' }
       },
       {
         path: 'knowledge/search',
         name: 'workspace-knowledge-search',
         component: KnowledgeSearchView,
-        meta: { title: '知识库搜索', icon: 'search', breadcrumb: ['首页', '知识库', '搜索'] }
+        meta: { title: '知识库搜索', icon: 'search' }
       },
       {
         path: 'knowledge/documents',
         name: 'workspace-knowledge-documents',
         component: KnowledgeDocumentView,
-        meta: { title: '资料库', icon: 'folder', breadcrumb: ['首页', '知识库', '资料库'] }
+        meta: { title: '资料库', icon: 'folder' }
       },
       {
         path: 'knowledge/graph',
         name: 'workspace-knowledge-graph',
         component: KnowledgeGraphView,
-        meta: { title: '知识图谱', icon: 'apartment', breadcrumb: ['首页', '知识库', '知识图谱'] }
+        meta: { title: '知识图谱', icon: 'apartment' }
       },
       {
         path: 'knowledge/categories',
         name: 'workspace-knowledge-categories',
         component: KnowledgeCategoryView,
-        meta: { title: '知识分类', icon: 'category', breadcrumb: ['首页', '知识库', '分类管理'] }
+        meta: { title: '知识分类', icon: 'category' }
       },
       {
         path: 'knowledge/cards',
         name: 'workspace-knowledge-cards',
         component: KnowledgeCardListView,
-        meta: { title: '知识卡片', icon: 'card', breadcrumb: ['首页', '知识库', '卡片列表'] }
+        meta: { title: '知识卡片', icon: 'card' }
       },
       {
         path: 'knowledge/cards/:id',
         name: 'workspace-knowledge-card-detail',
         component: KnowledgeCardDetailView,
-        meta: { title: '卡片详情', hidden: true, breadcrumb: ['首页', '知识库', '卡片详情'] }
+        meta: { title: '卡片详情', hidden: true }
       },
       {
         path: 'knowledge/cards/edit/:id?',
         name: 'workspace-knowledge-card-edit',
         component: KnowledgeCardEditView,
-        meta: { title: '编辑卡片', hidden: true, breadcrumb: ['首页', '知识库', '编辑卡片'] }
+        meta: { title: '编辑卡片', hidden: true }
       },
       {
         path: 'knowledge/tags',
         name: 'workspace-knowledge-tags',
         component: KnowledgeTagView,
-        meta: { title: '标签管理', icon: 'tag', breadcrumb: ['首页', '知识库', '标签管理'] }
+        meta: { title: '标签管理', icon: 'tag' }
       },
 
       // ===== 💼 案例管理 =====
@@ -390,7 +402,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'case/list',
         name: 'workspace-case-list',
         component: CaseListView,
-        meta: { title: '案例列表', icon: 'file-text', breadcrumb: ['首页', '案例管理', '案例列表'] }
+        meta: { title: '案例列表', icon: 'file-text' }
       },
 
       // ===== 💰 计费系统 =====
@@ -398,31 +410,31 @@ export const routes: RouteRecordRaw[] = [
         path: 'billing/manage',
         name: 'workspace-billing-manage',
         component: BillingView,
-        meta: { title: '账单管理', icon: 'account-book', breadcrumb: ['首页', '计费系统', '账单管理'], requiresSuperAdmin: true }
+        meta: { title: '账单管理', icon: 'account-book', requiresSuperAdmin: true }
       },
       {
         path: 'billing/stats',
         name: 'workspace-billing-stats',
         component: BillingStatsView,
-        meta: { title: '消费统计', icon: 'chart', breadcrumb: ['首页', '计费系统', '消费统计'], requiresSuperAdmin: true }
+        meta: { title: '消费统计', icon: 'chart', requiresSuperAdmin: true }
       },
       {
         path: 'billing/wallet',
         name: 'workspace-billing-wallet',
         component: WalletView,
-        meta: { title: '我的钱包', icon: 'wallet', breadcrumb: ['首页', '计费系统', '我的钱包'], requiresSuperAdmin: true }
+        meta: { title: '我的钱包', icon: 'wallet', requiresSuperAdmin: true }
       },
       {
         path: 'billing/invoices',
         name: 'workspace-billing-invoices',
         component: InvoiceView,
-        meta: { title: '发票管理', icon: 'file-invoice', breadcrumb: ['首页', '计费系统', '发票管理'], requiresSuperAdmin: true }
+        meta: { title: '发票管理', icon: 'file-invoice', requiresSuperAdmin: true }
       },
       {
         path: 'billing/orders',
         name: 'workspace-billing-orders',
         component: OrdersView,
-        meta: { title: '订单管理', icon: 'shopping', breadcrumb: ['首页', '计费系统', '订单管理'], requiresSuperAdmin: true }
+        meta: { title: '订单管理', icon: 'shopping', requiresSuperAdmin: true }
       },
 
       // ===== 🏢 门户网站 =====
@@ -430,7 +442,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'portal/launch',
         name: 'workspace-portal-launch',
         component: PortalLaunchView,
-        meta: { title: '门户上线', icon: 'rocket', breadcrumb: ['首页', '门户网站', '门户上线'] }
+        meta: { title: '门户上线', icon: 'rocket' }
       },
       // 「模板管理」这一项随 portal_template 整条删除：挑了模板也不会改变访客看到的样子，
       // 换样式由「样式沉淀」（portal/presets，皮肤 + 平台模板）承担。
@@ -442,7 +454,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '内容工作台',
           icon: 'grid',
-          breadcrumb: ['首页', '门户网站', '内容工作台'],
           requiredPermission: 'portal:siteinfo:manage'
         }
       },
@@ -456,7 +467,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '栏目开通',
           icon: 'grid',
-          breadcrumb: ['首页', '平台 · 站点资产', '栏目开通'],
           requiredPermission: 'portal:build:section'
         }
       },
@@ -469,7 +479,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '前采需求单',
           icon: 'form',
-          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单'],
           requiredPermission: 'portal:build:manage',
           requiresSuperAdmin: true
         }
@@ -482,7 +491,6 @@ export const routes: RouteRecordRaw[] = [
           title: '录入前采需求单',
           icon: 'form',
           hidden: true,
-          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单', '录入'],
           requiredPermission: 'portal:build:manage',
           requiresSuperAdmin: true
         }
@@ -497,7 +505,6 @@ export const routes: RouteRecordRaw[] = [
           title: '前采需求单详情',
           icon: 'form',
           hidden: true,
-          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单', '详情'],
           requiredPermission: 'portal:build:manage',
           requiresSuperAdmin: true
         }
@@ -510,7 +517,6 @@ export const routes: RouteRecordRaw[] = [
           title: '编辑前采需求单',
           icon: 'form',
           hidden: true,
-          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单', '编辑'],
           requiredPermission: 'portal:build:manage',
           requiresSuperAdmin: true
         }
@@ -525,7 +531,6 @@ export const routes: RouteRecordRaw[] = [
           title: '候选画廊',
           icon: 'grid',
           hidden: true,
-          breadcrumb: ['首页', '平台 · 建站交付', '前采需求单', '候选画廊'],
           requiredPermission: 'portal:build:manage',
           requiresSuperAdmin: true
         }
@@ -539,7 +544,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '骨架库',
           icon: 'template',
-          breadcrumb: ['首页', '门户网站', '骨架库'],
           requiredPermission: 'portal:build:preset'
         }
       },
@@ -553,7 +557,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '区块画廊',
           icon: 'appstore',
-          breadcrumb: ['首页', '门户网站', '区块画廊'],
           requiredPermission: 'portal:build:manage'
         }
       },
@@ -569,7 +572,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '整站组装',
           icon: 'rocket',
-          breadcrumb: ['首页', '平台 · 质量与效果', '整站组装'],
           requiredPermission: 'portal:build:assemble'
         }
       },
@@ -583,7 +585,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '品牌引用探测',
           icon: 'aim',
-          breadcrumb: ['首页', '门户网站', '品牌引用探测'],
           requiredPermission: 'portal:build:citation'
         }
       },
@@ -591,7 +592,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'portal/banners',
         name: 'workspace-portal-banners',
         component: BannerManageView,
-        meta: { title: 'Banner管理', icon: 'image', breadcrumb: ['首页', '门户网站', 'Banner管理'], requiredPermission: 'portal:siteinfo:manage' }
+        meta: { title: 'Banner管理', icon: 'image', requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/showcase',
@@ -600,7 +601,7 @@ export const routes: RouteRecordRaw[] = [
         // Spec-D D2：租户侧「展示内容」（团队/历程/客户标志/指标/评价/资质/FAQ 七类一页签）。
         // 挂「网站内容维护」组、绝不进建站组（Spec-C §2.1 的混排老病）；权限码与后端
         // PortalShowcaseItemController 类级同一条（菜单/守卫/后端一个码）。
-        meta: { title: '展示内容', icon: 'profile', breadcrumb: ['首页', '网站内容维护', '展示内容'], requiredPermission: 'portal:siteinfo:manage' }
+        meta: { title: '展示内容', icon: 'profile', requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/stores',
@@ -608,7 +609,7 @@ export const routes: RouteRecordRaw[] = [
         component: StoreManageView,
         // Spec-D 收尾：门户「联系我们」的地图有渲染、没人往里写行——这一页就是那个写口。
         // 权限码与后端 StoreController 类级同一条；门店按公司归属，不按站点，所以没有站点参数。
-        meta: { title: '门店', icon: 'shop', breadcrumb: ['首页', '网站内容维护', '门店'], requiredPermission: 'portal:siteinfo:manage' }
+        meta: { title: '门店', icon: 'shop', requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/jobs',
@@ -616,26 +617,26 @@ export const routes: RouteRecordRaw[] = [
         component: JobManageView,
         // contentEntry = 后端栏目词表里那个内容入口名：这一栏没在本站开通时菜单不摆这一项
         // （Spec-A §7.1 的栏目门控；以前这个判断写在 WorkspaceView 里手抄的一份 entryOpen('job')）。
-        meta: { title: '招聘管理', icon: 'job', breadcrumb: ['首页', '网站内容维护', '招聘管理'], requiredPermission: 'portal:siteinfo:manage', contentEntry: 'job' }
+        meta: { title: '招聘管理', icon: 'job', requiredPermission: 'portal:siteinfo:manage', contentEntry: 'job' }
       },
       {
         path: 'portal/messages',
         name: 'workspace-portal-messages',
         component: MessageManageView,
-        meta: { title: '站内信', icon: 'message', breadcrumb: ['首页', '门户网站', '站内信'] }
+        meta: { title: '站内信', icon: 'message' }
       },
       {
         path: 'portal/guestbook',
         name: 'workspace-portal-guestbook',
         component: GuestbookManageView,
-        meta: { title: '留言管理', icon: 'guestbook', breadcrumb: ['首页', '门户网站', '留言管理'], requiredPermission: 'portal:siteinfo:manage' }
+        meta: { title: '留言管理', icon: 'guestbook', requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/company',
         name: 'workspace-portal-company',
         component: CompanyInfoView,
         // 「关于我们/联系我们」这两栏读的是企业信息标量（无列表数据源），开通判断同上一条：来自后端词表
-        meta: { title: '企业信息', icon: 'building', breadcrumb: ['首页', '网站信息', '企业信息'], requiredPermission: 'portal:siteinfo:manage', contentEntry: 'company' }
+        meta: { title: '企业信息', icon: 'building', requiredPermission: 'portal:siteinfo:manage', contentEntry: 'company' }
       },
       {
         path: 'portal/site-info',
@@ -648,7 +649,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '网站信息',
           icon: 'building',
-          breadcrumb: ['首页', '网站信息', '网站信息'],
           requiredPermission: 'portal:siteinfo:manage'
         }
       },
@@ -661,7 +661,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '页面搭建',
           icon: 'template',
-          breadcrumb: ['首页', '门户网站', '页面搭建'],
           requiredPermission: 'portal:build:manage'
         }
       },
@@ -672,7 +671,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '改版工单',
           icon: 'message',
-          breadcrumb: ['首页', '门户网站', '改版工单'],
           requiredPermission: 'portal:build:review'
         }
       },
@@ -684,7 +682,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '参考站摄取',
           icon: 'global',
-          breadcrumb: ['首页', '门户网站', '参考站摄取'],
           requiredPermission: 'portal:build:reference'
         }
       },
@@ -697,7 +694,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '样式沉淀',
           icon: 'template',
-          breadcrumb: ['首页', '门户网站', '样式沉淀'],
           requiredPermission: 'portal:build:preset'
         }
       },
@@ -710,7 +706,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '页面巡检',
           icon: 'safety',
-          breadcrumb: ['首页', '门户网站', '页面巡检'],
           requiredPermission: 'portal:build:health'
         }
       },
@@ -720,7 +715,7 @@ export const routes: RouteRecordRaw[] = [
         component: PortalAnalyticsView,
         // 补齐权限码（原来只有菜单在判、路由不判）：后端 AnalyticsController 的类级就是 analytics:view，
         // 菜单显隐、路由守卫、后端三处读同一个码才是「看不见的人也是进不去的人」。
-        meta: { title: '访问统计', icon: 'chart', breadcrumb: ['首页', '效果与引用', '访问统计'], requiredPermission: 'analytics:view' }
+        meta: { title: '访问统计', icon: 'chart', requiredPermission: 'analytics:view' }
       },
       {
         path: 'portal/citations',
@@ -730,7 +725,7 @@ export const routes: RouteRecordRaw[] = [
         // 挂的是后端 CitationStatsController 的类级 analytics:view——SITE_ADMIN 本来就有这一码。
         // 以前这条只有「菜单按码隐藏、路由不判」：拿不到码的账号敲地址仍能进来对着空数据猜，
         // 现在菜单与路由读同一个 meta.requiredPermission（与访问统计同进同出，不另起新码）。
-        meta: { title: '引用与来源', icon: 'share', breadcrumb: ['首页', '效果与引用', '引用与来源'], requiredPermission: 'analytics:view' }
+        meta: { title: '引用与来源', icon: 'share', requiredPermission: 'analytics:view' }
       },
       {
         path: 'portal/support',
@@ -741,7 +736,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '联系平台',
           icon: 'message',
-          breadcrumb: ['首页', '门户网站', '联系平台'],
           requiredPermission: 'portal:ticket:submit'
         }
       },
@@ -753,7 +747,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '平台工单队列',
           icon: 'message',
-          breadcrumb: ['首页', '门户网站', '平台工单队列'],
           requiredPermission: 'portal:build:review'
         }
       },
@@ -763,7 +756,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'geoseo/dashboard',
         name: 'workspace-geoseo-dashboard',
         component: GeoSeoDashboardView,
-        meta: { title: '总览仪表盘', icon: 'dashboard', breadcrumb: ['首页', 'SEO & GEO', '总览仪表盘'] }
+        meta: { title: '总览仪表盘', icon: 'dashboard' }
       },
       // 原 geoseo/config（站点配置）与 geoseo/company（重名的第二处企业信息）已随 P5 并入
       // 「网站信息」（portal/site-info）并删除路由与视图：站点级 SEO/GEO 从此只有一处入口、
@@ -777,7 +770,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'ai/models',
         name: 'workspace-ai-models',
         component: ModelConfigView,
-        meta: { title: '大模型配置', icon: 'robot', breadcrumb: ['首页', 'AI配置', '大模型'], requiresSuperAdmin: true }
+        meta: { title: '大模型配置', icon: 'robot', requiresSuperAdmin: true }
       },
       {
         path: 'ai/vector-db',
@@ -787,20 +780,20 @@ export const routes: RouteRecordRaw[] = [
         path: 'ai/embedding',
         name: 'workspace-ai-embedding',
         component: EmbeddingConfigView,
-        meta: { title: '向量化配置', icon: 'api', breadcrumb: ['首页', 'AI配置', '向量化配置'], requiresSuperAdmin: true }
+        meta: { title: '向量化配置', icon: 'api', requiresSuperAdmin: true }
       },
       {
         path: 'ai/usage',
         name: 'workspace-ai-usage',
         component: ModelUsageView,
-        meta: { title: '用量监控', icon: 'chart', breadcrumb: ['首页', 'AI配置', '用量监控'], requiresSuperAdmin: true }
+        meta: { title: '用量监控', icon: 'chart', requiresSuperAdmin: true }
       },
       {
         path: 'ai/article-templates',
         name: 'workspace-ai-article-templates',
         component: ArticleTemplateView,
         // ai_article_template 是 AI 生成时真正读取的模板表，与「文章管理 > 软文模板」(article_template) 不是同一份数据
-        meta: { title: '生成模板', icon: 'article', breadcrumb: ['首页', 'AI配置', '生成模板'], requiresSuperAdmin: true }
+        meta: { title: '生成模板', icon: 'article', requiresSuperAdmin: true }
       },
 
       // ===== 📊 运营管理 =====
@@ -808,25 +801,25 @@ export const routes: RouteRecordRaw[] = [
         path: 'operation/dashboard',
         name: 'workspace-operation-dashboard',
         component: OperationDashboardView,
-        meta: { title: '运营概览', icon: 'chart', breadcrumb: ['首页', '运营管理', '运营概览'] }
+        meta: { title: '运营概览', icon: 'chart' }
       },
       {
         path: 'operation/customers',
         name: 'workspace-operation-customers',
         component: CustomerManageView,
-        meta: { title: '客户管理', icon: 'team', breadcrumb: ['首页', '运营管理', '客户管理'], requiresSuperAdmin: true }
+        meta: { title: '客户管理', icon: 'team', requiresSuperAdmin: true }
       },
       {
         path: 'operation/cases',
         name: 'workspace-operation-cases',
         component: CaseManageView,
-        meta: { title: '客户案例', icon: 'case', breadcrumb: ['首页', '运营管理', '客户案例'] }
+        meta: { title: '客户案例', icon: 'case' }
       },
       {
         path: 'operation/reports',
         name: 'workspace-operation-reports',
         component: DataReportView,
-        meta: { title: '数据报表', icon: 'report', breadcrumb: ['首页', '运营管理', '数据报表'] }
+        meta: { title: '数据报表', icon: 'report' }
       },
 
       // ===== 👤 用户中心 =====
@@ -834,7 +827,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'user/profile',
         name: 'workspace-user-profile',
         component: UserProfileView,
-        meta: { title: '个人中心', icon: 'user', breadcrumb: ['首页', '用户中心', '个人中心'] }
+        meta: { title: '个人中心', icon: 'user' }
       },
 
       // ===== ⚙️ 系统管理 =====
@@ -842,49 +835,49 @@ export const routes: RouteRecordRaw[] = [
         path: 'sites',
         name: 'workspace-sites',
         component: SitesView,
-        meta: { title: '站点管理', icon: 'global', breadcrumb: ['首页', '系统管理', '站点管理'], requiresSuperAdmin: true }
+        meta: { title: '站点管理', icon: 'global', requiresSuperAdmin: true }
       },
       {
         path: 'tenant',
         name: 'workspace-tenant',
         component: TenantPanel,
-        meta: { title: '租户管理', icon: 'team', breadcrumb: ['首页', '系统管理', '租户管理'], requiresSuperAdmin: true }
+        meta: { title: '租户管理', icon: 'team', requiresSuperAdmin: true }
       },
       {
         path: 'system-prompt',
         name: 'workspace-system-prompt',
         component: SystemPromptPanel,
-        meta: { title: 'Prompt管理', icon: 'prompt', breadcrumb: ['首页', '系统配置', 'Prompt管理'], requiresSuperAdmin: true }
+        meta: { title: 'Prompt管理', icon: 'prompt', requiresSuperAdmin: true }
       },
       {
         path: 'roles',
         name: 'workspace-roles',
         component: RolesPanel,
-        meta: { title: '角色管理', icon: 'role', breadcrumb: ['首页', '系统管理', '角色管理'], requiresSuperAdmin: true }
+        meta: { title: '角色管理', icon: 'role', requiresSuperAdmin: true }
       },
       {
         path: 'permissions',
         name: 'workspace-permissions',
         component: PermissionsPanel,
-        meta: { title: '权限管理', icon: 'permission', breadcrumb: ['首页', '系统管理', '权限管理'], requiresSuperAdmin: true }
+        meta: { title: '权限管理', icon: 'permission', requiresSuperAdmin: true }
       },
       {
         path: 'users',
         name: 'workspace-users',
         component: UsersPanel,
-        meta: { title: '用户管理', icon: 'user', breadcrumb: ['首页', '系统管理', '用户管理'], requiresSuperAdmin: true }
+        meta: { title: '用户管理', icon: 'user', requiresSuperAdmin: true }
       },
       {
         path: 'settings',
         name: 'workspace-settings',
         component: SystemSettingsView,
-        meta: { title: '系统设置', icon: 'setting', breadcrumb: ['首页', '系统管理', '系统设置'], requiresSuperAdmin: true }
+        meta: { title: '系统设置', icon: 'setting', requiresSuperAdmin: true }
       },
       {
         path: 'audit-log',
         name: 'workspace-audit-log',
         component: AuditLogView,
-        meta: { title: '审计日志', icon: 'audit', breadcrumb: ['首页', '系统管理', '审计日志'], requiresSuperAdmin: true }
+        meta: { title: '审计日志', icon: 'audit', requiresSuperAdmin: true }
       },
       {
         path: 'media-storage',
@@ -896,7 +889,7 @@ export const routes: RouteRecordRaw[] = [
         // ——那是图片库的 key，两处会抢同一个高亮。
         // 不挂 requiredPermission：这一族端点只认超管身份，库里也没有「素材迁移」这种权限码，
         // 编一个出来只会多一个永远授不出去的名词。
-        meta: { title: '素材存储', icon: 'cloud', breadcrumb: ['首页', '系统管理', '素材存储'], requiresSuperAdmin: true }
+        meta: { title: '素材存储', icon: 'cloud', requiresSuperAdmin: true }
       },
 
       // ===== 🔔 报警管理 =====
@@ -904,19 +897,19 @@ export const routes: RouteRecordRaw[] = [
         path: 'alert/rules',
         name: 'workspace-alert-rules',
         component: AlertRuleManageView,
-        meta: { title: '报警规则', icon: 'alert', breadcrumb: ['首页', '报警管理', '报警规则'], requiresSuperAdmin: true }
+        meta: { title: '报警规则', icon: 'alert', requiresSuperAdmin: true }
       },
       {
         path: 'alert/records',
         name: 'workspace-alert-records',
         component: AlertRecordView,
-        meta: { title: '报警记录', icon: 'notification', breadcrumb: ['首页', '报警管理', '报警记录'], requiresSuperAdmin: true }
+        meta: { title: '报警记录', icon: 'notification', requiresSuperAdmin: true }
       },
       {
         path: 'alert/channels',
         name: 'workspace-alert-channels',
         component: AlertChannelView,
-        meta: { title: '通知渠道', icon: 'setting', breadcrumb: ['首页', '报警管理', '通知渠道'], requiresSuperAdmin: true }
+        meta: { title: '通知渠道', icon: 'setting', requiresSuperAdmin: true }
       },
       // 站内待办：巡检闭环写的那一条要有地方看得见（Spec §13.3-6），否则「通知超管」只落到库里
       {
@@ -926,7 +919,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '待办通知',
           icon: 'notification',
-          breadcrumb: ['首页', '报警管理', '待办通知'],
           requiresSuperAdmin: true
         }
       }

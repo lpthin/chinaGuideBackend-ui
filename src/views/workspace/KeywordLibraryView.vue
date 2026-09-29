@@ -19,6 +19,11 @@ import { message, Modal } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import { keywordApi } from '../../api'
 import { formatDateTime } from '../../utils/format'
+import { PH_DASH } from '../../utils/display'
+import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
+import StatusTag from '../../components/StatusTag.vue'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
@@ -155,7 +160,7 @@ async function loadLibraryStats() {
     })
     renderFunnelChart()
     renderStageChart()
-  } catch (e) { console.error(e) }
+  } catch (e) { logError('keyword-library-stats', e) }
 }
 
 async function loadExpandConfig() {
@@ -168,7 +173,7 @@ async function loadExpandConfig() {
       weekday: c.weekday || 'SUN',
       runTime: c.runTime || '03:00',
     })
-  } catch (e) { console.error(e) }
+  } catch (e) { logError('keyword-library-expand-config', e) }
 }
 
 async function loadKeywords() {
@@ -381,10 +386,10 @@ window.addEventListener?.('resize', () => {
   stageChart?.resize()
 })
 
-function stageTag(row: KW) {
-  if ((row.articleCount || 0) > 0) return { text: '已生成文章', color: 'green' }
-  if ((row.suggestionCount || 0) > 0) return { text: '已有内容建议', color: 'orange' }
-  return { text: '新词库', color: 'default' }
+function stageKey(row: KW) {
+  if ((row.articleCount || 0) > 0) return 'articled'
+  if ((row.suggestionCount || 0) > 0) return 'suggested'
+  return 'new'
 }
 
 function categoryClassColor(cat: string): string {
@@ -413,11 +418,14 @@ onMounted(fetchAll)
             <DatabaseOutlined />
           </div>
           <div class="header-info">
-            <h2 class="page-title">关键词库</h2>
+            <h2 class="page-title">热词库（搜索联想）</h2>
             <p class="page-subtitle">
               <span class="subtitle-text">
                 企业官网 SEO 关键词生产体系 · 单一真实源（SOT）
               </span>
+              <!-- Q11-A：这一页收的是搜索引擎联想抓来的真词，与 GEO 那一步的「核心词」不是一回事，
+                   一个词只指一个东西，所以菜单与页头都改名，并在同一屏说清区别 -->
+              <span class="subtitle-text">这里的词来自采集；GEO 向导里那列「核心词」是人给 AI 出的题定锚点用的，两批词各管各的。</span>
               <span class="header-divider"></span>
               <span class="header-badge">
                 <CalendarOutlined />
@@ -514,46 +522,44 @@ onMounted(fetchAll)
 
       <!-- 关键词库列表 -->
       <a-card class="list-card" size="small" :bordered="false">
-        <div class="list-toolbar">
-          <div class="filters">
-            <a-input
-              v-model:value="searchText"
-              placeholder="搜索关键词（按回车查询）"
-              allow-clear
-              style="width:240px"
-              @press-enter="loadKeywords"
-            >
-              <template #prefix><FilterOutlined /></template>
-            </a-input>
+        <filter-bar>
+          <a-input
+            v-model:value="searchText"
+            placeholder="搜索关键词（按回车查询）"
+            allow-clear
+            style="width:240px"
+            @press-enter="loadKeywords"
+          >
+            <template #prefix><FilterOutlined /></template>
+          </a-input>
 
-            <a-select v-model:value="stageFilter" style="width:180px" @change="loadKeywords">
-              <a-select-option value="all">全部生产阶段</a-select-option>
-              <a-select-option value="new">新词库（未生产）</a-select-option>
-              <a-select-option value="suggested">已有内容建议</a-select-option>
-              <a-select-option value="articled">已生成文章</a-select-option>
-            </a-select>
+          <a-select v-model:value="stageFilter" style="width:180px" @change="loadKeywords">
+            <a-select-option value="all">全部生产阶段</a-select-option>
+            <a-select-option value="new">新词库（未生产）</a-select-option>
+            <a-select-option value="suggested">已有内容建议</a-select-option>
+            <a-select-option value="articled">已生成文章</a-select-option>
+          </a-select>
 
-            <a-select v-model:value="categoryFilter" style="width:160px" @change="loadKeywords">
-              <a-select-option v-for="c in CATEGORY_OPTIONS" :key="c.value" :value="c.value">
-                {{ c.label }}
-              </a-select-option>
-            </a-select>
+          <a-select v-model:value="categoryFilter" style="width:160px" @change="loadKeywords">
+            <a-select-option v-for="c in CATEGORY_OPTIONS" :key="c.value" :value="c.value">
+              {{ c.label }}
+            </a-select-option>
+          </a-select>
 
-            <a-select v-model:value="sortKey" style="width:150px" @change="loadKeywords">
-              <a-select-option value="suggestionCount">按建议数</a-select-option>
-              <a-select-option value="articleCount">按文章数</a-select-option>
-            </a-select>
+          <a-select v-model:value="sortKey" style="width:150px" @change="loadKeywords">
+            <a-select-option value="suggestionCount">按建议数</a-select-option>
+            <a-select-option value="articleCount">按文章数</a-select-option>
+          </a-select>
 
-            <a-button @click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'" :aria-label="'toggle sort'">
-              {{ sortOrder === 'desc' ? '↓ 倒序' : '↑ 正序' }}
-            </a-button>
+          <a-button @click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'" :aria-label="'toggle sort'">
+            {{ sortOrder === 'desc' ? '↓ 倒序' : '↑ 正序' }}
+          </a-button>
 
-            <a-button type="text" @click="loadKeywords">
-              <ReloadOutlined /> 查询
-            </a-button>
-          </div>
+          <a-button type="text" @click="loadKeywords">
+            <ReloadOutlined /> 查询
+          </a-button>
 
-          <div class="actions">
+          <template #actions>
             <a-tooltip title="蒸馏时按优先级从高到低选词">
               <a-button :disabled="!selectedRowKeys.length" @click="openPriorityModal">
                 <template #icon><ThunderboltOutlined /></template>
@@ -566,13 +572,12 @@ onMounted(fetchAll)
                 删除（{{ selectedRowKeys.length }}）
               </a-button>
             </a-tooltip>
-          </div>
-        </div>
+          </template>
+        </filter-bar>
 
-        <a-table
+        <data-table
           :scroll="{ x: 'max-content' }"
           :data-source="keywords"
-          row-key="id"
           :pagination="tablePagination"
           :row-selection="rowSelection"
           class="kw-table"
@@ -626,7 +631,7 @@ onMounted(fetchAll)
 
           <a-table-column title="生产状态" width="140">
             <template #default="{ record }">
-              <a-tag :color="stageTag(record).color">{{ stageTag(record).text }}</a-tag>
+              <status-tag domain="keywordStage" :status="stageKey(record)" />
             </template>
           </a-table-column>
 
@@ -646,14 +651,14 @@ onMounted(fetchAll)
 
           <a-table-column title="来源" data-index="sourceCodes" width="130">
             <template #default="{ record }">
-              <span class="source-tag">{{ record.sourceCodes || '—' }}</span>
+              <span class="source-tag">{{ record.sourceCodes || PH_DASH }}</span>
             </template>
           </a-table-column>
 
           <a-table-column title="收录时间" data-index="createdAt" width="160">
             <template #default="{ record }">{{ formatDateTime(record.createdAt) }}</template>
           </a-table-column>
-        </a-table>
+        </data-table>
       </a-card>
     </a-spin>
 
@@ -743,7 +748,8 @@ onMounted(fetchAll)
 @slate-900: #0f172a;
 
 .keyword-library-page {
-  padding: 20px 0 48px;
+  /* 页面不自加外边距：上下留白归布局（WorkspaceView 的 content 区），
+     Spec-F §9.2 的底座就是「一页一份 padding」不再出现（原这里是 padding: 20px 0 48px） */
   background: @slate-50;
   min-height: 100vh;
   color: @slate-900;
@@ -811,12 +817,8 @@ onMounted(fetchAll)
 .chart-box { width: 100%; height: 300px; }
 
 .list-card { border-radius: 14px; }
-.list-toolbar {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  padding: 4px 4px 14px; flex-wrap: wrap;
-}
-.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.actions { display: flex; gap: 10px; }
+/* 筛选栏与右侧动作组的布局交给 components/FilterBar.vue（它沿用 .toolbar-fields/.toolbar-actions 那套命名），
+   页面里那份 .list-toolbar/.filters/.actions 已删——同一件事的排版不留两处 */
 
 .kw-table { padding-top: 6px; }
 .kw-cell .kw-name { font-weight: 600; color: @slate-900; }

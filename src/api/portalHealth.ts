@@ -201,10 +201,8 @@ export function suggestionAppliedOf(finding: Pick<HealthFinding, 'suggestionJson
   return candidate as SuggestionApplied
 }
 
-/** 状态色只是可读性，语义一律用后端给的中文标签，这里不翻译第二套 */
-export function healthStatusColor(status: string | null | undefined): string {
-  if (status === 'open') return 'red'
-  if (status === 'resolved') return 'green'
-  if (status === 'dismissed') return 'default'
-  return 'default'
-}
+/**
+ * 这里从前有一个 `healthStatusColor()`：状态 → 颜色的第二份表。
+ * Spec-F §9.2 之后颜色只有一个出处（utils/statusTokens.ts 的 healthFinding 域，
+ * 红/绿/灰三档原样搬过去），由 <StatusTag> 渲染；中文标签仍旧只认后端 /options.statuses 那一份。
+ */
