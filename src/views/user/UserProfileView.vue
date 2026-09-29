@@ -157,6 +157,7 @@ interface UploadRequestOption {
 import { profileApi } from '../../api/auth'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logWarn } from '../../utils/errorLog'
 import {
   UserOutlined,
   CameraOutlined,
@@ -250,7 +251,7 @@ const loadProfile = async () => {
     profileForm.email = data.email || ''
     profileForm.phone = data.phone || ''
   } catch (error) {
-    console.warn('获取个人信息失败:', error)
+    logWarn('user/user-profile-view', '获取个人信息失败:', error)
   }
 }
 
@@ -310,7 +311,7 @@ const loadLoginLogs = async () => {
     }))
     pagination.total = data.total || 0
   } catch (error) {
-    console.warn('获取登录日志失败:', error)
+    logWarn('user/user-profile-view', '获取登录日志失败:', error)
   } finally {
     logsLoading.value = false
   }

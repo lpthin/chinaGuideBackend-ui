@@ -295,6 +295,7 @@ import type {
   ArticleTemplateCategory,
 } from '../../types/ai-model'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
@@ -463,7 +464,7 @@ const handleSubmit = async () => {
     modalVisible.value = false
     await loadTemplates()
   } catch (error: any) {
-    console.error('保存模板失败:', error)
+    logError('ai/article-template-view', '保存模板失败:', error)
     message.error(error?.message || '保存模板失败')
   } finally {
     modalLoading.value = false
@@ -487,7 +488,7 @@ const copyTemplate = async (id: number) => {
     message.success('模板已复制')
     await loadTemplates()
   } catch (error: any) {
-    console.error('复制模板失败:', error)
+    logError('ai/article-template-view', '复制模板失败:', error)
     message.error(error?.message || '复制模板失败')
   }
 }
@@ -498,7 +499,7 @@ const deleteTemplate = async (id: number) => {
     message.success('删除成功')
     await loadTemplates()
   } catch (error: any) {
-    console.error('删除模板失败:', error)
+    logError('ai/article-template-view', '删除模板失败:', error)
     message.error(error?.message || '删除模板失败')
   }
 }
@@ -516,7 +517,7 @@ const loadTemplates = async () => {
     templateList.value = result.records || []
     pagination.total = result.total || 0
   } catch (error: any) {
-    console.error('加载模板列表失败:', error)
+    logError('ai/article-template-view', '加载模板列表失败:', error)
     message.error(error?.message || '加载模板列表失败')
     templateList.value = []
   } finally {
@@ -533,7 +534,7 @@ const loadStats = async () => {
     customCount.value = all.filter(t => !t.isSystem).length
     activeCount.value = all.filter(t => t.isActive).length
   } catch (error) {
-    console.error('加载模板统计失败:', error)
+    logError('ai/article-template-view', '加载模板统计失败:', error)
   }
 }
 

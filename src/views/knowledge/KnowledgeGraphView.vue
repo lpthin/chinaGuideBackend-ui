@@ -356,6 +356,7 @@ import type { ExtractionResult, ExtractedEntity, ExtractedRelation } from '../..
 import type { KnowledgeDocument, KnowledgeEntity, KnowledgeRelation, KnowledgeGraphData } from '../../types/knowledge'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logWarn } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 const showFilterPanel = ref(true)
@@ -480,7 +481,7 @@ const loadGraphData = async () => {
 
     initGraph()
   } catch (e: any) {
-    console.warn('加载知识图谱数据失败', e)
+    logWarn('knowledge/knowledge-graph-view', '加载知识图谱数据失败', e)
     message.error('加载知识图谱数据失败')
     // 出错时显示空状态，不使用假数据
     graphData.value = null
@@ -641,7 +642,7 @@ const loadNodeNeighbors = async (node: any) => {
       }
     })
   } catch (e) {
-    console.warn('加载邻接节点失败', e)
+    logWarn('knowledge/knowledge-graph-view', '加载邻接节点失败', e)
   }
 }
 
@@ -791,7 +792,7 @@ const startRebuildStatusPolling = () => {
         })
       }
     } catch (e) {
-      console.warn('获取重建状态失败', e)
+      logWarn('knowledge/knowledge-graph-view', '获取重建状态失败', e)
     }
   }, 2000)
 }
@@ -809,7 +810,7 @@ const openExtractModal = async () => {
     const data = res.data || res
     documentList.value = data.records || data || []
   } catch (e) {
-    console.warn('加载文档列表失败', e)
+    logWarn('knowledge/knowledge-graph-view', '加载文档列表失败', e)
   }
 }
 

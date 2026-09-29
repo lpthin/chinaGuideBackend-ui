@@ -230,6 +230,7 @@ import { guestbookApi } from '../../api/portal'
 import type { Guestbook, GuestbookQuery } from '../../types/portal'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -296,12 +297,12 @@ async function loadVocabulary() {
     typeLabels.value = await guestbookApi.types()
   } catch (error) {
     // 词表拉不到不该挡住列表：徽标退化成后端原话，仍然是可信信息
-    console.error('加载留言类型词表失败:', error)
+    logError('portal/guestbook-manage-view', '加载留言类型词表失败:', error)
   }
   try {
     budgetLabels.value = await guestbookApi.budgets()
   } catch (error) {
-    console.error('加载预算档位词表失败:', error)
+    logError('portal/guestbook-manage-view', '加载预算档位词表失败:', error)
   }
 }
 
@@ -344,7 +345,7 @@ async function handleReplyOk() {
     await loadData()
   } catch (error) {
     message.error('回复失败')
-    console.error(error)
+    logError('portal/guestbook-manage-view', error)
   } finally {
     saving.value = false
   }
@@ -357,7 +358,7 @@ async function handleDelete(id: number) {
     await loadData()
   } catch (error) {
     message.error('删除失败')
-    console.error(error)
+    logError('portal/guestbook-manage-view', error)
   }
 }
 
@@ -378,7 +379,7 @@ async function loadData() {
     loadStats()
   } catch (error) {
     message.error('加载留言列表失败')
-    console.error(error)
+    logError('portal/guestbook-manage-view', error)
   } finally {
     loading.value = false
   }
@@ -402,7 +403,7 @@ async function loadStats() {
     const todayResult = await guestbookApi.list({ tenantId, page: 1, size: 1, startDate: startOfToday })
     stats.todayCount = todayResult.total || 0
   } catch (error) {
-    console.error('加载统计数据失败:', error)
+    logError('portal/guestbook-manage-view', '加载统计数据失败:', error)
   }
 }
 

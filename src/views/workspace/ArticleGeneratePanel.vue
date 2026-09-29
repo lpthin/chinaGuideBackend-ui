@@ -556,6 +556,7 @@ import { useAuthStore } from '../../stores/auth'
 import { articleStatusMeta, ARTICLE_STATUS } from '../../utils/contentStatus'
 import type { ArticleStatus } from '../../utils/contentStatus'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
+import { logError } from '../../utils/errorLog'
 
 const router = useRouter()
 const route = useRoute()
@@ -831,7 +832,7 @@ async function refreshArticleStatus(task: GenerationTask) {
     try {
       applyTaskUpdate(task.taskId, await articleApi.getGenerationStatus(task.taskId))
     } catch (error) {
-      console.error(error)
+      logError('workspace/article-generate-panel', error)
       message.error('回读生成任务失败')
     }
   }
@@ -840,7 +841,7 @@ async function refreshArticleStatus(task: GenerationTask) {
     const article = await articleApi.get(task.articleId, tenantId.value)
     task.articleStatus = article?.status
   } catch (error) {
-    console.error(error)
+    logError('workspace/article-generate-panel', error)
     message.error('获取文章状态失败')
   }
 }
@@ -854,7 +855,7 @@ async function loadStats() {
     stats.publishedCount = statsData?.publishedCount ?? 0
     stats.pendingCount = statsData?.pendingReview ?? 0
   } catch (error) {
-    console.error(error)
+    logError('workspace/article-generate-panel', error)
     message.error('加载统计数据失败')
   } finally {
     loading.value = false
@@ -870,7 +871,7 @@ async function cancelGeneration() {
     applyTaskUpdate(taskId, { status: 'CANCELLED', stage: '已取消' })
     message.info('已取消生成任务')
   } catch (error) {
-    console.error(error)
+    logError('workspace/article-generate-panel', error)
     message.error('取消生成任务失败')
   } finally {
     isCanceling.value = false
@@ -921,7 +922,7 @@ function pollTaskStatus(taskId: number) {
       applyTaskUpdate(taskId, res)
       if (isTerminal(res.status)) await handleTaskComplete(taskId, res)
     } catch (error) {
-      console.error(error)
+      logError('workspace/article-generate-panel', error)
       clearPolling()
       resetGenerationState()
       message.error('查询生成进度失败，请到文章管理确认生成结果')
@@ -949,7 +950,7 @@ async function trySSE(taskId: number): Promise<boolean> {
           generateProgress.value = data.progress ?? 0
           progressText.value = data.stage || '处理中...'
           applyTaskUpdate(taskId, data)
-        } catch (e) { console.error('解析 SSE progress 失败', e) }
+        } catch (e) { logError('workspace/article-generate-panel', '解析 SSE progress 失败', e) }
       })
       source.addEventListener('complete', (event: Event) => {
         if (resolved) return
@@ -1051,7 +1052,7 @@ async function generateArticle() {
     const sseOk = await trySSE(res.taskId)
     if (!sseOk) pollTaskStatus(res.taskId)
   } catch (error) {
-    console.error(error)
+    logError('workspace/article-generate-panel', error)
     message.error('生成失败')
     resetGenerationState()
   }
@@ -1101,7 +1102,7 @@ async function submitForReview(task: GenerationTask) {
     await refreshArticleStatus(task)
     await loadStats()
   } catch (error) {
-    console.error(error)
+    logError('workspace/article-generate-panel', error)
     message.error('提交审核失败')
   }
 }
@@ -1115,7 +1116,7 @@ async function batchSubmitReview() {
       await articleApi.submitReview(task.articleId as number, tenantId.value)
       await refreshArticleStatus(task)
     } catch (error) {
-      console.error(error)
+      logError('workspace/article-generate-panel', error)
       failed.push(task.title || task.topic || `任务 #${task.taskId}`)
     }
   }
@@ -1131,7 +1132,7 @@ async function loadTokenStats() {
   try {
     tokenStats.value = await articleApi.getTokenStats(7, tenantId.value)
   } catch (error) {
-    console.error(error)
+    logError('workspace/article-generate-panel', error)
     message.error('加载 Token 统计失败')
   }
 }
@@ -1238,7 +1239,7 @@ async function loadKeywords() {
       return b.suggestionCount - a.suggestionCount
     })
     keywordsList.value = records
-  } catch (e) { console.error('加载关键词失败', e) }
+  } catch (e) { logError('workspace/article-generate-panel', '加载关键词失败', e) }
 }
 
 async function loadClusterData(clusterId: number) {
@@ -1253,7 +1254,7 @@ async function loadClusterData(clusterId: number) {
     clusterMode.value = true
     activeTab.value = 'cluster'
   } catch (e) {
-    console.error('加载聚类数据失败', e)
+    logError('workspace/article-generate-panel', '加载聚类数据失败', e)
     message.error('加载聚类数据失败')
   } finally {
     loading.value = false
@@ -1265,7 +1266,7 @@ async function loadClusterList() {
     const res = await clusterApi.list({ tenantId: tenantId.value, page: 1, size: 100 })
     clusterList.value = res?.records || []
   } catch (e) {
-    console.error('加载聚类列表失败', e)
+    logError('workspace/article-generate-panel', '加载聚类列表失败', e)
     message.error('加载聚类列表失败')
   }
 }
@@ -1291,7 +1292,7 @@ async function generateSuggestionsForCluster() {
     }
     message.success(`已生成 ${clusterSuggestions.value.length} 条内容建议`)
   } catch (e) {
-    console.error('生成内容建议失败', e)
+    logError('workspace/article-generate-panel', '生成内容建议失败', e)
     message.error('生成内容建议失败')
   } finally {
     loading.value = false
@@ -1306,7 +1307,7 @@ async function loadCases() {
       id: c.id, title: c.title || c.customerName || '',
       highlights: c.tags ? (Array.isArray(c.tags) ? c.tags : c.tags.split(',').map((t: string) => t.trim()).filter(Boolean)) : [],
     }))
-  } catch (e) { console.error('加载案例失败', e) }
+  } catch (e) { logError('workspace/article-generate-panel', '加载案例失败', e) }
 }
 
 onMounted(() => {

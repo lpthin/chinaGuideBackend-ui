@@ -121,6 +121,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { supportTicketsApi, type SupportTicket } from '../../api/supportTickets'
 import { formatDateTime } from '../../utils/format'
+import { logError } from '../../utils/errorLog'
 
 const props = withDefaults(defineProps<{ mode?: 'mine' | 'queue' }>(), { mode: 'mine' })
 const isQueue = computed(() => props.mode === 'queue')
@@ -165,7 +166,7 @@ async function loadData() {
       : await supportTicketsApi.listMine(statusFilter.value)
   } catch (error) {
     message.error('加载工单列表失败')
-    console.error(error)
+    logError('portal/support-ticket-view', error)
   } finally {
     loading.value = false
   }
@@ -189,7 +190,7 @@ async function handleSubmit() {
     submitVisible.value = false
     await loadData()
   } catch (error) {
-    console.error(error)
+    logError('portal/support-ticket-view', error)
   } finally {
     saving.value = false
   }
@@ -218,7 +219,7 @@ async function handleReplyOk() {
     replyVisible.value = false
     await loadData()
   } catch (error) {
-    console.error(error)
+    logError('portal/support-ticket-view', error)
   } finally {
     saving.value = false
   }
@@ -234,7 +235,7 @@ async function handleClose(record: SupportTicket) {
     message.success('已关闭')
     await loadData()
   } catch (error) {
-    console.error(error)
+    logError('portal/support-ticket-view', error)
   }
 }
 
@@ -242,7 +243,7 @@ onMounted(async () => {
   try {
     statusLabels.value = await supportTicketsApi.statuses()
   } catch (error) {
-    console.error('加载工单状态词表失败:', error)
+    logError('portal/support-ticket-view', '加载工单状态词表失败:', error)
   }
   loadData()
 })

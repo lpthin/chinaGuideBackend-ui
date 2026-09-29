@@ -255,6 +255,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime, formatDecimal } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import InvoiceDetailDrawer from './InvoiceDetailDrawer.vue'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -389,7 +390,7 @@ async function loadWalletInfo() {
       accountBalance.totalExpense = res.totalConsume || res.totalExpense || 0
     }
   } catch (error: any) {
-    console.error('加载钱包信息失败:', error)
+    logError('billing/billing-view', '加载钱包信息失败:', error)
     message.error(`加载钱包信息失败：${describeHttpError(error)}`)
   }
 }
@@ -400,7 +401,7 @@ async function loadPackages() {
     const res = await packageApi.list(tenantId)
     rechargePackages.value = res as unknown as RechargePackage[]
   } catch (error: any) {
-    console.error('加载充值套餐失败:', error)
+    logError('billing/billing-view', '加载充值套餐失败:', error)
     message.error(`加载充值套餐失败：${describeHttpError(error)}`)
     rechargePackages.value = []
   }
@@ -416,7 +417,7 @@ async function loadStats() {
       consumptionStats.growthRate = res.growthRate || 0
     }
   } catch (error: any) {
-    console.error('加载消费统计失败:', error)
+    logError('billing/billing-view', '加载消费统计失败:', error)
     message.error(`加载消费统计失败：${describeHttpError(error)}`)
   }
 }
@@ -439,7 +440,7 @@ async function loadInvoices() {
     invoiceList.value = res.records || []
     pagination.total = res.total || 0
   } catch (error: any) {
-    console.error('加载账单列表失败:', error)
+    logError('billing/billing-view', '加载账单列表失败:', error)
     message.error(`加载账单列表失败：${describeHttpError(error)}`)
     invoiceList.value = []
     pagination.total = 0
@@ -492,7 +493,7 @@ async function handleExport() {
     window.URL.revokeObjectURL(url)
     message.success('导出成功')
   } catch (error: any) {
-    console.error('导出失败:', error)
+    logError('billing/billing-view', '导出失败:', error)
     message.error(`导出失败：${describeHttpError(error)}`)
   }
 }
@@ -523,7 +524,7 @@ async function handleConfirmRecharge() {
     await loadWalletInfo()
     await loadStats()
   } catch (error: any) {
-    console.error('充值失败:', error)
+    logError('billing/billing-view', '充值失败:', error)
     message.error(error.message || '充值失败')
   } finally {
     rechargeLoading.value = false
@@ -555,7 +556,7 @@ async function handleConfirmWithdraw() {
     withdrawModalVisible.value = false
     await loadWalletInfo()
   } catch (error: any) {
-    console.error('提现失败:', error)
+    logError('billing/billing-view', '提现失败:', error)
     message.error(error.message || '提现失败')
   }
 }
@@ -582,7 +583,7 @@ async function handlePay(record: Invoice) {
     await loadWalletInfo()
     await loadStats()
   } catch (error: any) {
-    console.error('支付失败:', error)
+    logError('billing/billing-view', '支付失败:', error)
     message.error(error.message || '支付失败')
   }
 }

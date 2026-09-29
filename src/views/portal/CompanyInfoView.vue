@@ -436,6 +436,7 @@ import { PROFILE_QUESTION_KEYS, findProfileQuestion, vocabularyApi } from '@/api
 import type { BriefVocabularyQuestion, SiteBriefVocabulary } from '@/api/siteBriefs'
 import type { CompanyInfo, CompanyInfoForm } from '@/types/portal'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const auth = useAuthStore()
 const tenantId = computed(() => auth.selectedTenantId || auth.tenantId)
@@ -625,7 +626,7 @@ async function loadCompanyInfo() {
     }
   } catch (error) {
     message.error(`加载企业信息失败：${describeHttpError(error)}`)
-    console.error(error)
+    logError('portal/company-info-view', error)
   } finally {
     loading.value = false
   }
@@ -655,7 +656,7 @@ async function handleSave() {
     await loadCompanyInfo()
   } catch (error) {
     message.error(`保存失败：${describeHttpError(error)}`)
-    console.error(error)
+    logError('portal/company-info-view', error)
   } finally {
     saving.value = false
   }

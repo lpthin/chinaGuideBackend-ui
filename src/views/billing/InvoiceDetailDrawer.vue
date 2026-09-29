@@ -90,6 +90,7 @@ import { invoiceApi } from '../../api/billing'
 import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const props = defineProps<{
   open: boolean
@@ -216,7 +217,7 @@ async function loadInvoiceDetail(id: number) {
     invoice.value = adaptInvoice(res.invoice, res.items || [])
   } catch (error) {
     message.error('账单详情加载失败')
-    console.error(error)
+    logError('billing/invoice-detail-drawer', error)
     invoice.value = null
   } finally {
     loading.value = false

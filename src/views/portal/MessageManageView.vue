@@ -201,6 +201,7 @@ import type { Tenant } from '../../types/workspace'
 import TenantSelect from '../../components/TenantSelect.vue'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -282,7 +283,7 @@ async function loadStats() {
     const result = await portalMessageApi.stats()
     Object.assign(stats, result as any)
   } catch (error) {
-    console.error('加载统计数据失败:', error)
+    logError('portal/message-manage-view', '加载统计数据失败:', error)
   }
 }
 
@@ -342,7 +343,7 @@ async function viewDetail(record: PortalMessage) {
       stats.unreadCount -= 1
       stats.readCount += 1
     } catch (error) {
-      console.error('标记已读失败:', error)
+      logError('portal/message-manage-view', '标记已读失败:', error)
     }
   }
 }

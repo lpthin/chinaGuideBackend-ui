@@ -302,6 +302,7 @@ import { formatDate, formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -420,7 +421,7 @@ async function loadCaseList() {
     paginationConfig.total = res.total || 0
   } catch (error) {
     message.error(`加载案例列表失败：${describeHttpError(error)}`)
-    console.error(error)
+    logError('operation/case-manage-view', error)
     caseList.value = []
   } finally {
     tableLoading.value = false
@@ -435,7 +436,7 @@ async function loadStats() {
     stats.totalViews = res.totalViews
     stats.industryCount = res.industryCount
   } catch (error) {
-    console.error('Failed to load case statistics:', error)
+    logError('operation/case-manage-view', 'Failed to load case statistics:', error)
     stats.total = null
     stats.totalViews = null
     stats.industryCount = null
@@ -447,7 +448,7 @@ async function loadAll() {
   try {
     await Promise.all([loadCaseList(), loadStats()])
   } catch (error) {
-    console.error(error)
+    logError('operation/case-manage-view', error)
   } finally {
     loading.value = false
   }
@@ -495,7 +496,7 @@ async function openDraftModal(record: CustomerCase) {
     estimate.value = await customerCaseApi.estimateAiDraft(record.id)
   } catch (error) {
     message.error(`预估失败：${describeHttpError(error)}`)
-    console.error(error)
+    logError('operation/case-manage-view', error)
   } finally {
     estimateLoading.value = false
   }
@@ -527,7 +528,7 @@ async function runAiDraft() {
   } catch (error) {
     // 被门禁拦下的那些轮一次都不扣配额，所以这里不需要任何补偿动作
     message.error(`AI 起草失败：${describeHttpError(error)}`)
-    console.error(error)
+    logError('operation/case-manage-view', error)
   } finally {
     drafting.value = false
   }
@@ -562,7 +563,7 @@ async function handleSave() {
     await Promise.all([loadCaseList(), loadStats()])
   } catch (error) {
     message.error(`保存失败：${describeHttpError(error)}`)
-    console.error(error)
+    logError('operation/case-manage-view', error)
   }
 }
 
@@ -576,7 +577,7 @@ async function handleDelete(id: number) {
         await Promise.all([loadCaseList(), loadStats()])
       } catch (error) {
         message.error(`删除失败：${describeHttpError(error)}`)
-        console.error(error)
+        logError('operation/case-manage-view', error)
       }
     },
   })

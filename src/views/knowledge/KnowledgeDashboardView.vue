@@ -202,6 +202,7 @@ import type { StreamQAReference, KnowledgeCategoryStats } from '../../api/knowle
 import type { Dayjs } from 'dayjs'
 import { useAuthStore } from '../../stores/auth'
 import { formatNumber } from '../../utils/format'
+import { logError } from '../../utils/errorLog'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -301,7 +302,7 @@ const loadStats = async () => {
     parseStats.vectorized = result.vectorizedDocuments ?? 0
     parseStats.chunks = result.totalChunks ?? 0
   } catch (error) {
-    console.error('加载统计数据失败:', error)
+    logError('knowledge/knowledge-dashboard-view', '加载统计数据失败:', error)
     message.error('加载统计数据失败')
     stats.value = null
   }
@@ -324,7 +325,7 @@ const loadTrend = async () => {
     await nextTick()
     initTrendChart()
   } catch (error) {
-    console.error('加载趋势数据失败:', error)
+    logError('knowledge/knowledge-dashboard-view', '加载趋势数据失败:', error)
     trendData.value = []
     trendChart?.dispose()
     trendChart = null
@@ -354,7 +355,7 @@ const loadCategories = async () => {
     await nextTick()
     initCategoryChart()
   } catch (error) {
-    console.error('加载分类数据失败:', error)
+    logError('knowledge/knowledge-dashboard-view', '加载分类数据失败:', error)
     categories.value = []
     categoryChart?.dispose()
     categoryChart = null
@@ -383,7 +384,7 @@ const loadActivities = async () => {
       }
     })
   } catch (error) {
-    console.error('加载活动数据失败:', error)
+    logError('knowledge/knowledge-dashboard-view', '加载活动数据失败:', error)
     activities.value = []
   }
 }
@@ -613,7 +614,7 @@ const askQuestion = () => {
       scrollToBottom()
     },
     onError: (error: Error) => {
-      console.error('提问失败:', error)
+      logError('knowledge/knowledge-dashboard-view', '提问失败:', error)
       if (qaHistory.value[currentIndex]) {
         qaHistory.value[currentIndex].answer += '\n\n抱歉，回答过程中出现错误，请稍后重试。'
         qaHistory.value[currentIndex].streaming = false

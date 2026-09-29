@@ -398,6 +398,7 @@ import {
 } from '../../api/articleTemplate'
 import { formatDateTime } from '@/utils/format'
 import { describeHttpError } from '@/api/http'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -501,7 +502,7 @@ async function loadStats() {
     const data = await articleTemplateApi.stats()
     Object.assign(stats, data)
   } catch (e) {
-    console.error('加载统计数据失败', e)
+    logError('article/article-template-manage-view', '加载统计数据失败', e)
   }
 }
 
@@ -518,7 +519,7 @@ async function loadTemplates() {
     templateList.value = data.records
     paginationConfig.total = data.total
   } catch (e) {
-    console.error('加载模板列表失败', e)
+    logError('article/article-template-manage-view', '加载模板列表失败', e)
     message.error('加载模板列表失败')
   } finally {
     loading.value = false
@@ -559,7 +560,7 @@ async function loadVersions(id: number) {
     const data = await articleTemplateApi.versions(id)
     versionList.value = data
   } catch (e) {
-    console.error('加载版本历史失败', e)
+    logError('article/article-template-manage-view', '加载版本历史失败', e)
   }
 }
 

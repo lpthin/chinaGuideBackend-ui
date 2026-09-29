@@ -382,6 +382,7 @@ import {
 import { aiModelApi } from '../../api/ai-model'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -625,7 +626,7 @@ const loadStats = async () => {
     limitRate.value = result.limitRate ?? 0
   } catch (error) {
     message.error('加载统计数据失败')
-    console.error('Failed to load stats:', error)
+    logError('ai/model-usage-view', 'Failed to load stats:', error)
   }
 }
 
@@ -636,7 +637,7 @@ const loadUsageByModel = async () => {
     modelUsageList.value = result ?? []
   } catch (error) {
     message.error('加载模型用量数据失败')
-    console.error('Failed to load usage by model:', error)
+    logError('ai/model-usage-view', 'Failed to load usage by model:', error)
     modelUsageList.value = []
   }
 }
@@ -648,7 +649,7 @@ const loadUsageTrend = async () => {
     usageChartData.value = result ?? []
   } catch (error) {
     message.error('加载用量趋势数据失败')
-    console.error('Failed to load usage trend:', error)
+    logError('ai/model-usage-view', 'Failed to load usage trend:', error)
     usageChartData.value = []
   }
 }
@@ -666,7 +667,7 @@ const loadLogs = async () => {
     logPagination.total = result.total ?? 0
   } catch (error) {
     message.error('加载调用日志失败')
-    console.error('Failed to load logs:', error)
+    logError('ai/model-usage-view', 'Failed to load logs:', error)
     logList.value = []
     logPagination.total = 0
   }
@@ -683,7 +684,7 @@ const fetchData = async () => {
     ])
   } catch (error) {
     message.error('数据加载失败')
-    console.error('Failed to fetch usage data:', error)
+    logError('ai/model-usage-view', 'Failed to fetch usage data:', error)
   } finally {
     loading.value = false
   }

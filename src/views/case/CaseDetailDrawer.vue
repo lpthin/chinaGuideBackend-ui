@@ -222,6 +222,7 @@ import { caseApi, caseCategoryApi, caseTagApi } from '../../api/case'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime, formatNumber } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -294,7 +295,7 @@ async function loadInitialData() {
       loadHotTags(tenantId)
     ])
   } catch (error) {
-    console.error('加载初始数据失败', error)
+    logError('case/case-detail-drawer', '加载初始数据失败', error)
   }
 }
 
@@ -304,7 +305,7 @@ async function loadCategories(tenantId: number) {
     categories.value = res || []
   } catch (error) {
     message.error(`加载分类失败：${describeHttpError(error)}`)
-    console.error(error)
+    logError('case/case-detail-drawer', error)
   }
 }
 
@@ -313,7 +314,7 @@ async function loadHotTags(tenantId: number) {
     const res = await caseTagApi.hot(tenantId, 10)
     hotTags.value = res?.map((tag: CaseTag) => tag.name) || []
   } catch (error) {
-    console.error('加载热门标签失败', error)
+    logError('case/case-detail-drawer', '加载热门标签失败', error)
   }
 }
 
@@ -357,7 +358,7 @@ async function loadCaseData(id: number) {
     selectedTags.value = caseInfo.tagList || []
   } catch (error) {
     message.error(`加载案例详情失败：${describeHttpError(error)}`)
-    console.error(error)
+    logError('case/case-detail-drawer', error)
   } finally {
     loading.value = false
   }

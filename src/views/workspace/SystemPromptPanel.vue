@@ -85,6 +85,7 @@ import { message } from 'ant-design-vue'
 import { systemPromptApi } from '../../api'
 import { formatDateTime } from '../../utils/format'
 import type { PromptTemplate } from '../../types'
+import { logError } from '../../utils/errorLog'
 
 const purposeNames: Record<string, string> = {
   keyword_distill: '关键词蒸馏',
@@ -117,7 +118,7 @@ const fetchTemplates = async () => {
     const res = await systemPromptApi.list({})
     templates.value = res.records || []
   } catch (e) {
-    console.error('fetchTemplates error:', e)
+    logError('workspace/system-prompt-panel', 'fetchTemplates error:', e)
     message.error('获取模板列表失败')
   } finally {
     loading.value = false

@@ -373,6 +373,7 @@ import {
 import { embeddingConfigApi, vectorDbApi, modelConfigApi, aiGenerateApi } from '../../api/ai-model'
 import type { ModelConfig, VectorDatabaseConfig, EmbeddingConfigForm } from '../../types/ai-model'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
@@ -462,7 +463,7 @@ async function loadAll() {
   try {
     await Promise.all([loadConfig(), loadEmbeddingModels(), loadConnections(), loadStats()])
   } catch (error) {
-    console.error('加载向量化配置失败:', error)
+    logError('ai/embedding-config-view', '加载向量化配置失败:', error)
     message.error('加载向量化配置失败')
   } finally {
     loading.value = false
@@ -491,7 +492,7 @@ async function handleSave() {
     message.success('配置保存成功')
     await loadStats()
   } catch (error: any) {
-    console.error('保存配置失败:', error)
+    logError('ai/embedding-config-view', '保存配置失败:', error)
     message.error(error?.message || '保存配置失败')
   } finally {
     saving.value = false
@@ -523,7 +524,7 @@ async function testConnection(id: number) {
       message.error(result.message)
     }
   } catch (error: any) {
-    console.error('连接测试失败:', error)
+    logError('ai/embedding-config-view', '连接测试失败:', error)
     message.error(error?.message || '连接测试失败')
   } finally {
     testingId.value = null
@@ -600,7 +601,7 @@ async function handleSaveConn() {
     connFormVisible.value = false
     await loadConnections()
   } catch (error: any) {
-    console.error('保存连接失败:', error)
+    logError('ai/embedding-config-view', '保存连接失败:', error)
     message.error(error?.message || '保存连接失败')
   } finally {
     connSaving.value = false
@@ -639,7 +640,7 @@ async function deleteConn(id: number) {
     }
     await loadConnections()
   } catch (error: any) {
-    console.error(error)
+    logError('ai/embedding-config-view', error)
     message.error(error?.message || '删除失败')
   }
 }
@@ -662,7 +663,7 @@ async function runPreview() {
     activePreviewKey.value = [0]
     message.success('分块预览完成')
   } catch (error: any) {
-    console.error('分块预览失败:', error)
+    logError('ai/embedding-config-view', '分块预览失败:', error)
     message.error(error?.message || '分块预览失败，请重试')
   } finally {
     previewLoading.value = false

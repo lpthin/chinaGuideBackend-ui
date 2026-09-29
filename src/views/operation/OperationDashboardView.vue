@@ -183,6 +183,7 @@ import {
 } from '@ant-design/icons-vue'
 import { useAuthStore } from '../../stores/auth'
 import { operationApi } from '../../api/operation'
+import { logError } from '../../utils/errorLog'
 import type {
   TrafficTrendItem,
   CategoryDistributionItem
@@ -255,7 +256,7 @@ async function loadStats() {
     stats.totalUsers = res.totalUsers || 0
     stats.totalCases = 0
   } catch (error) {
-    console.error('加载统计数据失败', error)
+    logError('operation/operation-dashboard-view', '加载统计数据失败', error)
     message.error('加载统计数据失败')
   }
 }
@@ -270,7 +271,7 @@ async function loadTrafficTrend() {
       stats.viewGrowth = calculateGrowth(current, previous)
     }
   } catch (error) {
-    console.error('加载流量趋势失败', error)
+    logError('operation/operation-dashboard-view', '加载流量趋势失败', error)
     message.error('加载流量趋势失败')
   }
 }
@@ -280,7 +281,7 @@ async function loadCategoryDistribution() {
     const res: any = await operationApi.getCategoryDistribution(getTenantId())
     categoryData.value = mapCategoryData(res as CategoryDistributionItem[])
   } catch (error) {
-    console.error('加载分类分布失败', error)
+    logError('operation/operation-dashboard-view', '加载分类分布失败', error)
     message.error('加载分类分布失败')
   }
 }
@@ -297,7 +298,7 @@ async function loadDashboard() {
       trendData.value = mapTrendData(res.weeklyTrend as TrafficTrendItem[])
     }
   } catch (error) {
-    console.error('加载看板数据失败', error)
+    logError('operation/operation-dashboard-view', '加载看板数据失败', error)
   }
 }
 
@@ -310,7 +311,7 @@ async function loadAllData() {
       loadCategoryDistribution(),
     ])
   } catch (error) {
-    console.error('数据加载失败', error)
+    logError('operation/operation-dashboard-view', '数据加载失败', error)
     message.error('数据加载失败')
   } finally {
     loading.value = false

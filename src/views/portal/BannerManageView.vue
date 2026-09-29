@@ -197,6 +197,7 @@ import type { Banner, BannerForm, BannerQuery } from '../../types/portal'
 import { formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
+import { logError } from '../../utils/errorLog'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -361,7 +362,7 @@ async function loadStats() {
     stats.enabledCount = enabled.total || 0
     stats.disabledCount = disabled.total || 0
   } catch (error) {
-    console.error('加载统计数据失败:', error)
+    logError('portal/banner-manage-view', '加载统计数据失败:', error)
   }
 }
 

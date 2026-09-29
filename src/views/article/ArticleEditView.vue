@@ -446,6 +446,7 @@ import { marked } from 'marked'
 import { articleStatusMeta, type ArticleStatus } from '../../utils/contentStatus'
 import { formatDate } from '../../utils/format'
 import MediaImageLibraryModal from '../../components/MediaImageLibraryModal.vue'
+import { logError } from '../../utils/errorLog'
 
 const router = useRouter()
 const route = useRoute()
@@ -526,7 +527,7 @@ async function loadCategoryList() {
     const list = Array.isArray(res) ? res : (res?.data || [])
     categoryList.value = list.map((c: any) => ({ id: c.id, name: c.name }))
   } catch (e) {
-    console.error('加载分类失败', e)
+    logError('article/article-edit-view', '加载分类失败', e)
   }
 }
 
@@ -537,7 +538,7 @@ async function loadHotTags() {
     const list = Array.isArray(res) ? res : (res?.data || [])
     hotTags.value = list.map((t: any) => t.name || t)
   } catch (e) {
-    console.error('加载热门标签失败', e)
+    logError('article/article-edit-view', '加载热门标签失败', e)
   }
 }
 
@@ -836,7 +837,7 @@ async function handleGenerateSeo() {
 
     message.success('SEO 智能生成成功')
   } catch (error: any) {
-    console.error('SEO generate failed:', error)
+    logError('article/article-edit-view', 'SEO generate failed:', error)
     message.error(error?.message || '生成失败，请重试')
   } finally {
     generatingSeo.value = false

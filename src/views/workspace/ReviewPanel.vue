@@ -466,6 +466,7 @@ import { reviewApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import { articleStatusMeta } from '../../utils/contentStatus'
 import { formatDateTime, formatDecimal, formatPercent } from '../../utils/format'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -647,7 +648,7 @@ async function loadReviewStats() {
     }
   } catch (error) {
     message.error('审核统计数据加载失败')
-    console.error(error)
+    logError('workspace/review-panel', error)
   }
 }
 
@@ -660,7 +661,7 @@ async function loadData() {
     await loadReviewStats()
   } catch (error) {
     message.error('数据加载失败')
-    console.error(error)
+    logError('workspace/review-panel', error)
   } finally {
     loading.value = false
   }
@@ -684,7 +685,7 @@ async function passArticle() {
     currentArticle.value = null
   } catch (error) {
     message.error('操作失败')
-    console.error(error)
+    logError('workspace/review-panel', error)
   }
 }
 
@@ -702,7 +703,7 @@ async function rejectArticle() {
     currentArticle.value = null
   } catch (error) {
     message.error('操作失败')
-    console.error(error)
+    logError('workspace/review-panel', error)
   }
 }
 
@@ -723,7 +724,7 @@ async function batchReview(mode: 'approve' | 'reject', comment: string, label: s
       succeeded++
     } catch (error) {
       failed++
-      console.error(error)
+      logError('workspace/review-panel', error)
     }
   }
   batchLoading.value = false

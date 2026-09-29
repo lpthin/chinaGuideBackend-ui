@@ -201,6 +201,7 @@ import {
 import { customerApi } from '../../api/billing'
 import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -325,7 +326,7 @@ async function loadCustomerList() {
     paginationConfig.total = res.total || 0
     updateStats()
   } catch (error) {
-    console.error('Failed to load customers:', error)
+    logError('admin/customer-manage-view', 'Failed to load customers:', error)
     message.error('加载客户列表失败')
     customerListData.value = []
   } finally {
@@ -369,7 +370,7 @@ async function toggleStatus(customer: any) {
         updateStats()
         message.success(`${action}成功`)
       } catch (error) {
-        console.error(`Failed to ${action} customer:`, error)
+        logError('admin/customer-manage-view', `Failed to ${action} customer:`, error)
         message.error(`${action}失败`)
       }
     },
@@ -420,7 +421,7 @@ async function handleConfirmEdit() {
     editModalVisible.value = false
     loadCustomerList()
   } catch (error) {
-    console.error('Failed to save customer:', error)
+    logError('admin/customer-manage-view', 'Failed to save customer:', error)
     message.error('保存失败')
   }
 }

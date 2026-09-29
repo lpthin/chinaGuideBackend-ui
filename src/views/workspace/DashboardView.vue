@@ -283,6 +283,7 @@ import type { DashboardStats, DashboardCharts } from '../../types/workspace'
 import type { Article } from '../../types'
 import { formatTime } from '@/utils/format'
 import { articleStatusMeta as statusMeta } from '@/utils/contentStatus'
+import { logError } from '../../utils/errorLog'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -375,7 +376,7 @@ const loadChartData = async () => {
     chartData.value = data
     return true
   } catch (error) {
-    console.error('获取图表数据失败:', error)
+    logError('workspace/dashboard-view', '获取图表数据失败:', error)
     chartData.value = null
     return false
   } finally {
@@ -610,7 +611,7 @@ const fetchDashboardData = async (): Promise<boolean> => {
     }
     return true
   } catch (error) {
-    console.error('获取仪表盘数据失败:', error)
+    logError('workspace/dashboard-view', '获取仪表盘数据失败:', error)
     stats.value = undefined
     recentArticles.value = []
     chartData.value = null

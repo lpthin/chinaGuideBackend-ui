@@ -181,6 +181,7 @@ import { adminApi } from '../../api/workspace'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { AuditLog, AuditLogStats } from '../../types/workspace'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -293,7 +294,7 @@ const fetchStats = async () => {
     const result = await adminApi.auditLogs.getStats(authStore.selectedTenantId || undefined) as any
     Object.assign(stats, result)
   } catch (error: any) {
-    console.error('获取统计数据失败:', error)
+    logError('workspace/audit-log-view', '获取统计数据失败:', error)
   }
 }
 

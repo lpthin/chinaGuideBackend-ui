@@ -78,6 +78,7 @@ import {
 import { useAuthStore } from '../stores/auth'
 import { authApi } from '../api'
 import type { LoginRequest } from '../types'
+import { logWarn } from '../utils/errorLog'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -165,7 +166,7 @@ async function handleLogin() {
         }
       }
     } catch (e) {
-      console.warn('获取当前用户信息失败，使用基础信息:', e)
+      logWarn('login-view', '获取当前用户信息失败，使用基础信息:', e)
     }
 
     message.success('登录成功！')

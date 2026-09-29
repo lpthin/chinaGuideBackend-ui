@@ -340,6 +340,7 @@ import { describeHttpError } from '../../api/http'
 import type { ModelConfig } from '../../types/ai-model'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
@@ -602,7 +603,7 @@ async function toggleConfigStatus(config: ModelConfig) {
     await modelConfigApi.toggleStatus(config.id)
     message.success('状态切换成功')
   } catch (error) {
-    console.error(error)
+    logError('ai/model-config-view', error)
     config.isActive = !config.isActive
     message.error('状态切换失败')
   } finally {
@@ -617,7 +618,7 @@ async function setDefaultConfig(config: ModelConfig) {
     message.success('已设为默认模型')
     await loadData()
   } catch (error) {
-    console.error(error)
+    logError('ai/model-config-view', error)
     message.error('设置失败')
   } finally {
     settingDefaultId.value = null
@@ -635,7 +636,7 @@ async function testConnection(config: ModelConfig) {
     }
     await loadData()
   } catch (error) {
-    console.error(error)
+    logError('ai/model-config-view', error)
     message.error('连接测试请求失败')
   } finally {
     testingId.value = null
@@ -668,7 +669,7 @@ async function probeImage(config: ModelConfig) {
     }
     await loadData()
   } catch (error) {
-    console.error(error)
+    logError('ai/model-config-view', error)
     // 这里不能只说「请求失败」：开关没开、类型填错这些话后端已经替我们说清楚了
     notification.error({
       message: '试出图没有执行',
@@ -687,7 +688,7 @@ async function handleCheckAllHealth() {
     message.success(`巡检完成：通过 ${result.passed} 个，不通过 ${result.failed} 个，跳过 ${result.skipped} 个`)
     await loadData()
   } catch (error) {
-    console.error(error)
+    logError('ai/model-config-view', error)
     message.error('巡检请求失败')
   } finally {
     checkingAll.value = false
@@ -700,7 +701,7 @@ async function deleteConfig(id: number) {
     message.success('删除成功')
     await loadData()
   } catch (error) {
-    console.error(error)
+    logError('ai/model-config-view', error)
     message.error('删除失败')
   }
 }
@@ -756,7 +757,7 @@ async function handleSaveConfig() {
     showAddModal.value = false
     await loadData()
   } catch (error) {
-    console.error(error)
+    logError('ai/model-config-view', error)
     message.error('保存失败')
   } finally {
     saving.value = false
@@ -774,7 +775,7 @@ async function loadData() {
       baseUrl: item.apiEndpoint || item.baseUrl || '',
     }))
   } catch (error) {
-    console.error('加载模型配置失败:', error)
+    logError('ai/model-config-view', '加载模型配置失败:', error)
     message.error('加载模型配置失败')
     configs.value = []
   } finally {
@@ -787,7 +788,7 @@ async function loadTodayUsage() {
     const result = await usageApi.today(getTenantId())
     Object.assign(todayUsage, result)
   } catch (error) {
-    console.error(error)
+    logError('ai/model-config-view', error)
   }
 }
 

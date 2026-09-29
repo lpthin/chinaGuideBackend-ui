@@ -548,6 +548,7 @@ import { describeHttpError } from '../../api/http'
 import type { KnowledgeCategory, KnowledgeTag, KnowledgeCard, KnowledgeDocument } from '../../types/knowledge'
 import { formatTime as formatAbsoluteTime, formatFileSize } from '@/utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 // ==================== 知识库文档相关状态 ====================
 const auth = useAuthStore()
@@ -661,7 +662,7 @@ async function loadCategories() {
     const result = await knowledgeCategoryApi.all(auth.selectedTenantId!) as any
     categories.value = result
   } catch (e) {
-    console.error('加载分类失败:', e)
+    logError('knowledge/knowledge-document-view', '加载分类失败:', e)
     message.error('加载项目失败')
     categories.value = []
   } finally {
@@ -689,7 +690,7 @@ async function loadDocuments() {
     documents.value = result.records
     pagination.value.total = result.total
   } catch (e) {
-    console.error('加载文档列表失败:', e)
+    logError('knowledge/knowledge-document-view', '加载文档列表失败:', e)
     message.error('加载文档列表失败')
     documents.value = []
     pagination.value.total = 0
@@ -730,7 +731,7 @@ async function createCategory() {
     message.success(`项目「${name}」已创建`)
     await loadCategories()
   } catch (e) {
-    console.error('创建分类失败:', e)
+    logError('knowledge/knowledge-document-view', '创建分类失败:', e)
     message.error('创建项目失败')
   }
 }
@@ -746,7 +747,7 @@ async function handleBatchUpload(file: File): Promise<boolean> {
     message.success(`${file.name} 上传成功`)
     await loadDocuments()
   } catch (e) {
-    console.error('上传失败:', e)
+    logError('knowledge/knowledge-document-view', '上传失败:', e)
     message.error(`${file.name} 上传失败`)
   } finally {
     uploading.value = false
@@ -776,7 +777,7 @@ async function deleteMediaFile(id: number) {
     message.success('删除成功')
     await loadDocuments()
   } catch (e) {
-    console.error('删除失败:', e)
+    logError('knowledge/knowledge-document-view', '删除失败:', e)
     message.error('删除失败')
   }
 }
@@ -796,7 +797,7 @@ async function batchDelete() {
         selectedIds.value = []
         await loadDocuments()
       } catch (e) {
-        console.error('批量删除失败:', e)
+        logError('knowledge/knowledge-document-view', '批量删除失败:', e)
         message.error('批量删除失败')
       }
     },
@@ -809,7 +810,7 @@ async function loadTags() {
     const result = await knowledgeTagApi.list({ tenantId: auth.selectedTenantId! }) as any
     tags.value = Array.isArray(result) ? result : (result as any).records || []
   } catch (e) {
-    console.error('加载标签失败:', e)
+    logError('knowledge/knowledge-document-view', '加载标签失败:', e)
     message.error('加载标签失败')
     tags.value = []
   }
@@ -840,7 +841,7 @@ async function loadPreviewData(docId: number) {
     const data = await knowledgeDocumentApi.preview(docId)
     previewDocData.value = data
   } catch (e) {
-    console.error('加载预览数据失败:', e)
+    logError('knowledge/knowledge-document-view', '加载预览数据失败:', e)
   } finally {
     previewLoading.value = false
   }
@@ -908,7 +909,7 @@ async function loadRelatedCards(docId: number) {
     const cards = await knowledgeDocumentApi.getCards(docId) as any
     relatedCards.value = cards
   } catch (e) {
-    console.error('加载关联卡片失败:', e)
+    logError('knowledge/knowledge-document-view', '加载关联卡片失败:', e)
     relatedCards.value = []
   } finally {
     relatedCardsLoading.value = false
@@ -950,7 +951,7 @@ async function startGenerateCards() {
       message.warning('未能生成知识卡片，请检查文档内容或稍后重试')
     }
   } catch (e: any) {
-    console.error('生成卡片失败:', e)
+    logError('knowledge/knowledge-document-view', '生成卡片失败:', e)
     cardGenerating.value = false
     cardGenerationStatus.value = 'FAILED'
     cardGenerationError.value = describeHttpError(e)
@@ -1009,7 +1010,7 @@ async function saveDocumentInfo() {
     docPreviewVisible.value = false
     await loadDocuments()
   } catch (e) {
-    console.error('保存失败:', e)
+    logError('knowledge/knowledge-document-view', '保存失败:', e)
     message.error('保存失败')
   } finally {
     savingCategory.value = false
@@ -1035,7 +1036,7 @@ async function handleBatchSetTags() {
     batchTagModalVisible.value = false
     await loadDocuments()
   } catch (e) {
-    console.error('批量设置标签失败:', e)
+    logError('knowledge/knowledge-document-view', '批量设置标签失败:', e)
     message.error('批量设置标签失败')
   } finally {
     batchTagSaving.value = false
@@ -1052,7 +1053,7 @@ async function handleBatchSetCategory() {
     selectedIds.value = []
     await loadDocuments()
   } catch (e) {
-    console.error('批量设置分类失败:', e)
+    logError('knowledge/knowledge-document-view', '批量设置分类失败:', e)
     message.error('批量移动到项目失败')
   } finally {
     batchSaving.value = false

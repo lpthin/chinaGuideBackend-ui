@@ -705,6 +705,7 @@ import DemoFlag from '../../components/DemoFlag.vue'
 import { articleStatusMeta as statusMeta } from '../../utils/contentStatus'
 import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const auth = useAuthStore()
 
@@ -1342,7 +1343,7 @@ async function loadData() {
     stats.topViews = topArticle?.viewCount || 0
   } catch (error) {
     message.error('数据加载失败')
-    console.error(error)
+    logError('workspace/articles-panel', error)
   } finally {
     loading.value = false
   }

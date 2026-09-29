@@ -259,6 +259,7 @@ import {
 } from '@ant-design/icons-vue'
 import { operationApi } from '../../api/operation'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 import type {
   TrafficTrendItem,
   CategoryDistributionItem,
@@ -379,7 +380,7 @@ async function loadStats() {
     const res = await operationApi.getStats(getTenantId())
     Object.assign(stats, res as any)
   } catch (error) {
-    console.error('加载统计数据失败', error)
+    logError('operation/data-report-view', '加载统计数据失败', error)
     message.error('加载统计数据失败')
   }
 }
@@ -389,7 +390,7 @@ async function loadTrafficTrend() {
     const res = await operationApi.getTrafficTrend(getTenantId(), 7)
     chartData.value = mapTrafficTrend(res as any)
   } catch (error) {
-    console.error('加载流量趋势失败', error)
+    logError('operation/data-report-view', '加载流量趋势失败', error)
     message.error('加载流量趋势失败')
   }
 }
@@ -399,7 +400,7 @@ async function loadCategoryDistribution() {
     const res = await operationApi.getCategoryDistribution(getTenantId())
     categoryData.value = mapCategoryDistribution(res as any)
   } catch (error) {
-    console.error('加载分类分布失败', error)
+    logError('operation/data-report-view', '加载分类分布失败', error)
     message.error('加载分类分布失败')
   }
 }
@@ -409,7 +410,7 @@ async function loadUserGrowth() {
     const res = await operationApi.getUserGrowth(getTenantId(), 6)
     userGrowthData.value = mapUserGrowth(res as any)
   } catch (error) {
-    console.error('加载用户增长失败', error)
+    logError('operation/data-report-view', '加载用户增长失败', error)
     message.error('加载用户增长失败')
   }
 }
@@ -419,7 +420,7 @@ async function loadUserActivity() {
     const res = await operationApi.getUserActivity(getTenantId())
     userActivityData.value = mapUserActivity(res as any)
   } catch (error) {
-    console.error('加载用户活跃度失败', error)
+    logError('operation/data-report-view', '加载用户活跃度失败', error)
     message.error('加载用户活跃度失败')
   }
 }
@@ -429,7 +430,7 @@ async function loadTrafficSource() {
     const res = await operationApi.getTrafficSource(getTenantId())
     sourceData.value = mapTrafficSource(res as any)
   } catch (error) {
-    console.error('加载流量来源失败', error)
+    logError('operation/data-report-view', '加载流量来源失败', error)
     message.error('加载流量来源失败')
   }
 }
@@ -439,7 +440,7 @@ async function loadDeviceDistribution() {
     const res = await operationApi.getDeviceDistribution(getTenantId())
     deviceData.value = mapDeviceDistribution(res as any)
   } catch (error) {
-    console.error('加载设备分布失败', error)
+    logError('operation/data-report-view', '加载设备分布失败', error)
     message.error('加载设备分布失败')
   }
 }
@@ -458,7 +459,7 @@ async function loadAllData() {
       loadDeviceDistribution(),
     ])
   } catch (error) {
-    console.error('数据加载失败', error)
+    logError('operation/data-report-view', '数据加载失败', error)
     message.error('数据加载失败')
   } finally {
     loading.value = false
@@ -501,7 +502,7 @@ async function exportReport() {
     downloadBlob(blob, filename)
     message.success({ content: '报表导出成功', key: 'export' })
   } catch (error) {
-    console.error('导出失败', error)
+    logError('operation/data-report-view', '导出失败', error)
     message.error({ content: '导出失败', key: 'export' })
   }
 }

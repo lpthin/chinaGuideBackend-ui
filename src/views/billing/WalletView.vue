@@ -187,6 +187,7 @@ import {
 import { walletApi } from '../../api/billing'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -290,7 +291,7 @@ async function loadWalletInfo() {
     }
   } catch (error) {
     message.error('加载钱包信息失败')
-    console.error(error)
+    logError('billing/wallet-view', error)
   } finally {
     loading.value = false
   }
@@ -314,7 +315,7 @@ async function loadTransactionList() {
     transactionListData.value = res.records || []
     paginationConfig.total = res.total || 0
   } catch (error) {
-    console.error('Failed to load transactions:', error)
+    logError('billing/wallet-view', 'Failed to load transactions:', error)
     message.error('加载交易记录失败')
     transactionListData.value = []
   } finally {
@@ -354,7 +355,7 @@ async function handleConfirmRecharge() {
     await loadTransactionList()
   } catch (error) {
     message.error('充值失败')
-    console.error(error)
+    logError('billing/wallet-view', error)
   } finally {
     rechargeLoading.value = false
   }
@@ -384,7 +385,7 @@ async function handleExport() {
     message.success('导出成功')
   } catch (error) {
     message.error('导出失败')
-    console.error(error)
+    logError('billing/wallet-view', error)
   } finally {
     exportLoading.value = false
   }

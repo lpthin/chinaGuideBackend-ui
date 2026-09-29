@@ -302,6 +302,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDateTime, formatFileSize } from '../../utils/format'
 import type { ImageLibrary } from '../../types/article'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
@@ -429,7 +430,7 @@ async function handleUploadOk() {
     selectedKeys.value = []
     await loadData()
   } catch (error) {
-    console.error('上传失败:', error)
+    logError('article/image-library-view', '上传失败:', error)
     message.error(describeHttpError(error))
   } finally {
     uploading.value = false
@@ -443,7 +444,7 @@ async function handleDelete(id: number) {
     selectedKeys.value = selectedKeys.value.filter(k => k !== id)
     await loadData()
   } catch (error) {
-    console.error('删除失败:', error)
+    logError('article/image-library-view', '删除失败:', error)
     message.error(describeHttpError(error))
   }
 }
@@ -459,7 +460,7 @@ async function batchDelete() {
     selectedKeys.value = []
     await loadData()
   } catch (error) {
-    console.error('批量删除失败:', error)
+    logError('article/image-library-view', '批量删除失败:', error)
     message.error(describeHttpError(error))
   }
 }
@@ -492,7 +493,7 @@ async function loadData() {
 
     updateStats()
   } catch (error) {
-    console.error('加载文件列表失败:', error)
+    logError('article/image-library-view', '加载文件列表失败:', error)
     message.error(describeHttpError(error))
     imageList.value = []
     pagination.total = 0

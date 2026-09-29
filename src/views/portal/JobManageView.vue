@@ -232,6 +232,7 @@ import { jobPostApi } from '../../api/portal'
 import type { JobPost, JobPostForm, JobPostQuery } from '../../types/portal'
 import { formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
+import { logError } from '../../utils/errorLog'
 
 const loading = ref(false)
 const showJobModal = ref(false)
@@ -357,7 +358,7 @@ async function handleSaveJob() {
     await loadData()
   } catch (error: any) {
     message.error(error?.message || '保存失败')
-    console.error(error)
+    logError('portal/job-manage-view', error)
   } finally {
     saving.value = false
   }
@@ -372,7 +373,7 @@ async function toggleStatus(record: JobPost) {
     loadStats()
   } catch (error: any) {
     message.error(error?.message || '操作失败')
-    console.error(error)
+    logError('portal/job-manage-view', error)
   }
 }
 
@@ -383,7 +384,7 @@ async function handleDelete(id: number) {
     await loadData()
   } catch (error: any) {
     message.error(error?.message || '删除失败')
-    console.error(error)
+    logError('portal/job-manage-view', error)
   }
 }
 
@@ -403,7 +404,7 @@ async function loadData() {
     loadStats()
   } catch (error: any) {
     message.error(error?.message || '加载职位列表失败')
-    console.error(error)
+    logError('portal/job-manage-view', error)
   } finally {
     loading.value = false
   }
@@ -420,7 +421,7 @@ async function loadStats() {
     stats.openJobs = open.total || 0
     stats.closedJobs = closed.total || 0
   } catch (error) {
-    console.error('加载统计数据失败:', error)
+    logError('portal/job-manage-view', '加载统计数据失败:', error)
   }
 }
 

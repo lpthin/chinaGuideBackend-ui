@@ -196,6 +196,7 @@ import {
 import { portalSectionsApi } from '../../api/portalSections'
 import { message } from 'ant-design-vue'
 import { describeHttpError } from '../../api/http'
+import { logError, logWarn } from '../../utils/errorLog'
 
 const router = useRouter()
 const route = useRoute()
@@ -319,7 +320,7 @@ const handleLogout = async () => {
     message.success('已退出登录')
     router.push('/login')
   } catch (error) {
-    console.error('退出登录失败:', error)
+    logError('workspace/workspace-view', '退出登录失败:', error)
     message.error('退出登录失败')
   }
 }
@@ -347,7 +348,7 @@ onMounted(() => {
   // 拉取一次最新的当前用户信息，确保头像/角色是最新的
   if (auth.accessToken) {
     auth.fetchCurrentUser().catch((e) => {
-      console.warn('刷新当前用户信息失败:', e)
+      logWarn('workspace/workspace-view', '刷新当前用户信息失败:', e)
     })
   }
   loadSectionEntries()

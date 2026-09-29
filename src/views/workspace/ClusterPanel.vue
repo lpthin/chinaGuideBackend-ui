@@ -606,6 +606,7 @@ import http from '../../api/http'
 import { formatDate } from '../../utils/format'
 import { useRouter } from 'vue-router'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -860,7 +861,7 @@ async function loadData() {
     stats.totalClusters = 0
     stats.hasSuggestions = 0
     message.error('加载数据失败')
-    console.error(error)
+    logError('workspace/cluster-panel', error)
   } finally {
     loading.value = false
   }
@@ -907,7 +908,7 @@ async function distillAll() {
     distillError.value = error?.message || '蒸馏失败'
     distillPhase.value = 'ready'
     message.error('蒸馏失败：' + (error?.message || '系统异常'))
-    console.error(error)
+    logError('workspace/cluster-panel', error)
   } finally {
     distilling.value = false
   }
@@ -993,7 +994,7 @@ async function confirmSave(onlySelected = true) {
     await loadData()
   } catch (error) {
     message.error('保存失败，请重试')
-    console.error(error)
+    logError('workspace/cluster-panel', error)
   } finally {
     distillPhase.value = 'ready'
   }
@@ -1018,7 +1019,7 @@ async function generateAllSuggestions() {
     await loadData()
   } catch (error) {
     message.error('生成建议失败')
-    console.error(error)
+    logError('workspace/cluster-panel', error)
   } finally {
     generating.value = false
   }
@@ -1031,7 +1032,7 @@ async function generateSuggestions(cluster: KeywordCluster) {
     await loadData()
   } catch (error) {
     message.error('生成建议失败')
-    console.error(error)
+    logError('workspace/cluster-panel', error)
   }
 }
 
@@ -1054,7 +1055,7 @@ async function regenerateSuggestions() {
     message.success('内容建议已重新生成')
   } catch (error) {
     message.error('重新生成失败')
-    console.error(error)
+    logError('workspace/cluster-panel', error)
   } finally {
     regeneratingSuggestions.value = false
   }
@@ -1084,7 +1085,7 @@ async function saveSuggestions() {
     await loadData()
   } catch (error) {
     message.error('保存失败')
-    console.error(error)
+    logError('workspace/cluster-panel', error)
   } finally {
     savingSuggestions.value = false
   }
@@ -1114,7 +1115,7 @@ async function deleteCluster(cluster: KeywordCluster) {
         await loadData()
       } catch (error) {
         message.error('删除失败')
-        console.error(error)
+        logError('workspace/cluster-panel', error)
       }
     },
   })
@@ -1141,7 +1142,7 @@ async function batchDeleteClusters() {
         await loadData()
       } catch (error) {
         message.error('删除失败')
-        console.error(error)
+        logError('workspace/cluster-panel', error)
       } finally {
         clearing.value = false
       }

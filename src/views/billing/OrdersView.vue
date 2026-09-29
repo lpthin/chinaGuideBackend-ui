@@ -167,6 +167,7 @@ import {
 import { orderApi } from '../../api/billing'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -285,7 +286,7 @@ async function loadOrderList() {
     paginationConfig.total = res.total || 0
     updateStats(res.records || [])
   } catch (error) {
-    console.error('Failed to load orders:', error)
+    logError('billing/orders-view', 'Failed to load orders:', error)
     message.error('加载订单列表失败')
     orderListData.value = []
   } finally {
@@ -306,7 +307,7 @@ async function showOrderDetail(order: any) {
     currentOrder.value = res
     detailModalVisible.value = true
   } catch (error) {
-    console.error('Failed to load order detail:', error)
+    logError('billing/orders-view', 'Failed to load order detail:', error)
     message.error('加载订单详情失败')
   }
 }
@@ -327,7 +328,7 @@ async function handleExport() {
     window.URL.revokeObjectURL(url)
     message.success('导出成功')
   } catch (error) {
-    console.error('Failed to export orders:', error)
+    logError('billing/orders-view', 'Failed to export orders:', error)
     message.error('导出失败')
   }
 }

@@ -212,6 +212,7 @@ import { describeHttpError } from '../../api/http'
 import { formatTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { KnowledgeSearchResultItem, KnowledgeSearchQuery } from '../../types/knowledge'
+import { logError } from '../../utils/errorLog'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -316,7 +317,7 @@ const handleSearch = async () => {
     total.value = data?.total || 0
     searchDuration.value = data?.duration || 0
   } catch (error) {
-    console.error('搜索失败:', error)
+    logError('knowledge/knowledge-search-view', '搜索失败:', error)
     message.error('搜索失败，请稍后重试')
     results.value = []
     total.value = 0

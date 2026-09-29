@@ -458,6 +458,7 @@ import {
   CaretDownOutlined,
 } from '@ant-design/icons-vue'
 import { categoryApi } from '../../api'
+import { logError } from '../../utils/errorLog'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -643,7 +644,7 @@ async function deleteCategory(key: string) {
         await loadData()
       } catch (error) {
         message.error('删除失败')
-        console.error(error)
+        logError('workspace/categories-panel', error)
       }
     },
   })
@@ -667,7 +668,7 @@ async function handleModalOk() {
     await loadData()
   } catch (error) {
     message.error('操作失败')
-    console.error(error)
+    logError('workspace/categories-panel', error)
   } finally {
     saving.value = false
   }
@@ -685,7 +686,7 @@ async function saveCategory() {
     await loadData()
   } catch (error) {
     message.error('保存失败')
-    console.error(error)
+    logError('workspace/categories-panel', error)
   } finally {
     saving.value = false
   }
@@ -720,7 +721,7 @@ async function loadData() {
     stats.totalCategories = 0
     stats.totalArticles = 0
     message.error('分类数据加载失败')
-    console.error(error)
+    logError('workspace/categories-panel', error)
   } finally {
     loading.value = false
   }

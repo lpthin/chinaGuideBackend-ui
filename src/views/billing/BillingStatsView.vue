@@ -144,6 +144,7 @@ import {
 } from '@ant-design/icons-vue'
 import { topServicesApi, statsApi } from '../../api/billing'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -415,7 +416,7 @@ async function loadTrendData() {
     trendData.value = res || []
     initTrendChart()
   } catch (error) {
-    console.error('Failed to load trend data:', error)
+    logError('billing/billing-stats-view', 'Failed to load trend data:', error)
     message.error('加载消费趋势数据失败')
   }
 }
@@ -429,7 +430,7 @@ async function loadBreakdownData() {
     breakdownData.value = res || []
     initBreakdownChart()
   } catch (error) {
-    console.error('Failed to load breakdown data:', error)
+    logError('billing/billing-stats-view', 'Failed to load breakdown data:', error)
     message.error('加载消费构成数据失败')
   }
 }
@@ -445,7 +446,7 @@ async function loadMonthlyCompareData() {
     }
     initCompareChart()
   } catch (error) {
-    console.error('Failed to load monthly compare data:', error)
+    logError('billing/billing-stats-view', 'Failed to load monthly compare data:', error)
     message.error('加载月度对比数据失败')
   }
 }
@@ -468,7 +469,7 @@ async function loadBillingStats() {
       statsData.projectedMonthAmount = statsData.totalAmount * (30 / new Date().getDate())
     }
   } catch (error) {
-    console.error('Failed to load billing stats:', error)
+    logError('billing/billing-stats-view', 'Failed to load billing stats:', error)
     message.error('加载计费统计数据失败')
   }
 }
@@ -481,7 +482,7 @@ async function loadTopServices() {
     const res = await topServicesApi.getTopServices(tenantId)
     topServicesData.value = res || []
   } catch (error) {
-    console.error('Failed to load top services:', error)
+    logError('billing/billing-stats-view', 'Failed to load top services:', error)
     message.error('加载Top服务数据失败')
   }
 }

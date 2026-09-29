@@ -211,6 +211,7 @@ import {
 import { invoiceApi } from '../../api/billing'
 import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -316,7 +317,7 @@ async function loadInvoiceList() {
     paginationConfig.total = res.total || 0
     updateStats(res.records || [])
   } catch (error) {
-    console.error('Failed to load invoices:', error)
+    logError('billing/invoice-view', 'Failed to load invoices:', error)
     message.error('加载发票列表失败')
     invoiceListData.value = []
   } finally {
@@ -372,7 +373,7 @@ async function handleConfirmApply() {
     paginationConfig.current = 1
     loadInvoiceList()
   } catch (error) {
-    console.error('Failed to create invoice:', error)
+    logError('billing/invoice-view', 'Failed to create invoice:', error)
     message.error('申请开票失败')
   } finally {
     loading.value = false
@@ -385,7 +386,7 @@ async function viewInvoice(invoice: any) {
     currentInvoice.value = res.invoice || res
     detailModalVisible.value = true
   } catch (error) {
-    console.error('Failed to load invoice detail:', error)
+    logError('billing/invoice-view', 'Failed to load invoice detail:', error)
     message.error('加载发票详情失败')
   }
 }
@@ -405,7 +406,7 @@ async function handleExport() {
     window.URL.revokeObjectURL(url)
     message.success('导出成功')
   } catch (error) {
-    console.error('Failed to export invoices:', error)
+    logError('billing/invoice-view', 'Failed to export invoices:', error)
     message.error('导出失败')
   }
 }

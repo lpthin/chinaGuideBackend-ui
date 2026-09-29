@@ -266,6 +266,7 @@ import { caseApi, caseCategoryApi } from '../../api/case'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime, formatNumber } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
 
@@ -413,7 +414,7 @@ async function loadStats() {
     stats.draft = res.draft
     stats.pendingReview = res.pendingReview
   } catch (error) {
-    console.error('Failed to load case statistics:', error)
+    logError('case/case-list-view', 'Failed to load case statistics:', error)
     stats.total = null
     stats.published = null
     stats.draft = null
@@ -427,7 +428,7 @@ async function loadCategories() {
     const res = await caseCategoryApi.list({ tenantId, status: 'ACTIVE' })
     categories.value = res || []
   } catch (error) {
-    console.error('Failed to load case categories:', error)
+    logError('case/case-list-view', 'Failed to load case categories:', error)
     categories.value = []
   }
 }
@@ -451,7 +452,7 @@ async function loadCases() {
     caseList.value = res.records || []
     pagination.total = res.total || 0
   } catch (error) {
-    console.error('Failed to load cases:', error)
+    logError('case/case-list-view', 'Failed to load cases:', error)
     message.error(`加载案例列表失败：${describeHttpError(error)}`)
     caseList.value = []
   } finally {
