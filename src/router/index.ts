@@ -98,6 +98,7 @@ const GeoSeoDashboardView = () => import('../views/geoseo/GeoSeoDashboardView.vu
 
 // 🧭 GEO 品牌诊断（Spec-F §11.2 P1）：品牌档案/竞品组/两类题池 + 五步向导（第⑤步 P2 才落地）
 const GeoBrandProfileView = () => import('../views/geobrand/GeoBrandProfileView.vue')
+const GeoBrandDiagnosisWizardView = () => import('../views/geobrand/GeoBrandDiagnosisWizardView.vue')
 
 // 🤖 AI 配置模块
 const ModelConfigView = () => import('../views/ai/ModelConfigView.vue')
@@ -768,6 +769,12 @@ export const routes: RouteRecordRaw[] = [
         // 后端闸是 geo:brand:view（读）/ geo:brand:manage（写）；这里挂读码，
         // 没码的人菜单里看不见，敲地址进来由守卫拦——与「看得见必然不 403」同一条纪律。
         meta: { title: 'GEO 品牌档案', icon: 'card', requiredPermission: 'geo:brand:view' }
+      },
+      {
+        path: 'geo/diagnosis',
+        name: 'workspace-geo-brand-wizard',
+        component: GeoBrandDiagnosisWizardView,
+        meta: { title: 'GEO 诊断向导', icon: 'aim', requiredPermission: 'geo:brand:view' }
       },
       // 原 geoseo/config（站点配置）与 geoseo/company（重名的第二处企业信息）已随 P5 并入
       // 「网站信息」（portal/site-info）并删除路由与视图：站点级 SEO/GEO 从此只有一处入口、

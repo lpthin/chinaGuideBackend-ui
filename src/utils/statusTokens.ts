@@ -41,10 +41,14 @@ export const GEO_BRAND_STATUS: Record<string, StatusMeta> = {
   ARCHIVED: { label: '已停用', color: 'default' },
 }
 
-/** GEO 追踪题的复核状态：pending 这一档 P1 显式指定橙（§11.1 末条：不许再靠猜色） */
+/**
+ * GEO 追踪题的复核状态：pending 这一档 P1 显式指定橙（§11.1 末条：不许再靠猜色）。
+ * 词表逐字跟后端：`GeoBrandService` 与 V146 写的是 `ACCEPTED`（不是 APPROVED），
+ * 这里错一个字母这一列就落到 statusMeta 的兜底、把已确认的题显示成原样字符串。
+ */
 export const GEO_REVIEW_STATE: Record<string, StatusMeta> = {
   PENDING: { label: '待复核', color: 'orange' },
-  APPROVED: { label: '已确认', color: 'green' },
+  ACCEPTED: { label: '已确认', color: 'green' },
   REJECTED: { label: '已驳回', color: 'red' },
 }
 

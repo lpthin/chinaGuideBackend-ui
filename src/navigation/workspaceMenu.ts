@@ -147,6 +147,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // GEO 品牌诊断（Spec-F §9.4 归组 + §11.2 P1）：档案与向导都进「效果与引用」，
   // 向导是第①步入口的下一页，不是建站动作，不进平台段。
   'workspace-geo-brand': 'site-effect',
+  'workspace-geo-brand-wizard': 'site-effect',
   // 运营管理
   'workspace-operation-dashboard': 'operation',
   'workspace-operation-cases': 'operation',

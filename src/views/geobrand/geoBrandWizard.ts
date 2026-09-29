@@ -23,9 +23,13 @@ export const QUESTION_KIND_LABEL: Record<GeoQuestionKind, string> = {
   REPUTATION: '口碑问题',
 }
 
-/** 判据文案（§10-2 ③④ 的红字警告，界面与用例断言同一串） */
-export const MENTION_QUESTION_WARNING = '这样几乎一定会被提到，看不出与同行差距'
-export const REPUTATION_QUESTION_WARNING = '口碑问题要问的是别人怎么看我们，题面没有品牌名就答不到我们身上'
+/**
+ * 判据文案（§10-2 ③④ 的红字警告）。
+ * 两句是后端 `GeoQuestionKinds.MENTION_RULE_MESSAGE` / `REPUTATION_RULE_MESSAGE` 的逐字镜像——
+ * 同一条红线在服务端拒绝时念的也是这一句，界面换个说法就是两份真相（§9.7 文案冻结）。
+ */
+export const MENTION_QUESTION_WARNING = '可见度问题的题面不能出现品牌名：这样几乎一定会被提到，看不出与同行差距'
+export const REPUTATION_QUESTION_WARNING = '口碑问题的题面必须出现品牌名，否则测不出别人怎么评价我们'
 
 /** 品牌词三段式说明（§2 步骤① 的本地文案，不抄第三方界面原话） */
 export const BRAND_WORDS_GUIDE: string[] = [
