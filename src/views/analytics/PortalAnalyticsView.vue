@@ -26,6 +26,7 @@
     </a-form>
 
     <a-spin :spinning="loading">
+      <state-block v-if="loadError" state="error" :detail="loadError" class="block-card" />
       <a-card title="门户人工浏览（埋点）" :bordered="false" class="block-card">
         <template #extra>
           <span class="block-hint">数据来自访客浏览器上报，爬虫不执行脚本，不会计入这里</span>
@@ -44,17 +45,17 @@
             <a-statistic title="有时长上报的页面数" :value="overview.durationEvents" />
           </a-col>
         </a-row>
-        <a-empty
+        <state-block
           v-if="overview.empty"
+          state="empty"
           class="empty-hint"
-          description="该区间没有采到埋点数据（不等于 0 次浏览）：请确认门户已被访问，且访客侧埋点脚本已随本次发布上线"
+          title="该区间没有采到埋点数据（不等于 0 次浏览）：请确认门户已被访问，且访客侧埋点脚本已随本次发布上线"
         />
-        <a-table
+        <data-table
           v-else
           class="inner-table"
           :columns="pageColumns"
           :data-source="pages.pages"
-          :pagination="false"
           row-key="pageUrl"
           size="small"
           :scroll="{ x: 'max-content' }"
@@ -65,9 +66,10 @@
         <template #extra>
           <span class="block-hint">按 User-Agent 分类，词表在 bot-ua.yml，改配置即可增删爬虫</span>
         </template>
-        <a-empty
+        <state-block
           v-if="botSummary.empty"
-          description="该区间服务端没有识别到爬虫抓取（SEO 文件与门户接口都没有机器人请求）"
+          state="empty"
+          title="该区间服务端没有识别到爬虫抓取（SEO 文件与门户接口都没有机器人请求）"
         />
         <a-row v-else :gutter="16">
           <a-col v-for="slice in botSummary.slices" :key="slice.botCategory" :span="8">
@@ -89,7 +91,7 @@
           <span class="block-hint">四条线分别对应两套采集口径，所以不做合计</span>
         </template>
         <div v-show="!trend.empty" ref="trendRef" class="trend-chart" />
-        <a-empty v-if="trend.empty" class="empty-hint" description="该区间没有任何可绘制的数据" />
+        <state-block v-if="trend.empty" class="empty-hint" state="empty" title="该区间没有任何可绘制的数据" />
       </a-card>
     </a-spin>
   </div>
@@ -101,6 +103,9 @@ import * as echarts from 'echarts'
 import dayjs, { type Dayjs } from 'dayjs'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '../../stores/auth'
+import DataTable from '../../components/DataTable.vue'
+import StateBlock from '../../components/StateBlock.vue'
+import { logError } from '../../utils/errorLog'
 import { analyticsApi, botCategoryLabel, pageTypeLabel } from '../../api/analytics'
 import type {
   AnalyticsBotSummary,
@@ -118,6 +123,8 @@ const TOP_OPTIONS = [
 ]
 
 const loading = ref(false)
+// 这一页原来只有「弹一下 toast 就把上一轮的数留在屏上」：加一个真的错误态（§9.2-4 三态）
+const loadError = ref<string | null>(null)
 const dateRange = ref<[Dayjs, Dayjs]>([
   dayjs().subtract(29, 'day'),
   dayjs(),
@@ -165,6 +172,7 @@ async function loadAll(): Promise<void> {
     return
   }
   loading.value = true
+  loadError.value = null
   try {
     const [overviewResult, pagesResult, botResult, trendResult] = await Promise.all([
       analyticsApi.overview(rangeParams.value),
@@ -179,7 +187,9 @@ async function loadAll(): Promise<void> {
     await nextTick()
     renderTrend()
   } catch (error: any) {
-    message.error(error?.message || '门户访问统计加载失败')
+    loadError.value = error?.message || '门户访问统计加载失败'
+    message.error(loadError.value)
+    logError('portal-analytics-load', error)
   } finally {
     loading.value = false
   }

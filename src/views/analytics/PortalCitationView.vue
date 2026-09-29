@@ -25,7 +25,7 @@
       <a-descriptions-item label="外呼 / 提到我们">{{ summary.callCount }} / {{ summary.citedCallCount }}</a-descriptions-item>
       <a-descriptions-item label="问过几家模型">{{ summary.distinctModels }}</a-descriptions-item>
       <a-descriptions-item label="最近一轮">
-        {{ summary.lastProbedAt ? formatDateTime(summary.lastProbedAt) : '未跑过' }}
+        {{ summary.lastProbedAt ? formatDateTime(summary.lastProbedAt) : PH_NOT_RUN }}
         <span v-if="summary.lastProbeStatus">（{{ statusLabel(summary.lastProbeStatus) }}）</span>
       </a-descriptions-item>
       <a-descriptions-item label="被引用的页面">{{ summary.citedPageCount }} / 已发布页 {{ typeCount('page') }}</a-descriptions-item>
@@ -35,7 +35,7 @@
         {{ summary.coveredTargets }} / {{ summary.totalTargets }}
         <span class="portal-citation-page__muted">（差值是发布得比最后一轮晚、还没进过探测的对象）</span>
       </a-descriptions-item>
-      <a-descriptions-item label="最近一轮说明">{{ summary.lastProbeNotice || '—' }}</a-descriptions-item>
+      <a-descriptions-item label="最近一轮说明">{{ summary.lastProbeNotice || PH_DASH }}</a-descriptions-item>
     </a-descriptions>
 
     <a-radio-group v-model:value="tab" button-style="solid" style="margin-bottom: 12px">
@@ -44,7 +44,10 @@
       </a-radio-button>
     </a-radio-group>
 
-    <a-table
+    <state-block v-if="loadError" state="error" :detail="loadError" />
+    <state-block v-else-if="!loading && visibleTargets.length === 0" state="empty" :title="targetEmptyTitle" />
+    <data-table
+      v-else
       :data-source="visibleTargets"
       :columns="targetColumns"
       :loading="loading"
@@ -55,16 +58,16 @@
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'label'">
-          <div>{{ record.label || '—' }}</div>
-          <div class="portal-citation-page__muted">{{ record.url || '—' }}</div>
+          <div>{{ record.label || PH_DASH }}</div>
+          <div class="portal-citation-page__muted">{{ record.url || PH_DASH }}</div>
         </template>
         <template v-else-if="column.key === 'citeCount'">
           <a-tag v-if="record.citeCount > 0" color="green">{{ record.citeCount }} 次</a-tag>
           <a-tag v-else-if="record.probeCount > 0">查过，没提到</a-tag>
-          <a-tag v-else>未覆盖</a-tag>
+          <a-tag v-else>{{ PH_NOT_COVERED }}</a-tag>
         </template>
         <template v-else-if="column.key === 'strength'">
-          <div>{{ record.lastMatchLabel || matchKindLabel(record.lastMatchKind) || '—' }}</div>
+          <div>{{ record.lastMatchLabel || matchKindLabel(record.lastMatchKind) || PH_DASH }}</div>
           <div class="portal-citation-page__muted">
             {{ record.lastProbedAt ? formatDateTime(record.lastProbedAt) : '这个区间内没有查过它' }}
           </div>
@@ -75,17 +78,14 @@
           </a-button>
         </template>
       </template>
-      <template #emptyText>
-        <a-empty description="这个站点还没有已发布对象：探测的分母来自已发布、非演示的页面与文章" />
-      </template>
-    </a-table>
+    </data-table>
 
     <a-card size="small" title="流量来源（人工浏览，与爬虫抓取不相加）">
-      <a-table
+      <data-table
         :data-source="traffic.buckets || []"
         :columns="trafficColumns"
         :loading="trafficLoading"
-        :pagination="false"
+        :error="trafficError"
         row-key="key"
         size="middle"
       >
@@ -96,7 +96,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </data-table>
       <a-alert v-if="traffic.notice" type="warning" show-icon style="margin-top: 12px" :message="traffic.notice" />
       <div v-if="traffic.totalViews" class="portal-citation-page__muted" style="margin-top: 8px">
         {{ traffic.from }} ~ {{ traffic.to }} 合计 {{ traffic.totalViews }} 次浏览。
@@ -106,7 +106,12 @@
 
     <a-drawer v-model:open="evidenceOpen" :title="evidenceTitle" width="820" placement="right">
       <a-spin :spinning="evidenceLoading">
-        <a-empty v-if="!evidence.length" description="这条对象当前没有可展示的命中记录" />
+        <state-block v-if="evidenceError" state="error" :detail="evidenceError" />
+        <state-block
+          v-else-if="!evidence.length"
+          state="empty"
+          title="这条对象当前没有可展示的命中记录"
+        />
         <div v-for="item in evidence" :key="item.hitId" class="portal-citation-page__evidence">
           <div class="portal-citation-page__head">
             <a-tag color="green">{{ item.matchLabel || matchKindLabel(item.matchKind) }}</a-tag>
@@ -129,7 +134,11 @@ import { computed, onMounted, ref } from 'vue'
 import dayjs, { type Dayjs } from 'dayjs'
 import { message } from 'ant-design-vue'
 import { siteApi } from '../../api/workspace'
+import DataTable from '../../components/DataTable.vue'
+import StateBlock from '../../components/StateBlock.vue'
 import { formatDateTime } from '../../utils/format'
+import { PH_DASH, PH_NOT_COVERED, PH_NOT_RUN } from '../../utils/display'
+import { logError } from '../../utils/errorLog'
 import {
   citationApi,
   type CitationEvidence,
@@ -157,6 +166,12 @@ const dateRange = ref<[Dayjs, Dayjs]>([dayjs().subtract(89, 'day'), dayjs()])
 const tab = ref('page')
 const loading = ref(false)
 const trafficLoading = ref(false)
+// 这一页今天第一次有「读失败了」这一态：以前失败只弹一句 toast，屏幕留在上一轮的数上，
+// 租户看不出自己看的是旧的还是空的（§9.2-4 三态）
+const loadError = ref<string | null>(null)
+const trafficError = ref<string | null>(null)
+const evidenceError = ref<string | null>(null)
+const targetEmptyTitle = '这个站点还没有已发布对象：探测的分母来自已发布、非演示的页面与文章'
 
 const vocabulary = ref<CitationVocabulary | null>(null)
 const summary = ref<CitationSummary | null>(null)
@@ -224,6 +239,7 @@ function rangeParams(): { siteId: number; from?: string; to?: string } {
 async function loadAll(): Promise<void> {
   if (!siteId.value) return
   loading.value = true
+  loadError.value = null
   try {
     // 一次取全部对象（不传 targetType）：页面/文章/案例来自同一个 /targets 端点，
     // 分三次发请求只是把「有哪几类」抄在了前端（I-1）
@@ -237,7 +253,9 @@ async function loadAll(): Promise<void> {
       rowKey: `${row.targetType}-${row.targetId ?? 'site'}`
     }))
   } catch (error) {
-    message.error((error as Error).message || '引用统计加载失败')
+    loadError.value = (error as Error).message || '引用统计加载失败'
+    message.error(loadError.value)
+    logError('portal-citation-summary', error)
   } finally {
     loading.value = false
   }
@@ -247,10 +265,13 @@ async function loadAll(): Promise<void> {
 async function loadTraffic(): Promise<void> {
   if (!siteId.value) return
   trafficLoading.value = true
+  trafficError.value = null
   try {
     traffic.value = await citationApi.trafficSources(rangeParams())
   } catch (error) {
-    message.error((error as Error).message || '流量来源加载失败')
+    trafficError.value = (error as Error).message || '流量来源加载失败'
+    message.error(trafficError.value)
+    logError('portal-citation-traffic', error)
   } finally {
     trafficLoading.value = false
   }
@@ -259,6 +280,7 @@ async function loadTraffic(): Promise<void> {
 async function openEvidence(record: CitationTargetStat): Promise<void> {
   evidenceOpen.value = true
   evidenceLoading.value = true
+  evidenceError.value = null
   evidenceTitle.value = `引用证据：${record.label || record.url || ''}`
   evidence.value = []
   try {
@@ -268,7 +290,9 @@ async function openEvidence(record: CitationTargetStat): Promise<void> {
       targetId: record.targetId
     })
   } catch (error) {
-    message.error((error as Error).message || '证据加载失败')
+    evidenceError.value = (error as Error).message || '证据加载失败'
+    message.error(evidenceError.value)
+    logError('portal-citation-evidence', error)
   } finally {
     evidenceLoading.value = false
   }
@@ -281,7 +305,9 @@ onMounted(async () => {
     sites.value = (list || []).map((site: any) => ({ id: site.id, name: site.name }))
     siteId.value = sites.value[0]?.id ?? null
   } catch (error) {
-    message.error((error as Error).message || '页面初始化失败')
+    loadError.value = (error as Error).message || '页面初始化失败'
+    message.error(loadError.value)
+    logError('portal-citation-init', error)
     return
   }
   await loadAll()

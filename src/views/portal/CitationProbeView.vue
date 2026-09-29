@@ -1,23 +1,22 @@
 <template>
   <div class="citation-page">
-    <a-form layout="inline" class="citation-page__filter">
-      <a-form-item label="站点">
-        <a-select
-          v-model:value="siteId"
-          style="width: 220px"
-          placeholder="选择站点"
-          :options="siteOptions"
-          @change="onSiteChange"
-        />
-      </a-form-item>
-      <a-form-item class="toolbar-actions">
+    <filter-bar>
+      <span class="citation-page__filter-label">站点</span>
+      <a-select
+        v-model:value="siteId"
+        style="width: 220px"
+        placeholder="选择站点"
+        :options="siteOptions"
+        @change="onSiteChange"
+      />
+      <template #actions>
         <a-space>
           <a-button :loading="loading" @click="load">刷新</a-button>
           <a-button @click="openQuestionDrawer">题库</a-button>
           <a-button type="primary" :disabled="!siteId" @click="openCreateModal">新建一轮探测</a-button>
         </a-space>
-      </a-form-item>
-    </a-form>
+      </template>
+    </filter-bar>
 
     <a-alert
       v-if="!siteId"
@@ -33,36 +32,50 @@
       :message="roundNotice"
     />
 
-    <a-table
+    <state-block
+      v-if="!loading && !loadError && probes.length === 0"
+      state="empty"
+      :title="probeEmptyTitle"
+    />
+    <data-table
+      v-else
       :data-source="probes"
       :columns="columns"
       :loading="loading"
-      :pagination="false"
+      :error="loadError"
       row-key="id"
       size="middle"
       :scroll="{ x: 1180 }"
+      :pagination="{
+        current: probePage,
+        pageSize: probeSize,
+        total: probeTotal,
+        showSizeChanger: true,
+        pageSizeOptions: ['20', '50', '100']
+      }"
+      @change="onTableChange"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">
-          <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
+          <status-tag domain="run" :status="record.status" :label="statusLabel(record.status)" />
           <div v-if="record.errorMessage" class="citation-page__muted">{{ record.errorMessage }}</div>
         </template>
         <template v-else-if="column.key === 'scope'">
-          <div>{{ record.modelCount ?? '—' }} 个模型 × {{ record.questionCount ?? '—' }} 道题</div>
-          <div class="citation-page__muted">判定对象 {{ record.targetCount ?? '—' }} 条</div>
+          <div>{{ record.modelCount ?? PH_DASH }} 个模型 × {{ record.questionCount ?? PH_DASH }} 道题</div>
+          <div class="citation-page__muted">判定对象 {{ record.targetCount ?? PH_DASH }} 条</div>
         </template>
         <template v-else-if="column.key === 'cited'">
-          <div>{{ record.citedTargetCount ?? '—' }} / {{ record.targetCount ?? '—' }}</div>
+          <div>{{ record.citedTargetCount ?? PH_DASH }} / {{ record.targetCount ?? PH_DASH }}</div>
           <div class="citation-page__muted">
             调用 {{ record.callCount ?? 0 }} 次，失败 {{ record.failedCallCount ?? 0 }} 次
           </div>
         </template>
         <template v-else-if="column.key === 'tokens'">
           <div>{{ tokensText(record) }}</div>
-          <div class="citation-page__muted">预估 {{ record.estimatedTokens ?? '—' }}</div>
+          <div class="citation-page__muted">预估 {{ record.estimatedTokens ?? PH_DASH }}</div>
         </template>
         <template v-else-if="column.key === 'time'">
-          <div>{{ formatDateTime(record.createdAt) || '—' }}</div>
+          <div>{{ formatDateTime(record.createdAt) || PH_DASH }}</div>
           <div class="citation-page__muted">{{ formatDateTime(record.finishedAt) || '未跑完' }}</div>
         </template>
         <template v-else-if="column.key === 'op'">
@@ -87,10 +100,7 @@
           </a-space>
         </template>
       </template>
-      <template #emptyText>
-        <a-empty description="这个站点还没有探测任务：点「新建一轮探测」先把这一轮问什么定下来" />
-      </template>
-    </a-table>
+    </data-table>
 
     <!-- ---------------- 新建一轮 ---------------- -->
     <a-modal v-model:open="createOpen" title="新建一轮品牌引用探测" :confirm-loading="creating" @ok="createProbe">
@@ -120,9 +130,9 @@
     <a-modal v-model:open="runOpen" title="确认起跑这一轮" :ok-button-props="{ disabled: !runConfirmed }" @ok="startRun">
       <template v-if="runTarget">
         <a-descriptions :column="1" size="small" bordered>
-          <a-descriptions-item label="外呼次数">{{ runTarget.callCount ?? '—' }} 次（模型数 × 题数）</a-descriptions-item>
-          <a-descriptions-item label="预估 token">{{ runTarget.estimatedTokens ?? '—' }}</a-descriptions-item>
-          <a-descriptions-item label="本租户剩余">{{ runTarget.remainingTokens ?? '—' }}</a-descriptions-item>
+          <a-descriptions-item label="外呼次数">{{ runTarget.callCount ?? PH_DASH }} 次（模型数 × 题数）</a-descriptions-item>
+          <a-descriptions-item label="预估 token">{{ runTarget.estimatedTokens ?? PH_DASH }}</a-descriptions-item>
+          <a-descriptions-item label="本租户剩余">{{ runTarget.remainingTokens ?? PH_DASH }}</a-descriptions-item>
         </a-descriptions>
         <a-alert
           v-if="runTarget.notice"
@@ -146,9 +156,11 @@
       <a-spin :spinning="detailLoading">
         <template v-if="detail">
           <a-descriptions :column="3" size="small" bordered>
-            <a-descriptions-item label="状态">{{ statusLabel(detail.probe.status) }}</a-descriptions-item>
-            <a-descriptions-item label="模型">{{ detail.probe.modelCount ?? '—' }}</a-descriptions-item>
-            <a-descriptions-item label="题目数">{{ detail.probe.questionCount ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="状态">
+              <status-tag domain="run" :status="detail.probe.status" :label="statusLabel(detail.probe.status)" />
+            </a-descriptions-item>
+            <a-descriptions-item label="模型">{{ detail.probe.modelCount ?? PH_DASH }}</a-descriptions-item>
+            <a-descriptions-item label="题目数">{{ detail.probe.questionCount ?? PH_DASH }}</a-descriptions-item>
             <a-descriptions-item label="被引用对象">{{ detail.probe.citedTargetCount ?? 0 }} / {{ detail.probe.targetCount ?? 0 }}</a-descriptions-item>
             <a-descriptions-item label="调用">{{ detail.probe.callCount ?? 0 }}</a-descriptions-item>
             <a-descriptions-item label="失败">{{ detail.probe.failedCallCount ?? 0 }}</a-descriptions-item>
@@ -178,7 +190,7 @@
                   </template>
                   <template v-else-if="column.key === 'cost'">
                     <div>{{ (record.promptTokens ?? 0) + (record.completionTokens ?? 0) }} token</div>
-                    <div class="citation-page__muted">{{ record.callDurationMs ?? '—' }} ms</div>
+                    <div class="citation-page__muted">{{ record.callDurationMs ?? PH_DASH }} ms</div>
                   </template>
                 </template>
               </a-table>
@@ -193,12 +205,12 @@
               >
                 <template #bodyCell="{ column, record }">
                   <template v-if="column.key === 'target'">
-                    <div>{{ typeLabel(record.targetType) }}：{{ record.targetLabel || '—' }}</div>
-                    <div class="citation-page__muted">{{ record.targetUrl || '—' }}</div>
+                    <div>{{ typeLabel(record.targetType) }}：{{ record.targetLabel || PH_DASH }}</div>
+                    <div class="citation-page__muted">{{ record.targetUrl || PH_DASH }}</div>
                   </template>
                   <template v-else-if="column.key === 'kind'">
                     <a-tag>{{ matchKindLabel(record.matchKind) }}</a-tag>
-                    <div class="citation-page__muted">命中字面串：{{ record.matchedText || '—' }}</div>
+                    <div class="citation-page__muted">命中字面串：{{ record.matchedText || PH_DASH }}</div>
                   </template>
                 </template>
               </a-table>
@@ -215,8 +227,14 @@
         show-icon
         message="题库是数据不是代码：换行业、加本地化提问都在这里加一行，不改程序。占位符只有 {{region}}、{{industry}}、{{brand}} 三个，写了别的后端会拒。"
       />
-      <a-form layout="inline" style="margin-top: 12px">
-        <a-form-item label="题目">
+      <a-form
+        ref="questionFormRef"
+        layout="inline"
+        style="margin-top: 12px"
+        :model="questionForm"
+        :rules="questionRules"
+      >
+        <a-form-item label="题目" name="questionText">
           <a-input v-model:value="questionForm.questionText" style="width: 380px" placeholder="例：{{region}}哪家口腔医院比较靠谱？" />
         </a-form-item>
         <a-form-item label="排序">
@@ -226,11 +244,10 @@
           <a-button type="primary" :loading="savingQuestion" @click="saveQuestion">新增</a-button>
         </a-form-item>
       </a-form>
-      <a-table
+      <data-table
         :data-source="questions"
         :columns="questionColumns"
         :loading="questionsLoading"
-        :pagination="false"
         row-key="id"
         size="small"
         style="margin-top: 12px"
@@ -250,7 +267,7 @@
             />
           </template>
         </template>
-      </a-table>
+      </data-table>
     </a-drawer>
   </div>
 </template>
@@ -259,6 +276,13 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { siteApi } from '../../api/workspace'
+import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
+import StateBlock from '../../components/StateBlock.vue'
+import StatusTag from '../../components/StatusTag.vue'
+import { required } from '../../utils/rules'
+import { PH_DASH, PH_NOT_RUN } from '../../utils/display'
+import { logError } from '../../utils/errorLog'
 import { formatDateTime } from '../../utils/format'
 import {
   citationApi,
@@ -283,19 +307,18 @@ import {
  * 3. 这里没有任何入口能改页面内容或发布内容，探测只读不写，产出的只有统计与证据。
  */
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'orange',
-  running: 'blue',
-  needs_human: 'red',
-  done: 'green',
-  failed: 'red'
-}
+/** 状态的颜色与兜底文案在 utils/statusTokens.ts（run 域），中文词表到手时由 label 覆盖 */
 
 const siteId = ref<number | null>(null)
 const sites = ref<Array<{ id: number; name: string }>>([])
 const probes = ref<CitationProbe[]>([])
 const vocabulary = ref<CitationVocabulary | null>(null)
 const loading = ref(false)
+const loadError = ref<string | null>(null)
+/** 分页归后端（§7.3：page/size，默认 20、单页最多 100）；total 是「共 N 轮」那个分母，不是这一页的条数 */
+const probePage = ref(1)
+const probeSize = ref(20)
+const probeTotal = ref(0)
 
 const models = ref<CitationModelOption[]>([])
 const modelsLoading = ref(false)
@@ -318,6 +341,9 @@ const questionsLoading = ref(false)
 const savingQuestion = ref(false)
 const questions = ref<CitationQuestion[]>([])
 const questionForm = reactive<{ questionText: string; sort: number | null }>({ questionText: '', sort: null })
+const questionFormRef = ref()
+/** 红星与校验同出一处：`required('题目')` 既画那颗星，也是提交时拦下来的那条规则（§9.2-6） */
+const questionRules = { questionText: [required('题目')] }
 const togglingId = ref<number | null>(null)
 
 const columns = [
@@ -375,15 +401,15 @@ function matchKindLabel(kind: string): string {
   return labels[kind] || kind
 }
 
-function statusColor(status: string): string {
-  return STATUS_COLORS[status] || 'default'
-}
-
 function tokensText(probe: CitationProbe): string {
   const used = citationTokensUsed(probe)
-  // 「还没花钱」与「花了 0 个」要分得开：后者会让人以为门禁把调用吞了
-  return used === null ? '未调用' : `${used} 实烧`
+  // 「还没花钱」与「花了 0 个」要分得开：后者会让人以为门禁把调用吞了。
+  // 这一格的措辞用占位符单源里的 PH_NOT_RUN（一次都没跑过），不是 '—'（跑过但没数）。
+  return used === null ? PH_NOT_RUN : `${used} 实烧`
 }
+
+/** 空态那句话原样保留在这里：DataTable 自己判空，页面特有的那句话只能由 StateBlock 的 title 传进去 */
+const probeEmptyTitle = '这个站点还没有探测任务：点「新建一轮探测」先把这一轮问什么定下来'
 
 const latest = computed(() => probes.value.find((probe) => probe.status !== 'pending') || null)
 
@@ -391,7 +417,7 @@ const roundNotice = computed(() => {
   if (!latest.value) return '这个站点还没有跑过探测：新建一轮 → 估算 → 勾选确认起跑。'
   const ids = citationModelIds(latest.value)
   return `最近一轮：${statusLabel(latest.value.status)}，用了 ${latest.value.modelCount ?? ids.length} 个模型、`
-    + `${latest.value.questionCount ?? '—'} 道题。开关（app.portal.citation.enabled）默认关着，`
+    + `${latest.value.questionCount ?? PH_DASH} 道题。开关（app.portal.citation.enabled）默认关着，`
     + '关掉时起跑会被直接打回，不会偷偷调模型。'
 })
 
@@ -407,19 +433,37 @@ async function loadVocabulary(): Promise<void> {
 async function load(): Promise<void> {
   if (!siteId.value) {
     probes.value = []
+    probeTotal.value = 0
     return
   }
   loading.value = true
+  loadError.value = null
   try {
-    probes.value = await citationApi.list(siteId.value)
+    const pageData = await citationApi.listPaged({
+      siteId: siteId.value,
+      page: probePage.value,
+      size: probeSize.value
+    })
+    probes.value = pageData?.records || []
+    probeTotal.value = Number(pageData?.total ?? probes.value.length)
   } catch (error) {
-    message.error((error as Error).message || '探测任务加载失败')
+    loadError.value = (error as Error).message || '探测任务加载失败'
+    message.error(loadError.value)
+    logError('citation-probe-list', error)
   } finally {
     loading.value = false
   }
 }
 
+/** 翻页不改筛选条件、只换这一页：分页归后端，界面不再一次捞 200 条自己切 */
+function onTableChange(pagination: { current?: number; pageSize?: number }): void {
+  probePage.value = pagination?.current ?? probePage.value
+  probeSize.value = pagination?.pageSize ?? probeSize.value
+  load()
+}
+
 async function onSiteChange(): Promise<void> {
+  probePage.value = 1
   await loadModels()
   await load()
 }
@@ -516,11 +560,14 @@ async function openQuestionDrawer(): Promise<void> {
 }
 
 async function saveQuestion(): Promise<void> {
-  const text = questionForm.questionText.trim()
-  if (!text) {
-    message.warning('题目不能为空')
+  // 校验走 utils/rules.ts：红星由这条规则画出来，拦下来也是同一条规则，不再手写一句 message.warning
+  try {
+    await questionFormRef.value?.validate()
+  } catch (error) {
+    logError('citation-question-invalid', error)
     return
   }
+  const text = questionForm.questionText.trim()
   savingQuestion.value = true
   try {
     await citationApi.saveQuestion({ questionText: text, sort: questionForm.sort })
@@ -563,8 +610,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.citation-page__filter {
-  margin-bottom: 12px;
+/* 靠右那组按钮交给 FilterBar 与 global.less 的 .toolbar-actions，这里不再抄一份 margin-left */
+.citation-page__filter-label {
+  color: #595959;
+  font-size: 13px;
 }
 .citation-page__muted {
   color: rgba(0, 0, 0, 0.45);
@@ -577,8 +626,5 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: bottom;
-}
-.toolbar-actions {
-  margin-left: auto;
 }
 </style>

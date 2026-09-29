@@ -1,50 +1,19 @@
 <template>
-  <div class="geoseo-dashboard-view">
+  <page-shell title="GEO总览仪表盘" subtitle="生成引擎优化全局视图">
     <a-spin :spinning="loading">
-      <a-page-header title="GEO总览仪表盘" sub-title="生成引擎优化全局视图" />
-
       <div class="dashboard-content">
-        <!-- 1. GEO总分仪表盘 -->
-        <a-card title="GEO总分" class="score-card">
-          <div class="total-score-wrap">
-            <a-progress
-              type="circle"
-              :percent="dashboardData?.totalScore ?? 0"
-              :size="180"
-              :stroke-color="totalScoreColor"
-              :format="() => `${dashboardData?.totalScore ?? 0}`"
-            />
-            <div class="score-desc">
-              <div class="score-label" :style="{ color: totalScoreColor }">{{ totalScoreLabel }}</div>
-              <div class="score-hint">总分 100，分数越高代表 GEO 优化效果越好</div>
-            </div>
-          </div>
+        <!-- 1. 分数那一格：Q2-A 定稿删总分，这里只留「为什么空着」 -->
+        <a-card title="GEO总分" class="section-card">
+          <state-block
+            state="not-measured"
+            :title="GEO_SCORE_TITLE"
+            :detail="GEO_SCORE_DETAIL"
+            :next="GEO_SCORE_NEXT"
+          />
+          <div class="geo-hard-rule">{{ METRIC_HARD_RULES.noCombinedScore }}</div>
         </a-card>
 
-        <!-- 2. 6维度评分卡片 -->
-        <a-card title="维度评分" class="section-card">
-          <a-row :gutter="[16, 16]">
-            <a-col :xs="24" :sm="12" :md="8" v-for="dim in dimensionList" :key="dim.key">
-              <div class="dimension-card">
-                <div class="dimension-header">
-                  <span class="dimension-name">{{ dim.name }}</span>
-                  <a-tag color="blue">权重 {{ dim.weight }}</a-tag>
-                </div>
-                <div class="dimension-score" :style="{ color: getScoreColor(dim.value) }">
-                  {{ dim.value }}
-                  <span class="dimension-score-unit">/ 100</span>
-                </div>
-                <a-progress
-                  :percent="dim.value"
-                  :stroke-color="getScoreColor(dim.value)"
-                  :show-info="false"
-                />
-              </div>
-            </a-col>
-          </a-row>
-        </a-card>
-
-        <!-- 3. 索引状态统计 -->
+        <!-- 2. 索引状态统计：这一屏剩下的四个数都是库里的真实行数，不是算出来的 -->
         <a-card title="索引状态统计" class="section-card">
           <a-row :gutter="16">
             <a-col :xs="12" :sm="6">
@@ -86,68 +55,32 @@
           </a-row>
         </a-card>
 
-        <!-- 4. 排名变化概览 -->
-        <a-card title="排名变化概览" class="section-card" v-if="rankChanges.length > 0">
-          <a-table
-            :scroll="{ x: 'max-content' }"
-            :data-source="rankChanges"
-            :pagination="false"
-            row-key="keyword"
+        <!-- 3. 待优化建议列表 -->
+        <a-card title="待优化建议" class="section-card">
+          <data-table
+            :data-source="sortedSuggestions"
+            :columns="suggestionColumns"
+            :loading="loading"
+            :error="loadError"
+            row-key="message"
             size="middle"
           >
-            <a-table-column title="关键词" data-index="keyword" />
-            <a-table-column title="搜索引擎" :width="120">
-              <template #default="{ text }">
-                <a-tag>{{ searchEngineName(text) }}</a-tag>
+            <template #bodyCell="{ column, record, index }">
+              <template v-if="column.key === 'severity'">
+                <a-tag :color="getSeverityColor(record.severity)">
+                  {{ getSeverityLabel(record.severity) }}
+                </a-tag>
               </template>
-            </a-table-column>
-            <a-table-column title="排名变化" :width="220">
-              <template #default="{ record }">
-                <span class="rank-change">
-                  <span class="rank-prev">{{ record.previousRank }}</span>
-                  <span class="rank-arrow">→</span>
-                  <span class="rank-current" :style="{ color: getRankChangeColor(record.currentRank, record.previousRank) }">
-                    {{ record.currentRank }}
-                  </span>
-                  <span
-                    v-if="record.currentRank !== record.previousRank"
-                    class="rank-delta"
-                    :style="{ color: getRankChangeColor(record.currentRank, record.previousRank) }"
-                  >
-                    ({{ getRankDeltaText(record.currentRank, record.previousRank) }})
-                  </span>
-                </span>
+              <template v-else-if="column.key === 'message'">
+                <div class="suggestion-message">{{ record.message }}</div>
+                <div class="suggestion-index">建议 #{{ index + 1 }}</div>
               </template>
-            </a-table-column>
-          </a-table>
-        </a-card>
-
-        <!-- 5. 待优化建议列表 -->
-        <a-card title="待优化建议" class="section-card">
-          <a-empty v-if="sortedSuggestions.length === 0" description="暂无优化建议" />
-          <a-list v-else :data-source="sortedSuggestions" item-layout="horizontal">
-            <template #renderItem="{ item, index }">
-              <a-list-item>
-                <a-list-item-meta>
-                  <template #avatar>
-                    <a-tag :color="getSeverityColor(item.severity)">
-                      {{ getSeverityLabel(item.severity) }}
-                    </a-tag>
-                  </template>
-                  <template #title>
-                    <span class="suggestion-message">{{ item.message }}</span>
-                  </template>
-                  <template #description>
-                    <span class="suggestion-index">建议 #{{ index + 1 }}</span>
-                  </template>
-                </a-list-item-meta>
-              </a-list-item>
             </template>
-          </a-list>
+          </data-table>
         </a-card>
       </div>
     </a-spin>
-  </div>
+  </page-shell>
 </template>
 
 <script setup lang="ts">
@@ -159,54 +92,54 @@ import {
   TeamOutlined,
   KeyOutlined,
 } from '@ant-design/icons-vue'
+import PageShell from '../../components/PageShell.vue'
+import StateBlock from '../../components/StateBlock.vue'
+import DataTable from '../../components/DataTable.vue'
+import { METRIC_HARD_RULES } from '../../copy/metrics'
+import { logError } from '../../utils/errorLog'
 import { geoDashboardApi } from '../../api/geoseo'
 import type { GeoDashboard } from '../../types/geoseo'
 
+/**
+ * GEO 总览（Spec-F §1.3 / §0.4 Q2-A）。
+ *
+ * 这一屏今天只剩两类东西：库里的真实行数，与后端如实给出的待优化建议。
+ * 那个「GEO总分」与它的六维度评分已经下线：它们由 `GeoDashboardController:90` 那类
+ * 「配置字段填没填」的二值当场加权造出来（crawlerAccessibility = robotsTxt 非空 ? 100 : 50），
+ * 没抓过爬虫、没测过引用，摆在界面上就是谎报（§9.6）。空着的那一格用 StateBlock 说明白
+ * 「谁将来填它」，不静悄悄留个数字。
+ * 「排名变化概览」也一并撤了：它的源表 `geoseo_keyword_rank` 没有数据源，
+ * `/api/geoseo/keywords/{id}/check` 现在返回 501 NOT_IMPLEMENTED（Q7-A），页面留着只是错觉。
+ */
+
+const GEO_SCORE_TITLE = 'GEO 总分已下线：这里没有真观测值可显示'
+const GEO_SCORE_DETAIL =
+  '总分与六维度评分来自「配置字段填没填」的当场加权，不是任何能力的测量，已按 Q2-A 从界面上删除。'
+const GEO_SCORE_NEXT =
+  '补上这一格的是「分平台 × 分指标」矩阵（引用探测的每一轮真数）与可抓取性体检清单（§8 那六项实测），两者都在 Spec-F 的排期里。'
+
 const loading = ref(false)
+const loadError = ref<string | null>(null)
 const dashboardData = ref<GeoDashboard | null>(null)
 
 const loadData = async () => {
   loading.value = true
+  loadError.value = null
   try {
     dashboardData.value = await geoDashboardApi.get()
   } catch (error) {
     message.error('加载GEO仪表盘数据失败')
-    console.error(error)
+    loadError.value = (error as Error).message || '加载GEO仪表盘数据失败'
+    logError('geoseo-dashboard-load', error)
   } finally {
     loading.value = false
   }
 }
 
-// 总分颜色: 0-40 红色, 40-70 橙色, 70-100 绿色
-const totalScoreColor = computed(() => {
-  const score = dashboardData.value?.totalScore ?? 0
-  return getScoreColor(score)
-})
-
-const totalScoreLabel = computed(() => {
-  const score = dashboardData.value?.totalScore ?? 0
-  if (score < 40) return '亟待优化'
-  if (score < 70) return '有待提升'
-  return '表现良好'
-})
-
-// 6 维度评分列表
-const dimensionList = computed(() => {
-  const dims = dashboardData.value?.dimensions
-  return [
-    { key: 'aiCitability', name: 'AI可引用性', weight: '25%', value: dims?.aiCitability ?? 0 },
-    { key: 'schemaCompleteness', name: 'Schema完整度', weight: '10%', value: dims?.schemaCompleteness ?? 0 },
-    { key: 'metaCompleteness', name: 'Meta完整度', weight: '20%', value: dims?.metaCompleteness ?? 0 },
-    { key: 'crawlerAccessibility', name: '爬虫可访问性', weight: '15%', value: dims?.crawlerAccessibility ?? 0 },
-    { key: 'contentQuality', name: '内容质量', weight: '20%', value: dims?.contentQuality ?? 0 },
-    { key: 'brandAuthority', name: '品牌权威度', weight: '10%', value: dims?.brandAuthority ?? 0 },
-  ]
-})
-
-// 排名变化列表
-const rankChanges = computed(() => {
-  return dashboardData.value?.rankChanges ?? []
-})
+const suggestionColumns = [
+  { title: '严重程度', key: 'severity', width: 120 },
+  { title: '建议', key: 'message' },
+]
 
 // 建议按严重程度排序: high -> medium -> low
 const sortedSuggestions = computed(() => {
@@ -218,31 +151,6 @@ const sortedSuggestions = computed(() => {
     return oa - ob
   })
 })
-
-function getScoreColor(score: number): string {
-  if (score < 40) return '#ff4d4f'
-  if (score < 70) return '#faad14'
-  return '#52c41a'
-}
-
-function searchEngineName(engine: string): string {
-  if (engine === 'google') return 'Google'
-  if (engine === 'baidu') return '百度'
-  return engine || '-'
-}
-
-// 排名变化颜色: 数字越小排名越靠前，因此 currentRank < previousRank 为提升（绿色）
-function getRankChangeColor(currentRank: number, previousRank: number): string {
-  if (currentRank < previousRank) return '#52c41a'
-  if (currentRank > previousRank) return '#ff4d4f'
-  return '#8c8c8c'
-}
-
-function getRankDeltaText(currentRank: number, previousRank: number): string {
-  const delta = currentRank - previousRank
-  if (delta < 0) return `↑${Math.abs(delta)}`
-  return `↓${Math.abs(delta)}`
-}
 
 function getSeverityColor(severity: string): string {
   switch (severity) {
@@ -276,95 +184,16 @@ onMounted(() => {
 </script>
 
 <style lang="less" scoped>
-.geoseo-dashboard-view {
-  .dashboard-content {
-    padding: 0 24px 24px;
-  }
-
-  .score-card {
-    margin-bottom: 16px;
-
-    .total-score-wrap {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 48px;
-      padding: 24px 0;
-    }
-
-    .score-desc {
-      .score-label {
-        font-size: 24px;
-        font-weight: 600;
-        line-height: 1.2;
-      }
-
-      .score-hint {
-        margin-top: 8px;
-        font-size: 13px;
-        color: #8c8c8c;
-        max-width: 240px;
-      }
-    }
-  }
-
+.dashboard-content {
   .section-card {
     margin-bottom: 16px;
   }
 
-  .dimension-card {
-    padding: 20px;
-    background: #fafafa;
-    border-radius: 8px;
-    height: 100%;
-
-    .dimension-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-
-    .dimension-name {
-      font-size: 15px;
-      font-weight: 500;
-      color: #262626;
-    }
-
-    .dimension-score {
-      font-size: 32px;
-      font-weight: 700;
-      line-height: 1.2;
-      margin-bottom: 12px;
-
-      .dimension-score-unit {
-        font-size: 14px;
-        font-weight: 400;
-        color: #8c8c8c;
-      }
-    }
-  }
-
-  .rank-change {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-
-    .rank-prev {
-      color: #8c8c8c;
-    }
-
-    .rank-arrow {
-      color: #bfbfbf;
-    }
-
-    .rank-current {
-      font-weight: 600;
-    }
-
-    .rank-delta {
-      font-size: 12px;
-    }
+  .geo-hard-rule {
+    margin-top: 8px;
+    color: #8c8c8c;
+    font-size: 12px;
+    text-align: center;
   }
 
   .suggestion-message {

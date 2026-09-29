@@ -243,6 +243,17 @@ export const citationApi = {
   list: (siteId?: number | null, limit = 30) =>
     http.get<CitationProbe[]>('/admin/portal/citation-probes', { params: { siteId, limit } }),
 
+  /**
+   * 任务列表的分页口（Spec-F §7.3）：`page` 从 1 起、`size` 默认 20、单页最多 100（后端 MAX_PAGE_SIZE 收口）。
+   * 旧那条 `list(siteId, limit)` 留着不动：数组形状的响应改不得，改了就是把现有前端打回去猜。
+   * 这里带 `size`，后端按 `params = "size"` 走分页那一条分支，响应是 records + total。
+   */
+  listPaged: (params: { siteId?: number | null; page?: number; size?: number }) =>
+    http.get<{ records: CitationProbe[]; total: number; page: number; size: number }>(
+      '/admin/portal/citation-probes',
+      { params }
+    ),
+
   /** 只建任务：把这一轮要问几个模型、几道题、参与判定的对象数拍成快照，一次模型都不调 */
   create: (form: CitationCreateForm) => http.post<CitationProbe>('/admin/portal/citation-probes', form),
 
