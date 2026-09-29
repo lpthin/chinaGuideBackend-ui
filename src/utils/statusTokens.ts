@@ -28,6 +28,32 @@ export type StatusDomain =
   | 'caseReview'
   | 'keywordStage'
   | 'healthFinding'
+  | 'geoBrandStatus'
+  | 'geoReviewState'
+  | 'geoOrigin'
+
+/**
+ * GEO 品牌档案（Spec-F §11.2 P1）：档案生命周期状态。
+ * 后端 status 的确切词表到手前，未知值按 statusMeta 的既有兜底原样显示、default 色。
+ */
+export const GEO_BRAND_STATUS: Record<string, StatusMeta> = {
+  ACTIVE: { label: '启用中', color: 'green' },
+  ARCHIVED: { label: '已停用', color: 'default' },
+}
+
+/** GEO 追踪题的复核状态：pending 这一档 P1 显式指定橙（§11.1 末条：不许再靠猜色） */
+export const GEO_REVIEW_STATE: Record<string, StatusMeta> = {
+  PENDING: { label: '待复核', color: 'orange' },
+  APPROVED: { label: '已确认', color: 'green' },
+  REJECTED: { label: '已驳回', color: 'red' },
+}
+
+/** GEO 竞品来源：手填 vs 自动发现（§0.4 Q13：自动发现的默认不进 SOV 分母）；追踪题共用这一族，多一档 AI 建议 */
+export const GEO_ORIGIN: Record<string, StatusMeta> = {
+  MANUAL: { label: '手填', color: 'default' },
+  AUTO: { label: '自动发现', color: 'blue' },
+  AI_SUGGESTED: { label: 'AI 建议', color: 'orange' },
+}
 
 /**
  * 门户页面巡检的问题状态：颜色逐字搬自 api/portalHealth.ts 的 healthStatusColor()（已删）。
@@ -114,6 +140,9 @@ const TABLES: Record<StatusDomain, Record<string, StatusMeta>> = {
   caseReview: CASE_REVIEW_STATUS,
   keywordStage: KEYWORD_STAGE_STATUS,
   healthFinding: HEALTH_FINDING_STATUS,
+  geoBrandStatus: GEO_BRAND_STATUS,
+  geoReviewState: GEO_REVIEW_STATE,
+  geoOrigin: GEO_ORIGIN,
 }
 
 export { ARTICLE_STATUS, QUEUE_STATUS, JOB_STATUS }
