@@ -51,6 +51,8 @@ vi.mock('../../../api/geoCampaign', async (importOriginal) => {
     geoCampaignApi: {
       getReport: vi.fn(), vocabulary: vi.fn(), recalculateSov: vi.fn(),
       judge: vi.fn(), judgments: vi.fn(), answer: vi.fn(),
+      opportunities: vi.fn(), opportunityEstimate: vi.fn(), opportunityDraft: vi.fn(),
+      opportunityDismiss: vi.fn(), opportunityStateLog: vi.fn(),
     },
   }
 })
@@ -68,6 +70,13 @@ const PROGRESS_STUB = {
 }
 
 /** 抽屉自己的渲染有它自己的用例（judgment-drawer.spec.ts），这里只钉「报告那一发点得开它」 */
+/** 机会清单自己有整套用例（opportunity-panel.spec.ts），这里只钉「报告把它挂上了、传的是这一轮」 */
+const OPPORTUNITY_PANEL_STUB = {
+  name: 'GeoOpportunityPanel',
+  props: ['runId', 'vocabulary'],
+  template: '<div class="opp-panel-stub" :data-run-id="runId" />',
+}
+
 const DRAWER_STUB = {
   name: 'GeoJudgmentDrawer',
   props: ['open', 'runId', 'vocabulary'],
@@ -226,6 +235,7 @@ function baseStubs() {
     'a-tag': TAG_STUB,
     'a-progress': PROGRESS_STUB,
     GeoJudgmentDrawer: DRAWER_STUB,
+    GeoOpportunityPanel: OPPORTUNITY_PANEL_STUB,
     // 勾选框用真组件：第二道闸（§6.2）的判据是「不勾就发不出去」，替件按不动就是假绿
     'a-checkbox': Checkbox,
     // 「按当前勾选重算份额」与「确认并判定这一轮」那两发要真按得动：a-button 用声明了 emits 的桩，
@@ -639,10 +649,10 @@ describe('缺口与口径标注（§9.6 + §5 禁令 2）', () => {
     expect(geoCampaignApi.vocabulary).toHaveBeenCalled()
   })
 
-  it('P4/P5 那两卡既不摆数字也不摆空壳：这一屏只出五卡', async () => {
+  it('没有观测口径的那一格既不摆数字也不摆空壳：指标卡仍只有五张', async () => {
     const wrapper = await mountView()
     const text = wrapper.text()
-    expect(text).toContain('既没有它们的数字也没有它们的空格')
+    expect(text).toContain('既没有它的数字也没有它的空格')
     expect(wrapper.findAll('.geo-report__card[data-card]')).toHaveLength(5)
     expect(text).not.toContain('引用链接率：')
   })
@@ -780,5 +790,21 @@ describe('SOV 按当前勾选重算（§11.3：分母随勾选走，且这一发
     const button = buttonByText(wrapper, '按当前勾选重算份额')
     expect(button.attributes('disabled')).toBeUndefined()
     expect(wrapper.text()).toContain('一次模型都不调用')
+  })
+})
+
+describe('机会问题那一卡挂上了（§10-6 的入口）', () => {
+  it('报告把当前轮次与词表交给机会清单面板，而不是自己抄一份清单', async () => {
+    const wrapper = await mountView()
+    const panel = wrapper.find('.opp-panel-stub')
+    expect(panel.exists()).toBe(true)
+    expect(panel.attributes('data-run-id')).toBe('88')
+  })
+
+  it('覆盖率卡里那句话说的是「下面那一卡」，不再承诺「排在下一期」', async () => {
+    const wrapper = await mountView()
+    const note = cardOf(wrapper, 'coverage').find('.geo-report__card-note').text()
+    expect(note).toContain('机会问题')
+    expect(note).not.toContain('下一期')
   })
 })

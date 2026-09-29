@@ -34,6 +34,8 @@ export type StatusDomain =
   | 'geoBrandStatus'
   | 'geoReviewState'
   | 'geoOrigin'
+  | 'geoOpportunityState'
+  | 'geoGapType'
 
 /**
  * GEO 品牌档案（Spec-F §11.2 P1）：档案生命周期状态。
@@ -99,6 +101,31 @@ export const GEO_JUDGE_STATE: Record<string, StatusMeta> = {
   JUDGING: { label: 'JUDGING', color: 'blue' },
   DONE: { label: 'DONE', color: 'green' },
   FAILED: { label: 'FAILED', color: 'red' },
+}
+
+/**
+ * 机会问题的状态四格（Spec-F §11.5）：这里只钉颜色，中文名唯一出处是
+ * `/geo/campaign/vocabulary.opportunityStates` + 行自带的 `stateLabel`。
+ *
+ * `PUBLISHED` 绿是因为它是这一屏唯一的「闭环走通」；`DISMISSED` 刻意灰而不红——
+ * 放弃是一个决定，不是一次失败，画成红会让人以为系统出了错。
+ */
+export const GEO_OPPORTUNITY_STATE: Record<string, StatusMeta> = {
+  OPEN: { label: 'OPEN', color: 'default' },
+  DRAFTED: { label: 'DRAFTED', color: 'blue' },
+  PUBLISHED: { label: 'PUBLISHED', color: 'green' },
+  DISMISSED: { label: 'DISMISSED', color: 'default' },
+}
+
+/**
+ * 缺口四档的颜色（判据句子在 `gapDefinitions` 里，界面上不许自己写）。
+ * 三档机会按「差得多远」上色，`COVERED_CITED` 绿——它不是第五种待办，是这一条不再是机会。
+ */
+export const GEO_GAP_TYPE: Record<string, StatusMeta> = {
+  NOT_COVERED: { label: 'NOT_COVERED', color: 'red' },
+  COVERED_NOT_CITED: { label: 'COVERED_NOT_CITED', color: 'orange' },
+  CITED_BELOW: { label: 'CITED_BELOW', color: 'gold' },
+  COVERED_CITED: { label: 'COVERED_CITED', color: 'green' },
 }
 
 /**
@@ -192,6 +219,8 @@ const TABLES: Record<StatusDomain, Record<string, StatusMeta>> = {
   geoBrandStatus: GEO_BRAND_STATUS,
   geoReviewState: GEO_REVIEW_STATE,
   geoOrigin: GEO_ORIGIN,
+  geoOpportunityState: GEO_OPPORTUNITY_STATE,
+  geoGapType: GEO_GAP_TYPE,
 }
 
 export { ARTICLE_STATUS, QUEUE_STATUS, JOB_STATUS }

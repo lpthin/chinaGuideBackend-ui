@@ -191,6 +191,110 @@ export interface GeoVocabulary {
   sentiments: Record<string, string>
   sentimentDefinitions: Record<string, string>
   accessChannelNote: string
+  /**
+   * 下面五族是 P4 才加进 `vocabulary()` 的，所以标可选：前端先上、后端还没上的那半天里，
+   * 这一屏要落到「原样显示状态码」的兜底，而不是整页读不出来。视图一律走 `?.[]` 取值。
+   */
+  /** 缺口四档（§11.5）：中文名与判据各一份，视图里一份都不抄 */
+  gapTypes?: Record<string, string>
+  gapDefinitions?: Record<string, string>
+  /** 四个动作：全部是「转交给已经在花钱的那条流水线」，界面上不许出现第五个动作 */
+  opportunityActions?: Record<string, string>
+  opportunityActionDefinitions?: Record<string, string>
+  /** 机会状态四格：`PUBLISHED` 只能读出来，所以界面上永远没有「标记已发布」那一发 */
+  opportunityStates?: Record<string, string>
+}
+
+/**
+ * 一条机会问题（Spec-F §11.5，10-6）。
+ *
+ * 三格中文（`gapTypeLabel` / `actionLabel` / `stateLabel`）与两句判据（`gapDefinition`、
+ * `verificationNote`）都是后端算好发回来的：视图自己拼一份，就是下一次「界面上说的和库里算的
+ * 对不上」的来源。`evidenceNumerator/Denominator` 是这道题这一轮的观测（引用到我们的回答数 /
+ * 成功回答数），它撑起了「引用得不稳」那一档，所以必须跟着行走。
+ */
+export interface GeoOpportunity {
+  id: number
+  runId: number
+  campaignId: number
+  questionId: number
+  coreWord: string | null
+  questionText: string
+  kind: string | null
+  gapType: string
+  gapTypeLabel: string | null
+  gapDefinition: string | null
+  actionType: string | null
+  actionLabel: string | null
+  evidenceNumerator: number | null
+  evidenceDenominator: number | null
+  /** 这一条产出的东西：`page:33` / `faq:8` / `article_task:9` / `case:5`，前缀就是它的出身 */
+  draftRef: string | null
+  state: string
+  stateLabel: string | null
+  dismissedReason: string | null
+  verifiedRunId: number | null
+  verifiedGapType: string | null
+  verifiedAt: string | null
+  /** 「未验证」/「轮次 N 已验证」那一句：它是一句话，不是第五个状态词（§11.5 第四条） */
+  verificationNote: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+/** 某一轮的机会清单：三个数各有出处，`unmeasuredQuestions` 为 null = P4 之前的老轮次没算过 */
+export interface GeoOpportunityList {
+  runId: number
+  unmeasuredQuestions: number | null
+  items: GeoOpportunity[]
+  opportunityCount: number
+  resolvedCount: number
+}
+
+/**
+ * 一键成内容的回执（后端 `OpportunityDraftVo`）。
+ *
+ * `nextStep` 是「刚刚产出的那份东西还差哪一步才对访客可见」——页面草稿还缺 seo_title、问答条目
+ * 默认没启用、文章任务刚排队。它必须被念出来：按完按钮只说「成功」，客户就会以为草稿已经上线。
+ */
+export interface GeoOpportunityDraftResult {
+  opportunity: GeoOpportunity
+  nextStep: string | null
+}
+
+/** 一次状态搬迁的留痕（抽屉那条时间线）：`actor=system` 是读出来的，不是人点的 */
+export interface GeoOpportunityStateLog {
+  id: number
+  fromState: string | null
+  fromStateLabel: string | null
+  toState: string
+  toStateLabel: string | null
+  actionType: string | null
+  actionLabel: string | null
+  draftRef: string | null
+  actor: string | null
+  reason: string | null
+  createdAt: string | null
+}
+
+/**
+ * 一个动作的预估（§11.5：一次模型都不调）。
+ *
+ * `notice` 非空 ⇒ 按下去也不会受理，它是数据不是错误码；`accounting` 是「这笔钱走哪条账」那句
+ * 必须念出来的话——四个动作里三个的账在别的流水线那边，不念清楚客户就以为按一次扣两次。
+ */
+export interface GeoOpportunityEstimate {
+  opportunityId: number
+  actionType: string
+  actionLabel: string | null
+  actionDefinition: string | null
+  callCount: number
+  estimatedTokens: number
+  remainingTokens: number
+  tenantBearsCost: boolean
+  draftEnabled: boolean
+  accounting: string | null
+  notice: string | null
 }
 
 /**
@@ -294,6 +398,36 @@ export const geoCampaignApi = {
   answer: (callId: number) => http.get<GeoAnswerTrace>(`/geo/campaign/answer/${callId}`),
 
   vocabulary: () => http.get<GeoVocabulary>('/geo/campaign/vocabulary'),
+
+  // ---------------- 机会问题与一键成内容（P4，§11.5） ----------------
+
+  /**
+   * 某一轮的机会清单。它一次模型都不调（所以挂读码），但后端会顺手把「内容自己已经发布」
+   * 那几格状态读齐——`PUBLISHED` 只能这样读出来，界面上没有那个按钮。
+   */
+  opportunities: (runId: number, includeResolved = false) =>
+    http.get<GeoOpportunityList>(`/geo/campaign/run/${runId}/opportunities`, { params: { includeResolved } }),
+
+  /** 一条机会的时间线：谁在什么时候把它搬到哪一格、依据什么 */
+  opportunityStateLog: (id: number) =>
+    http.get<GeoOpportunityStateLog[]>(`/geo/campaign/opportunity/${id}/state-log`),
+
+  /** 一个动作的预估：与 `estimate` 同一条纪律，打完这一发 `ai_call_log` 不该多一行 */
+  opportunityEstimate: (id: number, actionType?: string | null) =>
+    http.get<GeoOpportunityEstimate>(`/geo/campaign/opportunity/${id}/estimate`, { params: { actionType } }),
+
+  /**
+   * 一键成内容：这一屏唯一真花钱的那一发，所以 `confirm` 必须由调用方给真值。
+   *
+   * 回执里的 `nextStep` 一定要念出来——文章那一个动作只是「任务已经排队」，草稿页还差发布那一步，
+   * 把它说成「已生成」就是界面谎报。
+   */
+  opportunityDraft: (id: number, actionType: string | null, confirm: boolean) =>
+    http.post<GeoOpportunityDraftResult>(`/geo/campaign/opportunity/${id}/draft`, { actionType, confirm }),
+
+  /** 放弃这一条：理由必填，且是终态（要往回走只能等下一轮按观测重算） */
+  opportunityDismiss: (id: number, reason: string) =>
+    http.post<GeoOpportunity>(`/geo/campaign/opportunity/${id}/dismiss`, { reason }),
 }
 
 /** 轮次终态：进度轮询到这里就可以停手（判据跟后端 GeoRunStatuses.isTerminal 同一条） */

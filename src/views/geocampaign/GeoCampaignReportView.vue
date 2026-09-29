@@ -24,6 +24,7 @@ import StateBlock from '../../components/StateBlock.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import TrendNote from '../../components/TrendNote.vue'
 import GeoJudgmentDrawer from './GeoJudgmentDrawer.vue'
+import GeoOpportunityPanel from './GeoOpportunityPanel.vue'
 import {
   geoCampaignApi,
   geoJudgeIsInFlight,
@@ -282,8 +283,8 @@ watch(id, () => void load())
         </div>
 
         <p class="geo-report__scope">
-          这一屏出的是<b>提及率、推荐率、问题覆盖、竞品 SOV、情感三档</b>；
-          引用链接率与机会问题排在后面两期，所以这里既没有它们的数字也没有它们的空格。
+          这一屏出的是<b>提及率、推荐率、问题覆盖、竞品 SOV、情感三档</b>，加下面那一卡<b>机会问题</b>；
+          引用链接率还没有观测口径，所以这里既没有它的数字也没有它的空格。
         </p>
       </section>
 
@@ -414,7 +415,8 @@ watch(id, () => void load())
           </tbody>
         </table>
         <p class="geo-report__card-note">
-          「覆盖」= 站内有内容对得上这道题，与「被 AI 引用」是两条指标；机会问题（补哪一页）排在下一期接内容闭环。
+          「覆盖」= 站内有内容对得上这道题，与「被 AI 引用」是两条指标；
+          差在哪、补哪一页，逐条列在下面那一卡「机会问题」里。
         </p>
       </section>
 
@@ -465,6 +467,11 @@ watch(id, () => void load())
           <div class="geo-report__gap-text">{{ gap.text }}</div>
         </div>
       </section>
+
+      <!-- 机会问题（§11.5 / 10-6）：看见缺口之后能直接补缺口，这是本 Spec 唯一拉开差距的一条。
+           它排在五个数与「没测到的部分」后面，是因为读的人要先认了这些数，再决定花不花下一笔钱；
+           而清单本身跟着【计划】跨轮存活，不是本轮新增（那句话由面板自己念出来）。 -->
+      <GeoOpportunityPanel :run-id="id" :vocabulary="vocabulary" />
 
       <p v-if="report.run.errorMessage" class="geo-report__error">{{ report.run.errorMessage }}</p>
       <p class="geo-report__computed">

@@ -188,6 +188,7 @@ const scanned = import.meta.glob(
     '../geoCampaign.ts',
     '../../views/geocampaign/*.vue',
     '../../views/geocampaign/geoCampaignModel.ts',
+    '../../views/geocampaign/geoOpportunityModel.ts',
   ],
   { eager: true, query: '?raw', import: 'default' },
 ) as Record<string, string>
@@ -210,9 +211,12 @@ describe('I-1：P2 前端不抄第二份词表', () => {
       'GeoCampaignReportView.vue',
       'GeoCampaignWorkbenchView.vue',
       'GeoJudgmentDrawer.vue',
+      'GeoOpportunityDrawer.vue',
+      'GeoOpportunityPanel.vue',
       'WizardPlatformStep.vue',
       'geoCampaign.ts',
       'geoCampaignModel.ts',
+      'geoOpportunityModel.ts',
     ].sort())
   })
 
@@ -234,14 +238,35 @@ describe('I-1：P2 前端不抄第二份词表', () => {
     }
   })
 
+  it('P4 机会那一族的三份词表也不抄：四档缺口、四个动作、四个状态都只念接口给的 label', () => {
+    const raw = allCode()
+    // GeoGapTypes.labels()
+    for (const label of ['站里没这内容', '有内容但没被引用', '引用得不稳', '已覆盖且被引用']) {
+      expect(raw, `「${label}」来自 /vocabulary.gapTypes，抄进 TS 就是下一次对不上的来源`).not.toContain(label)
+    }
+    // GeoOpportunityActions.labels()
+    for (const label of ['新建一页', '加一条问答', '写一篇文章', '加一个案例']) {
+      expect(raw).not.toContain(label)
+    }
+    // GeoOpportunityStates.labels()
+    for (const label of ['还没动', '已出草稿', '已放弃']) {
+      expect(raw).not.toContain(label)
+    }
+    // 「已发布」是 PUBLISHED 的中文：界面唯一能说它的地方是念接口回来的 label，勾选句与回执都不许带
+    expect(raw).not.toContain('已发布')
+  })
+
   it('§5 禁令：这一族文件里不出现「排名」那个词，位置只念词表给的 positionLabel', () => {
     expect(allCode()).not.toContain('排名')
     expect(allCode()).toContain('positionLabel')
   })
 
-  it('状态英文 key 也没有被就地映射成中文常量（映射表在后端 GeoRunStatuses）', () => {
+  it('状态英文 key 也没有被就地映射成中文常量（映射表在后端 GeoRunStatuses / GeoOpportunityStates / GeoGapTypes）', () => {
     expect(
-      new RegExp("(PENDING|RUNNING|SUCCEEDED|PARTIAL|FAILED)\\s*:\\s*['\"][^'\"]*[\u4e00-\u9fa5]").test(allCode()),
+      new RegExp(
+        '(PENDING|RUNNING|SUCCEEDED|PARTIAL|FAILED|OPEN|DRAFTED|PUBLISHED|DISMISSED'
+        + '|NOT_COVERED|COVERED_NOT_CITED|CITED_BELOW|COVERED_CITED)\\s*:\\s*[\'"][^\'"]*[\u4e00-\u9fa5]',
+      ).test(allCode()),
     ).toBe(false)
   })
 
