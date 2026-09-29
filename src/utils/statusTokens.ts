@@ -20,6 +20,8 @@ export type StatusDomain =
   | 'queue'
   | 'job'
   | 'run'
+  | 'geoRun'
+  | 'geoConfirmState'
   | 'revision'
   | 'invoice'
   | 'guestbook'
@@ -57,6 +59,31 @@ export const GEO_ORIGIN: Record<string, StatusMeta> = {
   MANUAL: { label: '手填', color: 'default' },
   AUTO: { label: '自动发现', color: 'blue' },
   AI_SUGGESTED: { label: 'AI 建议', color: 'orange' },
+}
+
+/**
+ * GEO 诊断轮次（Spec-F §11.3 P2）：这里只钉颜色，中文名唯一出处是后端的
+ * `/geo/campaign/vocabulary.runStatuses`（`GeoRunStatuses.labels()`），视图用 <StatusTag :label> 覆盖进来。
+ *
+ * 为什么不复用上面那一族 RUN_STATUS：那是引用探测的小写 key（done/failed），
+ * 没有 SUCCEEDED 与 PARTIAL 两档——混用会把「跑完了」和「跑挂了」画成同一个灰点（§9.6 不许谎报）。
+ */
+export const GEO_RUN_STATUS: Record<string, StatusMeta> = {
+  PENDING: { label: 'PENDING', color: 'orange' },
+  RUNNING: { label: 'RUNNING', color: 'blue' },
+  SUCCEEDED: { label: 'SUCCEEDED', color: 'green' },
+  PARTIAL: { label: 'PARTIAL', color: 'orange' },
+  FAILED: { label: 'FAILED', color: 'red' },
+}
+
+/**
+ * 诊断计划的确认态（§6.2 两段式留下的账）：`PENDING_CONFIRM` 是「还没点过头」，
+ * `CONFIRMED` 是「看过预估并勾过确认」。中文名同样只来自后端
+ * （`GeoConfirmStates.labels()` / `confirmStateLabel`），这里只钉颜色。
+ */
+export const GEO_CONFIRM_STATE: Record<string, StatusMeta> = {
+  PENDING_CONFIRM: { label: 'PENDING_CONFIRM', color: 'gold' },
+  CONFIRMED: { label: 'CONFIRMED', color: 'green' },
 }
 
 /**
@@ -136,6 +163,8 @@ const TABLES: Record<StatusDomain, Record<string, StatusMeta>> = {
   queue: QUEUE_STATUS,
   job: JOB_STATUS,
   run: RUN_STATUS,
+  geoRun: GEO_RUN_STATUS,
+  geoConfirmState: GEO_CONFIRM_STATE,
   revision: REVISION_STATUS,
   invoice: INVOICE_STATUS,
   guestbook: GUESTBOOK_STATUS,

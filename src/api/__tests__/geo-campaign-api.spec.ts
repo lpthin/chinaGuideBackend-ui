@@ -1,0 +1,204 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * GEO 诊断的接口契约（Spec-F §11.3 P2，对齐后端 `GeoCampaignController`）。
+ *
+ * 这一族里最容易做错的两件事都出在「花钱」那条线上，所以逐字钉住：
+ * 1. **预估不带 body**：`GET /{id}/estimate` 的验收点是「打完之后 `ai_call_log` 不多一行」，
+ *    前端一旦给它塞参数或改POST，它就变成一个看起来像写操作的读口；
+ * 2. **confirm 不许有默认值**：`run(id, confirm)` 必须把调用方那个布尔原样发出去。
+ *    写成 `confirm = true` 等于在前端把 §6.2 的两段式（先看价、再点头）拆掉，
+ *    后端 `GEO_CAMPAIGN_CONFIRM_REQUIRED` 那条闸就永远测不到第二遍。
+ *
+ * 另一半是单源（§9.2）：轮次状态与确认态的中文只允许待在 `/vocabulary` 的响应里，
+ * 这一族新文件（api + 面板 + 报告 + 第⑤步 + 判据）抄一份就算红灯——抄一次，
+ * 下次后端改词表界面就不跟着变。
+ */
+
+const httpMock = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
+}))
+
+vi.mock('../http', () => ({
+  default: httpMock,
+  AI_REQUEST_TIMEOUT: 180000,
+  describeHttpError: (e: unknown) => String(e),
+}))
+
+import { geoCampaignApi, geoRunIsInFlight, geoRunIsSettled, GEO_QUEUE_FULL_CODE } from '../geoCampaign'
+
+function lastCall(spy: { mock: { calls: unknown[][] } }): unknown[] {
+  const calls = spy.mock.calls
+  return calls[calls.length - 1] || []
+}
+
+beforeEach(() => {
+  httpMock.get.mockReset()
+  httpMock.post.mockReset()
+  httpMock.put.mockReset()
+  httpMock.delete.mockReset()
+  httpMock.get.mockResolvedValue({} as never)
+  httpMock.post.mockResolvedValue({} as never)
+  httpMock.put.mockResolvedValue({} as never)
+  httpMock.delete.mockResolvedValue({} as never)
+})
+
+describe('端点形状：与后端 GeoCampaignController 逐字一致', () => {
+  it('计划的建 / 改 / 删 / 查各走各的动词，改与删都不带 confirm', async () => {
+    await geoCampaignApi.createCampaign({
+      siteId: 3, brandProfileId: 7, name: '牙科一期', platformIds: [4, 11],
+      questionIds: [], repeatTimes: 3, wizardState: '{"current":4,"maxReached":4}', note: '',
+    })
+    expect(lastCall(httpMock.post)[0]).toBe('/geo/campaign')
+    // 题池留空 = 后端拍「该档案下当前启用的题」，所以这里绝不自己填一份题 id 清单
+    expect((lastCall(httpMock.post)[1] as { questionIds: number[] }).questionIds).toEqual([])
+
+    await geoCampaignApi.updateCampaign(12, { repeatTimes: 5 })
+    expect(httpMock.put).toHaveBeenLastCalledWith('/geo/campaign/12', { repeatTimes: 5 })
+
+    await geoCampaignApi.deleteCampaign(12)
+    expect(httpMock.delete).toHaveBeenLastCalledWith('/geo/campaign/12')
+
+    await geoCampaignApi.getCampaign(12)
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/12')
+
+    expect(JSON.stringify([...httpMock.post.mock.calls, ...httpMock.put.mock.calls])).not.toContain('confirm')
+  })
+
+  it('列表只带（档案、page、size），没有 tenantId：租户归属由后端从登录态推', async () => {
+    await geoCampaignApi.listCampaigns({ brandProfileId: 7, page: 2, size: 20 })
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/list', {
+      params: { brandProfileId: 7, page: 2, size: 20 },
+    })
+    expect(JSON.stringify(lastCall(httpMock.get))).not.toContain('tenantId')
+  })
+
+  it('estimate 是 GET 且一发不带参数：它的验收点就是「一次模型都不调」', async () => {
+    await geoCampaignApi.estimate(12)
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/12/estimate')
+    expect(lastCall(httpMock.get).length).toBe(1)
+    expect(httpMock.post.mock.calls).toHaveLength(0)
+    expect(JSON.stringify(httpMock.get.mock.calls)).not.toContain('confirm')
+  })
+
+  it('run 的 confirm 原样是调用方给的那个布尔值：false 就发 false', async () => {
+    await geoCampaignApi.run(12, false)
+    expect(httpMock.post).toHaveBeenLastCalledWith('/geo/campaign/12/run', { confirm: false })
+    await geoCampaignApi.run(12, true)
+    expect((lastCall(httpMock.post)[1] as { confirm: boolean }).confirm).toBe(true)
+  })
+
+  it('平台卡片与轮次/报告三条读口：卡片按 siteId 查，报告按 runId 查', async () => {
+    await geoCampaignApi.platforms(3)
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/platforms', { params: { siteId: 3 } })
+    await geoCampaignApi.runs(12)
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/12/runs')
+    await geoCampaignApi.getRun(88)
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/run/88')
+    await geoCampaignApi.getReport(88)
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/run/88/report')
+  })
+
+  it('词表只有一个端点：/vocabulary，不带任何参数', async () => {
+    await geoCampaignApi.vocabulary()
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/vocabulary')
+  })
+
+  it('没有「一键全站诊断」这种批量口子：起跑只按 campaignId 一发一发来', () => {
+    const risky = Object.keys(geoCampaignApi).filter((name) =>
+      /runAll|batch|all|apply|publish/i.test(name),
+    )
+    expect(risky).toEqual([])
+  })
+})
+
+describe('轮次状态分档（进度轮询的停表判据）', () => {
+  it('落定只认那三个终态 key，新状态一律按「还能再跑」处理', () => {
+    expect(geoRunIsSettled('SUCCEEDED')).toBe(true)
+    expect(geoRunIsSettled('PARTIAL')).toBe(true)
+    expect(geoRunIsSettled('FAILED')).toBe(true)
+    expect(geoRunIsSettled('PENDING')).toBe(false)
+    expect(geoRunIsSettled('RUNNING')).toBe(false)
+    expect(geoRunIsSettled('QUEUED_BY_SOMEBODY_ELSE')).toBe(false)
+    expect(geoRunIsSettled(null)).toBe(false)
+  })
+
+  it('在跑的两档与落定三档互不重叠：同一状态不能既是终态又要轮询', () => {
+    for (const status of ['PENDING', 'RUNNING', 'SUCCEEDED', 'PARTIAL', 'FAILED']) {
+      expect(geoRunIsInFlight(status) && geoRunIsSettled(status)).toBe(false)
+    }
+    expect(geoRunIsInFlight('RUNNING')).toBe(true)
+    expect(geoRunIsInFlight('FAILED')).toBe(false)
+  })
+
+  it('队列满是错误码，不是状态：界面靠它给「重按不会重复扣钱」那一句', () => {
+    expect(GEO_QUEUE_FULL_CODE).toBe('GEO_CAMPAIGN_QUEUE_FULL')
+  })
+})
+
+/**
+ * 单源扫描：P2 新写的这四个文件 + 向导外层，源码当文本读回来逐条对。
+ * 按 basename 过滤（glob 的键在 VTU 下可能是绝对路径，写死键名会静默空转）。
+ */
+const scanned = import.meta.glob(
+  [
+    '../geoCampaign.ts',
+    '../../views/geocampaign/*.vue',
+    '../../views/geocampaign/geoCampaignModel.ts',
+  ],
+  { eager: true, query: '?raw', import: 'default' },
+) as Record<string, string>
+
+const scannedNames = Object.keys(scanned)
+  .map((path) => path.split(/[\\/]/).pop() as string)
+  .sort()
+
+function allCode(): string {
+  return Object.values(scanned)
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+}
+
+describe('I-1：P2 前端不抄第二份词表', () => {
+  it('扫到的就是这一族的文件（文件名写错时这里先红）', () => {
+    expect(scannedNames).toEqual([
+      'CampaignRunPanel.vue',
+      'GeoCampaignReportView.vue',
+      'GeoCampaignWorkbenchView.vue',
+      'WizardPlatformStep.vue',
+      'geoCampaign.ts',
+      'geoCampaignModel.ts',
+    ].sort())
+  })
+
+  it('后端那套状态中文在这些文件里一份都没有（说法只来自 /vocabulary 与响应里的 label 字段）', () => {
+    const raw = allCode()
+    for (const label of ['排队中', '诊断中', '部分完成', '待确认', '已确认', '已完成']) {
+      expect(raw, `「${label}」来自后端词表，不该在这里出现第二份`).not.toContain(label)
+    }
+  })
+
+  it('状态英文 key 也没有被就地映射成中文常量（映射表在后端 GeoRunStatuses）', () => {
+    expect(
+      new RegExp("(PENDING|RUNNING|SUCCEEDED|PARTIAL|FAILED)\\s*:\\s*['\"][^'\"]*[\u4e00-\u9fa5]").test(allCode()),
+    ).toBe(false)
+  })
+
+  it('请求路径没有多余的 /api 前缀（axios baseURL 已经带 /api）', () => {
+    expect([...allCode().matchAll(/['"`]\/api\/[^'"`\n]*['"`]/g)].map((match) => match[0])).toEqual([])
+  })
+
+  it('指标口径句子不在前端写死：视图只念接口那一行自带的 definition', () => {
+    // §5 的单源：口径句子跟着数据走。视图里出现「= 被提及次数 / 成功回答数」这类手写公式就是第二份。
+    const views = Object.entries(scanned)
+      .filter(([path]) => path.includes('.vue'))
+      .map(([, text]) => text)
+      .join('\n')
+    expect(views).not.toMatch(/分子\s*[=＝]/)
+    expect(views).toContain('row.definition')
+  })
+})

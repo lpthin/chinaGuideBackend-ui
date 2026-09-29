@@ -1,18 +1,18 @@
 import { beforeEach, describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import WizardSteps from '../../../components/WizardSteps.vue'
-import WizardPlatformStep from '../WizardPlatformStep.vue'
 import MeasuredCount from '../MeasuredCount.vue'
 import { GEO_WIZARD_STEPS, loadWizardState, saveWizardState, wizardStorageKey } from '../geoBrandWizard'
 import { PH_NOT_MEASURED } from '../../../utils/display'
 import type { WizardState } from '../../../components/wizardModel'
 
 /**
- * 向导的「走得动 / 走不动 / 走到头是什么」三件事（Spec-F §11.2 P1、§9.6 不许谎报）：
+ * 向导的「走得动 / 走不动」两件事（Spec-F §11.2 P1、§9.6 不许谎报）：
  * 1. beforeNext 返回字符串时人被拦在原地、那句话红字显示在步底；
  * 2. 步骤状态 {current,maxReached} 按档案 id 落 localStorage，刷新回原步；
- * 3. 第⑤步只摆形状：「完成」是禁用的，界面上不暗示任何诊断已被安排；
- * 4. 没测过的数显示「未取到」，不显示 0。
+ * 3. 没测过的数显示「未取到」，不显示 0。
+ * 第⑤步在 P2 换成了真的平台与预算面板，它的用例跟着组件搬进
+ * `views/geocampaign/__tests__/platform-step.spec.ts`（看价、勾选才起跑那几条）。
  * 桩都写在本文件里（不用全局桩），断言的正是真组件绑出去的那个 prop 值。
  */
 
@@ -67,7 +67,7 @@ describe('WizardSteps：校验不过就拦在原地', () => {
     expect(w.find('.admin-wizard__hint').exists()).toBe(false)
   })
 
-  it('最后一步没有「下一步」：P1 到⑤为止没有可点的出口，不假装能跑诊断', () => {
+  it('最后一步没有「下一步」：向导外壳到⑤为止不再有前进出口，起跑的要紧动作在面板里点头', () => {
     const w = mountWizard({ current: 4, maxReached: 4 })
     expect(buttonByText(w, '下一步')).toBeUndefined()
     expect(buttonByText(w, '上一步')?.props('disabled')).toBe(false)
@@ -111,17 +111,6 @@ describe('步骤状态的落盘与回读', () => {
     saveWizardState(null, { current: 1, maxReached: 1 })
     expect(localStorage.getItem(wizardStorageKey(null))).toContain('"current":1')
     expect(loadWizardState(null)).toEqual({ current: 1, maxReached: 1 })
-  })
-})
-
-describe('第⑤步：只有形状，没有承诺', () => {
-  it('写明「下一期接入」与「本页不会安排任何诊断」，主按钮「完成」是禁用的', () => {
-    const w = mount(WizardPlatformStep, { global: { stubs: stubs() } })
-    expect(w.text()).toContain('平台与预算：下一期接入')
-    expect(w.text()).toContain('本页不会安排任何诊断')
-    const finish = buttonByText(w, '完成')
-    expect(finish).toBeTruthy()
-    expect(finish!.props('disabled')).toBe(true)
   })
 })
 

@@ -99,6 +99,8 @@ const GeoSeoDashboardView = () => import('../views/geoseo/GeoSeoDashboardView.vu
 // 🧭 GEO 品牌诊断（Spec-F §11.2 P1）：品牌档案/竞品组/两类题池 + 五步向导（第⑤步 P2 才落地）
 const GeoBrandProfileView = () => import('../views/geobrand/GeoBrandProfileView.vue')
 const GeoBrandDiagnosisWizardView = () => import('../views/geobrand/GeoBrandDiagnosisWizardView.vue')
+const GeoCampaignWorkbenchView = () => import('../views/geocampaign/GeoCampaignWorkbenchView.vue')
+const GeoCampaignReportView = () => import('../views/geocampaign/GeoCampaignReportView.vue')
 
 // 🤖 AI 配置模块
 const ModelConfigView = () => import('../views/ai/ModelConfigView.vue')
@@ -775,6 +777,22 @@ export const routes: RouteRecordRaw[] = [
         name: 'workspace-geo-brand-wizard',
         component: GeoBrandDiagnosisWizardView,
         meta: { title: 'GEO 诊断向导', icon: 'aim', requiredPermission: 'geo:brand:view' }
+      },
+      // GEO 诊断工作台（§10-1）与报告（§10-4）：闸的码与后端 GeoCampaignController 一一对应，
+      // 「看价」是读口 geo:campaign:view，起跑另挂 geo:campaign:run（在这一页的按钮上，不在路由上）。
+      {
+        path: 'geo/campaign',
+        name: 'workspace-geo-campaign',
+        component: GeoCampaignWorkbenchView,
+        meta: { title: 'GEO 诊断工作台', icon: 'chart', requiredPermission: 'geo:campaign:view' }
+      },
+      {
+        path: 'geo/campaign/run/:runId/report',
+        name: 'workspace-geo-campaign-report',
+        component: GeoCampaignReportView,
+        props: (route) => ({ runId: route.params.runId }),
+        // hidden：从工作台/向导的轮次行进来的下一页，不重复占菜单格
+        meta: { title: 'GEO 诊断报告', hidden: true, requiredPermission: 'geo:report:view' }
       },
       // 原 geoseo/config（站点配置）与 geoseo/company（重名的第二处企业信息）已随 P5 并入
       // 「网站信息」（portal/site-info）并删除路由与视图：站点级 SEO/GEO 从此只有一处入口、

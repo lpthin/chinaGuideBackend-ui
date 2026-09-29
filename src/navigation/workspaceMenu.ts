@@ -148,6 +148,8 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // 向导是第①步入口的下一页，不是建站动作，不进平台段。
   'workspace-geo-brand': 'site-effect',
   'workspace-geo-brand-wizard': 'site-effect',
+  // 诊断工作台（§10-1）：计划/预估/轮次这一圈的家，报告页是 hidden 的下一页。
+  'workspace-geo-campaign': 'site-effect',
   // 运营管理
   'workspace-operation-dashboard': 'operation',
   'workspace-operation-cases': 'operation',

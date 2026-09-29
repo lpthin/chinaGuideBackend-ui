@@ -2,9 +2,10 @@
  * GEO 品牌诊断向导的纯逻辑（独立文件：`<script setup>` 里不许有 ES 值导出，见 wizardModel.ts 同一纪律）。
  *
  * 这里放三样东西，视图与用例认的都是这一份：
- * 1. 五步定义（§10-2 的 ①~⑤，第 ⑤ 步在 P1 只是形状，面板写「下一期接入」）；
+ * 1. 五步定义（§10-2 的 ①~⑤：第 ⑤ 步是平台与预算，P2 起接上预估与确认）；
  * 2. 两类题的判据与警告文案（与后端的拒绝理由是同一句话，不许两边各写一份）；
- * 3. 步骤状态的 localStorage 落盘/回读（P1 没有 geo_campaign 表，§10-2「落库」那一半排在 P2）。
+ * 3. 步骤状态的 localStorage 落盘/回读（本机那一份优先）；P2 起第⑤步存计划时把同一份
+ *    写进 `geo_campaign.wizard_state`，换浏览器时用它兜底（§10-2「落库」那一半）。
  */
 import { createWizardState, type WizardState, type WizardStepDef } from '../../components/wizardModel'
 import type { GeoBrandProfileForm, GeoQuestionDraft, GeoQuestionKind } from '../../api/geoBrand'
@@ -122,11 +123,17 @@ export function wizardStorageKey(profileId: number | null | undefined): string {
   return `${WIZARD_STORAGE_PREFIX}${profileId ?? 'draft'}`
 }
 
-export function loadWizardState(profileId: number | null | undefined): WizardState {
+export function loadWizardState(
+  profileId: number | null | undefined,
+  fallback?: { current: number; maxReached: number } | null,
+): WizardState {
   const fresh = createWizardState()
   try {
     const raw = localStorage.getItem(wizardStorageKey(profileId))
-    if (!raw) return fresh
+    if (!raw) {
+      // 本机没走过这一步时，才认 `geo_campaign.wizard_state` 里那份（换电脑/换浏览器的续走）
+      return fallback && fallback.current >= 0 ? { current: fallback.current, maxReached: Math.max(fallback.maxReached, fallback.current) } : fresh
+    }
     const parsed = JSON.parse(raw) as Partial<WizardState>
     const current = Number(parsed.current)
     const maxReached = Number(parsed.maxReached)
