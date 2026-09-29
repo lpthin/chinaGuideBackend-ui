@@ -7,7 +7,7 @@ GeoCMS / China Guide 后台管理前端，连接 Phase 1 后端，实现内容�
 - Vue 3
 - Vite
 - TypeScript
-- Element Plus
+- Ant Design Vue
 - Pinia
 - Vue Router
 - Axios

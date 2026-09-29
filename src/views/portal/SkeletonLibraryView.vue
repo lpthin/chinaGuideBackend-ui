@@ -268,6 +268,8 @@
 </template>
 
 <script setup lang="ts">
+// 与访客端同一套区块样式，全局入口收敛到 styles/portal-preview.less
+import '@/styles/portal-preview.less'
 import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { portalPagesApi, type PortalBlockMeta } from '../../api/portalPages'
@@ -697,12 +699,6 @@ onMounted(async () => {
   await Promise.all([load(), loadPending()])
 })
 </script>
-
-<style lang="less">
-// 与访客端同一套区块样式：预览框里的版式必须和真站点一致，否则「看着像」是假的
-@import '../../styles/portal-tokens.less';
-@import '../../portal/blocks/portal-blocks.less';
-</style>
 
 <style scoped lang="less">
 .skeleton-library {

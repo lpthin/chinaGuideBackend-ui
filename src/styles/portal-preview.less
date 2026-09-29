@@ -1,0 +1,9 @@
+/**
+ * 访客门户区块样式的唯一全局入口（Spec-F §9.2-4 样式卫生）。
+ * 原先 PortalDynamicPage / BlockShowcaseView / SkeletonLibraryView 各有一份不带 scoped 的
+ * <style lang="less">，逐字重复 @import 同一对文件；区块样式必须全局生效
+ * （动态渲染的区块子组件吃不到 scoped 的 data-v 属性），所以不收进 scoped，
+ * 只把「三处漏口的入口」并成这一处，由消费方以 module import 方式引用。
+ */
+@import './portal-tokens.less';
+@import '../portal/blocks/portal-blocks.less';

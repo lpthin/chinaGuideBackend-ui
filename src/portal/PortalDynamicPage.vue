@@ -27,6 +27,8 @@
 </template>
 
 <script setup lang="ts">
+// 区块样式必须全局生效：入口收敛到 styles/portal-preview.less（原先是本文件一份无 scoped 的 @import 副本）
+import '@/styles/portal-preview.less'
 import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useHead } from '@vueuse/head'
@@ -137,11 +139,6 @@ onUnmounted(() => activate(null, null))
 // 从导航在同类页面间跳转时（/about → /services 都是本组件）不会重新挂载，必须跟着 slug 或令牌变化重取
 watch([() => props.slug, reviewToken], load, { immediate: true })
 </script>
-
-<style lang="less">
-@import '../styles/portal-tokens.less';
-@import './blocks/portal-blocks.less';
-</style>
 
 <style scoped lang="less">
 .portal-dynamic-page {

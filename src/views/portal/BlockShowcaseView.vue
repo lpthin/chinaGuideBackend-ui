@@ -84,6 +84,8 @@
 </template>
 
 <script setup lang="ts">
+// 与访客端同一套区块样式，全局入口收敛到 styles/portal-preview.less
+import '@/styles/portal-preview.less'
 import { computed, onMounted, ref } from 'vue'
 import { portalPagesApi, type PortalBlockMeta } from '../../api/portalPages'
 import { demoPropsFor, demoShell } from '../../portal/blocks/blockDemo'
@@ -176,13 +178,6 @@ async function load() {
 
 onMounted(load)
 </script>
-
-<style lang="less">
-// 区块组件的样式跟着访客端那份走（与 PortalDynamicPage 同一对文件）：不重新设计一套画廊专属外观，
-// 否则「画廊里好看」和「客户站点上好看」迟早变成两件事。
-@import '../../styles/portal-tokens.less';
-@import '../../portal/blocks/portal-blocks.less';
-</style>
 
 <style scoped lang="less">
 .block-showcase {

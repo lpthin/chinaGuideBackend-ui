@@ -1,0 +1,20 @@
+/**
+ * 后台设计变量（Spec-F §9.2-2）。
+ * 与访客门户的 --portal-*（styles/portal-tokens.less）是两族，互相不引用、不串用。
+ * 间距只用 8 的倍数（§9.5），与 src/styles/theme.ts 的 SPACING 同值。
+ */
+:root {
+  --admin-space-1: 8px;
+  --admin-space-2: 16px;
+  --admin-space-3: 24px;
+  --admin-space-4: 32px;
+  --admin-space-5: 40px;
+
+  /* 卡片圆角取 views 里出现最多的 12px；控件圆角仍由 theme.ts 的 borderRadius=6 走 antd 默认 */
+  --admin-radius-card: 12px;
+
+  /* 表格头底色：views 里表头/占位背景事实值是 #fafafa */
+  --admin-table-header-bg: #fafafa;
+
+  --admin-page-padding: var(--admin-space-3);
+}
