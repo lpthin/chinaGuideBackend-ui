@@ -116,7 +116,8 @@ const GEO_SCORE_TITLE = 'GEO 总分已下线：这里没有真观测值可显示
 const GEO_SCORE_DETAIL =
   '总分与六维度评分来自「配置字段填没填」的当场加权，不是任何能力的测量，已按 Q2-A 从界面上删除。'
 const GEO_SCORE_NEXT =
-  '补上这一格的是「分平台 × 分指标」矩阵（引用探测的每一轮真数）与可抓取性体检清单（§8 那六项实测），两者都在 Spec-F 的排期里。'
+  '补上这一格的是「分平台 × 分指标」矩阵（引用探测的每一轮真数）与可抓取性体检清单（§8 那六项实测）：'
+  + '前者在 GEO 诊断报告里，后者已经在「可抓取性体检」那一页，六项各一行、各带自己的证据。'
 
 const loading = ref(false)
 const loadError = ref<string | null>(null)

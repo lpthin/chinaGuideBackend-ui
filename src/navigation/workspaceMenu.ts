@@ -144,6 +144,9 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-portal-analytics': 'site-effect',
   'workspace-portal-citations': 'site-effect',
   'workspace-geoseo-dashboard': 'site-effect',
+  // 可抓取性体检（Spec-F §8）：读码 seo:audit:view 已授 SITE_ADMIN（V153），租户进得来这一页，
+  // 所以它跟总览同组。「跑一次」那一码在按钮上不在路由上，组归属不因它挪进平台段。
+  'workspace-geoseo-crawlability': 'site-effect',
   // GEO 品牌诊断（Spec-F §9.4 归组 + §11.2 P1）：档案与向导都进「效果与引用」，
   // 向导是第①步入口的下一页，不是建站动作，不进平台段。
   'workspace-geo-brand': 'site-effect',

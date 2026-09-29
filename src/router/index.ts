@@ -95,6 +95,7 @@ const SupportTicketView = () => import('../views/portal/SupportTicketView.vue')
 // Spec-C §7 P5：站点级 SEO/GEO 那两页（GeoSeoConfigView、GeoSeoCompanyView）已并入「网站信息」
 // （portal/site-info，租户可读可写），这两个视图与其路由一起删除；企业信息只剩 portal/company 一处。
 const GeoSeoDashboardView = () => import('../views/geoseo/GeoSeoDashboardView.vue')
+const GeoCrawlabilityView = () => import('../views/geoseo/GeoCrawlabilityView.vue')
 
 // 🧭 GEO 品牌诊断（Spec-F §11.2 P1）：品牌档案/竞品组/两类题池 + 五步向导（第⑤步 P2 才落地）
 const GeoBrandProfileView = () => import('../views/geobrand/GeoBrandProfileView.vue')
@@ -763,6 +764,15 @@ export const routes: RouteRecordRaw[] = [
         name: 'workspace-geoseo-dashboard',
         component: GeoSeoDashboardView,
         meta: { title: '总览仪表盘', icon: 'dashboard' }
+      },
+      // 可抓取性体检（Spec-F §8、§10-7，P5）：闸的码与后端 GeoCrawlabilityController 一一对应——
+      // 路由挂读码 seo:audit:view（V153 已补授 SITE_ADMIN），「跑一次」那一码 seo:audit:run
+      // 只在按钮上（V143 那一档只授 SUPER_ADMIN），所以租户进得来这一页、点不动那一发。
+      {
+        path: 'geoseo/crawlability',
+        name: 'workspace-geoseo-crawlability',
+        component: GeoCrawlabilityView,
+        meta: { title: '可抓取性体检', icon: 'safety', requiredPermission: 'seo:audit:view' }
       },
       {
         path: 'geo/brand',

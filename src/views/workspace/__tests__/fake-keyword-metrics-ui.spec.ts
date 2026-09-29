@@ -77,7 +77,11 @@ describe('I-8：搜索量/竞争度/意图价值在界面上没有任何读法',
     expect(routerSource).not.toMatch(/name: 'workspace-geoseo-competitors'/)
     // 后端 `/api/geoseo/keywords/{id}/check` 现在是 501 NOT_IMPLEMENTED：前端不该再有一条能打过去的路
     expect(routerSource).not.toMatch(/path: 'geoseo\/(keywords|competitors)'/)
-    expect([...geoseoViews].map(path => path.split('/').pop()).sort()).toEqual(['GeoSeoDashboardView.vue'])
+    // geoseo 目录里今天只剩两页：总览 + 可抓取性体检（Spec-F §8 / §10-7，P5）。
+    // 后者不是「另一个读假数的页面」——它读的是 `seo_crawlability_audit` 的六行实测值，
+    // 而这一目录的判据是「不再长出人工抄录的排名页」，所以白名单要如实带上它。
+    expect([...geoseoViews].map(path => path.split('/').pop()).sort())
+      .toEqual(['GeoCrawlabilityView.vue', 'GeoSeoDashboardView.vue'])
   })
 
   it('两张排名表从菜单里摘了（N10：这一期不做引用/排名监控）', () => {

@@ -36,6 +36,7 @@ export type StatusDomain =
   | 'geoOrigin'
   | 'geoOpportunityState'
   | 'geoGapType'
+  | 'geoCrawlabilityVerdict'
 
 /**
  * GEO 品牌档案（Spec-F §11.2 P1）：档案生命周期状态。
@@ -126,6 +127,21 @@ export const GEO_GAP_TYPE: Record<string, StatusMeta> = {
   COVERED_NOT_CITED: { label: 'COVERED_NOT_CITED', color: 'orange' },
   CITED_BELOW: { label: 'CITED_BELOW', color: 'gold' },
   COVERED_CITED: { label: 'COVERED_CITED', color: 'green' },
+}
+
+/**
+ * 可抓取性体检的四档结论（Spec-F §8、§11.6）：这里只钉颜色，中文名与那句话的口径唯一出处是
+ * `/api/geoseo/crawlability/vocabulary.verdicts` + 行自带的 `verdictLabel`。
+ *
+ * `NOT_MEASURED` 刻意灰而不是红也不绿：它是一等公民（站没上线、拿不到域名、这一族还没数据源），
+ * 画成红就是替客户编了一次失败，画成灰白配上一句「未取到」才是今天的事实。
+ * 而 SSR 那一行在 Q12「挂着」期间是 <b>FAIL</b>——它是真测出来的不通过，不许顺着颜色溜回这一档。
+ */
+export const GEO_CRAWLABILITY_VERDICT: Record<string, StatusMeta> = {
+  PASS: { label: 'PASS', color: 'green' },
+  WARN: { label: 'WARN', color: 'gold' },
+  FAIL: { label: 'FAIL', color: 'red' },
+  NOT_MEASURED: { label: 'NOT_MEASURED', color: 'default' },
 }
 
 /**
@@ -221,6 +237,7 @@ const TABLES: Record<StatusDomain, Record<string, StatusMeta>> = {
   geoOrigin: GEO_ORIGIN,
   geoOpportunityState: GEO_OPPORTUNITY_STATE,
   geoGapType: GEO_GAP_TYPE,
+  geoCrawlabilityVerdict: GEO_CRAWLABILITY_VERDICT,
 }
 
 export { ARTICLE_STATUS, QUEUE_STATUS, JOB_STATUS }
