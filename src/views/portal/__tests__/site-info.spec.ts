@@ -48,19 +48,28 @@ describe('I-1：这一页不抄第二份中文词表', () => {
   });
 });
 
-describe('不许谎报：AI 重写只是登记', () => {
-  it('重写结果原样回显后端 message，并按 generated 决定是成功还是警示色（本期恒 false）', () => {
-    expect(textOf('PortalSiteInfoView.vue')).toMatch(/rewriteResult\.value = await siteInfoApi\.aiRewrite\(/);
-    expect(view).toMatch(/rewriteResult\.generated \? 'success' : 'warning'/);
-    expect(view).toMatch(/:message="rewriteResult\.message"/);
+describe('Spec-F Q4-A：「让 AI 重写」整块已从界面撤下，不许留能按的按钮', () => {
+  it('视图里既没有登记按钮，也不再调用 aiRewrite（后端口仍在，只是这一页不碰）', () => {
+    const view = textOf('PortalSiteInfoView.vue');
+    expect(view).not.toMatch(/siteInfoApi\.aiRewrite\(/);
+    expect(view).not.toMatch(/rewriteResult\.value = await siteInfoApi\.aiRewrite\(/);
+    expect(view).not.toMatch(/登记重写请求/);
+    expect(view).not.toMatch(/请先勾选要让 AI 重写哪几项/);
+    expect(view).not.toMatch(/rewriteSelection|rewriteInstruction|rewriteResult/);
   });
 
-  it('重写这条路径里没有 message.success / 没有「已重写完成」这种假成功', () => {
+  it('撤下来的那块里曾有「按 generated 决定成功/警示色」的回显，如今视图不再出现这种颜色分支', () => {
+    const view = textOf('PortalSiteInfoView.vue');
+    expect(view).not.toMatch(/rewriteResult\.generated \? 'success' : 'warning'/);
+    expect(view).not.toMatch(/:message="rewriteResult\.message"/);
+  });
+
+  it('这一页仍然没有 message.success / 没有「已重写完成」这种假成功', () => {
     expect(view).not.toMatch(/message\.success\([^)]*(重写|已重写)/);
     expect(view).not.toMatch(/重写完成|已重新生成/);
   });
 
-  it('那句「不产生新内容」的口径只在适配层定义一份，视图引用常量而不是再抄一遍', () => {
+  it('那句「不产生新内容」的口径只在适配层定义一份（后端回包原话仍有一份真源）', () => {
     expect(adapter).toMatch(/REWRITE_NOT_GENERATED_YET_TEXT/);
   });
 });

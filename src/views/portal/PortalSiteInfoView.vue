@@ -90,37 +90,16 @@
               </div>
             </template>
 
-            <!-- 不可改的项（模板类字段）：只读 + 来源，将来由 AI 那条线重写 -->
+            <!-- 不可改的项（模板类字段）：只读 + 来源 -->
             <template v-else>
               <pre class="field-text">{{ field.text || '（AI 还没填过这一项）' }}</pre>
               <div class="readonly-hint">这一项由 AI 维护，这一页只读。</div>
             </template>
           </div>
 
-          <!-- 让 AI 重写：真实登记口，本期不接模型 ⇒ 结果只如实回显后端那句 message，绝不 message.success -->
-          <a-divider orientation="left">让 AI 重写</a-divider>
-          <a-alert
-            type="info"
-            show-icon
-            message="勾选要让 AI 重写的项，可附一句要求。提交只是「登记请求」——重写链路接入前不会产生任何新内容，也不会改动上面的现值。"
-            style="margin-bottom: 12px"
-          />
-          <a-checkbox-group v-model:value="rewriteSelection" style="margin-bottom: 8px">
-            <a-checkbox v-for="field in fieldRows" :key="field.key" :value="field.key">{{ field.label }}</a-checkbox>
-          </a-checkbox-group>
-          <div>
-            <a-input v-model:value="rewriteInstruction" placeholder="（可选）给 AI 的一句话，例如「语气再专业一些」" style="max-width: 520px" />
-          </div>
-          <div class="toolbar-actions" style="margin-top: 8px">
-            <a-button :loading="rewriting" @click="submitRewrite">登记重写请求</a-button>
-          </div>
-          <a-alert
-            v-if="rewriteResult"
-            :type="rewriteResult.generated ? 'success' : 'warning'"
-            show-icon
-            :message="rewriteResult.message"
-            style="margin-top: 12px"
-          />
+          <!-- Spec-F Q4-A：「让 AI 重写」这一整块（勾选项 + 附加要求 + 登记按钮 + 回显）已从界面撤下。
+               重写链路没有接模型，页面上留着任何能按的按钮都会让人以为它会产出新内容；
+               后端的 POST /portal/site-info/ai-rewrite 仍在，但这一页不再调它。 -->
 
           <!-- 逐页 SEO 的租户侧只读镜像：租户看得到自己每页的 SEO；改它仍要经超管的「页面搭建」 -->
           <a-divider orientation="left">逐页 SEO（只读）</a-divider>
@@ -157,7 +136,6 @@ import {
   siteInfoFieldRows,
   SITE_INFO_AI_FIRST_TEXT,
   type PageSeoRow,
-  type RewriteResult,
   type SiteInfoFieldView,
   type SiteInfoView
 } from '../../api/portalSiteInfo';
@@ -195,11 +173,6 @@ const textDraft = ref('');
 
 const overrideEditing = ref(false);
 const overrideDraft = ref('');
-
-const rewriting = ref(false);
-const rewriteSelection = ref<string[]>([]);
-const rewriteInstruction = ref('');
-const rewriteResult = ref<RewriteResult | null>(null);
 
 const pageSeoColumns = [
   { title: '页面', dataIndex: 'title', key: 'title' },
@@ -299,26 +272,6 @@ async function saveRobotsOverride(field: SiteInfoFieldView) {
     message.error(`保存失败：${describeHttpError(error)}`);
   } finally {
     savingKey.value = '';
-  }
-}
-
-async function submitRewrite() {
-  if (!rewriteSelection.value.length) {
-    message.warning('请先勾选要让 AI 重写哪几项');
-    return;
-  }
-  rewriting.value = true;
-  try {
-    // 结果一律以服务端回包为准：generated=false 时如实回显 message，不改成 success 文案、不假装已重写
-    rewriteResult.value = await siteInfoApi.aiRewrite({
-      siteId: siteId.value,
-      fields: rewriteSelection.value,
-      instruction: rewriteInstruction.value.trim() || null
-    });
-  } catch (error) {
-    message.error(`登记失败：${describeHttpError(error)}`);
-  } finally {
-    rewriting.value = false;
   }
 }
 
