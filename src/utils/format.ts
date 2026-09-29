@@ -1,6 +1,11 @@
 /**
- * 格式化时间为相对时间或绝对时间
+ * 格式化单一出口（Spec-F §9.2-5）：日期一律 formatDate / formatDateTime，
+ * 金额走 formatMoney，率走 formatPercent（1 位小数 + %）。
+ * 旧导出先留着（页面还在 import），下一包迁完页面后删除。
  */
+import { PH_DASH } from './display'
+
+/** @deprecated 相对时间与绝对时间混在一个出口里；改用 formatDateTime（绝对）或页面自证的相对文案 */
 export function formatTime(time: string | Date | undefined): string {
   if (!time) return '-'
 
@@ -17,7 +22,7 @@ export function formatTime(time: string | Date | undefined): string {
     return `${Math.floor(diff / (60 * 1000))}分钟前`
   }
   // 小于24小时
-  if (diff < 24 * 60 * 60 * 1000) {
+  if (diff < 60 * 60 * 1000 * 24) {
     return `${Math.floor(diff / (60 * 60 * 1000))}小时前`
   }
   // 小于7天
@@ -25,7 +30,7 @@ export function formatTime(time: string | Date | undefined): string {
     return `${Math.floor(diff / (24 * 60 * 60 * 1000))}天前`
   }
 
-  // 超过7天显示具体日期
+  // 超过7天显示具体日期（与今天输出逐字一致的绝对时间形态，内部口径收敛到 formatDateTime）
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
@@ -49,12 +54,19 @@ export function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-/**
- * 格式化数字（千分位）
- */
+/** @deprecated 千分位数字请用 formatMoney；本函数仅为兼容存量页面保留 */
 export function formatNumber(num: number | null | undefined): string {
   if (num === null || num === undefined || Number.isNaN(Number(num))) return '-'
   return Number(num).toLocaleString('zh-CN')
+}
+
+/** 金额/数量千分位的唯一出口（合并了 billing 两页与各视图里 6 处 toLocaleString 手抄）。空值给占位符。 */
+export function formatMoney(value: number | string | null | undefined, decimals = 0): string {
+  if (value === null || value === undefined || value === '' || Number.isNaN(Number(value))) return PH_DASH
+  return Number(value).toLocaleString('zh-CN', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
 }
 
 /**
@@ -75,7 +87,7 @@ export function formatDate(time: string | Date | number | undefined | null): str
 }
 
 /**
- * 百分比：入参既可能是 0~1 的比例，也可能是已经乘过 100 的百分数
+ * 百分比：入参既可能是 0~1 的比例，也可能是已经乘过 100 的百分数。§9.5：率显示 1 位小数带 %。
  */
 export function formatPercent(value: number | null | undefined, digits = 1, alreadyPercent = false): string {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
