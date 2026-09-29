@@ -2,10 +2,12 @@
 /**
  * 预估与确认（Spec-F §10-3、§6.2 两段式）：一轮诊断唯一的花钱出口。
  *
- * 三道规矩钉在这里，一条都不能省：
+ * 四道规矩钉在这里，一条都不能省：
  * 1. 先看预估——`estimate` 为 null 时主按钮禁用，「先跑起来再看价」在这一步做不到；
  * 2. `notice` 非空 ⇒ 这一轮不会受理：按钮文字直接念「这一轮不会受理」，理由原样显示（不改写成「参数错误」）；
- * 3. 必须勾确认才发 `confirm: true`——后端 GEO_CAMPAIGN_CONFIRM_REQUIRED 判的就是这一个布尔值。
+ * 3. 必须勾确认才发 `confirm: true`——后端 GEO_CAMPAIGN_CONFIRM_REQUIRED 判的就是这一个布尔值；
+ * 4. 这个计划已经有一轮在跑 ⇒ 按钮按不动并说清在等谁（#125）：让它点下去就是同一批题付两遍钱，
+ *    而那第二笔账不在用户刚看过的预估里——被判定为「停着」的那一轮不算在飞，理由见 liveRunOf。
  *
  * 预估走的是 GET，一次模型都不调（§11.3 的验收点），所以它可以反复按。
  */
@@ -22,7 +24,7 @@ import {
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
 import { formatDateTime } from '../../utils/format'
-import { billingLine, estimateLines, runGate, runPercent } from './geoCampaignModel'
+import { billingLine, estimateLines, liveRunOf, runGate, runPercent } from './geoCampaignModel'
 
 const props = defineProps<{
   campaignId: number | null
@@ -45,7 +47,15 @@ const runsError = ref<string | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const lines = computed(() => (estimate.value ? estimateLines(estimate.value) : []))
-const gate = computed(() => runGate({ estimate: estimate.value, confirmChecked: confirmChecked.value, starting: starting.value }))
+// 在飞的那一轮从轮次列表里读（#125）：判据跟后端 liveRunOf 同一份，被判定为停着的那一轮不算在飞，
+// 否则一条带死的行会把这个计划永久锁死，出路只剩删计划重建。
+const liveRun = computed(() => liveRunOf(runs.value))
+const gate = computed(() => runGate({
+  estimate: estimate.value,
+  confirmChecked: confirmChecked.value,
+  starting: starting.value,
+  liveRun: liveRun.value,
+}))
 
 function statusLabel(run: GeoRun): string {
   return props.runStatusLabels?.[run.status] || run.statusLabel || run.status
@@ -90,7 +100,9 @@ async function loadRuns() {
 
 /** 有轮次在跑就每 5 秒回读一次；全部落定即停手，不留下一个空转的定时器 */
 function armPolling() {
-  if (runs.value.some((run) => geoRunIsInFlight(run.status))) {
+  // 判据用 liveRunOf 而不是状态词：被判定为「停着」的那一条再敲也敲不出新进度，
+  // 让它一直轮着等于替一条死行空转网络（#125）
+  if (liveRunOf(runs.value)) {
     startPolling()
   } else {
     stopPolling()
@@ -205,7 +217,12 @@ defineExpose({ loadEstimate, loadRuns, reset })
           :loading="starting"
           @click="startRun"
         >{{ gate.text }}</a-button>
-        <span v-if="estimate?.notice" class="geo-run-panel__denied">
+        <span v-if="liveRun" class="geo-run-panel__waiting">
+          轮次 {{ liveRun?.id }} 还在跑（{{ liveRun?.stageText || '正在提问' }}，进度 {{ runPercent(liveRun) }}%）：
+          两轮一起点等于同一批题问两遍、付两遍钱，而后起那一轮的账不在你刚看过的预估里。
+          真想同时问多个品牌，请给每个品牌各建一个计划。
+        </span>
+        <span v-else-if="estimate?.notice" class="geo-run-panel__denied">
           上面的理由没消掉之前，这个按钮按不下去——它不是坏了。
         </span>
       </div>
@@ -238,6 +255,7 @@ defineExpose({ loadEstimate, loadRuns, reset })
               size="small"
               :show-info="false"
             />
+            <div v-if="run.stalledReason" class="geo-run-panel__run-stalled">{{ run.stalledReason }}</div>
             <div v-if="run.errorMessage" class="geo-run-panel__run-error">{{ run.errorMessage }}</div>
           </li>
         </ul>
@@ -377,6 +395,18 @@ defineExpose({ loadEstimate, loadRuns, reset })
   &__run-error {
     margin-top: 4px;
     color: #ff4d4f;
+    font-size: 12px;
+  }
+
+  &__waiting {
+    color: #d46b08;
+    font-size: 12px;
+  }
+
+  // 「停着不动」是警告不是失败：这一轮的状态词一个字没改（#108），界面只补一句出路
+  &__run-stalled {
+    margin-top: 4px;
+    color: #d46b08;
     font-size: 12px;
   }
 }

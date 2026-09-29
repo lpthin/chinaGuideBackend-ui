@@ -6,12 +6,15 @@
  * 1. <b>没有跨平台总分</b>（§5 禁令 1）——提及率只有分平台那几行，页面上不会出现合并的一格；
  * 2. <b>每个率都点得到分母</b>（§11.3）——分子/分母与口径句子同行显示，句子来自接口那一行本身；
  * 3. <b>「没测到」有三个出口</b>（§9.6）——未取到的调用次数、判不了的对象、判不了的题各说各的，
- *    只报率不报缺口就是把「我们没测」说成「没人提」。
+ *    只报率不报缺口就是把「我们没测」说成「没人提」；
+ * 4. <b>SOV 的分母跟着【当前勾选】走</b>（§11.3）——卡底那一发「按当前勾选重算份额」只重数一遍
+ *    库里已有的回答，一次模型都不调、不花钱、不新增轮次；情感判定不在这一条路上（§11.4 要重新过模型）。
  *
  * 推荐率与情感三档本期不产出行（后端 `producedInPhase` 是 3），所以这里也不摆空壳。
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { notification } from 'ant-design-vue'
 import PageShell from '../../components/PageShell.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import StatusTag from '../../components/StatusTag.vue'
@@ -38,6 +41,7 @@ const report = ref<GeoReport | null>(null)
 const vocabulary = ref<GeoVocabulary | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
+const recalculating = ref(false)
 
 const mentionRows = computed(() => report.value?.mentionRate ?? [])
 const sovRows = computed(() => report.value?.sovShare ?? [])
@@ -76,6 +80,36 @@ async function load() {
   }
 }
 
+const recalculationDisabled = computed(() =>
+  !report.value || geoRunIsInFlight(report.value.run.status) || recalculating.value)
+
+/** 按钮旁边的这一句跟着轮次状态走：还在跑时说「跑完才能重算」，别说成现在就能按 */
+const sovHint = computed(() => {
+  if (!report.value) return ''
+  if (geoRunIsInFlight(report.value.run.status)) {
+    return '这一轮还在跑，跑完才能重算——半轮的回答算出来的份额不是任何一批题的份额。'
+  }
+  return '改过竞品勾选就按这一发：它只重数一遍这一轮已经落库的回答，一次模型都不调用，也不会新增轮次。'
+})
+
+async function recalculateSov() {
+  if (!valid.value || recalculationDisabled.value) return
+  recalculating.value = true
+  try {
+    report.value = await geoCampaignApi.recalculateSov(id.value)
+    notification.success({
+      message: 'SOV 已按当前勾选重算',
+      description: '只重数了这一轮已有的回答，一次模型都没有调用；提及率与问题覆盖率一个字没动。',
+    })
+  } catch (e) {
+    // 后端那句原因是数据（「这一轮一次成功回答都没取到」之类），原样念，不改写成「操作失败」
+    notification.error({ message: 'SOV 重算未受理', description: describeHttpError(e) })
+    logError('geocampaign/SOV 重算', e)
+  } finally {
+    recalculating.value = false
+  }
+}
+
 function statusLabel(status: string | null | undefined): string {
   if (!status) return PH_DASH
   return vocabulary.value?.runStatuses?.[status] || status
@@ -106,6 +140,7 @@ watch(id, load)
           <p class="geo-report__head-note">
             {{ report.run.stageText || '正在提问' }}——这一轮还没跑完，下面这些数字是已经落库的部分。
           </p>
+          <p v-if="report.run.stalledReason" class="geo-report__head-stalled">{{ report.run.stalledReason }}</p>
         </div>
         <div class="geo-report__head-line">
           <span class="geo-report__head-meta">
@@ -183,7 +218,7 @@ watch(id, load)
       <section class="geo-report__card">
         <h3 class="geo-report__card-title">竞品对比（AI SOV，分平台）</h3>
         <StateBlock v-if="!sovRows.length" state="not-measured" title="这一轮没有 SOV 行"
-          next="只有自家一家的「份额」恒等于 100%，那不是一个观测值：去竞品组勾选至少一家可判定的竞品，再跑一轮" />
+          next="只有自家一家的「份额」恒等于 100%，那不是一个观测值：去竞品组勾选至少一家可判定的竞品，然后按下面那一发「按当前勾选重算份额」，不用重跑一轮" />
         <table v-else class="geo-report__table">
           <thead>
             <tr>
@@ -207,6 +242,16 @@ watch(id, load)
         <p v-if="sovRows.length" class="geo-report__card-note">
           同一平台的每一行共用同一个分母：本品牌 + 勾选参与对比的竞品被提及次数之和。
           没勾进来的竞品不在这个分母里，所以这一串数字加起来是 100%，而不是「市场上有多少」。
+        </p>
+        <div class="geo-report__sov-action">
+          <a-button size="small" :disabled="recalculationDisabled" :loading="recalculating" @click="recalculateSov">
+            按当前勾选重算份额
+          </a-button>
+          <span class="geo-report__sov-hint">{{ sovHint }}</span>
+        </div>
+        <p class="geo-report__card-note">
+          这一发改的只有 SOV：重算读的是这一轮已经落库的成功回答，所以它不花钱，也不碰提及率与覆盖率。
+          情感判定不走这条路——那要重新过一遍模型（§11.4）。
         </p>
       </section>
 
@@ -253,6 +298,26 @@ watch(id, load)
 
   &__head-note {
     margin: 4px 0 0;
+  }
+
+  // 「停着不动」是警告，不是失败：这一轮的状态词一个字没改（#108），这里只补一句出路
+  &__head-stalled {
+    margin: 4px 0 0;
+    color: #d46b08;
+    font-size: 12px;
+  }
+
+  &__sov-action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  &__sov-hint {
+    color: #8c8c8c;
+    font-size: 12px;
   }
 
   &__scope {

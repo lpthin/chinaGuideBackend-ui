@@ -11,6 +11,7 @@ import {
   formatInterval,
   formatRate,
   gapLines,
+  liveRunOf,
   parseWizardState,
   platformHint,
   runGate,
@@ -62,6 +63,7 @@ function run(overrides: Partial<GeoRun> = {}): GeoRun {
     promptTokens: 2000,
     completionTokens: 800,
     errorMessage: null,
+    stalledReason: null,
     startedAt: '2026-09-29T10:00:00',
     finishedAt: '2026-09-29T10:06:00',
     createdBy: 'admin',
@@ -74,6 +76,17 @@ describe('runGate：两段式在前端的形状（§6.2 + §10-3）', () => {
   it('没取到预估 → 按不动，按钮自己说「请先看预估」', () => {
     expect(runGate({ estimate: null, confirmChecked: true, starting: false }))
       .toEqual({ disabled: true, text: '请先看预估' })
+  })
+
+  it('这个计划已经有一轮在跑 → 按不动，按钮说的是「等它跑完」而不是「参数错误」（#125）', () => {
+    const gated = runGate({
+      estimate: estimate(),
+      confirmChecked: true,
+      starting: false,
+      liveRun: run({ status: 'RUNNING', progress: 40 }),
+    })
+    expect(gated.disabled).toBe(true)
+    expect(gated.text).toBe('这一轮还在跑，先等它')
   })
 
   it('notice 非空 → 按不动，按钮写「这一轮不会受理」；勾了确认也一样', () => {
@@ -91,16 +104,43 @@ describe('runGate：两段式在前端的形状（§6.2 + §10-3）', () => {
       .toEqual({ disabled: true, text: '请先勾选确认' })
   })
 
-  it('四条全过才放行，放行后的文字是「确认并开始诊断」', () => {
-    expect(runGate({ estimate: estimate(), confirmChecked: true, starting: false }))
+  it('五条全过才放行，放行后的文字是「确认并开始诊断」', () => {
+    expect(runGate({ estimate: estimate(), confirmChecked: true, starting: false, liveRun: null }))
       .toEqual({ disabled: false, text: '确认并开始诊断' })
   })
 
-  it('拒绝理由的优先顺序与后端一致：起跑中 > 没预估 > 不受理 > 没点头', () => {
+  it('拒绝理由的优先顺序与后端 requestRun 一致：起跑中 > 没预估 > 在飞 > 不受理 > 没点头', () => {
     expect(runGate({ estimate: null, confirmChecked: false, starting: true }).text).toBe('正在起跑')
+    // 在飞压过 notice：先让他等那一轮跑完，比告诉他额度不够更贴近此刻真正挡着的东西
+    expect(runGate({ estimate: estimate({ notice: 'x' }), confirmChecked: true, starting: false, liveRun: run({ status: 'RUNNING' }) }).text)
+      .toBe('这一轮还在跑，先等它')
     // notice 压过勾选：闸已经关上了，再催用户点头只是让人白勾一次
     expect(runGate({ estimate: estimate({ notice: 'x' }), confirmChecked: true, starting: false }).text)
       .toBe('这一轮不会受理')
+  })
+})
+
+describe('liveRunOf：哪一轮算「真的在跑」（#125 的判据，跟后端 liveRunOf 同一份）', () => {
+  it('PENDING / RUNNING 且没被判定为停着的，就是在飞', () => {
+    expect(liveRunOf([run({ id: 1, status: 'PENDING' })])?.id).toBe(1)
+    expect(liveRunOf([run({ id: 2, status: 'RUNNING', progress: 30 })])?.id).toBe(2)
+  })
+
+  it('停着不动的那一轮不算在飞：否则一条被重启带死的行会永久锁住这个计划重跑', () => {
+    expect(liveRunOf([run({ status: 'RUNNING', stalledReason: '这一轮已经 22 分钟没有新进度' })])).toBeNull()
+  })
+
+  it('跑完的、跑挂的、部分完成的都不算在飞，空列表也不算', () => {
+    expect(liveRunOf([run({ status: 'SUCCEEDED' }), run({ status: 'PARTIAL' }), run({ status: 'FAILED' })])).toBeNull()
+    expect(liveRunOf([])).toBeNull()
+  })
+
+  it('停着的旧轮排在前面时，取的还是那一条真在跑的', () => {
+    const runs = [
+      run({ id: 91, status: 'RUNNING', stalledReason: '被重启带断了' }),
+      run({ id: 92, status: 'RUNNING', progress: 10 }),
+    ]
+    expect(liveRunOf(runs)?.id).toBe(92)
   })
 })
 

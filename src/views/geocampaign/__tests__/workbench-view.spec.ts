@@ -129,7 +129,8 @@ function campaign(overrides: Partial<GeoCampaign> = {}): GeoCampaign {
         status: 'SUCCEEDED', statusLabel: 'SUCCEEDED', stageText: null, progress: 100,
         accessChannel: 'Web API', questionCount: 5, platformCount: 2, repeatTimes: 3,
         callCount: 30, failedCallCount: 0, promptTokens: 2000, completionTokens: 800,
-        errorMessage: null, startedAt: '2026-09-29T10:00:00', finishedAt: '2026-09-29T10:06:00',
+        errorMessage: null, stalledReason: null,
+        startedAt: '2026-09-29T10:00:00', finishedAt: '2026-09-29T10:06:00',
         createdBy: 'admin', createdAt: '2026-09-29T10:00:00',
       }
       : latestRun,

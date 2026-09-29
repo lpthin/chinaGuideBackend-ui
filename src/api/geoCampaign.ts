@@ -80,6 +80,12 @@ export interface GeoRun {
   promptTokens: number | null
   completionTokens: number | null
   errorMessage: string | null
+  /**
+   * 「这一轮停着不动」的那句实话，只在轮次还在跑却太久没进度时非空（#108 判据：
+   * 卡住的病是「没人知道它停着」，所以治它的是把话说清楚，不是给它加一个新状态词）。
+   * 界面对它只做一件事——原样念出来，不许改写成「失败」。
+   */
+  stalledReason: string | null
   startedAt: string | null
   finishedAt: string | null
   createdBy: string | null
@@ -167,6 +173,14 @@ export const geoCampaignApi = {
   getRun: (runId: number) => http.get<GeoRun>(`/geo/campaign/run/${runId}`),
 
   getReport: (runId: number) => http.get<GeoReport>(`/geo/campaign/run/${runId}/report`),
+
+  /**
+   * 按【当前竞品勾选】重算这一轮的 SOV（§11.3 的验收点：勾 2 个与勾 5 个各算一次）。
+   * 它一次模型都不调用——SOV 判的是「回答里有没有出现这个名字」，那些回答已经存在库里，
+   * 换勾选只是换一遍计数。所以它挂 `geo:campaign:run` 却不烧额度，也不新增轮次。
+   * 情感判定不在这一条路上：那条要重新过模型，见 Spec §11.4。
+   */
+  recalculateSov: (runId: number) => http.post<GeoReport>(`/geo/campaign/run/${runId}/sov`),
 
   vocabulary: () => http.get<GeoVocabulary>('/geo/campaign/vocabulary'),
 }

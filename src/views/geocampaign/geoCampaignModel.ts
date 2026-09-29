@@ -5,7 +5,7 @@
  * 视图与用例认的是同一份。这里只放「怎么把接口给的数说成人话」，不放任何指标口径句子——
  * 分母口径那一句跟着数据走（每行自带 `definition`），页面再抄一份就是下一次对不上的来源（§9.2）。
  */
-import type { GeoEstimate, GeoRun } from '../../api/geoCampaign'
+import { geoRunIsInFlight, type GeoEstimate, type GeoRun } from '../../api/geoCampaign'
 import { formatPercent } from '../../utils/format'
 import { PH_DASH, PH_NOT_MEASURED } from '../../utils/display'
 
@@ -78,15 +78,33 @@ export interface RunGate {
 
 /**
  * 「开始诊断」按钮的状态（§6.2 两段式不可绕）：
- * 没看过预估 → 先去预估；`notice` 非空 → 这一轮不会受理（按钮上不假装能跑）；没勾确认 → 先点头。
- * 三条都不满足才放行，顺序与后端 requestRun 的拒绝顺序一致，界面与闸说的是同一句话。
+ * 没看过预估 → 先去预估；这个计划已经有一轮在跑 → 等它跑完（#125 在飞闸）；
+ * `notice` 非空 → 这一轮不会受理（按钮上不假装能跑）；没勾确认 → 先点头。
+ * 顺序与后端 requestRun 的拒绝顺序一致（确认 → 在飞 → 成本闸），界面与闸说的是同一句话。
  */
-export function runGate(input: { estimate: GeoEstimate | null; confirmChecked: boolean; starting: boolean }): RunGate {
+export function runGate(input: {
+  estimate: GeoEstimate | null
+  confirmChecked: boolean
+  starting: boolean
+  /** 这个计划当前在飞的那一轮；非空 ⇒ 主按钮按不动，念的是「等它跑完」而不是「参数错误」 */
+  liveRun?: GeoRun | null
+}): RunGate {
   if (input.starting) return { disabled: true, text: '正在起跑' }
   if (!input.estimate) return { disabled: true, text: '请先看预估' }
+  if (input.liveRun) return { disabled: true, text: '这一轮还在跑，先等它' }
   if (input.estimate.notice) return { disabled: true, text: '这一轮不会受理' }
   if (!input.confirmChecked) return { disabled: true, text: '请先勾选确认' }
   return { disabled: false, text: '确认并开始诊断' }
+}
+
+/**
+ * 这个计划当前「真的在跑」的那一轮（#125）。
+ *
+ * 判据跟后端 `liveRunOf` 同一条：状态在飞 **且** 没有被判定为停着。`stalledReason` 非空的那一轮
+ * 不算在飞——那条被重启带死的行如果一直挡着，这个计划就永久起不了第二轮，而唯一的出路是删计划重建。
+ */
+export function liveRunOf(runs: GeoRun[]): GeoRun | null {
+  return runs.find((run) => geoRunIsInFlight(run.status) && !run.stalledReason) ?? null
 }
 
 /** 平台选得少于建议值时的提示：建议式，不拦（§10-2 ⑤） */

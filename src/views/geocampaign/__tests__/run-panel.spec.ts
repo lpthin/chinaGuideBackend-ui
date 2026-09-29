@@ -12,7 +12,9 @@ import type { GeoEstimate, GeoRun } from '../../../api/geoCampaign'
  * 1. 「三行：调用次数 / 预计 token / 预计耗时」——数字只转述接口，前端不做乘法；
  * 2. 「`estimate.notice` 存在时主按钮禁用并把理由念出来」——理由必须**原样**出现，
  *    不改写成「参数错误」，也不因为摆了 notice 就顺手摆一个能点的确认框；
- * 3. 「勾选确认才能跑」——`api.run` 只可能在勾选之后被调起来，且带的是 true。
+ * 3. 「勾选确认才能跑」——`api.run` 只可能在勾选之后被调起来，且带的是 true；
+ * 4. 「同一计划已经有一轮在跑 ⇒ 第二发起不来」（#125）——按钮文字念的是在等谁，
+ *    而被判定为「停着」的那一条不算在飞，否则一条死行会把这个计划永久锁死。
  *
  * 另外钉住轮询的两条纪律：切计划要重取预估并且把勾选清零（价变了就要重新点头），
  * 组件卸载要把定时器清掉（留下一堆 5 秒表就是在偷跑网络）。
@@ -115,6 +117,7 @@ function run(overrides: Partial<GeoRun> = {}): GeoRun {
     promptTokens: 2000,
     completionTokens: 800,
     errorMessage: null,
+    stalledReason: null,
     startedAt: '2026-09-29T10:00:00',
     finishedAt: '2026-09-29T10:06:00',
     createdBy: 'admin',
@@ -335,6 +338,78 @@ describe('轮次那一排：状态中文只来自词表', () => {
     vi.useFakeTimers()
     try {
       vi.mocked(geoCampaignApi.runs).mockResolvedValue([run({ status: 'SUCCEEDED' })] as never)
+      const wrapper = await mountPanel()
+      await buttonsByText(wrapper, '刷新轮次')[0].trigger('click')
+      await flushPromises()
+      const calls = vi.mocked(geoCampaignApi.runs).mock.calls.length
+      vi.advanceTimersByTime(15000)
+      await flushPromises()
+      expect(vi.mocked(geoCampaignApi.runs).mock.calls.length).toBe(calls)
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('在飞闸：这个计划已经有一轮在跑时，第二发起不来（#125）', () => {
+  const STALLED = '这一轮已经 22 分钟没有新进度，大概率是被服务重启带断了。界面不替它改状态——现在可以直接再起一轮。'
+
+  it('轮次列表里有真在跑的那一条：主按钮按不动并把在等谁念出来，勾了确认也不发 run', async () => {
+    vi.mocked(geoCampaignApi.runs).mockResolvedValue(
+      [run({ status: 'RUNNING', progress: 40, stageText: '正在问第 12 / 30 次' })] as never,
+    )
+    vi.mocked(geoCampaignApi.estimate).mockResolvedValue(estimate() as never)
+    const wrapper = await mountPanel()
+    await buttonsByText(wrapper, '先估算这一轮')[0].trigger('click')
+    await flushPromises()
+    await tickConfirm(wrapper)
+
+    expect(primaryButton(wrapper).text()).toBe('这一轮还在跑，先等它')
+    expect(primaryButton(wrapper).attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.geo-run-panel__waiting').text()).toContain('轮次 88 还在跑')
+    expect(wrapper.find('.geo-run-panel__waiting').text()).toContain('付两遍钱')
+    await primaryButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(geoCampaignApi.run).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('停着不动的那一条不算在飞：按钮照样能按，否则这个计划被一条死行永久锁死', async () => {
+    vi.mocked(geoCampaignApi.runs).mockResolvedValue(
+      [run({ status: 'RUNNING', progress: 40, stalledReason: STALLED })] as never,
+    )
+    vi.mocked(geoCampaignApi.estimate).mockResolvedValue(estimate() as never)
+    const wrapper = await mountPanel()
+    await buttonsByText(wrapper, '先估算这一轮')[0].trigger('click')
+    await flushPromises()
+    await tickConfirm(wrapper)
+
+    expect(primaryButton(wrapper).text()).toBe('确认并开始诊断')
+    expect(primaryButton(wrapper).attributes('disabled')).toBeUndefined()
+    await primaryButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(geoCampaignApi.run).toHaveBeenCalledWith(12, true)
+  })
+
+  it('停着的那一轮在列表里看得见那句原因，而状态词还是词表给的那一个（#108：加的是话，不是状态）', async () => {
+    vi.mocked(geoCampaignApi.runs).mockResolvedValue(
+      [run({ status: 'RUNNING', progress: 40, stalledReason: STALLED })] as never,
+    )
+    const wrapper = await mountPanel({ runStatusLabels: { RUNNING: '诊断中' } })
+    await buttonsByText(wrapper, '刷新轮次')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.tag-stub').text()).toBe('诊断中')
+    expect(wrapper.find('.geo-run-panel__run-stalled').text()).toContain('22 分钟没有新进度')
+    expect(wrapper.find('.geo-run-panel__run-stalled').text()).toContain('现在可以直接再起一轮')
+  })
+
+  it('停着的那一条不再轮询：敲一条死行敲不出新进度，5 秒一张的表是在骗自己', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(geoCampaignApi.runs).mockResolvedValue(
+        [run({ status: 'RUNNING', progress: 40, stalledReason: STALLED })] as never,
+      )
       const wrapper = await mountPanel()
       await buttonsByText(wrapper, '刷新轮次')[0].trigger('click')
       await flushPromises()

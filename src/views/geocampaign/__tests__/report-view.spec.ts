@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { Button } from 'ant-design-vue'
 import GeoCampaignReportView from '../GeoCampaignReportView.vue'
 import { geoCampaignApi } from '../../../api/geoCampaign'
 import type { GeoMetricRow, GeoReport } from '../../../api/geoCampaign'
@@ -26,11 +27,22 @@ vi.mock('vue-router', async (importOriginal) => {
   return { ...actual, useRoute: () => ({ params: {}, query: {} }) }
 })
 
+// 只替 notification：重算失败时后端那句原因是「数据」，界面上的处置是把它原样递到用户眼前，
+// 这一条得能在断言里读到；组件本身（Button 等）用真的，否则按不动的就是用例而不是界面。
+const { notificationMock } = vi.hoisted(() => ({
+  notificationMock: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
+}))
+
+vi.mock('ant-design-vue', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('ant-design-vue')
+  return { ...actual, notification: notificationMock }
+})
+
 vi.mock('../../../api/geoCampaign', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../api/geoCampaign')>()
   return {
     ...actual,
-    geoCampaignApi: { getReport: vi.fn(), vocabulary: vi.fn() },
+    geoCampaignApi: { getReport: vi.fn(), vocabulary: vi.fn(), recalculateSov: vi.fn() },
   }
 })
 
@@ -95,6 +107,7 @@ function report(overrides: Partial<GeoReport> = {}): GeoReport {
       promptTokens: 2000,
       completionTokens: 800,
       errorMessage: null,
+      stalledReason: null,
       startedAt: '2026-09-29T10:00:00',
       finishedAt: '2026-09-29T10:06:00',
       createdBy: 'admin',
@@ -131,12 +144,20 @@ async function mountView(overrides: Partial<GeoReport> = {}) {
       stubs: {
         'a-tag': TAG_STUB,
         'a-progress': PROGRESS_STUB,
-        'a-button': { name: 'AButton', props: ['disabled', 'type', 'size'], emits: ['click'], template: '<button><slot /></button>' },
+        // 「按当前勾选重算份额」那一发要真按得动：a-button 用声明了 emits 的桩，
+        // 模板里不自己 $emit('click') 的话，页面挂的 @click 永远走不到，测出来的是假绿
+        'a-button': Button,
       },
     },
   })
   await flushPromises()
   return wrapper
+}
+
+function buttonByText(wrapper: ReturnType<typeof mount>, text: string) {
+  const found = wrapper.findAll('button').find((node: any) => (node.text() || '').trim() === text)
+  if (!found) throw new Error(`找不到文字为「${text}」的按钮`)
+  return found
 }
 
 function rowsOf(wrapper: ReturnType<typeof mount>, index: number) {
@@ -303,5 +324,77 @@ describe('轮次还在跑时的报告页', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('报告地址不完整')
     expect(geoCampaignApi.getReport).not.toHaveBeenCalled()
+  })
+
+  it('停着不动的那一轮：报告页头念出那句原因，而状态词还是「诊断中」一个字没改（#108）', async () => {
+    const wrapper = await mountView({
+      run: {
+        ...report().run,
+        status: 'RUNNING',
+        progress: 40,
+        finishedAt: null,
+        stalledReason: '这一轮已经 22 分钟没有新进度，大概率是被服务重启带断了。这里不替它改状态——但可以现在直接再起一轮。',
+      },
+    })
+    expect(wrapper.find('.tag-stub').text()).toBe('诊断中')
+    expect(wrapper.find('.geo-report__head-stalled').text()).toContain('22 分钟没有新进度')
+    expect(wrapper.find('.geo-report__head-stalled').text()).toContain('再起一轮')
+  })
+})
+
+describe('SOV 按当前勾选重算（§11.3：分母随勾选走，且这一发不花钱）', () => {
+  it('按下去只发 recalculateSov 这一发，页面换成重算回来的那份账', async () => {
+    vi.mocked(geoCampaignApi.recalculateSov).mockResolvedValue(report({
+      sovShare: [
+        metricRow({ id: 3, metric: 'sov_share', definition: SOV_DEF, subject: '纳欣口腔', numerator: 9, denominator: 21, value: 0.4286 }),
+        metricRow({ id: 4, metric: 'sov_share', definition: SOV_DEF, scope: 'COMPETITOR', subject: '同行甲', numerator: 4, denominator: 21, value: 0.1905 }),
+        metricRow({ id: 6, metric: 'sov_share', definition: SOV_DEF, scope: 'COMPETITOR', subject: '同行乙', numerator: 8, denominator: 21, value: 0.381 }),
+      ],
+    }) as never)
+    const wrapper = await mountView()
+    await buttonByText(wrapper, '按当前勾选重算份额').trigger('click')
+    await flushPromises()
+    expect(geoCampaignApi.recalculateSov).toHaveBeenCalledWith(88)
+    expect(geoCampaignApi.getReport).toHaveBeenCalledTimes(1)
+    // 重算回来的那份直接进表：分母从 15 变 21，三家并列
+    expect(rowsOf(wrapper, 2)).toHaveLength(3)
+    expect(rowsOf(wrapper, 2)[0]).toContain('9 / 21')
+    expect(wrapper.text()).toContain('勾选参与对比的竞品被提及次数之和')
+  })
+
+  it('后端拒的时候念的是它那一句，不改写成「操作失败」', async () => {
+    vi.mocked(geoCampaignApi.recalculateSov).mockRejectedValue(
+      new Error('这一轮一次成功的回答都没取到，SOV 算不出来：先看上面「未取到」那一格。'),
+    )
+    const wrapper = await mountView()
+    await buttonByText(wrapper, '按当前勾选重算份额').trigger('click')
+    await flushPromises()
+    expect(notificationMock.error).toHaveBeenCalled()
+    const described = JSON.stringify(notificationMock.error.mock.calls)
+    expect(described).toContain('一次成功的回答都没取到')
+    expect(described).not.toContain('操作失败')
+    // 拒了就不许把旧账说成新的：页面还是原来那份
+    expect(rowsOf(wrapper, 2)).toHaveLength(2)
+    expect(rowsOf(wrapper, 2)[0]).toContain('9 / 15')
+  })
+
+  it('还在跑的那一轮重算是按不动的：半轮回答算出来的份额不是任何一批题的份额', async () => {
+    const wrapper = await mountView({
+      run: { ...report().run, status: 'RUNNING', progress: 40, stageText: '正在问第 12 / 30 次', finishedAt: null },
+    })
+    const button = buttonByText(wrapper, '按当前勾选重算份额')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.geo-report__sov-hint').text()).toContain('跑完才能重算')
+    await button.trigger('click')
+    await flushPromises()
+    expect(geoCampaignApi.recalculateSov).not.toHaveBeenCalled()
+  })
+
+  it('一家竞品都没勾所以没有 SOV 行时，这一发照样摆着——出路是重算，不是再花钱跑一轮', async () => {
+    const wrapper = await mountView({ sovShare: [] })
+    expect(wrapper.text()).toContain('然后按下面那一发「按当前勾选重算份额」')
+    const button = buttonByText(wrapper, '按当前勾选重算份额')
+    expect(button.attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).toContain('一次模型都不调用')
   })
 })
