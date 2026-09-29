@@ -51,9 +51,7 @@ async function setEnabled(item: GeoBrandCompetitor, enabled: boolean) {
     <a-button :loading="discovering" @click="requestDiscover">自动发现同类竞品</a-button>
 
     <div v-if="autoResult" class="geobrand-wizard-discover__result">
-      <p class="geobrand-wizard-discover__counts">
-        本轮发现 {{ autoResult.discovered }} 个，纳入 {{ autoResult.kept }} 个。{{ autoDiscoverSummary(autoResult) }}
-      </p>
+      <p class="geobrand-wizard-discover__counts">{{ autoDiscoverSummary(autoResult) }}</p>
       <div v-for="item in autoResult.items" :key="item.id" class="geobrand-wizard-discover__row">
         <a-switch :checked="item.enabled === true" @change="(v: boolean) => setEnabled(item, v)" />
         <span class="geobrand-wizard-discover__name">{{ item.name }}</span>

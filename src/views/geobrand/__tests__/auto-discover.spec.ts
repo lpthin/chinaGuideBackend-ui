@@ -50,14 +50,24 @@ function mountStep() {
 
 describe('自动发现回执的显示纪律', () => {
   it('判据本体：skipped 与 limit 原样进句子，不四舍五入不省略', () => {
-    expect(autoDiscoverSummary(result)).toBe('另外 3 个未纳入，上限 2 可在平台配置里改')
+    expect(autoDiscoverSummary(result)).toBe('本轮发现 5 个，纳入 2 个。另外 3 个未纳入，纳入上限 2 可在平台配置里改。')
+  })
+
+  it('没截断时不提上限：一个都没被拦下就别制造「未纳入」', () => {
+    expect(autoDiscoverSummary({...result, kept: 5, skipped: 0})).toBe('本轮发现 5 个，纳入 5 个。')
+  })
+
+  it('一个都没发现：说清为什么是 0，不许拼出「发现 0 个，纳入 0 个，另外 0 个未纳入」', () => {
+    const line = autoDiscoverSummary({discovered: 0, kept: 0, limit: 5, skipped: 0})
+    expect(line).toContain('本轮没有发现可对比的共现品牌')
+    expect(line).not.toContain('另外 0 个')
   })
 
   it('回执在界面上念全：发现 5 个、纳入 2 个、另外 3 个未纳入、上限 2', () => {
     const w = mountStep()
     const counts = w.find('.geobrand-wizard-discover__counts').text()
     expect(counts).toContain('本轮发现 5 个，纳入 2 个')
-    expect(counts).toContain('另外 3 个未纳入，上限 2 可在平台配置里改')
+    expect(counts).toContain('另外 3 个未纳入，纳入上限 2 可在平台配置里改')
   })
 
   it('每条发现的竞品默认未勾选，且界面写明未勾选不进 SOV 分母', () => {

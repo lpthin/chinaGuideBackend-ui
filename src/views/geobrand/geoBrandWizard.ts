@@ -65,14 +65,26 @@ export function questionViolation(kind: GeoQuestionKind, questionText: string, t
   return null
 }
 
-/** 自动发现的「未纳入」那句话（§0.4 Q13：上限要看得见、要说明在哪改） */
+/**
+ * 自动发现回执的那句话（§0.4 Q13：上限要看得见、要说明在哪改）。
+ * 三种情形分开说，不许拼成「发现 0 个，纳入 0 个，另外 0 个未纳入」这种既正确又没用的话（§9.6）：
+ * - 一个都没发现：今天几乎所有租户都在这里（引用探测还没命中过共现品牌），要说清为什么是 0；
+ * - 发现但没截断：只报数，不提上限；
+ * - 发现且被上限截断：把 skipped 与 limit 原样念出来，并说明上限归平台配置管。
+ */
 export function autoDiscoverSummary(result: {
   discovered: number
   kept: number
   limit: number
   skipped: number
 }): string {
-  return `另外 ${result.skipped} 个未纳入，上限 ${result.limit} 可在平台配置里改`
+  if (result.discovered === 0) {
+    return '本轮没有发现可对比的共现品牌：引用探测还没跑出过命中别家的回答，先去跑一轮探测再回来点这个按钮。'
+  }
+  const head = `本轮发现 ${result.discovered} 个，纳入 ${result.kept} 个。`
+  return result.skipped > 0
+    ? `${head}另外 ${result.skipped} 个未纳入，纳入上限 ${result.limit} 可在平台配置里改。`
+    : head
 }
 
 export interface WizardAdvanceInput {
