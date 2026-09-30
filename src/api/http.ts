@@ -126,6 +126,22 @@ http.interceptors.request.use(
   }
 )
 
+/**
+ * 从响应头里读出「后端认不出这个租户」那一句（Spec-F §13-13 / P6-B 拍板 A）。
+ *
+ * 单独成一个函数是为了能被钉住：axios 会把响应头一律转成小写，写成
+ * headers['X-Tenant-Unresolved'] 就永远读不到，而那次失败在界面上是完全静默的
+ * ——客户看到的还是一句「这家真的没有数据」。没带头回 null，表示这一问认出来了。
+ */
+export function tenantUnresolvedFromHeaders(headers: unknown): string | null {
+  const bag = headers as Record<string, unknown> | undefined
+  if (!bag) return null
+  const raw = bag['x-tenant-unresolved'] ?? bag['X-Tenant-Unresolved']
+  if (raw === undefined || raw === null) return null
+  const text = String(raw)
+  return text === '' ? null : text
+}
+
 http.interceptors.response.use(
   (response) => {
     // 自动接收后端刷新的 token
@@ -135,6 +151,11 @@ http.interceptors.response.use(
       auth.accessToken = newToken
       localStorage.setItem('access_token', newToken)
     }
+
+    // 「这次点的租户后端认不出来」是响应头给的（Spec-F §13-13 / P6-B 拍板 A）：
+    // 读接口回的是正常成功的空列表，body 里没有地方说这件事。每一问都回话——没带头就是认出来了，
+    // 顺手把上一问的那句话撤下，免得一次错号挂在界面上一直念。
+    useAuthStore().markTenantUnresolved(tenantUnresolvedFromHeaders(response.headers))
 
     const body = response.data as any
     if (body && typeof body === 'object') {

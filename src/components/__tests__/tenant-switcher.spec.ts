@@ -1,0 +1,128 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { nextTick } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
+import { Button } from 'ant-design-vue'
+import TenantSwitcher from '../TenantSwitcher.vue'
+import { useAuthStore } from '@/stores/auth'
+
+/**
+ * Spec-F §13-13 / P6-B 拍板 A 的界面那一半：超管点了个后端认不出来的租户时，
+ * 顶栏必须念出「这一批空列表是没认出租户导致的」，并且给一条出路。
+ *
+ * 钉住四条：
+ * 1. 后端点名（响应头那一位）时念的是**原串**，不是替它编的名字；
+ * 2. 后端还没回话、但本地租户列表里翻不到这个号时也要说——不必等客户先看一眼空列表；
+ * 3. 列表**读失败**不等于「租户不存在」，那种情况下不许念这句（那是第二种谎）；
+ * 4. 「看全部租户」是真清掉选择（走 store + localStorage），不是只把话藏起来。
+ */
+const { list } = vi.hoisted(() => ({ list: vi.fn() }))
+
+vi.mock('@/api/workspace', () => ({
+  tenantApi: { list: () => list() }
+}))
+
+/** a-select 只留下「当前选中的号」这一个可读形状，警告文案才是这里的被测对象 */
+const SELECT_STUB = {
+  name: 'ASelect',
+  props: ['value', 'options', 'placeholder', 'filterOption', 'showSearch', 'size'],
+  emits: ['update:value', 'change'],
+  template: '<div class="select-stub">{{ value }}</div>'
+}
+
+const TENANT_15 = { id: 15, name: '纳欣口腔', code: 'dental' }
+
+function mountSwitcher() {
+  return mount(TenantSwitcher, {
+    global: {
+      // setup.ts 把 a-button 全局 stub 掉了；这里要用真实按钮，否则「点出路」那一条测的是 stub
+      components: { 'a-button': Button },
+      stubs: { 'a-select': SELECT_STUB, 'a-button': false }
+    }
+  })
+}
+
+describe('TenantSwitcher 的「认不出租户」提示', () => {
+  const auth = useAuthStore()
+
+  beforeEach(() => {
+    list.mockReset()
+    auth.markTenantUnresolved(null)
+    auth.switchTenant(null)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  it('后端点名时把原串念出来，并说清空列表不是没有数据', async () => {
+    list.mockResolvedValue([TENANT_15])
+    auth.switchTenant(99001, null)
+    auth.markTenantUnresolved('99001')
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+
+    const warning = wrapper.find('[data-test="tenant-unresolved"]')
+    expect(warning.exists()).toBe(true)
+    expect(warning.text()).toContain('99001')
+    expect(warning.text()).toContain('不存在或已被删除')
+    expect(warning.text()).toContain('不代表这家真的没有数据')
+  })
+
+  it('后端还没回话、本地列表翻不到这个号时也要说', async () => {
+    list.mockResolvedValue([TENANT_15])
+    auth.switchTenant(99001, null)
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+
+    const warning = wrapper.find('[data-test="tenant-unresolved"]')
+    expect(warning.exists()).toBe(true)
+    expect(warning.text()).toContain('99001')
+    expect(warning.text()).toContain('已不在租户列表里')
+  })
+
+  it('认得出的正常租户不该出现这一句', async () => {
+    list.mockResolvedValue([TENANT_15])
+    auth.switchTenant(15, 'dental')
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="tenant-unresolved"]').exists()).toBe(false)
+  })
+
+  it('列表读失败时说不出「租户不存在」这句谎', async () => {
+    list.mockRejectedValue(new Error('无法连接服务器，请确认后端已启动'))
+    auth.switchTenant(15, 'dental')
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.find('[data-test="tenant-unresolved"]').exists()).toBe(false)
+  })
+
+  it('出路那条按钮真的清掉选择（含 localStorage），不是只把话藏起来', async () => {
+    list.mockResolvedValue([TENANT_15])
+    auth.switchTenant(99001, null)
+    auth.markTenantUnresolved('99001')
+    const reload = vi.fn()
+    Object.defineProperty(window, 'location', {
+      value: { ...(window as any).location, pathname: '/workspace', reload },
+      writable: true,
+      configurable: true
+    })
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+
+    const clear = wrapper.find('[data-test="tenant-unresolved-clear"]')
+    expect(clear.exists()).toBe(true)
+    // happy-dom 里 a11y 那一层的 click 会静默失效，这里按真实控件直接触发
+    ;(clear.element as HTMLElement).click()
+    await nextTick()
+
+    expect(auth.selectedTenantId).toBeNull()
+    expect(localStorage.getItem('selected_tenant_id')).toBeNull()
+    expect(auth.tenantUnresolvedDeclaration).toBeNull()
+    expect(reload).toHaveBeenCalled()
+  })
+})

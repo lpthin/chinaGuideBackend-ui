@@ -47,6 +47,14 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserInfo | null>(getStoredUser())
   const selectedTenantId = ref<number | null>(getStoredSelectedTenantId())
   const selectedTenantCode = ref<string | null>(getStoredSelectedTenantCode())
+  /**
+   * 后端回话「你这次点的租户我认不出来」（响应头 X-Tenant-Unresolved）时记着原样那串。
+   *
+   * 为什么要有这一位：认不出租户时后端读的是空结果，而空列表在界面上与「这家真的没有数据」
+   * 长得一模一样——客户会得出「我们门户没人引用」这种假结论（Spec-F §13-13 / P6-B 拍板 A）。
+   * 只有超管会被标上：普通用户的租户来自登录态，那两个头本来就不发。
+   */
+  const tenantUnresolvedDeclaration = ref<string | null>(null)
   const loading = ref(false)
 
   // Getters
@@ -71,6 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null
       selectedTenantId.value = null
       selectedTenantCode.value = null
+      tenantUnresolvedDeclaration.value = null
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(REFRESH_TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
@@ -110,6 +119,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   function switchTenant(tenantId: number | null, tenantCode?: string | null): void {
     selectedTenantId.value = tenantId
+    // 换过一次选择就把「上一次没认出来」那句话清掉：它是上一次请求的回执，不是这一次的
+    tenantUnresolvedDeclaration.value = null
     if (tenantId !== null) {
       localStorage.setItem(SELECTED_TENANT_ID_KEY, String(tenantId))
     } else {
@@ -129,12 +140,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** 后端在响应头里点名「这一串我没认出来」；传 null 表示这一次认出来了，把上一句撤下 */
+  function markTenantUnresolved(declaration: string | null): void {
+    tenantUnresolvedDeclaration.value = declaration === null || declaration === '' ? null : declaration
+  }
+
   return {
     // State
     accessToken,
     user,
     selectedTenantId,
     selectedTenantCode,
+    tenantUnresolvedDeclaration,
     loading,
     
     // Getters
@@ -156,5 +173,6 @@ export const useAuthStore = defineStore('auth', () => {
     hasRole,
     hasAnyRole,
     switchTenant,
+    markTenantUnresolved,
   }
 })
