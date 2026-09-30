@@ -91,11 +91,15 @@ export function estimateLines(estimate: GeoEstimate): Array<{ label: string; val
 
 /**
  * 这一笔钱记在谁账上（跟 `tenantBearsCost` 走，与 V142 那条交付态闸同一份判据）。
- * 未交付租户念「平台承担」，已交付念「计入本租户额度」——念错方向等于让客户以为在花钱或以为不花钱。
+ * 未交付租户念「平台承担」，已交付念「计入额度池」——念错方向等于让客户以为在花钱或以为不花钱。
+ *
+ * <p>G4 拆池之后这里必须报名字：`remainingTokens` 已经从「一个数」变成「两池里的一池」，
+ * 只说「本月剩余 900000 token」等于把文章额度与诊断额度混成一件事，而 F2 那条缺口（一轮规模轮
+ * 把文章额度吃光）就是这么在界面上藏住的。名字出自后端 `quotaPoolLabel`，这里不另拼一份。</p>
  */
 export function billingLine(estimate: GeoEstimate): string {
   return estimate.tenantBearsCost
-    ? `这一轮的消耗计入本租户额度，本月剩余 ${estimate.remainingTokens} token。`
+    ? `这一轮的消耗计入本租户的「${estimate.quotaPoolLabel}」，该池本月剩余 ${estimate.remainingTokens} token。`
     : '这一轮由平台承担，不计入本租户的 token 额度（站还没交出去）。'
 }
 

@@ -118,11 +118,18 @@ export function estimateLines(estimate: GeoOpportunityEstimate): Array<{ label: 
   ]
 }
 
-/** 跟诊断预估同一份判据（V142 交付态闸）：未交付租户念「平台承担」，念反方向等于骗人一次 */
+/**
+ * 跟诊断预估同一份判据（V142 交付态闸）：未交付租户念「平台承担」，念反方向等于骗人一次。
+ *
+ * <p>G4 之后这一句还要多报一件事：<b>四个动作分属两池</b>——加问答记在 GEO 专用池，
+ * 新建页 / 写文章 / 加案例记在通用池（那三条流水线自己会扣）。所以「本月剩余」必须点名是哪一池，
+ * 否则同一屏上换个动作、数字却说是同一个额度，客户按了「写文章」才发现诊断的钱不够。
+ * 名字来自后端的 `quotaPoolLabel`（按这一动作的 bizType 现算），界面不另拼一份。</p>
+ */
 export function billingLine(estimate: GeoOpportunityEstimate): string {
   return estimate.tenantBearsCost
-    ? `计入本租户额度，本月剩余 ${estimate.remainingTokens} token。`
-    : `由平台承担，不计入本租户额度（本月剩余那一格 ${estimate.remainingTokens} token 只是账上的数，不是你的上限）。`
+    ? `计入本租户的「${estimate.quotaPoolLabel}」，该池本月剩余 ${estimate.remainingTokens} token。`
+    : `由平台承担，不计入本租户额度（${estimate.quotaPoolLabel}本月剩余那一格 ${estimate.remainingTokens} token 只是账上的数，不是你的上限）。`
 }
 
 /**

@@ -92,6 +92,7 @@ function estimate(overrides: Partial<GeoEstimate> = {}): GeoEstimate {
     estimatedTokens: 42000,
     estimatedMinutes: 6,
     remainingTokens: 900000,
+    quotaPoolLabel: 'GEO 诊断专用额度池',
     campaignEnabled: true,
     tenantBearsCost: true,
     notice: null,
@@ -223,8 +224,8 @@ describe('先看价，再点头（§10-3 六行 + 两段式）', () => {
     // 合计那句必须同时说清「这一发只花提问那一段」，否则六行读起来像一次付款
     expect(rows[4].text()).toContain('只花提问那一段')
     expect(rows[5].text()).toContain('约 6 分钟')
-    // 计费方向跟着 tenantBearsCost 走（true = 扣本租户额度并报名剩余）
-    expect(wrapper.find('.geo-run-panel__billing').text()).toContain('计入本租户额度')
+    // 计费方向跟着 tenantBearsCost 走（true = 扣额度并报名剩余），G4 之后还要报得出是哪一池
+    expect(wrapper.find('.geo-run-panel__billing').text()).toContain('计入本租户的「GEO 诊断专用额度池」')
     expect(wrapper.find('.geo-run-panel__billing').text()).toContain('900000')
   })
 

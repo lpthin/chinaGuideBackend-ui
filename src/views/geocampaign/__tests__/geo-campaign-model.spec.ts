@@ -49,6 +49,8 @@ function estimate(overrides: Partial<GeoEstimate> = {}): GeoEstimate {
     estimatedTokens: 42000,
     estimatedMinutes: 6,
     remainingTokens: 900000,
+    // 后端 poolLabel 的原话，界面只念不拼（G4）
+    quotaPoolLabel: 'GEO 诊断专用额度池',
     campaignEnabled: true,
     tenantBearsCost: true,
     notice: null,
@@ -530,10 +532,23 @@ describe('highlightParts：原文高亮不靠 v-html（回答是模型产出的�
 })
 
 describe('这一笔钱记在谁账上（V142 交付态闸的界面那一半）', () => {
-  it('已交付租户：计入本额度并报剩余，不写「免费」', () => {
+  it('已交付租户：计入额度并报剩余，不写「免费」', () => {
     expect(billingLine(estimate({ tenantBearsCost: true }))).toBe(
-      '这一轮的消耗计入本租户额度，本月剩余 900000 token。',
+      '这一轮的消耗计入本租户的「GEO 诊断专用额度池」，该池本月剩余 900000 token。',
     )
+  })
+
+  it('G4 之后必须点名是哪一池：池名照接口念，界面不写死', () => {
+    // 这一条盯的是 F2 的复发形状：一轮规模轮把文章额度吃光，而界面上那句「本月剩余」看着还是同一个数。
+    // 于是判据是「词跟着后端走」：把 quotaPoolLabel 换成通用池，那句话必须跟着换
+    const geo = billingLine(estimate({ tenantBearsCost: true, quotaPoolLabel: 'GEO 诊断专用额度池' }))
+    expect(geo).toContain('GEO 诊断专用额度池')
+    expect(geo).not.toContain('本租户额度')
+    expect(geo).toContain('900000')
+
+    const general = billingLine(estimate({ tenantBearsCost: true, quotaPoolLabel: '通用 AI 额度池' }))
+    expect(general).toContain('通用 AI 额度池')
+    expect(general).not.toContain('GEO')
   })
 
   it('未交付：说「由平台承担」，并且不报一个假的剩余额度', () => {

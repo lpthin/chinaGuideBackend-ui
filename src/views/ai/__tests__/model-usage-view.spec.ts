@@ -1,8 +1,10 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import dayjs from 'dayjs'
 import ModelUsageView from '../ModelUsageView.vue'
 import { aiModelApi } from '../../../api/ai-model'
+import { statsApi } from '../../../api/billing'
+import { useAuthStore } from '../../../stores/auth'
 
 /**
  * 「模型用量」页的诚实性（Spec-G P2 界面那一半，§G5 前半 F5）。
@@ -28,6 +30,21 @@ vi.mock('../../../api/ai-model', async (importOriginal) => {
       getUsageByModel: vi.fn(),
       getUsageTrend: vi.fn(),
       getLogs: vi.fn(),
+    },
+  }
+})
+
+/**
+ * 两池的本月额度走的是另一条口（/billing/stats/overview 的 pools），所以这一份也要替件：
+ * 它回什么、界面就念什么，替件给的是后端 poolStats 真的在回的那几个键（一个不多）。
+ */
+vi.mock('../../../api/billing', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../api/billing')>()
+  return {
+    ...actual,
+    statsApi: {
+      ...actual.statsApi,
+      overview: vi.fn(),
     },
   }
 })
@@ -307,5 +324,138 @@ describe('趋势那排按钮要真的重新取数', () => {
     expect(wrapper.findAll('.legend-row')).toHaveLength(3)
     // 现场挖出的第二处：图例直出过 98.47367719363453%，界面只该念一位小数
     expect(wrapper.findAll('.legend-percent').map(n => n.text())).toEqual(['16.7%', '33.3%', '50.0%'])
+  })
+})
+
+/**
+ * 本月额度那块：两池分账（Spec-G G4 / P5 界面那一半）。
+ *
+ * 拆池之前这一屏只有「¥预算」一格，而 GEO 诊断和文章生成扣的是同一个 token 池：
+ * 「本月剩余」在两的产品线上是同一个数，于是「文章写多了还能不能跑诊断」这个问题在界面上
+ * 根本没有答案（缺口 F2）。G4 之后后端在 /billing/stats/overview 里回 pools 两行，
+ * 这一屏必须把它们念成两行，并且只在点名了租户的时候念——全租户视角把各家的水位相加
+ * 是个假上限，那一格宁可整个不出现。
+ */
+const POOLS = [
+  {
+    usageType: 'AI_TOKEN',
+    poolLabel: '通用 AI 额度池',
+    monthTokenAmount: 7000,
+    monthCount: 2,
+    monthlyQuota: 1000000,
+    usedTokens: 7000,
+    remainingTokens: 993000,
+  },
+  {
+    usageType: 'AI_GEO',
+    poolLabel: 'GEO 诊断专用额度池',
+    monthTokenAmount: 1500,
+    monthCount: 1,
+    monthlyQuota: 80000,
+    usedTokens: 1500,
+    remainingTokens: 78500,
+  },
+]
+
+async function mountPools(pools: unknown, tenantId: number | null = 15) {
+  useAuthStore().selectedTenantId = tenantId
+  vi.mocked(statsApi.overview).mockResolvedValue({ pools } as never)
+  vi.mocked(aiModelApi.getStats).mockResolvedValue(STATS as never)
+  vi.mocked(aiModelApi.getUsageByModel).mockResolvedValue([] as never)
+  vi.mocked(aiModelApi.getUsageTrend).mockResolvedValue([] as never)
+  vi.mocked(aiModelApi.getLogs).mockResolvedValue({ records: [], total: 0 } as never)
+  const wrapper = mount(ModelUsageView, { global: { stubs: globalStubs } })
+  await flushPromises()
+  return wrapper
+}
+
+describe('本月额度念的是两池，不是相加那一个数（G4）', () => {
+  afterEach(() => {
+    // 这一屏用的是那一份全局 store：选没选租户会串到后面的用例，用完必须放回「没选」
+    useAuthStore().selectedTenantId = null
+  })
+
+  it('两池各念各的水位、各念各的剩余', async () => {
+    const wrapper = await mountPools(POOLS)
+    const text = wrapper.text()
+    expect(text).toContain('本月额度（两池分账）')
+    expect(text).toContain('通用 AI 额度池')
+    expect(text).toContain('GEO 诊断专用额度池')
+    expect(text).toContain('剩余 993,000')
+    expect(text).toContain('剩余 78,500')
+    expect(text).toContain('月度额度 1,000,000 token')
+    expect(text).toContain('月度额度 80,000 token')
+    // 两池各自的分母：7000/1000000 = 1%，1500/80000 = 2%
+    expect(wrapper.findAll('.progress-stub').map(n => n.attributes('data-percent'))).toEqual(['1', '2'])
+  })
+
+  it('两池的流水各数各的：界面不念那个把两池加起来的总数', async () => {
+    const wrapper = await mountPools(POOLS)
+    const rows = wrapper.findAll('.pool-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].text()).toContain('扣费流水 2 笔、合计 7,000 token')
+    expect(rows[1].text()).toContain('扣费流水 1 笔、合计 1,500 token')
+    // 「本月一共花了多少」这个数（7000+1500）是流水的口径，不是任何一池的剩余；
+    // 把它念在这一屏里，等于把缺口 F2 又装回去——两池各数各的，相加那一句归账单页说。
+    expect(wrapper.text()).not.toContain('合计 8,500')
+  })
+
+  it('拆池之前的 NULL 流水只挂在通用池那一行，GEO 行不认领', async () => {
+    const wrapper = await mountPools(POOLS)
+    const rows = wrapper.findAll('.pool-row')
+    expect(rows[0].text()).toContain('拆池之前')
+    expect(rows[1].text()).not.toContain('拆池之前')
+  })
+
+  it('GEO 那一池没设水位（月度额度 0）：百分比念 0，不念 NaN% / Infinity%', async () => {
+    const wrapper = await mountPools([
+      { ...POOLS[0], monthlyQuota: 0, usedTokens: 0, remainingTokens: 0 },
+      { ...POOLS[1], monthlyQuota: 0, usedTokens: 1500, remainingTokens: 0 },
+    ])
+    expect(wrapper.findAll('.progress-stub').map(n => n.attributes('data-percent'))).toEqual(['0', '0'])
+    const text = wrapper.text()
+    expect(text).not.toContain('NaN')
+    expect(text).not.toContain('Infinity')
+  })
+
+  it('后端只回了一行也要照念，不硬凑第二行的 0', async () => {
+    const wrapper = await mountPools([POOLS[1]])
+    expect(wrapper.findAll('.pool-row')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('通用 AI 额度池')
+    expect(wrapper.text()).toContain('剩余 78,500')
+  })
+
+  it('没点名租户：不请求额度口，也不念一个不知道是谁的上限', async () => {
+    const wrapper = await mountPools(POOLS, null)
+    expect(statsApi.overview).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.pool-row')).toHaveLength(0)
+    expect(wrapper.text()).not.toContain('月度额度')
+    // 退回那格说明：这一格要的是钱，而 token 口径需要点名租户才有归属
+    expect(wrapper.text()).toContain('预算那一格还没有接上额度口径')
+  })
+
+  it('额度口读失败：整块消失而不是把「未取到」念成 0 剩余额度', async () => {
+    useAuthStore().selectedTenantId = 15
+    vi.mocked(statsApi.overview).mockRejectedValue(new Error('500'))
+    vi.mocked(aiModelApi.getStats).mockResolvedValue(STATS as never)
+    vi.mocked(aiModelApi.getUsageByModel).mockResolvedValue([] as never)
+    vi.mocked(aiModelApi.getUsageTrend).mockResolvedValue([] as never)
+    vi.mocked(aiModelApi.getLogs).mockResolvedValue({ records: [], total: 0 } as never)
+    const wrapper = mount(ModelUsageView, { global: { stubs: globalStubs } })
+    await flushPromises()
+    expect(wrapper.findAll('.pool-row')).toHaveLength(0)
+    // 认卡片标题，不认整页文案：那块说明里的「下一步」本来就要点名这块的名字，整页念会误判
+    const titles = wrapper.findAll('.st-title').map(n => n.text())
+    expect(titles).not.toContain('本月额度（两池分账）')
+    expect(titles).toContain('本月预算')
+    expect(wrapper.text()).toContain('预算那一格还没有接上额度口径')
+    // 主统计那四格不受影响：两条口各读各的，一条失败不牵连另一条
+    expect(wrapper.text()).not.toContain('这屏的统计没读到')
+  })
+
+  it('老响应没有 pools 这一键：这块整个不出现', async () => {
+    const wrapper = await mountPools(undefined)
+    expect(wrapper.findAll('.pool-row')).toHaveLength(0)
+    expect(wrapper.text()).toContain('预算那一格还没有接上额度口径')
   })
 })

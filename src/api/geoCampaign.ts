@@ -58,6 +58,13 @@ export interface GeoEstimate {
   estimatedTokens: number
   estimatedMinutes: number
   remainingTokens: number
+  /**
+   * `remainingTokens` 是<b>哪一池</b>的剩余（G4 拆池之后必须有这一格）：GEO 诊断走
+   * 「GEO 诊断专用额度池」，其余产品线走「通用 AI 额度池」。这个词由后端
+   * `TokenQuotaService.poolLabel` 出，界面不许自己拼——拆池之后「本租户额度」已经指不清
+   * 是哪一个上限了，而这句话是要拿去做定价沟通的。
+   */
+  quotaPoolLabel: string
   campaignEnabled: boolean
   tenantBearsCost: boolean
   notice: string | null
@@ -340,6 +347,11 @@ export interface GeoOpportunityEstimate {
   callCount: number
   estimatedTokens: number
   remainingTokens: number
+  /**
+   * 这一笔剩余额度属于哪一池（G4）。四个动作分属两池：加问答在 GEO 专用池，
+   * 新建页 / 写文章 / 加案例在通用池，所以这个词必须按动作现读，界面不许写死一个。
+   */
+  quotaPoolLabel: string
   tenantBearsCost: boolean
   draftEnabled: boolean
   accounting: string | null

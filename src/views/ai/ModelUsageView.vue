@@ -197,13 +197,44 @@
           </a-card>
         </a-col>
         <a-col :span="12">
-          <a-card :title="`${rangeLabel}预算`" :bordered="false">
+          <a-card :title="pools.length ? '本月额度（两池分账）' : `${rangeLabel}预算`" :bordered="false">
             <!--
-              预算的两个数（budgetUsed / budgetTotal）后端从来没回过，于是这块以前稳定显示
-              「已使用 ¥0.00 / ¥0」「剩余 ¥0.00」「预计可使用 NaN 天」——三个假数加一次 NaN。
-              额度真正的出处是 TokenQuotaService 那一池（Spec-G G4/P5 正在拆），拆完接这里。
+              两条路各有各的出处，界面不许把它们混成一句：
+              1. 下面这块「本月额度」读的是 /billing/stats/overview 的 pools（G4 拆池之后两池各有一个
+                 月度水位、各有一本已用账），它是 token，不是钱；没选租户时后端不回填这两格，
+                 于是这块根本不存在（宁可不念，也不许拿全租户的流水除以一个不知道是谁的额度）。
+              2. 原来那格 ¥预算：budgetUsed / budgetTotal 由 /ai/model/stats 回，回不来就走
+                 StateBlock（那一格以前稳定显示「已使用 ¥0.00 / ¥0」「剩余 ¥0.00」「可使用 NaN 天」——
+                 三个假数加一次 NaN，0 是一个数而真相是「没有这个数」）。
             -->
-            <div v-if="hasStat('budgetTotal')" class="budget-container">
+            <div v-if="pools.length" class="pool-list">
+              <div v-for="pool in pools" :key="pool.usageType" class="pool-row">
+                <div class="pool-head">
+                  <span class="pool-name">{{ pool.poolLabel }}</span>
+                  <span class="pool-nums">
+                    剩余 {{ pool.remainingTokens?.toLocaleString() ?? '—' }} / 本月已用
+                    {{ pool.usedTokens?.toLocaleString() ?? '—' }} · 月度额度
+                    {{ pool.monthlyQuota?.toLocaleString() ?? '—' }} token
+                  </span>
+                </div>
+                <a-progress
+                  :percent="poolUsedPercent(pool)"
+                  :stroke-color="poolUsedPercent(pool) >= 90 ? '#d4380d' : '#1677ff'"
+                  :show-info="false"
+                />
+                <div class="pool-ledger">
+                  本月这一池的扣费流水 {{ pool.monthCount?.toLocaleString() ?? '—' }} 笔、合计
+                  {{ pool.monthTokenAmount?.toLocaleString() ?? '—' }} token<span
+                    v-if="pool.usageType === 'AI_TOKEN'"
+                  >（含拆池之前那几笔——它们没记池子，按当时的口径算进通用池）</span>。
+                </div>
+              </div>
+              <div class="pool-note">
+                两池分账：GEO 诊断花的钱不挤文章生成的额度，反过来也一样。GEO 那一池的水位由
+                app.ai.quota.geo-monthly-quota 设，没设时跟随本租户计费套餐的月度额度。
+              </div>
+            </div>
+            <div v-else-if="hasStat('budgetTotal')" class="budget-container">
               <div class="budget-info">
                 <span class="budget-label">已使用</span>
                 <span class="budget-value">¥{{ budgetUsed.toFixed(2) }}</span>
@@ -226,8 +257,8 @@
               v-else
               state="not-measured"
               title="预算那一格还没有接上额度口径"
-              detail="它要读的是租户的月度 token 额度与已用量，接口现在不给这两个数；以前显示的 ¥0 是初始值，不是「没花钱」。"
-              next="GEO 独立额度池（G4）落地后接同一份口径：额度、已用、按日均消耗估的可用天数。"
+              detail="这一格要的是钱（¥），而 /ai/model/stats 从来没回 budgetTotal；以前显示的 ¥0 是初始值，不是「没花钱」。token 那一口径现在有了：选了租户就由上面那块念两池的数。"
+              next="右上角选一个租户 ⇒ 这一屏变成「本月额度（两池分账）」，读的是 /billing/stats/overview 的 pools（G4）；¥那一格仍等 budgetTotal 回来。"
             />
           </a-card>
         </a-col>
@@ -428,6 +459,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons-vue'
 import { aiModelApi } from '../../api/ai-model'
+import { statsApi } from '../../api/billing'
 import StateBlock from '../../components/StateBlock.vue'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
@@ -468,6 +500,53 @@ const todayStats = reactive({
 
 const budgetUsed = ref(0)
 const budgetTotal = ref(0)
+
+/**
+ * 两池的本月额度（Spec-G G4 / P5）。
+ *
+ * <p>这一份是 <b>token</b>，不是钱：{@code /billing/stats/overview} 的 {@code pools} 给的是
+ * 「通用 AI 额度池」与「GEO 诊断专用池」各自的水位、已用、剩余，加上本月流水笔数与合计。
+ * 界面拿它做一件事——把「本月剩余额度」这个词指实：拆池之前那一句在两个产品线上是同一个数，
+ * 于是「文章写多了能不能跑诊断」这种问题根本没有答案（缺口 F2）。</p>
+ *
+ * <p>只有点名了租户才读得到：全租户视角下「月度额度」没有归属，把各家的水位相加是个假上限。
+ * 所以 {@link loadPools} 没选租户时直接清空这块，由那块说明文字解释为什么没有数。</p>
+ */
+interface PoolStat {
+  usageType: string
+  poolLabel: string
+  monthTokenAmount?: number
+  monthCount?: number
+  monthlyQuota?: number
+  usedTokens?: number
+  remainingTokens?: number
+}
+const pools = ref<PoolStat[]>([])
+
+/** 已用占比：没有水位就不算百分比（除以 0 会念成 Infinity%，那一类假数这次已经清过一遍） */
+function poolUsedPercent(pool: PoolStat): number {
+  const quota = pool.monthlyQuota ?? 0
+  const used = pool.usedTokens ?? 0
+  if (quota <= 0) {
+    return 0
+  }
+  return Math.min(100, Math.round((used / quota) * 100))
+}
+
+const loadPools = async () => {
+  const tenantId = authStore.selectedTenantId ?? undefined
+  if (!tenantId) {
+    pools.value = []
+    return
+  }
+  try {
+    const result = await statsApi.overview(tenantId)
+    pools.value = Array.isArray(result?.pools) ? result.pools : []
+  } catch (error) {
+    logError('ai/model-usage-view', 'Failed to load token pools:', error)
+    pools.value = []
+  }
+}
 
 // 统计那一次请求到底回没回。没回就不许把四格初始值当数念（见上面那排卡的注释）
 const statsError = ref(false)
@@ -790,6 +869,7 @@ const fetchData = async () => {
   try {
     await Promise.all([
       loadStats(),
+      loadPools(),
       loadUsageByModel(),
       loadUsageTrend(),
       loadLogs(),
@@ -1011,6 +1091,49 @@ onMounted(() => {
   .budget-days {
     color: #722ed1;
     font-weight: 500;
+  }
+}
+
+/*
+ * 本月额度那块（G4 两池分账）。字号与配色沿用这一页既有的写法：数字 20px 强调、
+ * 说明 12px 次要色，间距只用 8 的倍数（§9.5 的约定）。
+ */
+.pool-list {
+  .pool-row + .pool-row {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+  }
+
+  .pool-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pool-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  .pool-nums {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .pool-ledger {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .pool-note {
+    margin-top: 16px;
+    font-size: 12px;
+    color: #6b7280;
   }
 }
 

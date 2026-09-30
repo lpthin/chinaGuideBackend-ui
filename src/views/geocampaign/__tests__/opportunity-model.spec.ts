@@ -58,6 +58,8 @@ function estimate(overrides: Partial<GeoOpportunityEstimate> = {}): GeoOpportuni
     callCount: 1,
     estimatedTokens: 2400,
     remainingTokens: 88000,
+    // 这一个动作（新建页）走的是通用池：G4 之后四个动作分属两池，词表由后端按动作现给
+    quotaPoolLabel: '通用 AI 额度池',
     tenantBearsCost: true,
     draftEnabled: true,
     accounting: '页面改版草稿那条账（AI_PORTAL_REVISION）',
@@ -199,8 +201,20 @@ describe('预估那几行只做显示不做算术', () => {
   })
 
   it('账在谁身上跟着 tenantBearsCost 走：念反方向等于骗人一次', () => {
-    expect(billingLine(estimate())).toContain('计入本租户额度')
+    expect(billingLine(estimate())).toContain('通用 AI 额度池')
     expect(billingLine(estimate({ tenantBearsCost: false }))).toContain('由平台承担')
+  })
+
+  it('四个动作分属两池：「本月剩余」必须点名是哪一池（G4）', () => {
+    // 同一屏上换动作就是换池子。界面写死一个池名（或者干脆不写）都会讲错：
+    // 加问答的钱在 GEO 专用池，新建页 / 写文章 / 加案例在通用池
+    expect(billingLine(estimate({ quotaPoolLabel: 'GEO 诊断专用额度池' }))).toBe(
+      '计入本租户的「GEO 诊断专用额度池」，该池本月剩余 88000 token。',
+    )
+    expect(billingLine(estimate({ quotaPoolLabel: '通用 AI 额度池' }))).toBe(
+      '计入本租户的「通用 AI 额度池」，该池本月剩余 88000 token。',
+    )
+    expect(billingLine(estimate({ tenantBearsCost: false }))).toContain('通用 AI 额度池')
   })
 })
 

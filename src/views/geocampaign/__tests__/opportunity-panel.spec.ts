@@ -92,7 +92,7 @@ function list(items: GeoOpportunity[], overrides: Partial<GeoOpportunityList> = 
 const ESTIMATE = {
   opportunityId: 3, actionType: 'PAGE', actionLabel: '接口给的动作名',
   actionDefinition: '假说明：建一张草稿页', callCount: 1, estimatedTokens: 2400,
-  remainingTokens: 88000, tenantBearsCost: true, draftEnabled: true,
+  remainingTokens: 88000, quotaPoolLabel: '通用 AI 额度池', tenantBearsCost: true, draftEnabled: true,
   accounting: '页面改版草稿那条账（AI_PORTAL_REVISION）', notice: null,
 }
 
@@ -219,7 +219,7 @@ describe('先看价再点头', () => {
     const text = wrapper.find('.geo-opp__estimate').text()
     expect(text).toContain('2400')
     expect(text).toContain('页面改版草稿那条账（AI_PORTAL_REVISION）')
-    expect(text).toContain('计入本租户额度')
+    expect(text).toContain('计入本租户的「通用 AI 额度池」')
   })
 
   it('换动作 ⇒ 旧价立刻作废，必须重新预估一次才能按', async () => {
