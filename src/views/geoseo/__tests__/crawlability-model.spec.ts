@@ -2,11 +2,14 @@ import { describe, it, expect } from 'vitest'
 import type { CrawlabilityItem, CrawlabilitySnapshot, CrawlabilityVocabulary } from '../../../api/geoCrawlability'
 import {
   NEVER_RUN_TITLE,
+  NO_TENANT_NEXT,
+  NO_TENANT_TITLE,
   displayRows,
   evidenceLines,
   fractionText,
   headline,
   howMeasuredOf,
+  measuredAtText,
   passCriterionOf,
   reasonText,
   verdictCounts,
@@ -15,7 +18,7 @@ import {
   verdictOf,
   whyItMattersOf,
 } from '../geoCrawlabilityModel'
-import { PH_NOT_RUN } from '../../../utils/display'
+import { PH_DASH, PH_NOT_RUN } from '../../../utils/display'
 
 /**
  * 可抓取性体检页的显示判据（Spec-F §8 / §11.6）。
@@ -224,8 +227,25 @@ describe('计数与头部：四档各报各的，不合并', () => {
 
   it('有站时头部说清「什么时候测的、测的是哪一套站」', () => {
     const text = headline(snapshot([item({ siteId: 12, measuredAt: '2026-09-29T10:00:00' })]))
-    expect(text).toContain('2026-09-29T10:00:00')
+    expect(text).toContain('2026-09-29 10:00')
     expect(text).toContain('站点 #12')
+  })
+
+  // P6-C 浏览器现场挖出来的：这一条以前钉的是原样 ISO 串（2026-09-29T10:00:00），
+  // 等于把 `utils/format.ts` 自己那句注释「后端 LocalDateTime 直出的 ISO 串不能直接渲染」钉成了反例。
+  it('时间只走单源格式化：页面上不出现后端那串 ISO', () => {
+    expect(headline(snapshot([item({ measuredAt: '2026-09-29T10:00:00' })]))).not.toMatch(/T\d{2}:\d{2}/)
+    expect(measuredAtText(item({ measuredAt: '2026-09-29T10:00:00' }))).toBe('2026-09-29 10:00')
+    // 读不出时间是读不出：念单元格空占位符那一处（PH_DASH），不冒充一个 1970 也不是留空白
+    expect(measuredAtText(item({ measuredAt: null }))).toBe(PH_DASH)
+    expect(measuredAtText(null)).toBe(PH_DASH)
+  })
+
+  it('超管没选定租户那一态说清「读不出」与出路，不把它写成一次读取失败', () => {
+    expect(NO_TENANT_TITLE).toContain('按租户留痕')
+    expect(NO_TENANT_NEXT).toContain('选定一个租户')
+    // 「不读也不跑」要说出口：这一态下按钮也是压住的，别让人以为按了会跑
+    expect(NO_TENANT_NEXT).toContain('既不读也不跑')
   })
 
   it('没有可测站点时不替客户总结成一句失败，只说这一租户没有对公众开着的站', () => {

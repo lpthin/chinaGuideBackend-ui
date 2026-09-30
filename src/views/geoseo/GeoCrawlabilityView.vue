@@ -4,12 +4,18 @@
       <a-space>
         <a-button :loading="loading" @click="loadAll">刷新</a-button>
         <a-tooltip :title="RUN_HINT">
-          <a-button type="primary" :disabled="!canRun" :loading="running" @click="runOnce">跑一次</a-button>
+          <a-button type="primary" :disabled="!canRun || needsTenant" :loading="running" @click="runOnce">跑一次</a-button>
         </a-tooltip>
       </a-space>
     </template>
 
-    <a-spin :spinning="loading">
+    <!--
+      超管没选定租户时这一页读不出六行（后端 `TENANT_REQUIRED`）。这一态单列在错误态之前：
+      它的出路是「去右上角选定租户」，不是「稍后重试」——把前置条件画成读取失败就是替客户指错路。
+    -->
+    <state-block v-if="needsTenant" state="empty" :title="NO_TENANT_TITLE" :next="NO_TENANT_NEXT" />
+
+    <a-spin v-else :spinning="loading">
       <state-block v-if="loadError" state="error" :detail="loadError" />
 
       <template v-else>
@@ -74,7 +80,7 @@
               {{ whyItMattersOf(vocabulary, row) }}
             </a-descriptions-item>
             <a-descriptions-item v-if="row.kind === 'item' && row.item.measuredAt" label="测于">
-              {{ row.item.measuredAt }}
+              {{ measuredAtText(row.item) }}
             </a-descriptions-item>
           </a-descriptions>
 
@@ -124,12 +130,15 @@ import { PH_DASH, PH_NOT_RUN } from '../../utils/display'
 import {
   NEVER_RUN_NEXT,
   NEVER_RUN_TITLE,
+  NO_TENANT_NEXT,
+  NO_TENANT_TITLE,
   RUN_HINT,
   displayRows,
   evidenceLines,
   fractionText,
   headline,
   howMeasuredOf,
+  measuredAtText,
   passCriterionOf,
   reasonText,
   verdictCounts,
@@ -141,6 +150,11 @@ import {
 
 const auth = useAuthStore()
 const canRun = computed(() => auth.hasPermission('seo:audit:run'))
+/**
+ * 超管视角没选定租户 = 这一问没有归属站点（P6-B 现场：后端回 `TENANT_REQUIRED`）。
+ * 租户身份的账号永远带着自己的 tenantId，所以这一条只对超管成立，不是给租户加的一道闸。
+ */
+const needsTenant = computed(() => auth.isSuperAdmin && auth.selectedTenantId === null)
 
 const loading = ref(false)
 const running = ref(false)
@@ -176,6 +190,11 @@ const countChips = computed(() => {
 })
 
 async function loadAll() {
+  // 没选定租户时这一发请求注定是 TENANT_REQUIRED：不发，界面上直接念那一态与出路
+  if (needsTenant.value) {
+    loadError.value = null
+    return
+  }
   loading.value = true
   loadError.value = null
   try {

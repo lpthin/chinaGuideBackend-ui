@@ -113,9 +113,20 @@ function ssrRow(): CrawlabilityItem {
   })
 }
 
-async function mountView(permissionCodes: string[], items: CrawlabilityItem[]) {
+async function mountView(
+  permissionCodes: string[],
+  items: CrawlabilityItem[],
+  options: { superAdmin?: boolean; selectedTenantId?: number | null } = {},
+) {
   const auth = useAuthStore()
-  auth.user = { id: 1, username: 'tester', roles: ['SITE_ADMIN'], permissions: permissionCodes } as any
+  auth.user = {
+    id: 1,
+    username: 'tester',
+    roles: options.superAdmin ? ['SUPER_ADMIN'] : ['SITE_ADMIN'],
+    permissions: permissionCodes,
+  } as any
+  // store 在一个文件里是同一个实例：不每次归零，上一条用例留下的选择会假装成这一条的前提
+  auth.selectedTenantId = options.selectedTenantId ?? null
   vi.mocked(geoCrawlabilityApi.vocabulary).mockResolvedValue(VOCABULARY)
   vi.mocked(geoCrawlabilityApi.latest).mockResolvedValue(snapshot(items))
   const wrapper = mount(GeoCrawlabilityView, {
@@ -243,6 +254,48 @@ describe('从没跑过与读不到', () => {
     const wrapper = mount(GeoCrawlabilityView, { global: { stubs: globalStubs } })
     await flushPromises()
     expect(wrapper.text()).toContain('假：后端没起来')
+  })
+})
+
+describe('超管没选定租户那一态（P6-B 现场挖出来的）', () => {
+  it('念的是「要选定租户」与它的出路，不是一次读取失败', async () => {
+    const wrapper = await mountView(['seo:audit:view', 'seo:audit:run'], [item()], { superAdmin: true })
+    const text = wrapper.text()
+    expect(text).toContain('全站视角读不出体检')
+    expect(text).toContain('选定一个租户')
+    // 后端这条路回的是业务码 TENANT_REQUIRED，通用错误态会把它念成「读取失败 / 稍后重试」——
+    // 出路指错了比不出路更坏，所以这一态必须不走 error 那条渲染路径（钉 data-state，不钉句子）。
+    expect(text).not.toContain('读取失败')
+    expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-state="empty"]').exists()).toBe(true)
+  })
+
+  it('这一态下一次请求都不发，「跑一次」也按不动', async () => {
+    const wrapper = await mountView(['seo:audit:view', 'seo:audit:run'], [item()], { superAdmin: true })
+    expect(geoCrawlabilityApi.vocabulary).not.toHaveBeenCalled()
+    expect(geoCrawlabilityApi.latest).not.toHaveBeenCalled()
+    const run = buttonByText(wrapper, '跑一次')
+    expect((run.element as HTMLButtonElement).disabled).toBe(true)
+    await run.trigger('click')
+    await flushPromises()
+    expect(geoCrawlabilityApi.run).not.toHaveBeenCalled()
+  })
+
+  it('超管选定租户后照旧读得出六行：这一态不是给超管另加的一道闸', async () => {
+    const wrapper = await mountView(['seo:audit:view'], [item()], { superAdmin: true, selectedTenantId: 15 })
+    expect(geoCrawlabilityApi.latest).toHaveBeenCalledTimes(1)
+    expect(rowOf(wrapper, 'ai_search_group').text()).toContain('假项名·答案族')
+  })
+
+  it('租户身份的账号永远带着自己的租户，看不见这一态', async () => {
+    const wrapper = await mountView(['seo:audit:view'], [item()])
+    expect(wrapper.text()).not.toContain('全站视角读不出体检')
+  })
+
+  it('「测于」那一格念的是格式化后的时间，不是后端直出的 ISO 串', async () => {
+    const wrapper = await mountView(['seo:audit:view'], [item()])
+    expect(wrapper.text()).toContain('2026-09-29 10:00')
+    expect(wrapper.text()).not.toMatch(/2026-09-29T10:00/)
   })
 })
 

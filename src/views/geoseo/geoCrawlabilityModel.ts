@@ -14,6 +14,7 @@
  */
 import type { CrawlabilityItem, CrawlabilitySnapshot, CrawlabilityVocabulary } from '../../api/geoCrawlability'
 import { PH_DASH, PH_NOT_RUN } from '../../utils/display'
+import { formatDateTime } from '../../utils/format'
 
 /**
  * 「跑一次」按钮旁边那句话。
@@ -27,6 +28,18 @@ export const RUN_HINT = '跑一次会现测这六项，并各写一行留痕；�
 export const NEVER_RUN_TITLE = '这一租户还没有跑过体检：下面六项都没有留痕行'
 
 export const NEVER_RUN_NEXT = '由平台侧点「跑一次」产这六行；读这一页不触发测量，所以也不会替你补上'
+
+/**
+ * 超管没选定租户时这一页的话（P6-B 现场挖出来的，Spec-F §13-13 的另一半）。
+ *
+ * 后端在这条路上回的是业务码 `TENANT_REQUIRED`（CrawlabilityAuditService:108），而界面的通用错误态
+ * 会把任何失败都念成「读取失败 / 稍后重试」——那不是一句谎话的另一种写法吗：出路根本不是重试，
+ * 是去右上角选定一个租户。所以这一种「读不出」在界面上单列一态，且前端不再白发一发请求
+ * （后端那一发 `requireTenantId` 照旧拦着，这里只是把话说对，不是把闸拆掉）。
+ */
+export const NO_TENANT_TITLE = '全站视角读不出体检：这六行是按租户留痕的'
+
+export const NO_TENANT_NEXT = '出路不是稍后重试：在右上角选定一个租户再进来。没选定之前这一问没有归属站点，所以这里既不读也不跑'
 
 /** 一行的显示形态：真行，或词表里有、库里还没有的那一项 */
 export type CrawlabilityRow =
@@ -104,6 +117,11 @@ export function fractionText(item: CrawlabilityItem | null | undefined): string 
   return `${item.numerator ?? PH_DASH} / ${item.denominator}`
 }
 
+/** 一行的「测于」：后端直出的 ISO 串走 `utils/format` 那一处格式化，视图里不 second-copy */
+export function measuredAtText(item: CrawlabilityItem | null | undefined): string {
+  return item?.measuredAt ? formatDateTime(item.measuredAt) : PH_DASH
+}
+
 /** 为什么是这个灯：那一句因果来自留痕里的 detail.reason，界面不许自己编（SSR 那行念的就是服务端那句因果句） */
 export function reasonText(item: CrawlabilityItem | null | undefined): string | null {
   const reason = item?.detail?.reason
@@ -160,9 +178,12 @@ export function verdictCounts(rows: CrawlabilityRow[]): Record<string, number> {
  *
  * `siteId` 为 null 时说的是「这一租户今天没有对公众开着的站点」，各行为什么测不到写在行上，
  * 这里不替它们总结成一句失败。
+ *
+ * 时间走 `formatDateTime`：后端 `LocalDateTime` 直出的 ISO 串（`2026-09-30T02:24:51`）在页面上
+ * 既读不出时区也不是给人看的形状，`utils/format.ts` 是这一件事的唯一出处。
  */
 export function headline(snapshot: CrawlabilitySnapshot): string {
-  const measuredAt = snapshot.measuredAt ? `最近一轮测于 ${snapshot.measuredAt}` : '最近一轮没有时间戳'
+  const measuredAt = snapshot.measuredAt ? `最近一轮测于 ${formatDateTime(snapshot.measuredAt)}` : '最近一轮没有时间戳'
   return snapshot.siteId === null || snapshot.siteId === undefined
     ? `${measuredAt}；这一租户没有对公众开着的站点，能测的项各测各的`
     : `${measuredAt}；站点 #${snapshot.siteId}`
