@@ -25,7 +25,7 @@ import GeoCampaignReportView from './GeoCampaignReportView.vue'
 import { geoPublicApi, type GeoReportLinkContext } from '../../api/geoReportAccess'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
-import { formatDateTimeWithZone, TIME_ZONE_NOTE } from '../../utils/format'
+import { formatDateTimeWithZone } from '../../utils/format'
 
 const route = useRoute()
 
@@ -62,7 +62,7 @@ onMounted(loadContext)
         <span class="geo-public__title">GEO 诊断报告 · 只读</span>
         <span v-if="context" class="geo-public__run">轮次 {{ context.runId }}</span>
         <span v-if="context?.expiresAt" class="geo-public__until">
-          本链接到 {{ formatDateTimeWithZone(context.expiresAt) }}（{{ TIME_ZONE_NOTE }}）失效
+          本链接到 {{ formatDateTimeWithZone(context.expiresAt) }} 失效
         </span>
       </div>
       <p class="geo-public__note">

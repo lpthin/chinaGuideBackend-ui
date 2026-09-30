@@ -308,6 +308,18 @@ describe('外链页那一层：令牌从地址里来，读不到就只给那一�
     expect(wrapper.find('.drawer-stub').attributes('data-token')).toBe(TOKEN)
   })
 
+  it('时区那句只念一次：formatDateTimeWithZone 自己带了标注，模板再拼一遍就是现场那句重复', async () => {
+    // 现场读数在 scratch/p6g-live/：只读外链顶栏直出过
+    // 「本链接到 2026-10-15 05:40（北京时间 UTC+8）（北京时间 UTC+8）失效」
+    routeMock.params = { token: TOKEN }
+    const wrapper = await mountPublicPage()
+    const until = wrapper.find('.geo-public__until').text()
+    expect(until.match(/北京时间 UTC\+8/g)?.length).toBe(1)
+    // 但一句都不许少：G8 的判据是「这串数字是哪个时区」必须写在页面上
+    expect(until).toContain('北京时间 UTC+8')
+    expect(until).toContain('2026-10-15')
+  })
+
   it('顶栏读不出到期时刻时，报告本体照旧显示：两发各读各的', async () => {
     routeMock.params = { token: TOKEN }
     httpMock.get.mockImplementation((url: string) =>
