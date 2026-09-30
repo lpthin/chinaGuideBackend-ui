@@ -8,9 +8,15 @@
  *   colorError #ff4d4f（37 处）；
  * - colorTextPlaceholder #bfbfbf、borderRadius 6 / fontSize 14 / controlHeight 32
  *   与 antd v4 默认一致，避免控件尺寸与字号今天跳动。
+ * - colorInfo 必须显式写：antd 的 seed 里 `colorInfo: '#1677ff'` 是**独立的一支**，
+ *   不跟 colorPrimary 走（`es/theme/themes/seed.js` 定 seed，`shared/genColorMapToken.js`
+ *   再按它单独生成 info 色板）。浏览器 UI 验收量到的事实：诊断工作台 14 处、品牌档案 2 处、
+ *   关键词 2 处、诊断报告 6 处计算色是 rgb(22, 119, 255)，而主按钮与链接是 rgb(24, 144, 255)
+ *   ⇒ 同一屏两支蓝。并到主色之后全站只剩一支。
  */
 export const ADMIN_THEME_TOKEN = {
   colorPrimary: '#1890ff',
+  colorInfo: '#1890ff',
   colorSuccess: '#52c41a',
   colorWarning: '#faad14',
   colorError: '#ff4d4f',

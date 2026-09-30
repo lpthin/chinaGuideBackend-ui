@@ -479,8 +479,11 @@ watch(includeResolved, () => void load())
   }
 
   &__action--on {
-    background: #e6f4ff;
-    border-color: #91caff;
+    /* 这两格原来抄的是 antd 默认那支蓝的色板（#e6f4ff / #91caff = #1677ff 的 blue-1/blue-3），
+       而后台主色是 #1890ff（styles/theme.ts 唯一出处）⇒ 选中态跟全站其它地方差一档。
+       浏览器 UI 验收在 375/1440 两档都量到这一格（rgb(230,244,255)）。 */
+    background: #e6f7ff;
+    border-color: #91d5ff;
   }
 
   &__action-label {

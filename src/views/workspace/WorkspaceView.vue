@@ -537,6 +537,18 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   line-height: 15px;
 }
 
+/*
+ * 折叠那一档（窄屏 56px / 手动折叠 80px）里，antd 只藏「菜单项」的文字，分组标题它不藏。
+ * 于是 375 那一档实测：轨道里浮着一列没有归属的组名（内容生产 / 文章管理 / 知识库 / 客户案例 /
+ * 网站内容……），跟下面那排图标对不齐，看着像菜单坏了。折叠时分组标题不占位——
+ * 域与域之间已经有 .menu-domain__rule 那条线在分组，不靠组名说话。
+ */
+:deep(.ant-menu-inline-collapsed .ant-menu-item-group-title) {
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 .workspace-content {
   flex: 1;
   padding: 16px;
