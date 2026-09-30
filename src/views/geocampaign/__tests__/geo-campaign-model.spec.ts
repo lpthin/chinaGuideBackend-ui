@@ -598,6 +598,18 @@ describe('进度与轮次摘要', () => {
     // 没有阶段文案时不留一个孤零零的分隔符
     expect(campaignRunSummary({ latestRun: run({ stageText: null }) })).toBe('第 88 轮 · ok')
   })
+
+  it('G14：跑完那一轮不许念成「已完成 · 已完成」（阶段文案与状态标签同字时只留一次）', () => {
+    // 后端 GeoCampaignWorker 收尾时把 stageText 写成「已完成」，与 statusLabel 撞字；
+    // 现场读数在 scratch/p6g-out/g1-super-menu.png（工作台那一行原本是「第 10 轮 · 已完成 · 已完成」）。
+    const done = campaignRunSummary({ latestRun: run({ status: 'SUCCEEDED', statusLabel: '已完成', stageText: '已完成' }) })
+    expect(done).toBe('第 88 轮 · 已完成')
+    // 但「部分完成（判定那一段没跑成）」这一类带额外事实的阶段文案必须留着
+    const partial = campaignRunSummary({
+      latestRun: run({ status: 'SUCCEEDED', statusLabel: '已完成', stageText: '部分完成（判定那一段没跑成）' }),
+    })
+    expect(partial).toBe('第 88 轮 · 已完成 · 部分完成（判定那一段没跑成）')
+  })
 })
 
 describe('草稿与向导步状态（§10-2 步状态进 geo_campaign）', () => {

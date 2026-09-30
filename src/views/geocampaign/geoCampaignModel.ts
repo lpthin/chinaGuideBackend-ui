@@ -458,12 +458,19 @@ export function parseWizardState(raw: string | null | undefined): { current: num
  *
  * <p>排队那一轮要说「还在排队」（#143）：卡片上只有「诊断中 · 准备提问」时，读的人会以为
  * 已经在调模型了。这一句不新增状态词，它说的是后端 {@code queuedReason} 那一件事实的短版。</p>
+ *
+ * <p>G14（Spec-G P0 现场挖出）：跑完的那一轮会念成「第 10 轮 · 已完成 · 已完成」——
+ * 后端的 {@code stageText} 在收尾时写的就是 {@code "已完成"}（GeoCampaignWorker:216），
+ * 与状态标签撞成同一句。重复不是谎报，但客户截图上这一行看着像没写完的话，
+ * 所以两处字面一样时只留一次；一旦 stageText 带出别的口径（「部分完成（判定那一段没跑成）」）
+ * 它照旧要念出来，那种时候两个词说的是两件事。</p>
  */
 export function campaignRunSummary(campaign: { latestRun: GeoRun | null }): string {
   const run = campaign.latestRun
   if (!run) return '还没跑过一轮'
-  const parts = [`第 ${run.id} 轮`, run.statusLabel || run.status]
+  const status = run.statusLabel || run.status
+  const parts = [`第 ${run.id} 轮`, status]
   if (run.queuedReason) parts.push('还在排队，没开始提问')
-  if (run.stageText) parts.push(run.stageText)
+  if (run.stageText && run.stageText !== status) parts.push(run.stageText)
   return parts.join(' · ')
 }
