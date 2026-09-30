@@ -574,6 +574,17 @@ describe('「没测到」的三个出口（§9.6）', () => {
     expect(gapLines({ failedCallCount: 0, unmeasuredSubjects: [], unmeasuredQuestions: [] })).toEqual([])
   })
 
+  it('G7 改 3：那一格说明「这一轮没重试」，并给出唯一那条出路（重跑过两道闸）', () => {
+    const [line] = gapLines({ failedCallCount: 2, unmeasuredSubjects: [], unmeasuredQuestions: [] })
+    // 过去只念「未取到」，读的人会以为系统已经补问过了；这一段从来不重试，那句话必须自己说清
+    expect(line.text).toContain('这一轮没有自动重试')
+    expect(line.text).toContain('同一道题问第二遍等于重复付钱')
+    expect(line.text).toContain('整轮重跑')
+    expect(line.text).toContain('日闸与在飞闸')
+    // 这一格是纯文本插值：写了 HTML 标签就会原样印在界面上
+    expect(line.text).not.toMatch(/<[a-z]/i)
+  })
+
   it('只缺题时不硬造对象那一格', () => {
     const lines = gapLines({ failedCallCount: 0, unmeasuredSubjects: [], unmeasuredQuestions: ['哪家正规'] })
     expect(lines.map((line) => line.title)).toEqual(['判不了的题'])
