@@ -126,6 +126,7 @@ function run(overrides: Partial<GeoRun> = {}): GeoRun {
     completionTokens: 800,
     errorMessage: null,
     stalledReason: null,
+    queuedReason: null,
     judgeState: null,
     judgeStateLabel: '未判定',
     judgeCallCount: null,
@@ -540,6 +541,76 @@ describe('在飞闸：这个计划已经有一轮在跑时，第二发起不来�
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  // ---------------- 排队那一轮（#143 P6-E）：它没停着，它还没开始 ----------------
+
+  const QUEUED =
+    '这一轮还在排队：提问的线程只有一条，前面还有一轮正占着它。它一次模型都没调、一分钱都没花，排队不用重跑'
+
+  it('排队的那一条原样念后端那句，而「停着」那一行不出现：两种颜色各指一件事', async () => {
+    vi.mocked(geoCampaignApi.runs).mockResolvedValue(
+      [run({ status: 'RUNNING', progress: 0, stageText: '准备提问', queuedReason: QUEUED })] as never,
+    )
+    const wrapper = await mountPanel({ runStatusLabels: { RUNNING: '诊断中' } })
+    await buttonsByText(wrapper, '刷新轮次')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.geo-run-panel__run-queued').text()).toBe(QUEUED)
+    expect(wrapper.find('.geo-run-panel__run-stalled').exists()).toBe(false)
+    // 状态词还是词表那一个：#108 的纪律在这里同样成立——加的是话，不是状态
+    expect(wrapper.find('.tag-stub').text()).toBe('诊断中')
+  })
+
+  it('等待那一行说的是「还在排队」，不是「还在跑」：后者替一条没花钱的轮次报了进度', async () => {
+    vi.mocked(geoCampaignApi.runs).mockResolvedValue(
+      [run({ status: 'RUNNING', progress: 0, stageText: '准备提问', queuedReason: QUEUED })] as never,
+    )
+    vi.mocked(geoCampaignApi.estimate).mockResolvedValue(estimate() as never)
+    const wrapper = await mountPanel()
+    await buttonsByText(wrapper, '先估算这一轮')[0].trigger('click')
+    await flushPromises()
+    const waiting = wrapper.find('.geo-run-panel__waiting')
+    expect(waiting.text()).toContain('轮次 88 还在排队')
+    expect(waiting.text()).toContain('一分钱没花')
+    expect(waiting.text()).not.toContain('还在跑')
+    expect(primaryButton(wrapper).text()).toBe('前面还有一轮在排队，先等它')
+    await primaryButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(geoCampaignApi.run).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('排队那一条仍然轮询：线程一空出来它就起跑，进度会开始动（跟死行相反）', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(geoCampaignApi.runs).mockResolvedValue(
+        [run({ status: 'RUNNING', progress: 0, queuedReason: QUEUED })] as never,
+      )
+      const wrapper = await mountPanel()
+      await buttonsByText(wrapper, '刷新轮次')[0].trigger('click')
+      await flushPromises()
+      const calls = vi.mocked(geoCampaignApi.runs).mock.calls.length
+      vi.advanceTimersByTime(15000)
+      await flushPromises()
+      expect(vi.mocked(geoCampaignApi.runs).mock.calls.length).toBeGreaterThan(calls)
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('后端没给这一句时界面一个字都不猜：不出现排队那一行，按钮说的还是「还在跑」', async () => {
+    vi.mocked(geoCampaignApi.runs).mockResolvedValue(
+      [run({ status: 'RUNNING', progress: 40, stageText: '已问 12/30 次' })] as never,
+    )
+    vi.mocked(geoCampaignApi.estimate).mockResolvedValue(estimate() as never)
+    const wrapper = await mountPanel()
+    await buttonsByText(wrapper, '先估算这一轮')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.geo-run-panel__run-queued').exists()).toBe(false)
+    expect(wrapper.find('.geo-run-panel__waiting').text()).toContain('还在跑（已问 12/30 次')
+    expect(primaryButton(wrapper).text()).toBe('这一轮还在跑，先等它')
+    wrapper.unmount()
   })
 })
 

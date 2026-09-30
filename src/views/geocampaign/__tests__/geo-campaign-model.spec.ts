@@ -80,6 +80,7 @@ function run(overrides: Partial<GeoRun> = {}): GeoRun {
     completionTokens: 800,
     errorMessage: null,
     stalledReason: null,
+    queuedReason: null,
     judgeState: null,
     judgeStateLabel: '未判定',
     judgeCallCount: null,
@@ -165,6 +166,51 @@ describe('liveRunOf：哪一轮算「真的在跑」（#125 的判据，跟后�
       run({ id: 92, status: 'RUNNING', progress: 10 }),
     ]
     expect(liveRunOf(runs)?.id).toBe(92)
+  })
+})
+
+describe('排队那一轮（#143）：它没停着，它还没开始', () => {
+  const QUEUED = '这一轮还在排队：提问的线程只有一条，前面还有一轮正占着它。它一次模型都没调、一分钱都没花'
+
+  it('排队的那一条仍算在飞：轮询不能停手，也别让人以为这一轮没在花钱之前', () => {
+    expect(liveRunOf([run({ id: 6, status: 'RUNNING', progress: 0, queuedReason: QUEUED })])?.id).toBe(6)
+  })
+
+  it('主按钮说的是「前面还有一轮在排队」，不是「这一轮还在跑」——后者替它多报了一笔钱', () => {
+    const gated = runGate({
+      estimate: estimate(),
+      confirmChecked: true,
+      starting: false,
+      liveRun: run({ status: 'RUNNING', progress: 0, queuedReason: QUEUED }),
+    })
+    expect(gated.disabled).toBe(true)
+    expect(gated.text).toBe('前面还有一轮在排队，先等它')
+    // 排队仍然挡闸：出路是等，不是重跑（重跑就是同一批题付两遍）
+    expect(runGate({ estimate: estimate(), confirmChecked: true, starting: false, liveRun: run() }).text)
+      .toBe('这一轮还在跑，先等它')
+  })
+
+  it('判定排队时那句是「还在排队」，不是「正在判定」；没排队时一个字都不改', () => {
+    expect(judgeGate({ run: run({ status: 'SUCCEEDED', judgeState: 'JUDGING', queuedReason: QUEUED }), confirmChecked: true, submitting: false }))
+      .toEqual({ disabled: true, text: '判定还在排队，先等它' })
+    expect(judgeGate({ run: run({ status: 'SUCCEEDED', judgeState: 'JUDGING' }), confirmChecked: true, submitting: false }))
+      .toEqual({ disabled: true, text: '正在判定，等它跑完' })
+  })
+
+  it('排队那句话的出路是等，不是补按：hint 里原样念后端那句，也不提「重按」', () => {
+    const hint = judgeHint(run({ status: 'SUCCEEDED', judgeState: 'JUDGING', queuedReason: QUEUED }))
+    expect(hint).toBe(QUEUED)
+    expect(hint).not.toContain('重按')
+    // 停着的那一条才说重按只补缺——两句走的是两个分支，不许混
+    const stalled = run({ status: 'SUCCEEDED', judgeState: 'JUDGING', judgeStalledReason: '判定已经 40 分钟没有新进度' })
+    expect(judgeHint(stalled)).toContain('重按这一发只补还缺的那几条')
+  })
+
+  it('列表卡片那一行也要说清它在排队：只有「诊断中 · 准备提问」等于让人以为钱已在花', () => {
+    expect(campaignRunSummary({ latestRun: run({ id: 6, status: 'RUNNING', progress: 0, statusLabel: '诊断中', stageText: '准备提问', queuedReason: QUEUED }) }))
+      .toBe('第 6 轮 · 诊断中 · 还在排队，没开始提问 · 准备提问')
+    expect(campaignRunSummary({ latestRun: run({ status: 'RUNNING', statusLabel: '诊断中', stageText: '已问 3/30 次' }) }))
+      .toBe('第 88 轮 · 诊断中 · 已问 3/30 次')
   })
 })
 

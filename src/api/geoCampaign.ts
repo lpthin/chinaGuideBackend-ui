@@ -109,6 +109,15 @@ export interface GeoRun {
    */
   stalledReason: string | null
   /**
+   * 「这一轮还在排队」的那句实话（#143）：派单成功了，但提问线程只有一条，它还没被拿走。
+   *
+   * <p>形状与 {@code stalledReason} 完全相反，所以两句不能共用：排队那一轮的心跳本来就不动，
+   * 后端先问队列这本账，因此它 {@code stalledReason} 是空的、{@code queuedReason} 非空。
+   * 少这一句，界面就会把「等着」念成「在跑」——更要紧的是过 15 分钟它会被念成「已中断、可以再起一轮」，
+   * 而按那句去做就是同一批题付两遍钱。界面同样只原样念，不加状态词。</p>
+   */
+  queuedReason: string | null
+  /**
    * 判定那一段的状态（JUDGING / DONE / FAILED，null = 这一轮从没判过）。
    * 它和上面 `status` 是【两份词表】，刻意的：「提问已完成、判定还在跑」可以同时成立，
    * 合成一列就把「报告上那些率还空着」说成「这一轮跑完了」（GeoJudgeStates 的类注释同一条判据）。

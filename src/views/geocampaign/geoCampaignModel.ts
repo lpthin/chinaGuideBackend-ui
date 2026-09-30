@@ -148,7 +148,13 @@ export function runGate(input: {
 }): RunGate {
   if (input.starting) return { disabled: true, text: '正在起跑' }
   if (!input.estimate) return { disabled: true, text: '请先看预估' }
-  if (input.liveRun) return { disabled: true, text: '这一轮还在跑，先等它' }
+  // 排队那一轮说「还在跑」就是替它多报了一笔钱（#143）：它一次模型都没调
+  if (input.liveRun) {
+    return {
+      disabled: true,
+      text: input.liveRun.queuedReason ? '前面还有一轮在排队，先等它' : '这一轮还在跑，先等它',
+    }
+  }
   if (input.estimate.notice) return { disabled: true, text: '这一轮不会受理' }
   if (!input.confirmChecked) return { disabled: true, text: '请先勾选确认' }
   return { disabled: false, text: '确认并开始诊断' }
@@ -159,6 +165,10 @@ export function runGate(input: {
  *
  * 判据跟后端 `liveRunOf` 同一条：状态在飞 **且** 没有被判定为停着。`stalledReason` 非空的那一轮
  * 不算在飞——那条被重启带死的行如果一直挡着，这个计划就永久起不了第二轮，而唯一的出路是删计划重建。
+ *
+ * <p>{@code queuedReason} 非空的那一轮<b>算在飞</b>（#143）：它还排在队列里，线程一空出来就起跑，
+ * 所以轮询不能停手，主按钮也不能说「这一轮没在跑」。这里判的是后端那两句哪个非空，
+ * 前端绝不自己拿时钟猜「多久没进度」——那份判据有两份就会对不上。</p>
  */
 export function liveRunOf(runs: GeoRun[]): GeoRun | null {
   return runs.find((run) => geoRunIsInFlight(run.status) && !run.stalledReason) ?? null
@@ -187,7 +197,10 @@ export function judgeGate(input: {
   if (!run) return { disabled: true, text: '还没有可判定的轮次' }
   if (!askSettled(run)) return { disabled: true, text: '这一轮还在提问，先等它' }
   if (run.judgeState === 'DONE') return { disabled: true, text: '这一轮判过了' }
-  if (geoJudgeIsInFlight(run.judgeState) && !run.judgeStalledReason) return { disabled: true, text: '正在判定，等它跑完' }
+  if (geoJudgeIsInFlight(run.judgeState) && !run.judgeStalledReason) {
+    // 判定派的也是那一个池（#143）：排队里的一条都还没判，说「正在判定」等于让人以为钱在花
+    return { disabled: true, text: run.queuedReason ? '判定还在排队，先等它' : '正在判定，等它跑完' }
+  }
   if ((run.callCount ?? 0) <= 0) return { disabled: true, text: '这一轮没有可判的回答' }
   if (!input.confirmChecked) return { disabled: true, text: '请先勾选确认' }
   return { disabled: false, text: '确认并判定这一轮' }
@@ -205,6 +218,10 @@ export function judgeHint(run: GeoRun | null): string {
   }
   if (run.judgeState === 'JUDGING' && run.judgeStalledReason) {
     return `${run.judgeStalledReason} 重按这一发只补还缺的那几条，已经判过的不会重判，也不会重复扣钱。`
+  }
+  if (run.judgeState === 'JUDGING' && run.queuedReason) {
+    // 排队里（#143）：出路是等，不是补按——两条判定任务抢同一批回答，后那一笔不在任何预估里
+    return `${run.queuedReason}`
   }
   if (run.judgeState === 'FAILED') {
     return '上一回判定没跑成。修好模型配置或额度再按一次：这一次从头补判缺的那些，提问那一段一次都不会重跑。'
@@ -406,11 +423,17 @@ export function parseWizardState(raw: string | null | undefined): { current: num
   }
 }
 
-/** 计划列表那一行的摘要：没跑过的计划不许显示 0 轮（PH_NOT_RUN 与 PH_NOT_MEASURED 是两个意思） */
+/**
+ * 计划列表那一行的摘要：没跑过的计划不许显示 0 轮（PH_NOT_RUN 与 PH_NOT_MEASURED 是两个意思）
+ *
+ * <p>排队那一轮要说「还在排队」（#143）：卡片上只有「诊断中 · 准备提问」时，读的人会以为
+ * 已经在调模型了。这一句不新增状态词，它说的是后端 {@code queuedReason} 那一件事实的短版。</p>
+ */
 export function campaignRunSummary(campaign: { latestRun: GeoRun | null }): string {
   const run = campaign.latestRun
   if (!run) return '还没跑过一轮'
   const parts = [`第 ${run.id} 轮`, run.statusLabel || run.status]
+  if (run.queuedReason) parts.push('还在排队，没开始提问')
   if (run.stageText) parts.push(run.stageText)
   return parts.join(' · ')
 }

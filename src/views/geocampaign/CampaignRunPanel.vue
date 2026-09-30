@@ -244,7 +244,12 @@ defineExpose({ loadEstimate, loadRuns, reset })
           @click="startRun"
         >{{ gate.text }}</a-button>
         <span v-if="liveRun" class="geo-run-panel__waiting">
-          轮次 {{ liveRun?.id }} 还在跑（{{ liveRun?.stageText || '正在提问' }}，进度 {{ runPercent(liveRun) }}%）：
+          <template v-if="liveRun?.queuedReason">
+            轮次 {{ liveRun?.id }} 还在排队（还没开始提问、一分钱没花）：
+          </template>
+          <template v-else>
+            轮次 {{ liveRun?.id }} 还在跑（{{ liveRun?.stageText || '正在提问' }}，进度 {{ runPercent(liveRun) }}%）：
+          </template>
           两轮一起点等于同一批题问两遍、付两遍钱，而后起那一轮的账不在你刚看过的预估里。
           真想同时问多个品牌，请给每个品牌各建一个计划。
         </span>
@@ -283,6 +288,7 @@ defineExpose({ loadEstimate, loadRuns, reset })
               size="small"
               :show-info="false"
             />
+            <div v-if="run.queuedReason" class="geo-run-panel__run-queued">{{ run.queuedReason }}</div>
             <div v-if="run.stalledReason" class="geo-run-panel__run-stalled">{{ run.stalledReason }}</div>
             <div v-if="run.judgeStalledReason" class="geo-run-panel__run-stalled">{{ run.judgeStalledReason }}</div>
             <div v-if="run.errorMessage" class="geo-run-panel__run-error">{{ run.errorMessage }}</div>
@@ -470,6 +476,16 @@ defineExpose({ loadEstimate, loadRuns, reset })
   &__run-stalled {
     margin-top: 4px;
     color: #d46b08;
+    font-size: 12px;
+  }
+
+  /*
+   * 排队（#143）不是坏事，所以它不能用 stalled 那套橙色：橙色说的是「线程没了、要人决定重跑」，
+   * 而这一句说的是「还没轮到它，等就行」。两种颜色各指一件事，操作的人一眼能分清该等还是该动手。
+   */
+  &__run-queued {
+    margin-top: 4px;
+    color: #595959;
     font-size: 12px;
   }
 }
