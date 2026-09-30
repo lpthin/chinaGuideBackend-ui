@@ -49,6 +49,7 @@ import {
   judgeHint,
   metricObjectText,
   runPercent,
+  runPhaseText,
   sentimentBar,
   sentimentSegmentClass as segmentClass,
 } from './geoCampaignModel'
@@ -234,6 +235,7 @@ watch(id, () => void load())
           <span class="geo-report__head-title">轮次 {{ report.run.id }}</span>
           <span class="geo-report__head-meta">
             起于 {{ formatDateTime(report.run.startedAt) }} · 止于 {{ formatDateTime(report.run.finishedAt) }}（{{ TIME_ZONE_NOTE }}）
+            · {{ runPhaseText(report.run) }}
           </span>
         </div>
         <div v-if="geoRunIsInFlight(report.run.status)" class="geo-report__progress">
@@ -486,8 +488,18 @@ watch(id, () => void load())
 
       <p v-if="report.run.errorMessage" class="geo-report__error">{{ report.run.errorMessage }}</p>
       <p class="geo-report__computed">
-        报告生成于 {{ formatDateTimeWithZone(report.generatedAt, true) }}；上面每一个数都取自
-        <code>geo_metric_snapshot</code> 那一行的分子与分母，不是这一页现算的。
+        <!-- Spec-G P1：generatedAt 是【这一轮数字落库的时刻】，不是打开这一页的时刻。
+             原来这里写「报告生成于 <读取时刻>」，而后半句明说「不是这一页现算的」——隔天再打开，
+             页面上那个时间会跟着变成隔天，客户把它当数据新鲜度读就读错了。判据在后端（GeoReportService#snapshotAt）。 -->
+        <template v-if="report.generatedAt">
+          本轮数字落库于 {{ formatDateTimeWithZone(report.generatedAt, true) }}——这是这一轮写快照的时刻，
+          不是这一页的打开时间；上面每一个数都取自
+          <code>geo_metric_snapshot</code> 那一行的分子与分母，不是这一页现算的。
+        </template>
+        <template v-else>
+          本轮还没有落库的数字：报告上的每一格都要等这一轮跑完写进 <code>geo_metric_snapshot</code> 之后才有值，
+          现在看到的空位不是「0%」，是「还没测」。
+        </template>
       </p>
 
       <GeoJudgmentDrawer v-model:open="drawerOpen" :run-id="id" :vocabulary="vocabulary" />

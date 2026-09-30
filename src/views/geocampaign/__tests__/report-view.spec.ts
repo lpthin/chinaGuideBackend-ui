@@ -173,6 +173,7 @@ function report(overrides: Partial<GeoReport> = {}): GeoReport {
       finishedAt: '2026-09-29T10:06:00',
       createdBy: 'admin',
       createdAt: '2026-09-29T10:00:00',
+      firstAskAt: '2026-09-29T10:01:00',
     },
     platforms: ['DeepSeek', '通义千问'],
     mentionRate: [
@@ -540,6 +541,42 @@ describe('两段各花的钱：头部与「判定这一轮」那一发（§6.2 +
       run: { ...report().run, judgeState: 'JUDGING', judgeStateLabel: '正在逐条送进模型' },
     })
     expect(wrapper.findAll('.tag-stub')[1].text()).toBe('正在逐条送进模型')
+  })
+
+  it('G13：头部那两段时间分开念——排队多久、提问多久（F12：别把调度等待算成观测时间）', async () => {
+    const wrapper = await mountView()
+    const meta = wrapper.find('.geo-report__head-meta').text()
+
+    // 夹具：createdAt 10:00 → firstAskAt 10:01 → finishedAt 10:06
+    expect(meta).toContain('排队 1 分钟')
+    expect(meta).toContain('提问 5 分钟')
+  })
+
+  it('G13：还没起跑的轮次在报告页也不念任何耗时', async () => {
+    const wrapper = await mountView({
+      run: { ...report().run, firstAskAt: null, callCount: 0, failedCallCount: 0 },
+    })
+    expect(wrapper.find('.geo-report__head-meta').text()).toContain('还没起跑')
+  })
+
+  it('报告尾部那个时刻念的是「本轮数字落库于」，不是这一页的打开时间（Spec-G P1 复核）', async () => {
+    const wrapper = await mountView()
+    const line = wrapper.find('.geo-report__computed').text()
+
+    expect(line).toContain('本轮数字落库于')
+    expect(line).toContain('2026-09-29 10:07:00')
+    // 「报告生成于」那一句配的是「不是这一页现算的」，两句自相矛盾：隔天打开时刻就变了而数没变
+    expect(line).not.toContain('报告生成于')
+    expect(line).toContain('不是这一页的打开时间')
+  })
+
+  it('一格快照都还没落库时念「本轮还没有落库的数字」，不许拿读取时刻顶上', async () => {
+    const wrapper = await mountView({ generatedAt: null })
+    const line = wrapper.find('.geo-report__computed').text()
+
+    expect(line).toContain('本轮还没有落库的数字')
+    expect(line).toContain('还没测')
+    expect(line).not.toMatch(/\d{4}-\d{2}-\d{2}/)
   })
 
   it('这一轮没判过：判定那一行说「一次都没跑过」，并且不猜当前的默认模型是谁', async () => {
