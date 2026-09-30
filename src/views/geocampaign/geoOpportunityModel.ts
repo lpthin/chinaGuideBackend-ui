@@ -17,6 +17,7 @@ import type {
   GeoVocabulary,
 } from '../../api/geoCampaign'
 import { PH_DASH } from '../../utils/display'
+import { UNMEASURABLE_WAY } from './geoCampaignModel'
 
 /** 放弃理由的字符上限：逐字镜像 `GeoOpportunityService.dismiss` 里那一个 500，界面先拦住比拿一次 400 好 */
 export const DISMISS_REASON_MAX = 500
@@ -93,10 +94,13 @@ export const SCOPE_NOTE =
   '这一份清单跟着【诊断计划】跨轮存活，不是本轮新增：上一轮产出的草稿这一轮还在同一行上，'
   + '下一轮诊断跑到这道题时会自动把它验证掉。'
 
-/** 「判不了」那一格的出路：它要动的是题的核心词，不是内容（与报告「没测到」那一卡同一个判据） */
+/**
+ * 「判不了」那一格的出路：与报告「没测到」那一卡**同一句话、同一个出处**（#152）。
+ * 这里刻意不再抄一份——两处各写一遍，下一次就是一处说「补核心词」、另一处说「新建一道题」。
+ */
 export const UNMEASURED_NOTE =
-  '判不了的题不是机会：它们的核心词短到门槛或落在通用词里，站内匹配出什么都不算数。'
-  + '要动的是题池里的核心词，不是再写一页内容。'
+  '判不了的题不是机会：它们没有可用核心词（没填、短到三个字以下、或落在通用标题词里），站内匹配出什么都不算数。'
+  + UNMEASURABLE_WAY
 
 /**
  * 预估面板那几行。

@@ -539,6 +539,10 @@ describe('「没测到」的三个出口（§9.6）', () => {
     expect(lines[1].text).toContain('不进 SOV 分母')
     expect(lines[2].text).toContain('哪家便宜')
     expect(lines[2].text).toContain('要动的是题的核心词')
+    // #152：出路必须落在客户点得动的地方。现场那 12 道判不了的题全是平台通用题（只读），
+    // 过去这一句只说「补核心词」，人点进题池撞上的就是一个改不动的输入框
+    expect(lines[2].text).toContain('平台通用题')
+    expect(lines[2].text).toContain('新建一道自己的题')
   })
 
   it('全都没有时一条都不摆：缺口为零还写着「有未取到的回答」就是谎报', () => {

@@ -306,6 +306,20 @@ export function runPercent(run: GeoRun | null | undefined): number {
   return Math.min(Math.max(Math.round(n), 0), 100)
 }
 
+/**
+ * 「判不了的题」出路那半句，唯一出处（报告那一卡与机会面板共用，#152）。
+ *
+ * 为什么它得点名平台通用题：判据在后端（`GeoCoverageJudge`），题面之所以判不了有三种——没填、
+ * 短到三个字以下、落在「首页 / 关于我们」这类通用标题词里。而现场那一批（商用规模轮 run 5 的 12 道）
+ * 全是**平台通用题**：`tenant_id IS NULL` 的行在题池里租户读得到、改不动（后端回「平台通用题只读」）。
+ * 过去这一句只写「去补核心词」，客户点进题池撞上的就是一个灰掉的输入框——本轮花掉的钱连一条出路
+ * 都没换来。所以出路要分两头写，一头是新建，一头是补。
+ */
+export const UNMEASURABLE_WAY =
+  '要动的是题的核心词，不是内容：平台通用题（题面带 {{region}}、{{industry}} 这类占位符，由平台维护）'
+  + '在题池里只读、改不动，请新建一道自己的题、把品牌名或竞品名填进「核心词」那一栏；'
+  + '自己建的题直接在题池补核心词就行。'
+
 /** 跑完之后的「没测到」三个出口（§9.6）：一个都不许省，只报率不报缺口就是把「我们没测」说成「没人提」 */
 export function gapLines(input: {
   failedCallCount: number
@@ -328,7 +342,9 @@ export function gapLines(input: {
   if (input.unmeasuredQuestions.length) {
     lines.push({
       title: '判不了的题',
-      text: `核心词短到门槛或落在通用词里，这道题在站内匹配出什么都不算数：${input.unmeasuredQuestions.join('、')}。要动的是题的核心词，不是内容。`,
+      // #152：题面已经是后端按这一轮的站渲染过的那一句（不再是 {{region}} 原文），
+      // 出路那半句要落在客户真点得动的地方——所以它点名了「平台通用题改不动」这一条。
+      text: `这些题没有可用核心词，跑完也算不出覆盖率：${input.unmeasuredQuestions.join('、')}。${UNMEASURABLE_WAY}`,
     })
   }
   return lines
