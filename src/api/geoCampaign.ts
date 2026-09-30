@@ -389,6 +389,32 @@ export interface GeoPaged<T> {
   records: T[]
 }
 
+/**
+ * 一条刚发出去的只读链接（后端 `GeoReportLinkService.IssuedLink`）。
+ *
+ * `token` 明文<em>只在这一次</em>回得来：库里存的是 SHA-256，所以列表那一发永远念不出旧链接，
+ * 界面只能「复制刚发的这一条」+「看旧的还活着吗、到什么时候」——这不是缺功能，是这套机制的形状。
+ */
+export interface GeoIssuedReportLink {
+  sessionId: number
+  token: string
+  /** 相对路径 `/geo-report/{token}`：按当前 origin 拼成可点开的地址（同源部署，见 resolveReportUrl） */
+  path: string
+  expiresAt: string | null
+}
+
+/** 某一轮已经发出去的链接之一（后端 `GeoReportLinkService.ReportLink`：没有令牌，也没有地址） */
+export interface GeoReportLinkSummary {
+  sessionId: number
+  label: string | null
+  createdBy: string | null
+  createdAt: string | null
+  expiresAt: string | null
+  revokedAt: string | null
+  /** 还活着吗（没撤销且没过期）：界面据此决定那一格念「有效」还是「已失效」 */
+  active: boolean
+}
+
 export const geoCampaignApi = {
   createCampaign: (form: GeoCampaignForm) => http.post<GeoCampaign>('/geo/campaign', form),
 
@@ -438,6 +464,23 @@ export const geoCampaignApi = {
   answer: (callId: number) => http.get<GeoAnswerTrace>(`/geo/campaign/answer/${callId}`),
 
   vocabulary: () => http.get<GeoVocabulary>('/geo/campaign/vocabulary'),
+
+  // ---------------- 只读外链（Spec-G G6） ----------------
+
+  /**
+   * 给这一轮发一条只读链接。它挂 `geo:campaign:run`（写库 + 把这一轮的账暴露到公网面，
+   * 与「谁能花钱起跑」同级），label 可空。
+   */
+  issueReportLink: (runId: number, label?: string | null) =>
+    http.post<GeoIssuedReportLink>(`/geo/campaign/run/${runId}/report-link`, { label }),
+
+  /** 这一轮发过哪几条链接：只回「活着吗、到什么时候、谁签的」，不回令牌也不回地址 */
+  reportLinks: (runId: number) =>
+    http.get<GeoReportLinkSummary[]>(`/geo/campaign/run/${runId}/report-links`),
+
+  /** 撤销这一轮的某一条（置 revoked_at、留痕不删行）；不是这一轮发的那一条会被后端拒 */
+  revokeReportLink: (runId: number, sessionId: number) =>
+    http.post<GeoReportLinkSummary>(`/geo/campaign/run/${runId}/report-link/${sessionId}/revoke`),
 
   // ---------------- 机会问题与一键成内容（P4，§11.5） ----------------
 

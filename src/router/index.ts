@@ -102,6 +102,9 @@ const GeoBrandProfileView = () => import('../views/geobrand/GeoBrandProfileView.
 const GeoBrandDiagnosisWizardView = () => import('../views/geobrand/GeoBrandDiagnosisWizardView.vue')
 const GeoCampaignWorkbenchView = () => import('../views/geocampaign/GeoCampaignWorkbenchView.vue')
 const GeoCampaignReportView = () => import('../views/geocampaign/GeoCampaignReportView.vue')
+// 🔓 诊断报告的只读外链（Spec-G G6）：令牌就在地址里，形状跟 /brief/:token 同一条路 ——
+// 顶层路由 + requiresAuth:false，刻意不挂进 /workspace 的 children（侧边菜单由那组 children 单源生成）。
+const GeoReportPublicView = () => import('../views/geocampaign/GeoReportPublicView.vue')
 
 // 🤖 AI 配置模块
 const ModelConfigView = () => import('../views/ai/ModelConfigView.vue')
@@ -244,6 +247,14 @@ export const routes: RouteRecordRaw[] = [
     name: 'portal-client-decision',
     component: ClientDecisionView,
     meta: { title: '建站方案确认', requiresAuth: false }
+  },
+  // 诊断报告只读外链（Spec-G G6）：拿着那条链接的人没有后台账号，也不需要。
+  // 数据全部来自 `/api/geo/public/{令牌}/...` 那六个 GET，URL 上没有可换的轮次号（轮次由令牌作用域定）。
+  {
+    path: '/geo-report/:token',
+    name: 'geo-report-public',
+    component: GeoReportPublicView,
+    meta: { title: 'GEO 诊断报告（只读）', requiresAuth: false }
   },
   {
     path: '/workspace',

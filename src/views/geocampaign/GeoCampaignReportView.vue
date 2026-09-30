@@ -25,6 +25,7 @@ import StatusTag from '../../components/StatusTag.vue'
 import TrendNote from '../../components/TrendNote.vue'
 import GeoJudgmentDrawer from './GeoJudgmentDrawer.vue'
 import GeoOpportunityPanel from './GeoOpportunityPanel.vue'
+import GeoReportLinkPanel from './GeoReportLinkPanel.vue'
 import {
   geoCampaignApi,
   geoJudgeIsInFlight,
@@ -34,6 +35,7 @@ import {
   type GeoRun,
   type GeoVocabulary,
 } from '../../api/geoCampaign'
+import { reportAccessOf } from '../../api/geoReportAccess'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
 import { formatDateTime, formatDateTimeWithZone, TIME_ZONE_NOTE } from '../../utils/format'
@@ -54,11 +56,26 @@ import {
   sentimentSegmentClass as segmentClass,
 } from './geoCampaignModel'
 
-const props = defineProps<{ runId?: number | string | null }>()
+const props = defineProps<{
+  runId?: number | string | null
+  /**
+   * 只读外链模式（Spec-G G6）：地址里带令牌时，这一屏读的是「令牌绑定的那一轮」，
+   * 走公开那六个 GET，页面上<em>一个写动作都不摆</em>。
+   */
+  token?: string | null
+}>()
 const route = useRoute()
 
 const id = computed(() => Number(props.runId ?? route.query.runId))
-const valid = computed(() => Number.isFinite(id.value) && id.value > 0)
+/**
+ * 这一屏的读法只有一个岔口（`reportAccessOf`）：有令牌走公开口，没令牌按轮次走登录态。
+ *
+ * 后端那一边同样是「轮次号只从令牌作用域里取」，所以公开模式下这里<em>不需要</em>轮次号——
+ * 地址栏里那个数字换不出另一轮的报告，路径上根本没有那个位置。
+ */
+const access = computed(() => reportAccessOf({ runId: id.value, token: props.token }))
+const isPublic = computed(() => access.value?.kind === 'public')
+const valid = computed(() => access.value !== null)
 
 const report = ref<GeoReport | null>(null)
 const vocabulary = ref<GeoVocabulary | null>(null)
@@ -110,13 +127,14 @@ const gate = computed(() => judgeGate({
 }))
 
 async function load(quiet = false) {
-  if (!valid.value) return
+  const source = access.value
+  if (!source) return
   if (!quiet) loading.value = true
   if (!quiet) error.value = null
   try {
     const [data, vocab] = await Promise.all([
-      geoCampaignApi.getReport(id.value),
-      vocabulary.value ? Promise.resolve(vocabulary.value) : geoCampaignApi.vocabulary(),
+      source.report(),
+      vocabulary.value ? Promise.resolve(vocabulary.value) : source.vocabulary(),
     ])
     report.value = data
     vocabulary.value = vocab
@@ -163,7 +181,9 @@ const sovHint = computed(() => {
 })
 
 async function recalculateSov() {
-  if (!valid.value || recalculationDisabled.value) return
+  // 公开口没有这一发（后端那六个口子全 GET），界面也不许摆一个必然 404 的按钮；
+  // 这一句是第二道闸：模板里已经 v-if 掉了，走到这里说明形状被改坏了
+  if (!valid.value || isPublic.value || recalculationDisabled.value) return
   recalculating.value = true
   try {
     report.value = await geoCampaignApi.recalculateSov(id.value)
@@ -181,7 +201,8 @@ async function recalculateSov() {
 }
 
 async function judgeRun() {
-  if (!valid.value || gate.value.disabled) return
+  // 判定那一段要外呼模型、要花钱，属于登录态那一侧：外链访客按不到它（模板里也不摆）
+  if (!valid.value || isPublic.value || gate.value.disabled) return
   judging.value = true
   try {
     const next = await geoCampaignApi.judge(id.value, true)
@@ -214,14 +235,16 @@ function judgeStateLabel(state: string | null | undefined): string | null {
 onMounted(load)
 onBeforeUnmount(stopPolling)
 // 包一层再换轮次：`watch(id, load)` 会把新的 runId 当成 `quiet` 传进去，
-// 结果是切到另一轮时既不显 loading 也不清上一次的错误——读不到的账会被说成旧那一轮的错
-watch(id, () => void load())
+// 结果是切到另一轮时既不显 loading 也不清上一次的错误——读不到的账会被说成旧那一轮的错。
+// 令牌也一起看：外链页从一条链接换到另一条（同一轮的两条链接也算）就该重读，别留着上一位的账
+watch(() => [id.value, props.token], () => void load())
 </script>
 
 <template>
   <PageShell title="GEO 诊断报告" subtitle="一轮诊断 = 一批题 × 一排平台 × 每题若干次，报告只报这一轮的账">
-    <StateBlock v-if="!valid" state="error" title="报告地址不完整" detail="URL 里没带上轮次 id。"
-      next="回工作台或向导第⑤步，从轮次那一排点「看报告」进来" />
+    <StateBlock v-if="!valid" state="error" title="报告地址不完整"
+      :detail="token ? '这一条链接读不出它对应的那一轮。' : 'URL 里既没有轮次 id，也没有只读链接的令牌。'"
+      :next="token ? '回原处重新点那条链接，或让发链接的人重发一条' : '回工作台或向导第⑤步，从轮次那一排点「看报告」进来'" />
     <StateBlock v-else-if="loading && !report" state="not-measured" title="正在读这一轮的账" />
     <StateBlock v-else-if="error" state="error" :detail="error" />
 
@@ -269,7 +292,7 @@ watch(id, () => void load())
         </p>
 
         <div class="geo-report__judge">
-          <div v-if="report.run.judgeState !== 'DONE'" class="geo-report__judge-confirm">
+          <div v-if="!isPublic && report.run.judgeState !== 'DONE'" class="geo-report__judge-confirm">
             <!-- 勾选框自己绝不能跟着按钮一起禁用：闸是「没勾 ⇒ 按不动」，
                  把勾这一步也锁掉就等于永远过不了第二道闸（CampaignRunPanel 同一条形状） -->
             <a-checkbox v-model:checked="confirmChecked">
@@ -278,10 +301,19 @@ watch(id, () => void load())
             </a-checkbox>
           </div>
           <div class="geo-report__judge-actions">
-            <a-button danger :disabled="gate.disabled" :loading="judging" @click="judgeRun">{{ gate.text }}</a-button>
+            <a-button v-if="!isPublic" danger :disabled="gate.disabled" :loading="judging" @click="judgeRun">
+              {{ gate.text }}
+            </a-button>
             <a-button size="small" @click="drawerOpen = true">判定明细与原文</a-button>
           </div>
-          <p class="geo-report__judge-hint">{{ judgeHint(report.run) }}</p>
+          <!-- 外链这一侧没有「判定这一轮」：那一段要外呼模型、要花钱，只属于登录态。
+               少摆一个按钮是一件事，把「为什么没有」说出来是另一件事——
+               拿链接看报告的人会以为这一屏坏了，界面不许让人猜（§9.6 同一条口径） -->
+          <p v-if="isPublic" class="geo-report__judge-hint">
+            这一屏是只读的：判定与重算都要在自己后台登录后才能按（它们会往这一轮的账里写东西）。
+            「判定明细与原文」照常点得开——每一个数都能顺着看到那条回答的原文。
+          </p>
+          <p v-else class="geo-report__judge-hint">{{ judgeHint(report.run) }}</p>
           <p v-if="report.run.judgeErrorMessage" class="geo-report__judge-error">{{ report.run.judgeErrorMessage }}</p>
         </div>
 
@@ -290,6 +322,10 @@ watch(id, () => void load())
           引用链接率还没有观测口径，所以这里既没有它的数字也没有它的空格。
         </p>
       </section>
+
+      <!-- 只读外链（G6）：只有登录态这一侧能发、能撤；外链页自己绝不摆这一块，
+           否则「谁能把这一轮的账再暴露一次」就变成拿链接的人也能决定 -->
+      <GeoReportLinkPanel v-if="!isPublic" :run-id="id" />
 
       <TrendNote :text="report.accessChannelNote" />
 
@@ -461,12 +497,16 @@ watch(id, () => void load())
           同一平台的每一行共用同一个分母：本品牌 + 勾选参与对比的竞品被提及次数之和。
           没勾进来的竞品不在这个分母里，所以这一串数字加起来是 100%，而不是「市场上有多少」。
         </p>
-        <div class="geo-report__sov-action">
+        <div v-if="!isPublic" class="geo-report__sov-action">
           <a-button size="small" :disabled="recalculationDisabled" :loading="recalculating" @click="recalculateSov">
             按当前勾选重算份额
           </a-button>
           <span class="geo-report__sov-hint">{{ sovHint }}</span>
         </div>
+        <p v-else class="geo-report__card-note">
+          这一卡上的份额是按<b>这一轮起跑时勾选的那批竞品</b>算的。换勾选重算要登录自己在后台按
+          「按当前勾选重算份额」——它会重写这一轮的 SOV 快照行，所以外链这一侧只有读数，没有那一发。
+        </p>
         <p class="geo-report__card-note">
           这一发改的只有 SOV：重算读的是这一轮已经落库的成功回答，所以它不花钱，也不碰提及率与覆盖率。
           情感与推荐率不走这条路——那是语义判定，要重新过一遍模型，按上面那一发「判定这一轮」。
@@ -484,7 +524,15 @@ watch(id, () => void load())
       <!-- 机会问题（§11.5 / 10-6）：看见缺口之后能直接补缺口，这是本 Spec 唯一拉开差距的一条。
            它排在五个数与「没测到的部分」后面，是因为读的人要先认了这些数，再决定花不花下一笔钱；
            而清单本身跟着【计划】跨轮存活，不是本轮新增（那句话由面板自己念出来）。 -->
-      <GeoOpportunityPanel :run-id="id" :vocabulary="vocabulary" />
+      <GeoOpportunityPanel v-if="!isPublic" :run-id="id" :vocabulary="vocabulary" />
+      <section v-else class="geo-report__card" data-card="share-note">
+        <h3 class="geo-report__card-title">这一屏之外的那些动作</h3>
+        <p class="geo-report__card-note">
+          机会清单与「一键成内容」不在这一页：那四个动作都会往内容库里写东西（草稿、问答、文章任务、案例），
+          所以登录后在自己后台才点得动。这一屏给的是<b>已经落库的观测</b>——五个数、没测到的部分、
+          以及每一个数背后那条回答的原文。
+        </p>
+      </section>
 
       <p v-if="report.run.errorMessage" class="geo-report__error">{{ report.run.errorMessage }}</p>
       <p class="geo-report__computed">
@@ -502,7 +550,7 @@ watch(id, () => void load())
         </template>
       </p>
 
-      <GeoJudgmentDrawer v-model:open="drawerOpen" :run-id="id" :vocabulary="vocabulary" />
+      <GeoJudgmentDrawer v-model:open="drawerOpen" :run-id="id" :token="token ?? null" :vocabulary="vocabulary" />
     </template>
   </PageShell>
 </template>

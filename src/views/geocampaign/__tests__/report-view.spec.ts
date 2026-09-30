@@ -83,6 +83,13 @@ const DRAWER_STUB = {
   template: '<div class="drawer-stub" :data-open="open ? \'1\' : \'0\'" :data-run-id="runId" />',
 }
 
+/** 只读外链那一块有它自己的整套用例（report-link-panel.spec.ts），这里只钉「报告页把它挂上了、传的是这一轮」 */
+const LINK_PANEL_STUB = {
+  name: 'GeoReportLinkPanel',
+  props: ['runId'],
+  template: '<div class="link-panel-stub" :data-run-id="runId" />',
+}
+
 const ACCESS_CHANNEL_NOTE =
   '本轮口径=API 问答：这是我们用配置的模型接口问出来的答案，'
   + '不等于你在豆包/DeepSeek 等 App 里实际看到的答案（那一层的观测本 Spec 未开启）。'
@@ -238,6 +245,7 @@ function baseStubs() {
     'a-progress': PROGRESS_STUB,
     GeoJudgmentDrawer: DRAWER_STUB,
     GeoOpportunityPanel: OPPORTUNITY_PANEL_STUB,
+    GeoReportLinkPanel: LINK_PANEL_STUB,
     // 勾选框用真组件：第二道闸（§6.2）的判据是「不勾就发不出去」，替件按不动就是假绿
     'a-checkbox': Checkbox,
     // 「按当前勾选重算份额」与「确认并判定这一轮」那两发要真按得动：a-button 用声明了 emits 的桩，
@@ -762,7 +770,7 @@ describe('轮次还在跑时的报告页', () => {
   it('轮次 id 没带上：说清是地址的问题，不发请求也不演一张空报告', async () => {
     const wrapper = mount(GeoCampaignReportView, {
       props: { runId: null },
-      global: { stubs: { 'a-tag': TAG_STUB, 'a-progress': PROGRESS_STUB, GeoJudgmentDrawer: DRAWER_STUB } },
+      global: { stubs: { 'a-tag': TAG_STUB, 'a-progress': PROGRESS_STUB, GeoJudgmentDrawer: DRAWER_STUB, GeoReportLinkPanel: LINK_PANEL_STUB } },
     })
     await flushPromises()
     expect(wrapper.text()).toContain('报告地址不完整')

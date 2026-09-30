@@ -129,6 +129,24 @@ describe('端点形状：与后端 GeoCampaignController 逐字一致', () => {
     expect(httpMock.post.mock.calls).toHaveLength(0)
   })
 
+  it('只读外链三条：发与撤是 POST 且都带 runId，列表是 GET（Spec-G G6）', async () => {
+    await geoCampaignApi.issueReportLink(88, '给张总的第三季度报告')
+    expect(httpMock.post).toHaveBeenLastCalledWith('/geo/campaign/run/88/report-link', {
+      label: '给张总的第三季度报告',
+    })
+    // 备注名可空：留空时后端按默认名兜，前端不自己编一个名字（编了就是界面替客户起名）
+    await geoCampaignApi.issueReportLink(88, null)
+    expect(lastCall(httpMock.post)[1]).toEqual({ label: null })
+
+    await geoCampaignApi.reportLinks(88)
+    expect(httpMock.get).toHaveBeenLastCalledWith('/geo/campaign/run/88/report-links')
+
+    await geoCampaignApi.revokeReportLink(88, 5)
+    expect(httpMock.post).toHaveBeenLastCalledWith('/geo/campaign/run/88/report-link/5/revoke')
+    // 撤销带的是（这一轮, sessionId）两个位置：只凭 sessionId 就能撤，等于能撤隔壁模块的整站预览令牌
+    expect(JSON.stringify(httpMock.post.mock.calls)).not.toContain('confirm')
+  })
+
   it('没有「一键全站诊断」这种批量口子：起跑只按 campaignId 一发一发来', () => {
     const risky = Object.keys(geoCampaignApi).filter((name) =>
       /runAll|batch|all|apply|publish/i.test(name),
@@ -180,12 +198,17 @@ describe('轮次状态分档（进度轮询的停表判据）', () => {
 })
 
 /**
- * 单源扫描：P2 新写的这四个文件 + 向导外层，源码当文本读回来逐条对。
+ * 单源扫描：这一族的视图与取数层，源码当文本读回来逐条对。
  * 按 basename 过滤（glob 的键在 VTU 下可能是绝对路径，写死键名会静默空转）。
+ *
+ * <p>G6 之后把 `geoReportAccess.ts` 也扫进来：它是「登录态读 / 令牌读」那一个岔口的唯一出处，
+ * 公开口的 URL 形状就写在这一份里 —— 谁在这里补一个 `/api/` 前缀（axios 已经带了）或者
+ * 把 runId 拼进公开地址，这一发当场红。</p>
  */
 const scanned = import.meta.glob(
   [
     '../geoCampaign.ts',
+    '../geoReportAccess.ts',
     '../../views/geocampaign/*.vue',
     '../../views/geocampaign/geoCampaignModel.ts',
     '../../views/geocampaign/geoOpportunityModel.ts',
@@ -213,10 +236,13 @@ describe('I-1：P2 前端不抄第二份词表', () => {
       'GeoJudgmentDrawer.vue',
       'GeoOpportunityDrawer.vue',
       'GeoOpportunityPanel.vue',
+      'GeoReportLinkPanel.vue',
+      'GeoReportPublicView.vue',
       'WizardPlatformStep.vue',
       'geoCampaign.ts',
       'geoCampaignModel.ts',
       'geoOpportunityModel.ts',
+      'geoReportAccess.ts',
     ].sort())
   })
 

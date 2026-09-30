@@ -16,11 +16,11 @@
 import { computed, ref, watch } from 'vue'
 import StateBlock from '../../components/StateBlock.vue'
 import {
-  geoCampaignApi,
   type GeoAnswerTrace,
   type GeoJudgment,
   type GeoVocabulary,
 } from '../../api/geoCampaign'
+import { reportAccessOf } from '../../api/geoReportAccess'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
 import { formatDateTimeWithZone } from '../../utils/format'
@@ -30,6 +30,11 @@ import { highlightParts } from './geoCampaignModel'
 const props = defineProps<{
   open: boolean
   runId: number | null
+  /**
+   * 只读外链模式（Spec-G G6）：这一抽屉的判定行与原文都从公开那六个 GET 读，
+   * 于是「客户点得开原文」和「租户自己点得开」走的是同一份形状，不是第二套代码。
+   */
+  token?: string | null
   vocabulary: GeoVocabulary | null
 }>()
 
@@ -49,12 +54,19 @@ const mode = computed(() => (trace.value ? 'trace' : 'list'))
 
 const parts = computed(() => highlightParts(trace.value?.answerText, traceJudgment.value?.matchedText))
 
+/**
+ * 抽屉的读法与报告页共用同一条岔口（`reportAccessOf`）：有令牌走公开口，没令牌按轮次走登录态。
+ * 两份形状各写一遍查询，就是下一次「客户那边点不开原文」的来源。
+ */
+const access = computed(() => reportAccessOf({ runId: props.runId, token: props.token }))
+
 async function load() {
-  if (!props.runId) return
+  const source = access.value
+  if (!source) return
   loading.value = true
   error.value = null
   try {
-    judgments.value = await geoCampaignApi.judgments(props.runId)
+    judgments.value = await source.judgments()
   } catch (e) {
     error.value = describeHttpError(e)
     logError('geocampaign/判定明细', e)
@@ -64,10 +76,14 @@ async function load() {
 }
 
 async function openTrace(row: GeoJudgment) {
+  const source = access.value
+  if (!source) return
   traceLoading.value = true
   traceError.value = null
   try {
-    trace.value = await geoCampaignApi.answer(row.callId)
+    // 公开口这一发问的是（令牌绑定的那一轮, 这一条）：后端会拒绝属于本租户其他轮次的 callId，
+    // 界面对此只做一件事——把回的那句原因原样念出来，不改写成「加载失败」
+    trace.value = await source.answer(row.callId)
     traceJudgment.value = row
   } catch (e) {
     traceError.value = describeHttpError(e)
@@ -92,6 +108,22 @@ function close() {
 watch(() => props.open, (value) => {
   if (value && !judgments.value && !loading.value) void load()
 }, { immediate: true })
+
+/**
+ * 换轮次、换令牌 ⇒ 把手上那一份判定行丢掉。
+ *
+ * 报告页可以在不卸载抽屉的前提下切到另一轮（工作台上连着点两行「看报告」），
+ * 也可能在两条链接之间换（同一轮发过两条）。留着旧那一份，抽屉念的就是<em>上一轮</em>的行，
+ * 而标题写着「这一轮的判定明细」——那是界面谎报，跟后端有没有数据无关。
+ */
+watch(() => [props.runId, props.token], () => {
+  judgments.value = null
+  trace.value = null
+  traceJudgment.value = null
+  traceError.value = null
+  error.value = null
+  if (props.open) void load()
+})
 
 function prominenceLabel(row: GeoJudgment): string {
   return row.prominenceLabel || props.vocabulary?.prominences?.[row.prominence ?? ''] || row.prominence || PH_NOT_MEASURED
