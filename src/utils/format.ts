@@ -87,6 +87,28 @@ export function formatDate(time: string | Date | number | undefined | null): str
 }
 
 /**
+ * 时区标注那一句话的唯一出处（Spec-G G8）。页面里**不许**手抄「UTC+8」或「北京时间」，
+ * 否则以后改口径要翻遍十几个视图——与 `formatDateTime` 同一条纪律。
+ * 同一句里有两个时间点时（报告头那行「起于 … · 止于 …」）不必念两遍：直接引这个常量、
+ * 自己包一对括号写在末尾即可，字面量仍然只有这一处。
+ */
+export const TIME_ZONE_NOTE = '北京时间 UTC+8'
+
+/**
+ * 带时区的绝对时间：`2026-10-01 00:07:05（北京时间 UTC+8）`。
+ *
+ * 为什么数字不用换算（G8 定稿里否掉的那两条）：后端 `LocalDateTime` 直出的 ISO 串
+ * （`2026-09-30T02:24:51`）**不带偏移**，JS 按「访客本地时区」解析、再按同一时区渲染，
+ * 两次换算正好抵消 ⇒ 屏幕上那串数字恒等于服务器写库那一刻的**北京墙钟**，与访客在哪国无关
+ * （P6-C 现场实测过：改浏览器时区那串数字不动）。所以缺的只是「这是哪个时区」这一句标注，
+ * 不是精度；把它统一在这里加，就既不会让新旧写法对不上，也不会让人以为看到的是 UTC。
+ */
+export function formatDateTimeWithZone(time: string | Date | number | undefined | null, withSeconds = false): string {
+  const base = formatDateTime(time, withSeconds)
+  return base === '-' ? base : `${base}（${TIME_ZONE_NOTE}）`
+}
+
+/**
  * 百分比：入参既可能是 0~1 的比例，也可能是已经乘过 100 的百分数。§9.5：率显示 1 位小数带 %。
  */
 export function formatPercent(value: number | null | undefined, digits = 1, alreadyPercent = false): string {

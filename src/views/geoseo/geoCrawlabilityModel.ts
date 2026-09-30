@@ -14,7 +14,7 @@
  */
 import type { CrawlabilityItem, CrawlabilitySnapshot, CrawlabilityVocabulary } from '../../api/geoCrawlability'
 import { PH_DASH, PH_NOT_RUN } from '../../utils/display'
-import { formatDateTime } from '../../utils/format'
+import { formatDateTimeWithZone } from '../../utils/format'
 
 /**
  * 「跑一次」按钮旁边那句话。
@@ -119,7 +119,7 @@ export function fractionText(item: CrawlabilityItem | null | undefined): string 
 
 /** 一行的「测于」：后端直出的 ISO 串走 `utils/format` 那一处格式化，视图里不 second-copy */
 export function measuredAtText(item: CrawlabilityItem | null | undefined): string {
-  return item?.measuredAt ? formatDateTime(item.measuredAt) : PH_DASH
+  return item?.measuredAt ? formatDateTimeWithZone(item.measuredAt) : PH_DASH
 }
 
 /** 为什么是这个灯：那一句因果来自留痕里的 detail.reason，界面不许自己编（SSR 那行念的就是服务端那句因果句） */
@@ -179,11 +179,12 @@ export function verdictCounts(rows: CrawlabilityRow[]): Record<string, number> {
  * `siteId` 为 null 时说的是「这一租户今天没有对公众开着的站点」，各行为什么测不到写在行上，
  * 这里不替它们总结成一句失败。
  *
- * 时间走 `formatDateTime`：后端 `LocalDateTime` 直出的 ISO 串（`2026-09-30T02:24:51`）在页面上
- * 既读不出时区也不是给人看的形状，`utils/format.ts` 是这一件事的唯一出处。
+ * 时间走 `formatDateTimeWithZone`：后端 `LocalDateTime` 直出的 ISO 串（`2026-09-30T02:24:51`）
+ * 不是给人看的形状，G8 之前它还读不出是哪个时区（就绪评估里的 F10）。时区那一句只写在
+ * `utils/format.ts` 那一处，视图与这里都不许自己拼「UTC+8」。
  */
 export function headline(snapshot: CrawlabilitySnapshot): string {
-  const measuredAt = snapshot.measuredAt ? `最近一轮测于 ${formatDateTime(snapshot.measuredAt)}` : '最近一轮没有时间戳'
+  const measuredAt = snapshot.measuredAt ? `最近一轮测于 ${formatDateTimeWithZone(snapshot.measuredAt)}` : '最近一轮没有时间戳'
   return snapshot.siteId === null || snapshot.siteId === undefined
     ? `${measuredAt}；这一租户没有对公众开着的站点，能测的项各测各的`
     : `${measuredAt}；站点 #${snapshot.siteId}`

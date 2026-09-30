@@ -23,7 +23,7 @@ import { geoBrandApi, type GeoBrandProfile } from '../../api/geoBrand'
 import { siteApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
-import { formatDateTime } from '../../utils/format'
+import { formatDateTimeWithZone } from '../../utils/format'
 import { PH_DASH } from '../../utils/display'
 import { campaignRunSummary, judgeCostText, runPercent } from './geoCampaignModel'
 
@@ -199,7 +199,7 @@ onMounted(async () => {
             <p class="geo-workbench__recent-meta">
               {{ item.run.questionCount ?? PH_DASH }} 题 × {{ item.run.platformCount ?? PH_DASH }} 平台 ×
               {{ item.run.repeatTimes ?? PH_DASH }} 次 · 取到 <MeasuredCount :value="item.run.callCount" /> 次 ·
-              未取到 <MeasuredCount :value="item.run.failedCallCount" /> 次 · {{ formatDateTime(item.run.finishedAt || item.run.startedAt) }}
+              未取到 <MeasuredCount :value="item.run.failedCallCount" /> 次 · {{ formatDateTimeWithZone(item.run.finishedAt || item.run.startedAt) }}
             </p>
             <p class="geo-workbench__recent-meta">{{ judgeCostText(item.run) }}</p>
             <p v-if="item.run.stageText" class="geo-workbench__recent-stage">{{ item.run.stageText }}</p>

@@ -36,7 +36,7 @@ import {
 } from '../../api/geoCampaign'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
-import { formatDateTime } from '../../utils/format'
+import { formatDateTime, formatDateTimeWithZone, TIME_ZONE_NOTE } from '../../utils/format'
 import { PH_DASH, PH_NOT_COVERED, PH_NOT_MEASURED } from '../../utils/display'
 import {
   MENTION_VS_RECOMMEND_NOTE,
@@ -233,7 +233,7 @@ watch(id, () => void load())
             :label="report.run.judgeStateLabel || judgeStateLabel(report.run.judgeState)" />
           <span class="geo-report__head-title">轮次 {{ report.run.id }}</span>
           <span class="geo-report__head-meta">
-            起于 {{ formatDateTime(report.run.startedAt) }} · 止于 {{ formatDateTime(report.run.finishedAt) }}
+            起于 {{ formatDateTime(report.run.startedAt) }} · 止于 {{ formatDateTime(report.run.finishedAt) }}（{{ TIME_ZONE_NOTE }}）
           </span>
         </div>
         <div v-if="geoRunIsInFlight(report.run.status)" class="geo-report__progress">
@@ -486,7 +486,7 @@ watch(id, () => void load())
 
       <p v-if="report.run.errorMessage" class="geo-report__error">{{ report.run.errorMessage }}</p>
       <p class="geo-report__computed">
-        报告生成于 {{ formatDateTime(report.generatedAt) }}；上面每一个数都取自
+        报告生成于 {{ formatDateTimeWithZone(report.generatedAt, true) }}；上面每一个数都取自
         <code>geo_metric_snapshot</code> 那一行的分子与分母，不是这一页现算的。
       </p>
 

@@ -23,7 +23,7 @@ import {
 } from '../../api/geoCampaign'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
-import { formatDateTime } from '../../utils/format'
+import { formatDateTimeWithZone } from '../../utils/format'
 import { PH_DASH, PH_NOT_MEASURED } from '../../utils/display'
 import { highlightParts } from './geoCampaignModel'
 
@@ -113,7 +113,7 @@ function sentimentLabel(row: GeoJudgment): string {
         <div class="geo-trace__question">{{ trace.questionText || PH_DASH }}</div>
         <div class="geo-trace__meta">
           回答来自 {{ trace.modelName || PH_DASH }}{{ trace.provider ? `（${trace.provider}）` : '' }} ·
-          第 {{ trace.sampleSeq ?? '?' }} 次采样 · {{ formatDateTime(trace.createdAt) }} ·
+          第 {{ trace.sampleSeq ?? '?' }} 次采样 · {{ formatDateTimeWithZone(trace.createdAt) }} ·
           判定版本 {{ traceJudgment?.judgePromptVersion || PH_DASH }}
         </div>
         <p v-if="traceJudgment" class="geo-trace__verdict">

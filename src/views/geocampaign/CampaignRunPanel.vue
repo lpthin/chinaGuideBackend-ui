@@ -23,7 +23,7 @@ import {
 } from '../../api/geoCampaign'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
-import { formatDateTime } from '../../utils/format'
+import { formatDateTimeWithZone } from '../../utils/format'
 import {
   UNMEASURABLE_HINT,
   UNMEASURABLE_TITLE,
@@ -269,7 +269,7 @@ defineExpose({ loadEstimate, loadRuns, reset })
               <StatusTag domain="geoRun" :status="run.status" :label="statusLabel(run)" />
               <StatusTag domain="geoJudgeState" :status="run.judgeState" :label="run.judgeStateLabel" />
               <span class="geo-run-panel__run-meta">
-                第 {{ run.id }} 轮 · {{ formatDateTime(run.createdAt) }} ·
+                第 {{ run.id }} 轮 · {{ formatDateTimeWithZone(run.createdAt) }} ·
                 取到 {{ run.callCount ?? 0 }} 次、未取到 {{ run.failedCallCount ?? 0 }} 次 ·
                 提问 {{ run.promptTokens ?? 0 }} + {{ run.completionTokens ?? 0 }} token ·
                 判定 {{ run.judgeCallCount ?? 0 }} 条 {{ (run.judgePromptTokens ?? 0) + (run.judgeCompletionTokens ?? 0) }} token

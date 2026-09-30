@@ -235,7 +235,10 @@ describe('计数与头部：四档各报各的，不合并', () => {
   // 等于把 `utils/format.ts` 自己那句注释「后端 LocalDateTime 直出的 ISO 串不能直接渲染」钉成了反例。
   it('时间只走单源格式化：页面上不出现后端那串 ISO', () => {
     expect(headline(snapshot([item({ measuredAt: '2026-09-29T10:00:00' })]))).not.toMatch(/T\d{2}:\d{2}/)
-    expect(measuredAtText(item({ measuredAt: '2026-09-29T10:00:00' }))).toBe('2026-09-29 10:00')
+    // G8（Spec-G P0）把这一处的口径从「格式化过的时间」抬成「格式化过 + 标时区」：
+    // 原来钉的是死串 '2026-09-29 10:00'，现在同一格里必须跟着念出「北京时间 UTC+8」，
+    // 而「不许出现原样 ISO」那一条照旧成立（上面那行 not.toMatch 就是它）。
+    expect(measuredAtText(item({ measuredAt: '2026-09-29T10:00:00' }))).toBe('2026-09-29 10:00（北京时间 UTC+8）')
     // 读不出时间是读不出：念单元格空占位符那一处（PH_DASH），不冒充一个 1970 也不是留空白
     expect(measuredAtText(item({ measuredAt: null }))).toBe(PH_DASH)
     expect(measuredAtText(null)).toBe(PH_DASH)

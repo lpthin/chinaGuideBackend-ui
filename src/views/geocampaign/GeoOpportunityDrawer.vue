@@ -17,7 +17,7 @@ import StatusTag from '../../components/StatusTag.vue'
 import { geoCampaignApi, type GeoOpportunity, type GeoOpportunityStateLog, type GeoVocabulary } from '../../api/geoCampaign'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
-import { formatDateTime } from '../../utils/format'
+import { formatDateTimeWithZone } from '../../utils/format'
 import { PH_DASH } from '../../utils/display'
 import { evidenceText, stateLabel } from './geoOpportunityModel'
 import { statusMeta } from '../../utils/statusTokens'
@@ -128,7 +128,7 @@ function moveText(entry: GeoOpportunityStateLog): string {
               </span>
             </div>
             <div class="geo-opp-trace__who">
-              {{ formatDateTime(entry.createdAt) }} ·
+              {{ formatDateTimeWithZone(entry.createdAt) }} ·
               {{ entry.actor === 'system' ? '系统读出' : `人：${entry.actor || PH_DASH}` }}
               <span v-if="entry.draftRef"> · 挂在 {{ entry.draftRef }}</span>
             </div>
