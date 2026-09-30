@@ -81,6 +81,13 @@ export interface GeoEstimate {
    * 这一句只是「在花之前把已知会白跑的那一段讲清楚」，<b>按钮照样能点</b>。
    */
   unmeasurableNotice: string | null
+  /**
+   * 「这一段的钱怎么走」那一句（G9，Spec-G P1）：服务端按 `tenantBearsCost` 分两支写好，界面原样念。
+   *
+   * 为什么不在界面上按那个布尔值现拼：拍板过的判据是「平台承担的那一家不许念出『按新一轮计费』」，
+   * 这一句和 `docs/GEO_COMMERCIAL_TERMS.md` 是同一份口径——抄一份到前端就是下一次对不上的来源。
+   */
+  billingNotice: string | null
 }
 
 export interface GeoRun {
@@ -133,6 +140,18 @@ export interface GeoRun {
   judgeStalledReason: string | null
   startedAt: string | null
   finishedAt: string | null
+  /**
+   * 这一轮【第一次真把问题发出去】的时刻（G13，Spec-G P1）：服务端读 `portal_citation_call`
+   * 那一轮首行的 `MIN(created_at)`，不是 `startedAt`。
+   *
+   * <p>`startedAt` 是 worker 线程拿到任务那一刻写的，它前面那段排队（P6-T 实测 720 秒里只有 89 秒
+   * 在提问）因此看不见——旧界面把整段 720 秒念成「这一轮的耗时」，等于把我们调度的等待算成客户的观测。
+   * 这一列一到，`createdAt → firstAskAt` 是排队，`firstAskAt → finishedAt` 才是提问。</p>
+   *
+   * <p>null 有两种意思，界面按 `callCount + failedCallCount` 分开念：两个都是 0 才是真没起跑，
+   * 否则是「读不出」（跨租户读路径上那张表被租户闸挡着）。两种都不许当 0 用。</p>
+   */
+  firstAskAt: string | null
   createdBy: string | null
   createdAt: string | null
 }

@@ -207,6 +207,12 @@ defineExpose({ loadEstimate, loadRuns, reset })
 
       <p v-if="estimate" class="geo-run-panel__billing">{{ billingLine(estimate) }}</p>
 
+      <!-- G9：钱怎么走的那三条（部分成功按实际 token 扣 / 重跑按新一轮 / 被拒不收钱）。
+           文案出自服务端，与交付说明同一份口径；这里只负责摆出来，不替它改写。 -->
+      <p v-if="estimate?.billingNotice" class="geo-run-panel__billing geo-run-panel__terms">
+        {{ estimate.billingNotice }}
+      </p>
+
       <a-alert
         v-if="estimate?.notice"
         type="warning"

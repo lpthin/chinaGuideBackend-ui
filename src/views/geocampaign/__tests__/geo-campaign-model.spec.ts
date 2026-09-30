@@ -23,6 +23,7 @@ import {
   parseWizardState,
   platformHint,
   runGate,
+  runPhaseText,
   runPercent,
   sentimentBar,
   sentimentSegmentClass,
@@ -56,6 +57,7 @@ function estimate(overrides: Partial<GeoEstimate> = {}): GeoEstimate {
     totalEstimatedTokens: 60000,
     unmeasurableQuestions: 0,
     unmeasurableNotice: null,
+    billingNotice: null,
     ...overrides,
   }
 }
@@ -94,6 +96,7 @@ function run(overrides: Partial<GeoRun> = {}): GeoRun {
     finishedAt: '2026-09-29T10:06:00',
     createdBy: 'admin',
     createdAt: '2026-09-29T10:00:00',
+    firstAskAt: '2026-09-29T10:01:00',
     ...overrides,
   }
 }
@@ -609,6 +612,62 @@ describe('进度与轮次摘要', () => {
       latestRun: run({ status: 'SUCCEEDED', statusLabel: '已完成', stageText: '部分完成（判定那一段没跑成）' }),
     })
     expect(partial).toBe('第 88 轮 · 已完成 · 部分完成（判定那一段没跑成）')
+  })
+})
+
+describe('一轮的两段时间：排队与提问分开念（G13，Spec-G P1）', () => {
+  it('两段都有数时各念各的，不把调度等待算进提问那一段', () => {
+    const text = runPhaseText(run({
+      createdAt: '2026-09-29T10:00:00',
+      startedAt: '2026-09-29T10:12:00',
+      firstAskAt: '2026-09-29T10:13:29',
+      finishedAt: '2026-09-29T10:15:00',
+    }))
+
+    // P6-T 实测的两发就是被这件事骗过的形状：720 秒里只有 89 秒在提问
+    expect(text).toContain('排队 13 分钟')
+    expect(text).toContain('提问 2 分钟')
+    expect(text).not.toContain('15 分钟')
+  })
+
+  it('还没起跑的那一轮不报任何耗时：一次模型都没调', () => {
+    const text = runPhaseText(run({ firstAskAt: null, callCount: 0, failedCallCount: 0 }))
+
+    expect(text).toContain('还没起跑')
+    expect(text).not.toContain('分钟')
+  })
+
+  it('起跑过但 firstAskAt 读不出时念「不是没跑」，两种 NULL 不许混成一句', () => {
+    // 跨租户读路径上 portal_citation_call 被租户闸挡着：那一轮真花过钱，念成「还没起跑」就是让人白排队
+    const text = runPhaseText(run({ firstAskAt: null, callCount: 0, failedCallCount: 108 }))
+
+    expect(text).toContain('108 次外呼')
+    expect(text).toContain('不是没跑')
+    expect(text).not.toContain('还没起跑')
+  })
+
+  it('还在问的那一念「还在问」而不是编一个结束时长', () => {
+    const text = runPhaseText(run({
+      status: 'RUNNING', progress: 40, firstAskAt: '2026-09-29T10:02:00', finishedAt: null,
+    }))
+
+    expect(text).toContain('还在问')
+    expect(text).toContain('提问起于')
+  })
+
+  it('排队不足 1 分钟说「不足 1 分钟」，不落 0 分钟', () => {
+    const text = runPhaseText(run({
+      createdAt: '2026-09-29T10:00:00', firstAskAt: '2026-09-29T10:00:20',
+      finishedAt: '2026-09-29T10:06:00',
+    }))
+
+    expect(text).toContain('排队 不足 1 分钟')
+    expect(text).not.toContain('排队 0 分钟')
+  })
+
+  it('空 run 给占位符而不是 0 分钟（PH_DASH 与「没跑过」是两个意思）', () => {
+    expect(runPhaseText(null)).toBe(PH_DASH)
+    expect(runPhaseText(undefined)).toBe(PH_DASH)
   })
 })
 

@@ -101,6 +101,7 @@ function estimate(overrides: Partial<GeoEstimate> = {}): GeoEstimate {
     totalEstimatedTokens: 60000,
     unmeasurableQuestions: 0,
     unmeasurableNotice: null,
+    billingNotice: null,
     ...overrides,
   }
 }
@@ -139,6 +140,7 @@ function run(overrides: Partial<GeoRun> = {}): GeoRun {
     finishedAt: '2026-09-29T10:06:00',
     createdBy: 'admin',
     createdAt: '2026-09-29T10:00:00',
+    firstAskAt: '2026-09-29T10:01:00',
     ...overrides,
   }
 }
@@ -223,6 +225,31 @@ describe('先看价，再点头（§10-3 六行 + 两段式）', () => {
     // 计费方向跟着 tenantBearsCost 走（true = 扣本租户额度并报名剩余）
     expect(wrapper.find('.geo-run-panel__billing').text()).toContain('计入本租户额度')
     expect(wrapper.find('.geo-run-panel__billing').text()).toContain('900000')
+  })
+
+  it('G9：预估底下念得出扣费条款，那一句话是从接口来的而不是前端抄的', async () => {
+    vi.mocked(geoCampaignApi.estimate).mockResolvedValue(estimate({
+      billingNotice: '钱怎么走（三条都是代码里读得出的判据，不是口头承诺）：① 一次都没成功的那一轮不扣你的配额',
+    }) as never)
+    const wrapper = await mountPanel()
+    await buttonsByText(wrapper, '先估算这一轮')[0].trigger('click')
+    await flushPromises()
+
+    const terms = wrapper.find('.geo-run-panel__terms')
+    expect(terms.exists()).toBe(true)
+    expect(terms.text()).toContain('不扣你的配额')
+    // 「谁出钱」与「怎么出」是两行：合成一行就没法在平台承担那一支把扣费规则整条摘掉
+    expect(wrapper.findAll('.geo-run-panel__billing')).toHaveLength(2)
+  })
+
+  it('接口没给条款时不凭空摆一行（口径只有一份，在前端手抄就是第二份真相）', async () => {
+    vi.mocked(geoCampaignApi.estimate).mockResolvedValue(estimate() as never)
+    const wrapper = await mountPanel()
+    await buttonsByText(wrapper, '先估算这一轮')[0].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.geo-run-panel__terms').exists()).toBe(false)
+    expect(wrapper.findAll('.geo-run-panel__billing')).toHaveLength(1)
   })
 
   it('看过预估但没勾确认 → 还是按不动，按钮写「请先勾选确认」', async () => {

@@ -135,6 +135,7 @@ function campaign(overrides: Partial<GeoCampaign> = {}): GeoCampaign {
         judgeErrorMessage: null, judgeStalledReason: null,
         startedAt: '2026-09-29T10:00:00', finishedAt: '2026-09-29T10:06:00',
         createdBy: 'admin', createdAt: '2026-09-29T10:00:00',
+        firstAskAt: '2026-09-29T10:01:00',
       }
       : latestRun,
     ...overrides,
@@ -287,6 +288,25 @@ describe('最近 3 轮：每个计划只报它自己那一条', () => {
     }))
     const wrapper = await mountView(many)
     expect(wrapper.findAll('.geo-workbench__recent-card')).toHaveLength(3)
+  })
+
+  it('G13：卡上的时间分两段念——排队多久、提问多久', async () => {
+    const wrapper = await mountView()
+    const card = wrapper.findAll('.geo-workbench__recent-card')[0]
+
+    // 夹具：createdAt 10:00 → firstAskAt 10:01 → finishedAt 10:06
+    expect(card.text()).toContain('排队 1 分钟')
+    expect(card.text()).toContain('提问 5 分钟')
+  })
+
+  it('G13：还没起跑的那一条不念任何耗时（0 次外呼不是「跑了 0 分钟」）', async () => {
+    const wrapper = await mountView([campaign({
+      latestRun: { ...campaign().latestRun!, firstAskAt: null, callCount: 0, failedCallCount: 0 },
+    })])
+    const card = wrapper.findAll('.geo-workbench__recent-card')[0]
+
+    expect(card.text()).toContain('还没起跑')
+    expect(card.text()).not.toContain('排队')
   })
 
   it('卡上的「看报告」按轮次 id 跳报告页（不是按计划 id）', async () => {

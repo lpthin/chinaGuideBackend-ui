@@ -13,7 +13,7 @@ import {
   type GeoMetricRow,
   type GeoRun,
 } from '../../api/geoCampaign'
-import { formatPercent } from '../../utils/format'
+import { formatDateTimeWithZone, formatPercent } from '../../utils/format'
 import { PH_DASH, PH_NOT_MEASURED } from '../../utils/display'
 
 /** 向导第 ⑤ 步的下标（平台与预算 = 预估与确认） */
@@ -318,6 +318,60 @@ export function runPercent(run: GeoRun | null | undefined): number {
   const n = toNumber(run?.progress)
   if (n === null) return 0
   return Math.min(Math.max(Math.round(n), 0), 100)
+}
+
+/**
+ * 两个「服务器墙钟串」之间隔了几分钟（G13）。
+ *
+ * <p>两端都是后端 `LocalDateTime` 直出、不带偏移的串，`new Date()` 按本地解析 ⇒ 同一个偏移
+ * 在减法里正好抵消，差值就是真差值。这一点跟 G8 那条实测结论是同一件事（数字原样穿透，不偏 8 小时）。</p>
+ */
+function minutesBetween(from: string | null | undefined, to: string | null | undefined): number | null {
+  if (!from || !to) return null
+  const a = new Date(from).getTime()
+  const b = new Date(to).getTime()
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return null
+  return Math.round((b - a) / 60000)
+}
+
+function minutesText(minutes: number | null): string | null {
+  if (minutes === null) return null
+  return minutes < 1 ? '不足 1 分钟' : `${minutes} 分钟`
+}
+
+/**
+ * 一轮的【两段】时间（G13，Spec-G P1）：「排队多久」与「提问多久」分开念。
+ *
+ * <p>为什么必须拆开：`startedAt` 与 `createdAt` 都是【受理那一刻】写的（后端 `requestRun` 插入行之后
+ * 立刻置 RUNNING 并写时间），它们前面/后面那段排队在旧界面上完全看不见。
+ * P6-T 实测的两发就是被这件事骗过的形状——<b>720 秒里只有 89 秒在提问</b>、
+ * <b>706 秒里只有 59 秒在提问</b>（`scratch/p6t-out/24-sql-realstart.txt` / `25-sql-realstart-t3.txt`，
+ * Spec-G P1 已用接口把这 12 发的 `firstAskAt` 逐行读回并与归档对齐）。
+ * 把整段念成「这一轮跑了 12 分钟」，等于把我们自己调度的等待算成客户买到的观测时间（就绪评估 F12）。</p>
+ *
+ * <p>排队那一段用 `createdAt → firstAskAt` 而不是 `startedAt`：这两列是同一次受理写的，
+ * 现场抽样 7 行（run 20/25/31/32/38/39/40）SQL 回读 `TIMESTAMPDIFF(SECOND, created_at, started_at)` 全是 0。
+ * 取 `createdAt` 是因为它才是「客户按下开始」那句话对应的时间。</p>
+ *
+ * <p>三态要说清，且都不许拿 0 顶：① 真没起跑（一次外呼都没发出去）；
+ * ② 起跑过但 `firstAskAt` 读不出（跨租户读路径上 `portal_citation_call` 被租户闸挡着）；
+ * ③ 起跑且读得出。①与②在界面上是两句话——把②念成①会让人以为这一轮白排了队，
+ * 而它其实是花了钱的。</p>
+ */
+export function runPhaseText(run: GeoRun | null | undefined): string {
+  if (!run) return PH_DASH
+  if (!run.firstAskAt) {
+    const attempted = (run.callCount ?? 0) + (run.failedCallCount ?? 0)
+    return attempted > 0
+      ? '提问段的时间读不出：这一轮真发过 ' + attempted + ' 次外呼，但问答行不在当前读口能看到的租户范围内（不是没跑）'
+      : '还没起跑：一次模型都没调，没有耗时可念'
+  }
+  const queued = minutesText(minutesBetween(run.createdAt, run.firstAskAt)) ?? '排队时间读不出'
+  const asked = minutesText(minutesBetween(run.firstAskAt, run.finishedAt))
+  const from = formatDateTimeWithZone(run.firstAskAt)
+  return asked === null
+    ? `排队 ${queued} · 提问起于 ${from}，还在问`
+    : `排队 ${queued} · 提问 ${asked}（起于 ${from}）`
 }
 
 /**
