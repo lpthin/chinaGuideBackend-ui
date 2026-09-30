@@ -19,6 +19,7 @@ import {
   judgeGate,
   judgeHint,
   liveRunOf,
+  metricObjectText,
   parseWizardState,
   platformHint,
   runGate,
@@ -445,6 +446,27 @@ describe('「提到」与「在推荐位」这两个数：各占一格、永不�
 
   it('这一句里没有任何相加的写法（把两个数加起来才是违规）', () => {
     expect(MENTION_VS_RECOMMEND_NOTE).not.toMatch(/[+\-]\s*\d+\s*=\s*\d+/)
+  })
+})
+
+describe('metricObjectText：一行指标摆的是谁（真跑 run 6 挖出来的那一格）', () => {
+  it('本品牌与竞品各认各的前缀，对象名照接口给的念', () => {
+    expect(metricObjectText({ scope: 'BRAND', subject: '萧山景天牙科医院' })).toBe('本品牌 · 萧山景天牙科医院')
+    expect(metricObjectText({ scope: 'COMPETITOR', subject: '杭州口腔医院' })).toBe('竞品 · 杭州口腔医院')
+  })
+
+  it('同一个模型判出的两行，靠这一格才分得开（只看平台名它们是一模一样的字）', () => {
+    const rows = [
+      { scope: 'BRAND', subject: '萧山景天牙科医院' },
+      { scope: 'COMPETITOR', subject: '杭州口腔医院' },
+    ]
+    expect(new Set(rows.map(metricObjectText)).size).toBe(2)
+  })
+
+  it('对象名空着给破折号，不念出「本品牌 · 」这种半截话；词表外来的 scope 原样念出来', () => {
+    expect(metricObjectText({ scope: 'BRAND', subject: '  ' })).toBe(`本品牌 · ${PH_DASH}`)
+    expect(metricObjectText({ scope: 'UNKNOWN', subject: '某对象' })).toBe('UNKNOWN · 某对象')
+    expect(metricObjectText({ scope: '', subject: '' })).toBe(`未知对象 · ${PH_DASH}`)
   })
 })
 

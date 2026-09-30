@@ -3,6 +3,7 @@ import { createApp, h } from 'vue'
 import { createPinia } from 'pinia'
 import { createHead } from '@vueuse/head'
 import Antd, { ConfigProvider } from 'ant-design-vue'
+import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import 'ant-design-vue/dist/reset.css'
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
@@ -32,10 +33,13 @@ dayjs.locale('zh-cn')
 
 const head = createHead()
 // P0 底座：后台第一次有主题出处（styles/theme.ts），控件外观统一由 a-config-provider 下发（Spec-F §9.2-1）
+// 同一处再下发语言：验收现场量到 GEO 那 7 页里，表格空态念的是「No data」、分页念「20 / page」，
+// 整屏中文界面夹着英文——组件自带的文案与主题同属「底座该管的事」，所以跟 theme 一起在这里发，
+// 不在每个页面各抄一份 locale（那等于把同一件事交给 20 个视图各记一次）。
 const app = createApp({
   name: 'Root',
   render: () =>
-    h(ConfigProvider, { theme: { token: { ...ADMIN_THEME_TOKEN } } }, () => h(App)),
+    h(ConfigProvider, { theme: { token: { ...ADMIN_THEME_TOKEN } }, locale: zhCN }, () => h(App)),
 })
 app.use(createPinia())
 app.use(router)

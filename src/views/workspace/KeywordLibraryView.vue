@@ -338,8 +338,8 @@ function renderFunnelChart() {
   ].filter(d => d.value > 0)
   funnelChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} 个 ({d}%)' },
-    legend: { bottom: 0, textStyle: { fontSize: 11, color: '#475569' } },
-    color: ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#0ea5e9', '#6366f1', '#a855f7'],
+    legend: { bottom: 0, textStyle: { fontSize: 11, color: '#595959' } },
+    color: ['#ff4d4f', '#fa8c16', '#faad14', '#52c41a', '#13c2c2', '#1890ff', '#722ed1'],
     series: [{
       name: '转化漏斗分布',
       type: 'pie',
@@ -356,9 +356,9 @@ function renderStageChart() {
   if (!stageChartRef.value) return
   if (!stageChart) stageChart = echarts.init(stageChartRef.value as HTMLElement)
   const stages = [
-    { name: '新词库（未生产）', value: libraryStats.stage_new, color: '#94a3b8' },
-    { name: '已有内容建议', value: libraryStats.stage_suggested, color: '#f59e0b' },
-    { name: '已生成文章', value: libraryStats.stage_articled, color: '#10b981' },
+    { name: '新词库（未生产）', value: libraryStats.stage_new, color: '#bfbfbf' },
+    { name: '已有内容建议', value: libraryStats.stage_suggested, color: '#faad14' },
+    { name: '已生成文章', value: libraryStats.stage_articled, color: '#52c41a' },
   ]
   const maxV = Math.max(1, ...stages.map(s => s.value))
   stageChart.setOption({
@@ -366,17 +366,17 @@ function renderStageChart() {
     grid: { left: 16, right: 16, top: 16, bottom: 32, containLabel: true },
     xAxis: {
       type: 'category', data: stages.map(s => s.name),
-      axisLabel: { color: '#475569', fontSize: 11, interval: 0 },
+      axisLabel: { color: '#595959', fontSize: 11, interval: 0 },
     },
     yAxis: {
       type: 'value', max: maxV,
-      axisLabel: { color: '#94a3b8', fontSize: 11 },
-      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+      axisLabel: { color: '#bfbfbf', fontSize: 11 },
+      splitLine: { lineStyle: { color: '#f5f5f5', type: 'dashed' } },
     },
     series: [{
       type: 'bar', barWidth: '48%',
       data: stages.map(s => ({ value: s.value, itemStyle: { color: s.color, borderRadius: [6, 6, 0, 0] } })),
-      label: { show: true, position: 'top', color: '#0f172a', fontSize: 11, fontWeight: 600 },
+      label: { show: true, position: 'top', color: '#262626', fontSize: 11, fontWeight: 600 },
     }],
   })
 }
@@ -394,14 +394,14 @@ function stageKey(row: KW) {
 
 function categoryClassColor(cat: string): string {
   switch (cat) {
-    case '价格': return '#ef4444'
-    case '选择': return '#f97316'
-    case '效果': return '#f59e0b'
-    case '攻略': return '#10b981'
-    case '基础': return '#6366f1'
-    case '本地服务': return '#0ea5e9'
-    case '行业动态': return '#a855f7'
-    default: return '#94a3b8'
+    case '价格': return '#ff4d4f'
+    case '选择': return '#fa8c16'
+    case '效果': return '#faad14'
+    case '攻略': return '#52c41a'
+    case '基础': return '#1890ff'
+    case '本地服务': return '#13c2c2'
+    case '行业动态': return '#722ed1'
+    default: return '#bfbfbf'
   }
 }
 
@@ -503,7 +503,7 @@ onMounted(fetchAll)
         <a-card class="chart-card" size="small" :bordered="false">
           <template #title>
             <div class="card-title">
-              <ThunderboltOutlined style="color:#6366f1" />
+              <ThunderboltOutlined style="color:#1890ff" />
               <span>转化漏斗分类分布</span>
             </div>
           </template>
@@ -512,7 +512,7 @@ onMounted(fetchAll)
         <a-card class="chart-card" size="small" :bordered="false">
           <template #title>
             <div class="card-title">
-              <DatabaseOutlined style="color:#10b981" />
+              <DatabaseOutlined style="color:#52c41a" />
               <span>生产进度（新词 / 建议 / 文章）</span>
             </div>
           </template>
@@ -739,13 +739,13 @@ onMounted(fetchAll)
 </template>
 
 <style lang="less" scoped>
-@primary-color: #6366f1;
+@primary-color: #1890ff; // 与 styles/theme.ts 的 colorPrimary 同值：这一页原来是本站独自的一支靛蓝 #6366f1，验收「颜色统一」第一项就是被它判不过的
 @card-bg: #ffffff;
-@slate-50: #f8fafc;
-@slate-100: #f1f5f9;
-@slate-500: #64748b;
-@slate-700: #334155;
-@slate-900: #0f172a;
+@slate-50: #fafafa;
+@slate-100: #f5f5f5;
+@slate-500: #8c8c8c;
+@slate-700: #595959;
+@slate-900: #262626;
 
 .keyword-library-page {
   /* 页面不自加外边距：上下留白归布局（WorkspaceView 的 content 区），
@@ -757,28 +757,42 @@ onMounted(fetchAll)
 
 .page-header {
   display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  flex-wrap: wrap;
   padding: 20px 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #eef2ff 100%);
-  border: 1px solid #e0e7ff;
+  background: linear-gradient(135deg, #ffffff 0%, #e6f7ff 100%);
+  border: 1px solid #bae7ff;
   border-radius: 14px;
   margin-bottom: 18px;
-  box-shadow: 0 8px 24px -16px rgba(99,102,241,0.35);
+  box-shadow: 0 8px 24px -16px rgba(24, 144, 255, 0.35);
+  // 窄屏验收（移动 375）：这一排原来是单行 space-between，标题那一侧撑到 569px，
+  // 于是「刷新 / 扩展配置 / 立即扩展 / 导入关键词」四颗按钮整排跑到视口右边、手机上点不到。
+  // 页头改成可换行，并把标题一侧的弹性宽度收回 100%（min-width:0 才允许 flex 子项缩到内容以下）。
+  .header-content { min-width: 0; }
+  .page-subtitle { flex-wrap: wrap; row-gap: 6px; }
+  @media (max-width: 768px) {
+    padding: 14px 16px;
+    .header-content { flex: 1 1 100%; align-items: flex-start; }
+    .header-actions { flex: 1 1 100%; }
+    .header-icon { width: 36px; height: 36px; font-size: 18px; }
+    .header-info .page-title { font-size: 18px; }
+    .header-divider { display: none; }
+  }
 }
 .header-content { display: flex; align-items: center; gap: 16px; }
 .header-icon {
   width: 48px; height: 48px; border-radius: 12px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
   color: #fff; display: flex; align-items: center; justify-content: center;
   font-size: 22px;
-  box-shadow: 0 6px 18px -8px rgba(99,102,241,0.6);
+  box-shadow: 0 6px 18px -8px rgba(24, 144, 255, 0.6);
 }
 .header-info .page-title { margin: 0; font-size: 22px; font-weight: 700; color: @slate-900; }
 .page-subtitle { margin: 4px 0 0; color: @slate-500; font-size: 13px; display: flex; align-items: center; gap: 12px; }
-.header-divider { width: 1px; height: 14px; background: #e2e8f0; display: inline-block; }
+.header-divider { width: 1px; height: 14px; background: #f0f0f0; display: inline-block; }
 .header-badge {
   display: inline-flex; align-items: center; gap: 6px;
   color: @primary-color; font-weight: 500;
-  padding: 2px 10px; border-radius: 999px; background: #eef2ff;
+  padding: 2px 10px; border-radius: 999px; background: #e6f7ff;
 }
 .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
@@ -798,10 +812,10 @@ onMounted(fetchAll)
   width: 44px; height: 44px; border-radius: 12px; display:flex; align-items:center; justify-content:center;
   font-size: 20px; color: #fff; flex-shrink: 0;
 }
-.stat-card--indigo .stat-card__icon { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
-.stat-card--rose   .stat-card__icon { background: linear-gradient(135deg, #f43f5e, #ef4444); }
-.stat-card--amber  .stat-card__icon { background: linear-gradient(135deg, #f59e0b, #f97316); }
-.stat-card--emerald .stat-card__icon { background: linear-gradient(135deg, #10b981, #06b6d4); }
+.stat-card--indigo .stat-card__icon { background: linear-gradient(135deg, #1890ff, #40a9ff); }
+.stat-card--rose   .stat-card__icon { background: linear-gradient(135deg, #ff7875, #ff4d4f); }
+.stat-card--amber  .stat-card__icon { background: linear-gradient(135deg, #faad14, #fa8c16); }
+.stat-card--emerald .stat-card__icon { background: linear-gradient(135deg, #52c41a, #36cfc9); }
 
 .stat-card__content { flex: 1; min-width: 0; }
 .stat-card__label   { color: @slate-500; font-size: 12px; }
@@ -828,16 +842,16 @@ onMounted(fetchAll)
 
 .count-cell {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border-radius: 10px; background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  padding: 4px 10px; border-radius: 10px; background: #fafafa;
+  border: 1px solid #f0f0f0;
 }
 .count-item { font-size: 12px; font-weight: 500; }
-.count-item--sug { color: #b45309; }
-.count-item--art { color: #047857; }
-.count-divider { width: 1px; height: 12px; background: #cbd5e1; }
+.count-item--sug { color: #ad6800; }
+.count-item--art { color: #389e0d; }
+.count-divider { width: 1px; height: 12px; background: #d9d9d9; }
 
 .source-tag {
   font-size: 12px; color: @slate-500; padding: 2px 8px;
-  background: #eef2ff; border-radius: 6px; border: 1px solid #e0e7ff;
+  background: #e6f7ff; border-radius: 6px; border: 1px solid #bae7ff;
 }
 </style>

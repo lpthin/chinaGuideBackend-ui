@@ -47,6 +47,7 @@ import {
   judgeCostText,
   judgeGate,
   judgeHint,
+  metricObjectText,
   runPercent,
   sentimentBar,
   sentimentSegmentClass as segmentClass,
@@ -308,8 +309,8 @@ watch(id, () => void load())
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in mentionRows" :key="row.id">
-              <td>{{ row.modelLabel || row.subject }}</td>
+            <tr v-for="row in mentionRows" :key="row.id" :data-scope="row.scope">
+              <td>{{ row.modelLabel || PH_DASH }}</td>
               <td class="geo-report__value">{{ formatRate(row.value) }}</td>
               <td>{{ fractionText(row.numerator, row.denominator) }}</td>
               <td>{{ formatInterval(row.ciLow, row.ciHigh) || PH_DASH }}</td>
@@ -327,6 +328,7 @@ watch(id, () => void load())
           <thead>
             <tr>
               <th>平台</th>
+              <th>对象</th>
               <th>推荐率</th>
               <th>分子 / 分母</th>
               <th>判不成</th>
@@ -336,6 +338,7 @@ watch(id, () => void load())
           <tbody>
             <tr v-for="row in recommendRows" :key="row.id" :data-scope="row.scope">
               <td>{{ row.modelLabel || PH_DASH }}</td>
+              <td class="geo-report__object">{{ metricObjectText(row) }}</td>
               <td class="geo-report__value">{{ formatRate(row.value) }}</td>
               <td>{{ fractionText(row.numerator, row.denominator) }}</td>
               <td>{{ row.notMeasuredCount ?? 0 }} 条</td>
@@ -437,7 +440,7 @@ watch(id, () => void load())
           <tbody>
             <tr v-for="row in sovRows" :key="row.id" :data-scope="row.scope">
               <td>{{ row.modelLabel || PH_DASH }}</td>
-              <td>{{ row.subject }}</td>
+              <td class="geo-report__object">{{ metricObjectText(row) }}</td>
               <td class="geo-report__value">{{ formatRate(row.value) }}</td>
               <td>{{ fractionText(row.numerator, row.denominator) }}</td>
               <td class="geo-report__definition">{{ row.definition || PH_DASH }}</td>
@@ -686,6 +689,12 @@ watch(id, () => void load())
 
   &__value {
     font-weight: 600;
+  }
+
+  /* 「对象」那一格：一家模型判本品牌 + 竞品时，它是唯一能把六行分开的字 */
+  &__object {
+    font-weight: 500;
+    color: #262626;
   }
 
   &__definition {

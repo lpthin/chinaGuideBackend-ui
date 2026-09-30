@@ -21,16 +21,24 @@ const emit = defineEmits<{ (e: 'save'): void; (e: 'cancel'): void }>()
   <div class="geobrand-profile-form">
     <div class="geobrand-profile-form__row">
       <span class="geobrand-profile-form__label">站点</span>
+      <!-- 原来这里是行内 style="min-width: 240px"，品牌名那一格是 width: 240px。
+           行内样式吃不掉 ⇒ 375px 的手机屏上「88px 标签 + 240px 控件」加上卡片内边距正好超出视口，
+           而这一层没有滚动条，客户在手机上看不见站点选择器（验收单「窄屏不溢出」那一项）。
+           宽度改成走 CSS：桌面仍是最小 240，窄屏跟着 __row--stacked 一起收成 100%。 -->
       <a-select
         v-model:value="form.siteId"
         :options="siteOptions || []"
         placeholder="选择站点"
-        style="min-width: 240px"
+        class="geobrand-profile-form__control geobrand-profile-form__control--site"
       />
     </div>
     <div class="geobrand-profile-form__row">
       <span class="geobrand-profile-form__label">品牌名 *</span>
-      <a-input v-model:value="form.brandName" placeholder="品牌名" style="width: 240px" />
+      <a-input
+        v-model:value="form.brandName"
+        placeholder="品牌名"
+        class="geobrand-profile-form__control geobrand-profile-form__control--brand"
+      />
     </div>
     <div class="geobrand-profile-form__row geobrand-profile-form__row--top">
       <span class="geobrand-profile-form__label">品牌词</span>
@@ -88,6 +96,44 @@ const emit = defineEmits<{ (e: 'save'): void; (e: 'cancel'): void }>()
     flex-shrink: 0;
     color: #595959;
     font-size: 13px;
+  }
+
+  // 桌面那一档保持原来的观感：控件最小 240，能撑就撑。
+  &__control {
+    min-width: 240px;
+    max-width: 100%;
+  }
+
+  &__control--brand {
+    width: 240px;
+  }
+
+  // 窄屏（手机 375）：标签收成整行、控件占满，min-width 那 240 撤掉——
+  // 这一档宁可让标签多占一行，也不能让站点选择器跑到视口外面点不到。
+  @media (max-width: 768px) {
+    &__row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    &__row--top {
+      align-items: stretch;
+    }
+
+    &__label {
+      width: auto;
+      margin-bottom: 4px;
+    }
+
+    &__control,
+    &__control--brand {
+      width: 100%;
+      min-width: 0;
+    }
+
+    &__url-row {
+      flex-wrap: wrap;
+    }
   }
 
   &__words,

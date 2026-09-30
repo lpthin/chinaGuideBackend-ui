@@ -341,6 +341,16 @@ describe('卡一：AI 品牌提及（分平台，不做合并）', () => {
     // 区间没算过就不凭空出现 ±
     expect(row).toContain('—')
   })
+
+  it('「平台」那一格只念平台：模型名缺失时给破折号，不把品牌名当成一个平台', async () => {
+    const wrapper = await mountView({
+      mentionRate: [metricRow({ id: 91, modelConfigId: null, modelLabel: null })],
+    })
+    const cells = cardOf(wrapper, 'mention').findAll('.geo-report__table tbody tr td').map((cell: any) => cell.text())
+    expect(cells[0]).toBe('—')
+    // 品牌名不是平台名：把它印在「平台」那一格，读的人会以为多了一家模型
+    expect(cells[0]).not.toContain('纳欣口腔')
+  })
 })
 
 describe('卡二：AI 推荐（与提及率两个数分开摆，永不相加）', () => {
@@ -354,6 +364,36 @@ describe('卡二：AI 推荐（与提及率两个数分开摆，永不相加）'
     expect(rows[0]).toContain('2 条')
     expect(rows[1]).toContain('通义千问')
     expect(rows[1]).toContain('6.7%')
+  })
+
+  it('真跑 run 6 那一形：一家模型判本品牌 + 竞品，行与行必须彼此分得开', async () => {
+    const subjects: Array<[string, string]> = [
+      ['BRAND', '萧山景天牙科医院'],
+      ['COMPETITOR', '杭州口腔医院'],
+      ['COMPETITOR', '浙大二院'],
+    ]
+    const wrapper = await mountView({
+      recommendRate: subjects.map(([scope, subject], index) => metricRow({
+        id: 127 + index,
+        metric: 'recommend_rate',
+        metricLabel: '推荐率',
+        definition: RECOMMEND_DEF,
+        scope,
+        subject,
+        modelLabel: '阿里云百炼-聊天',
+        numerator: 0,
+        denominator: 5,
+        value: 0,
+      })),
+    })
+    const headers = cardOf(wrapper, 'recommend').findAll('.geo-report__table thead th').map((th: any) => th.text())
+    expect(headers).toContain('对象')
+    const rows = rowsOfCard(wrapper, 'recommend')
+    expect(rows[0]).toContain('本品牌 · 萧山景天牙科医院')
+    expect(rows[1]).toContain('竞品 · 杭州口腔医院')
+    expect(rows[2]).toContain('竞品 · 浙大二院')
+    // 六行只靠「平台」那一格分不开：三行的平台名一模一样，去掉对象列这里就会变回同一段字
+    expect(new Set(rows.map((row: string) => row.split('0.0%')[0]).values()).size).toBe(3)
   })
 
   it('两个数各占一格：40.0% 与 26.7% 都在，合出来的 66.7% 一个都没有', async () => {

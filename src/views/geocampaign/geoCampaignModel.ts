@@ -290,6 +290,20 @@ export const MENTION_VS_RECOMMEND_NOTE =
   '「提及率」与「推荐率」各占一格、共用同一个分母（该平台成功拿到回答的总次数），所以这两个数永远不相加：'
   + '提到 12 次里有 4 次是被推荐的那一档，12 已经包含 4。'
 
+/**
+ * 这一行摆的是谁：本品牌还是哪一家竞品（§11.3「每行点得到分母」的同一条纪律的左半）。
+ *
+ * 真跑 run 6 的报告上，推荐率那六行的「平台」格全是同一个模型名——一家模型判本品牌加五家竞品，
+ * 接口把 `scope` 与 `subject` 都给了出来，界面上不念出来就等于把它扔了：读的人分不出哪一行是自家。
+ * 词只在这里列一次，推荐率与 SOV 两卡共用，别处再写一份「本品牌 / 竞品」就是下一次对不上的来源。
+ */
+export function metricObjectText(row: Pick<GeoMetricRow, 'scope' | 'subject'>): string {
+  const subject = (row.subject ?? '').trim() || PH_DASH
+  if (row.scope === 'BRAND') return `本品牌 · ${subject}`
+  if (row.scope === 'COMPETITOR') return `竞品 · ${subject}`
+  return `${(row.scope ?? '').trim() || '未知对象'} · ${subject}`
+}
+
 /** 平台选得少于建议值时的提示：建议式，不拦（§10-2 ⑤） */
 export function platformHint(picked: number, available: number): string | null {
   if (available === 0) {

@@ -5,7 +5,7 @@
     <a-layout-header class="header">
       <div class="header-left">
         <a-button type="text" @click="toggleCollapse" class="collapse-btn">
-          <component :is="collapsed ? MenuUnfoldOutlined : MenuFoldOutlined" />
+          <component :is="siderCollapsed ? MenuUnfoldOutlined : MenuFoldOutlined" />
         </a-button>
         <div class="logo">
           <span class="logo-icon">📝</span>
@@ -63,13 +63,14 @@
         currentParentMenu 两张表：路由改了这里不改，于是「文章分类」在菜单里仍叫「栏目管理」；
         区块画廊这里判 preset 码而路由要 manage 码，看得见、点进去 403。
       -->
-      <a-layout-sider width="240" class="side-menu" :collapsed="collapsed" collapsible :trigger="null">
+      <a-layout-sider width="240" :collapsed-width="narrow ? 56 : 80" class="side-menu"
+        :collapsed="siderCollapsed" collapsible :trigger="null">
         <nav class="sidebar-nav">
           <a-menu
             v-if="topLeaf"
             mode="inline"
             :selected-keys="selectedKeys"
-            :inline-collapsed="collapsed"
+            :inline-collapsed="siderCollapsed"
             class="sidebar-menu sidebar-menu--single"
             @click="handleMenuClick"
           >
@@ -80,7 +81,7 @@
           </a-menu>
 
           <section v-for="section in menuSections" :key="section.domain" class="menu-domain">
-            <div v-if="!collapsed" class="menu-domain__label">
+            <div v-if="!siderCollapsed" class="menu-domain__label">
               {{ section.label }}
               <span class="menu-domain__hint">{{ section.hint }}</span>
             </div>
@@ -89,14 +90,14 @@
             <a-menu
               mode="inline"
               :selected-keys="selectedKeys"
-              :inline-collapsed="collapsed"
+              :inline-collapsed="siderCollapsed"
               class="sidebar-menu"
               @click="handleMenuClick"
             >
               <a-menu-item-group v-for="group in section.groups" :key="group.def.key">
                 <template #title>
                   <span class="menu-group__label">{{ group.def.label }}</span>
-                  <span v-if="group.def.hint && !collapsed" class="menu-group__hint">{{ group.def.hint }}</span>
+                  <span v-if="group.def.hint && !siderCollapsed" class="menu-group__hint">{{ group.def.hint }}</span>
                 </template>
                 <a-menu-item v-for="leaf in group.items" :key="leaf.key">
                   <template #icon><component :is="leaf.icon" /></template>
@@ -110,7 +111,7 @@
             v-if="bottomLeaf"
             mode="inline"
             :selected-keys="selectedKeys"
-            :inline-collapsed="collapsed"
+            :inline-collapsed="siderCollapsed"
             class="sidebar-menu sidebar-menu--bottom"
             @click="handleMenuClick"
           >
@@ -168,7 +169,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, provide, watch, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, provide, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import TenantSwitcher from '../../components/TenantSwitcher.vue'
@@ -255,6 +256,37 @@ const collapsed = ref(false)
 const pageKey = ref(0)
 const refreshing = ref(false)
 const importCallback = ref<(() => void) | null>(null)
+
+/**
+ * 窄屏（手机那一档）另算一位，不跟 `collapsed` 混在一起。
+ *
+ * 为什么不能直接改 `collapsed`：那是「人按了那下折叠键」的偏好，窗口一宽就该还回来。
+ * 混用会变成「手机上展开过菜单，回到电脑前菜单还是折叠的」——用户没做过这个选择。
+ * 判据只有 768 这一道，跟 antd 自己的 `breakpoint="md"` 同口径；这里没用组件的
+ * breakpoint 属性，是因为菜单标签那一排 `v-if="!collapsed"` 也要跟着同一位走。
+ */
+const NARROW_QUERY = '(max-width: 768px)'
+const narrow = ref(typeof window !== 'undefined' && !!window.matchMedia?.(NARROW_QUERY).matches)
+let narrowListener: ((e: MediaQueryListEvent) => void) | null = null
+
+onMounted(() => {
+  if (typeof window === 'undefined' || !window.matchMedia) return
+  const mq = window.matchMedia(NARROW_QUERY)
+  narrowListener = (e: MediaQueryListEvent) => {
+    narrow.value = e.matches
+  }
+  mq.addEventListener('change', narrowListener)
+})
+
+onUnmounted(() => {
+  if (narrowListener && typeof window !== 'undefined' && window.matchMedia) {
+    window.matchMedia(NARROW_QUERY).removeEventListener('change', narrowListener)
+    narrowListener = null
+  }
+})
+
+/** 侧栏实际给不给宽度：窄屏一律收成图标那一列，否则 240 的菜单会把内容挤成一列一个字 */
+const siderCollapsed = computed(() => collapsed.value || narrow.value)
 
 const showImportBtn = computed(() => currentMenuKey.value === 'keywords')
 
@@ -390,7 +422,12 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 
 .collapse-btn {
   font-size: 16px;
-  padding: 8px;
+  /* 现场量出来这一颗是 38 高，而后台所有按钮是 32：padding 8 + 16 号图标把方形撑大了。
+     钉成 32 之后顶栏那一排才是同一条基线（Spec-F §9.2 控件高度一处口径） */
+  height: 32px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .logo {
@@ -416,7 +453,10 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 
 .main-layout {
   display: flex;
-  height: calc(100vh - 64px);
+  /* 顶栏在窄屏会换成两行，64 那个写死的高度就把这一列顶歪了；父级已经是 100vh 的纵向 flex，
+     这里改成「占满剩下的、并且允许被压」，两种宽度都不用再抄一个 64 出来 */
+  flex: 1;
+  min-height: 0;
 }
 
 .side-menu {
@@ -607,5 +647,52 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── 窄屏那一档（≤768，与侧栏收成图标列同一个判据）────────────────────────
+   现场病（截图 p6o-shots/01-dashboard-m.png，375 宽）：顶栏右侧那排动作一路排到
+   x=455，被 header 裁在屏幕外——「返回管理员端 / 统计 / 查看前端」在手机上点不到；
+   同时侧栏还占着 240，内容列被挤成 23 宽，一行一个字。菜单收成图标列解决内容那一半，
+   这一段解决顶栏那一半：文字让位、允许换行，按钮一颗都不许藏。 */
+@media (max-width: 768px) {
+  .header {
+    padding: 4px 8px;
+    height: auto;
+    min-height: 56px;
+    line-height: 1.5;
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .header-left {
+    gap: 6px;
+  }
+
+  .header-right {
+    margin-left: auto;
+    min-width: 0;
+  }
+
+  .header-right :deep(.ant-space) {
+    flex-wrap: wrap;
+    column-gap: 4px;
+  }
+
+  .logo-text,
+  .username-text {
+    display: none;
+  }
+
+  :deep(.tenant-switcher) {
+    width: 112px;
+  }
+
+  .workspace-content {
+    padding: 8px;
+  }
+
+  .breadcrumb-wrapper {
+    margin-bottom: 8px;
+  }
 }
 </style>

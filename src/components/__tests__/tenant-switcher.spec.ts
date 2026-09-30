@@ -100,7 +100,7 @@ describe('TenantSwitcher 的「认不出租户」提示', () => {
     expect(wrapper.find('[data-test="tenant-unresolved"]').exists()).toBe(false)
   })
 
-  it('出路那条按钮真的清掉选择（含 localStorage），不是只把话藏起来', async () => {
+  it('出路那条按钮真的清掉选择（含 localStorage），不是只把选择藏起来', async () => {
     list.mockResolvedValue([TENANT_15])
     auth.switchTenant(99001, null)
     auth.markTenantUnresolved('99001')
@@ -124,5 +124,76 @@ describe('TenantSwitcher 的「认不出租户」提示', () => {
     expect(localStorage.getItem('selected_tenant_id')).toBeNull()
     expect(auth.tenantUnresolvedDeclaration).toBeNull()
     expect(reload).toHaveBeenCalled()
+  })
+})
+
+/**
+ * 顶栏这一格念的是**名字**，不是号：现场截图上出现过孤零零的「15」——
+ * a-select 的 label 来自 options，而 options 要等 /admin/tenants 回来才有内容，
+ * 于是「列表还没回」与「列表里没这一位」两种情况下，组件把 value 原样打在顶栏上。
+ * 这里钉三种念法，防止再退回裸数字。
+ */
+function currentOptions(wrapper: ReturnType<typeof mountSwitcher>) {
+  return (wrapper.findComponent({ name: 'ASelect' }).props('options') || []) as Array<{
+    label: string
+    value: number
+  }>
+}
+
+describe('TenantSwitcher 顶栏那一格念得出名字', () => {
+  const auth = useAuthStore()
+
+  beforeEach(() => {
+    list.mockReset()
+    auth.markTenantUnresolved(null)
+    auth.switchTenant(null)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  it('列表里有这一位时只念名字，不兜底', async () => {
+    list.mockResolvedValue([TENANT_15])
+    auth.switchTenant(15, 'dental')
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+
+    expect(currentOptions(wrapper)).toEqual([{ label: '纳欣口腔', value: 15 }])
+  })
+
+  it('列表读回来了却没这一位：兜底 label 说清「不在列表里」，值仍是那一位', async () => {
+    list.mockResolvedValue([TENANT_15])
+    auth.switchTenant(99001, null)
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+
+    const opts = currentOptions(wrapper)
+    expect(opts[0].value).toBe(99001)
+    expect(opts[0].label).toContain('99001')
+    expect(opts[0].label).toContain('不在列表里')
+  })
+
+  it('列表读失败时念「列表没读到」，不许念成「这家不存在」', async () => {
+    list.mockRejectedValue(new Error('无法连接服务器'))
+    auth.switchTenant(15, 'dental')
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+    await nextTick()
+
+    const opts = currentOptions(wrapper)
+    expect(opts[0].label).toContain('列表没读到')
+    expect(opts[0].label).not.toContain('不在列表里')
+  })
+
+  it('列表还在路上时先念「租户 15」，不抢答「不在列表里」', async () => {
+    list.mockReturnValue(new Promise(() => {}))
+    auth.switchTenant(15, 'dental')
+
+    const wrapper = mountSwitcher()
+    await nextTick()
+
+    const opts = currentOptions(wrapper)
+    expect(opts[0].label).toBe('租户 15')
   })
 })

@@ -20,7 +20,16 @@
       :message="summary.lastProbeNotice || '这个区间还没有跑过品牌引用探测：引用数为 0 表示「没查过」，不是「没人提」。'"
     />
 
-    <a-descriptions v-if="summary" :column="4" size="small" bordered style="margin-bottom: 16px">
+    <!-- 窄屏验收（Spec-F §9 移动 375）：这份汇总原来是写死的 4 列，375px 下整张表被撑到 456px、
+         而 a-descriptions 外层没有滚动条 ⇒ 后面几格的数字在手机上根本看不见。
+         这里改走 antd 自己的响应式列数（对象形），一屏一格，不新增组件、不改字段。 -->
+    <a-descriptions
+      v-if="summary"
+      :column="{ xs: 1, sm: 1, md: 2, lg: 4, xl: 4, xxl: 4 }"
+      size="small"
+      bordered
+      style="margin-bottom: 16px"
+    >
       <a-descriptions-item label="探测轮数">{{ summary.probeCount }}</a-descriptions-item>
       <a-descriptions-item label="外呼 / 提到我们">{{ summary.callCount }} / {{ summary.citedCallCount }}</a-descriptions-item>
       <a-descriptions-item label="问过几家模型">{{ summary.distinctModels }}</a-descriptions-item>
