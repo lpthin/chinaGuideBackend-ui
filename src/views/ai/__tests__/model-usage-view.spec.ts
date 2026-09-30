@@ -305,5 +305,7 @@ describe('趋势那排按钮要真的重新取数', () => {
     await flushPromises()
     expect(wrapper.find('.pie-total').text()).toBe('600')
     expect(wrapper.findAll('.legend-row')).toHaveLength(3)
+    // 现场挖出的第二处：图例直出过 98.47367719363453%，界面只该念一位小数
+    expect(wrapper.findAll('.legend-percent').map(n => n.text())).toEqual(['16.7%', '33.3%', '50.0%'])
   })
 })
