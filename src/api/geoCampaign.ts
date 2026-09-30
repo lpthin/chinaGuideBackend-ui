@@ -69,6 +69,18 @@ export interface GeoEstimate {
   judgeEstimatedTokens: number
   totalCallCount: number
   totalEstimatedTokens: number
+  /**
+   * 有几道题的核心词判不了覆盖率（#142）：没填、少于 3 字、或落在通用标题词里。
+   * 判得了的题才进分子分母，所以「机会清单是空的」有两种完全不同的原因——这个数用来把它们分开。
+   */
+  unmeasurableQuestions: number
+  /**
+   * 上面那个数对应的那句话；0 道题判不了时是 null。
+   *
+   * 与 {@link notice} 性质相反：notice 非空 ⇒ 这一轮不受理、必须禁用主按钮；
+   * 这一句只是「在花之前把已知会白跑的那一段讲清楚」，<b>按钮照样能点</b>。
+   */
+  unmeasurableNotice: string | null
 }
 
 export interface GeoRun {

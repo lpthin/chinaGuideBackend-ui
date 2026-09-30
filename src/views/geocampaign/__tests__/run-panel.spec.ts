@@ -99,6 +99,8 @@ function estimate(overrides: Partial<GeoEstimate> = {}): GeoEstimate {
     judgeEstimatedTokens: 18000,
     totalCallCount: 60,
     totalEstimatedTokens: 60000,
+    unmeasurableQuestions: 0,
+    unmeasurableNotice: null,
     ...overrides,
   }
 }
@@ -302,6 +304,57 @@ describe('notice：这一轮不会受理（§6.2 成本闸的界面那一半）'
     await flushPromises()
     expect(wrapper.find('.alert-message').text()).toContain('app.geo.campaign-enabled=false')
     expect(wrapper.find('.check-stub').exists()).toBe(false)
+  })
+})
+
+describe('unmeasurableNotice：受理，但有一段拿不到数（#142）', () => {
+  const FAKE = '假句子：其中 3 道题没有可用核心词，跑完算不出覆盖率，也不会进机会清单。出路是假出路。'
+
+  async function mountWithEstimate(overrides: Parameters<typeof estimate>[0]) {
+    vi.mocked(geoCampaignApi.estimate).mockResolvedValue(estimate(overrides) as never)
+    const wrapper = await mountPanel()
+    await buttonsByText(wrapper, '先估算这一轮')[0].trigger('click')
+    await flushPromises()
+    return wrapper
+  }
+
+  it('后端那句话原样摆出来，正文一个字节都不改写', async () => {
+    const wrapper = await mountWithEstimate({ unmeasurableQuestions: 3, unmeasurableNotice: FAKE })
+    const block = wrapper.find('[data-unmeasurable="true"]')
+    expect(block.exists()).toBe(true)
+    // 视图里写一份自己的中文，下一次后端改了口径这里就是红的
+    expect(block.find('.geo-run-panel__unmeasurable-body').text()).toBe(FAKE)
+    expect(block.text()).toContain('假出路')
+  })
+
+  it('它不改变受理：勾了确认照样能把那一发起出去', async () => {
+    const wrapper = await mountWithEstimate({ unmeasurableQuestions: 3, unmeasurableNotice: FAKE })
+    // 没勾之前它是死的，但名字不是「这一轮不会受理」——那句话只有 notice 能招来
+    expect(primaryButton(wrapper).text()).toBe('请先勾选确认')
+    await tickConfirm(wrapper)
+    expect(primaryButton(wrapper).text()).toBe('确认并开始诊断')
+    // 读 DOM 的 disabled 而不是属性：属性在两条路上都是空串，只有 property 分得开按得动与按不动
+    expect((primaryButton(wrapper).element as HTMLButtonElement).disabled).toBe(false)
+    await primaryButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(geoCampaignApi.run).toHaveBeenCalledWith(12, true)
+  })
+
+  it('一道题都判得了时这一整块不出现：界面不许无事生非地编一句警告', async () => {
+    const wrapper = await mountWithEstimate({})
+    expect(wrapper.find('[data-unmeasurable="true"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('拿不到覆盖率的那几道题')
+  })
+
+  it('notice 挡着的时候不再念「不拦住你」：两条话摆在一起就是自相矛盾', async () => {
+    const wrapper = await mountWithEstimate({ notice: '假：这一轮超过上限，不会受理。', unmeasurableNotice: FAKE })
+    expect(wrapper.find('[data-unmeasurable="true"]').exists()).toBe(false)
+    expect(wrapper.find('.alert-message').text()).toBe('假：这一轮超过上限，不会受理。')
+  })
+
+  it('这一句不冒充预估表里那一行的数：表还是那六行', async () => {
+    const wrapper = await mountWithEstimate({ unmeasurableQuestions: 3, unmeasurableNotice: FAKE })
+    expect(wrapper.findAll('.geo-run-panel__estimate tbody tr')).toHaveLength(6)
   })
 })
 

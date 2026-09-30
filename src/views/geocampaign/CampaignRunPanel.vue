@@ -24,7 +24,16 @@ import {
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
 import { formatDateTime } from '../../utils/format'
-import { billingLine, estimateLines, liveRunOf, runGate, runPercent } from './geoCampaignModel'
+import {
+  UNMEASURABLE_HINT,
+  UNMEASURABLE_TITLE,
+  billingLine,
+  estimateLines,
+  liveRunOf,
+  runGate,
+  runPercent,
+  unmeasurableNoticeOf,
+} from './geoCampaignModel'
 
 const props = defineProps<{
   campaignId: number | null
@@ -47,6 +56,8 @@ const runsError = ref<string | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const lines = computed(() => (estimate.value ? estimateLines(estimate.value) : []))
+/** 判不了覆盖率那几道题（#142）：null 时整块不出现，界面不许自己编一句警告 */
+const unmeasurableNotice = computed(() => unmeasurableNoticeOf(estimate.value))
 // 在飞的那一轮从轮次列表里读（#125）：判据跟后端 liveRunOf 同一份，被判定为停着的那一轮不算在飞，
 // 否则一条带死的行会把这个计划永久锁死，出路只剩删计划重建。
 const liveRun = computed(() => liveRunOf(runs.value))
@@ -204,6 +215,16 @@ defineExpose({ loadEstimate, loadRuns, reset })
         class="geo-run-panel__notice"
       />
 
+      <div
+        v-if="unmeasurableNotice"
+        class="geo-run-panel__unmeasurable"
+        data-unmeasurable="true"
+      >
+        <div class="geo-run-panel__unmeasurable-title">{{ UNMEASURABLE_TITLE }}</div>
+        <p class="geo-run-panel__unmeasurable-body">{{ unmeasurableNotice }}</p>
+        <p class="geo-run-panel__unmeasurable-hint">{{ UNMEASURABLE_HINT }}</p>
+      </div>
+
       <div v-if="estimate && !estimate.notice" class="geo-run-panel__confirm">
         <a-checkbox v-model:checked="confirmChecked">
           我已看过上面那几行，确认这一轮会真的调用模型提问 {{ estimate.callCount }} 次并消耗 token 配额
@@ -348,6 +369,33 @@ defineExpose({ loadEstimate, loadRuns, reset })
 
   &__notice {
     margin-top: 12px;
+  }
+
+  /* 与上面那条 notice 分得开：那一条是「不受理」，这一条是「受理，但有一段拿不到数」 */
+  &__unmeasurable {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid #ffe58f;
+    border-left: 3px solid #faad14;
+    background: #fffbe6;
+  }
+
+  &__unmeasurable-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #595959;
+  }
+
+  &__unmeasurable-body {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #595959;
+  }
+
+  &__unmeasurable-hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #8c8c8c;
   }
 
   &__confirm {

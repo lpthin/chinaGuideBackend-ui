@@ -4,6 +4,8 @@ import {
   REPEAT_MAX,
   REPEAT_MIN,
   SUGGESTED_PLATFORM_MIN,
+  UNMEASURABLE_HINT,
+  UNMEASURABLE_TITLE,
   billingLine,
   campaignRunSummary,
   emptyCampaignDraft,
@@ -23,6 +25,7 @@ import {
   runPercent,
   sentimentBar,
   sentimentSegmentClass,
+  unmeasurableNoticeOf,
   wizardStateJson,
 } from '../geoCampaignModel'
 import type { GeoEstimate, GeoMetricRow, GeoRun } from '../../../api/geoCampaign'
@@ -50,6 +53,8 @@ function estimate(overrides: Partial<GeoEstimate> = {}): GeoEstimate {
     judgeEstimatedTokens: 18000,
     totalCallCount: 60,
     totalEstimatedTokens: 60000,
+    unmeasurableQuestions: 0,
+    unmeasurableNotice: null,
     ...overrides,
   }
 }
@@ -201,6 +206,42 @@ describe('预估那六行：提问与判定各归各的账（§10-3 + §11.4 两
   it('勾选确认那一发只提提问：合计那行自己写明判定要另外点头', () => {
     const lines = estimateLines(estimate())
     expect(lines[4].note).toContain('点「确认并开始诊断」只花提问那一段')
+  })
+})
+
+describe('unmeasurableNoticeOf：受理，但有一段拿不到数（#142）', () => {
+  const FAKE = '假句子：其中 2 道题没有可用核心词，跑完算不出覆盖率，也不会进机会清单。'
+
+  it('后端给了就原样给视图，一个字的改写都没有', () => {
+    expect(unmeasurableNoticeOf(estimate({ unmeasurableQuestions: 2, unmeasurableNotice: FAKE }))).toBe(FAKE)
+  })
+
+  it('一道题都没落下时是 null：界面不许凭 null 编一句警告', () => {
+    expect(unmeasurableNoticeOf(estimate())).toBeNull()
+    expect(unmeasurableNoticeOf(estimate({ unmeasurableQuestions: 0, unmeasurableNotice: null }))).toBeNull()
+    expect(unmeasurableNoticeOf(null)).toBeNull()
+    expect(unmeasurableNoticeOf(undefined)).toBeNull()
+  })
+
+  it('notice 非空时这一句收起来：那条按钮本来就没在跑，念「不拦住你」是自相矛盾', () => {
+    expect(unmeasurableNoticeOf(estimate({ notice: '假：这一轮不会受理。', unmeasurableNotice: FAKE }))).toBeNull()
+  })
+
+  it('它不进 runGate：判不了几道题不是拒绝受理的理由，也不该变成按钮状态', () => {
+    const gated = runGate({
+      estimate: estimate({ unmeasurableQuestions: 5, unmeasurableNotice: FAKE }),
+      confirmChecked: true,
+      starting: false,
+      liveRun: null,
+    })
+    expect(gated).toEqual({ disabled: false, text: '确认并开始诊断' })
+  })
+
+  it('标题与那句「不拦住你」都出自本文件，视图里没有第二份', () => {
+    expect(UNMEASURABLE_TITLE).toContain('覆盖率')
+    expect(UNMEASURABLE_HINT).toContain('不拦住你')
+    // 判据本身（哪几道题、为什么、出路）来自后端那一句，这里不重复一份
+    expect(UNMEASURABLE_HINT).not.toContain('核心词')
   })
 })
 

@@ -99,6 +99,30 @@ export function billingLine(estimate: GeoEstimate): string {
     : '这一轮由平台承担，不计入本租户的 token 额度（站还没交出去）。'
 }
 
+/** 那一块的小标题：中文只有这一份，视图不抄 */
+export const UNMEASURABLE_TITLE = '跑完也拿不到覆盖率的那几道题'
+
+/**
+ * 那一块底下那句界面级的话。
+ *
+ * 只说一句界面做得到且必须说清的事：<b>它不改变受理</b>。判据本身（哪几道题、为什么、出路是什么）
+ * 全在后端发回的那句里，这里不重复一遍——重复一份就是下一次对不上的来源。
+ */
+export const UNMEASURABLE_HINT =
+  '这一句不拦住你：这一轮照样受理、按钮照样能点。它只是把「花出去的哪一段拿不到数」在花之前讲清楚。'
+
+/**
+ * 这一句要不要摆出来（#142）。
+ *
+ * 两个条件缺一不可：
+ * 1. 后端真报了那一句话（一道题都判得了时它是 null，界面不许无事生非地警告）；
+ * 2. 这一轮<b>会被受理</b>。`notice` 非空时按钮本来就按不动，再把「不拦住你」念一遍就是自相矛盾。
+ */
+export function unmeasurableNoticeOf(estimate: GeoEstimate | null | undefined): string | null {
+  if (!estimate || estimate.notice) return null
+  return estimate.unmeasurableNotice || null
+}
+
 export interface RunGate {
   disabled: boolean
   /** 主按钮上的话：一眼看得出为什么按不动 */
@@ -110,6 +134,10 @@ export interface RunGate {
  * 没看过预估 → 先去预估；这个计划已经有一轮在跑 → 等它跑完（#125 在飞闸）；
  * `notice` 非空 → 这一轮不会受理（按钮上不假装能跑）；没勾确认 → 先点头。
  * 顺序与后端 requestRun 的拒绝顺序一致（确认 → 在飞 → 成本闸），界面与闸说的是同一句话。
+ *
+ * <p>{@code unmeasurableNotice}（#142）<b>刻意不在这里出现</b>：那一句话说的是「跑完有几道题拿不到覆盖率」，
+ * 它不是拒绝受理的理由，也不该变成按钮状态。它由 {@link unmeasurableNoticeOf} 单独摆在预估表下面念出来，
+ * 谁要是哪天把它接到闸上，「减题到全部题都判得了为止」就成了界面替客户做的决定。</p>
  */
 export function runGate(input: {
   estimate: GeoEstimate | null
