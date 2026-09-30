@@ -64,9 +64,13 @@
             </a-space>
           </a-col>
         </a-row>
+        <!-- 这一屏所有「总数」取的是哪一段，由后端随响应说回来，界面照念（不写死「本月」） -->
+        <div v-if="windowText" class="usage-window">{{ windowText }}</div>
       </a-card>
 
-      <a-row :gutter="16" style="margin-bottom: 16px">
+      <!-- 统计口读失败时整排退化成一句「读取失败」：四格 ¥0.00 / 0 / 0 / 0.0% 读起来像「这个月一次都没调用」，
+           而真相是那一次请求没回来。三态语义不许互换，所以这里走 StateBlock 的 error 态。 -->
+      <a-row v-if="!statsError" :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
           <a-card class="stat-card main-stat" hoverable>
             <div class="stat-content">
@@ -75,8 +79,8 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">¥{{ totalCost.toFixed(2) }}</div>
-                <div class="stat-title">本月总费用</div>
-                <div class="stat-trend up">
+                <div class="stat-title">{{ rangeLabel }}总费用</div>
+                <div v-if="hasStat('costGrowth')" class="stat-trend up">
                   <ArrowUpOutlined /> {{ costGrowth }}% 较上月
                 </div>
               </div>
@@ -91,8 +95,8 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ totalTokens.toLocaleString() }}</div>
-                <div class="stat-title">本月 Token 消耗</div>
-                <div class="stat-trend up">
+                <div class="stat-title">{{ rangeLabel }} Token 消耗</div>
+                <div v-if="hasStat('tokenGrowth')" class="stat-trend up">
                   <ArrowUpOutlined /> {{ tokenGrowth }}% 较上月
                 </div>
               </div>
@@ -107,8 +111,8 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ totalCalls.toLocaleString() }}</div>
-                <div class="stat-title">本月调用次数</div>
-                <div class="stat-trend up">
+                <div class="stat-title">{{ rangeLabel }}调用次数</div>
+                <div v-if="hasStat('callGrowth')" class="stat-trend up">
                   <ArrowUpOutlined /> {{ callGrowth }}% 较上月
                 </div>
               </div>
@@ -123,8 +127,8 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ successRate.toFixed(1) }}%</div>
-                <div class="stat-title">调用成功率</div>
-                <div class="stat-trend" :class="successRateGrowth >= 0 ? 'up' : 'down'">
+                <div class="stat-title">{{ rangeLabel }}调用成功率</div>
+                <div v-if="hasStat('successRateGrowth')" class="stat-trend" :class="successRateGrowth >= 0 ? 'up' : 'down'">
                   <ArrowUpOutlined v-if="successRateGrowth >= 0" />
                   <ArrowDownOutlined v-else />
                   {{ Math.abs(successRateGrowth).toFixed(1) }}% 较昨日
@@ -134,11 +138,27 @@
           </a-card>
         </a-col>
       </a-row>
+      <a-row v-else style="margin-bottom: 16px">
+        <a-col :span="24">
+          <a-card :bordered="false">
+            <StateBlock
+              state="error"
+              title="这屏的统计没读到"
+              detail="总费用、Token、调用次数、成功率这四格要的是 /ai/model/stats 那一条聚合，它这一次没回来。"
+              next="点右上角「查询」重试；持续失败把本页右下角的 traceId 连同时间点提交工单。"
+            />
+          </a-card>
+        </a-col>
+      </a-row>
 
-      <a-row :gutter="16" style="margin-bottom: 16px">
+      <a-row v-if="!statsError" :gutter="16" style="margin-bottom: 16px">
         <a-col :span="12">
           <a-card title="今日用量" :bordered="false">
-            <a-row :gutter="16">
+            <!--
+              接口没给「今日」这一档（它给的是所选区间的合计），所以这里不许再拿初始值 0 顶上去。
+              同一个卡片的三个数一起退化成一块说明，比三格「0 / 0 / ¥0.00」诚实。
+            -->
+            <a-row v-if="hasStat('todayTokens')" :gutter="16">
               <a-col :span="8">
                 <div class="mini-stat">
                   <div class="mini-value">{{ todayStats.tokens.toLocaleString() }}</div>
@@ -167,11 +187,23 @@
                 </div>
               </a-col>
             </a-row>
+            <StateBlock
+              v-else
+              state="not-measured"
+              title="今日这一档没有数据源"
+              detail="接口给的是所选区间的合计，没有单独按「今天」切的一组数，也不含环比。"
+              next="把上面的日期切到「今日」，这一屏的数就是今天的；要一格常驻的今日数，得后端补一条按日聚合的口径。"
+            />
           </a-card>
         </a-col>
         <a-col :span="12">
-          <a-card title="本月预算" :bordered="false">
-            <div class="budget-container">
+          <a-card :title="`${rangeLabel}预算`" :bordered="false">
+            <!--
+              预算的两个数（budgetUsed / budgetTotal）后端从来没回过，于是这块以前稳定显示
+              「已使用 ¥0.00 / ¥0」「剩余 ¥0.00」「预计可使用 NaN 天」——三个假数加一次 NaN。
+              额度真正的出处是 TokenQuotaService 那一池（Spec-G G4/P5 正在拆），拆完接这里。
+            -->
+            <div v-if="hasStat('budgetTotal')" class="budget-container">
               <div class="budget-info">
                 <span class="budget-label">已使用</span>
                 <span class="budget-value">¥{{ budgetUsed.toFixed(2) }}</span>
@@ -185,9 +217,18 @@
               />
               <div class="budget-remaining">
                 剩余 ¥{{ (budgetTotal - budgetUsed).toFixed(2) }}
-                <span class="budget-days">预计可使用 {{ Math.ceil((budgetTotal - budgetUsed) / (budgetUsed / (new Date().getDate()))) }} 天</span>
+                <!-- 一次都没花的时候「可用天数」是除以 0，会念成 Infinity 天；没有消耗就不算这一句 -->
+                <span v-if="budgetUsed > 0" class="budget-days">预计可使用 {{ Math.ceil((budgetTotal - budgetUsed) / (budgetUsed / (new Date().getDate()))) }} 天</span>
+                <span v-else class="budget-days">这一段还没有消耗，不算可用天数</span>
               </div>
             </div>
+            <StateBlock
+              v-else
+              state="not-measured"
+              title="预算那一格还没有接上额度口径"
+              detail="它要读的是租户的月度 token 额度与已用量，接口现在不给这两个数；以前显示的 ¥0 是初始值，不是「没花钱」。"
+              next="GEO 独立额度池（G4）落地后接同一份口径：额度、已用、按日均消耗估的可用天数。"
+            />
           </a-card>
         </a-col>
       </a-row>
@@ -244,7 +285,7 @@
               <div class="pie-visual">
                 <div class="pie-ring" :style="{ background: getPieGradient() }"></div>
                 <div class="pie-center">
-                  <div class="pie-total">{{ totalTokens.toLocaleString() }}</div>
+                  <div class="pie-total">{{ pieTotalTokens.toLocaleString() }}</div>
                   <div class="pie-label">总 Token</div>
                 </div>
               </div>
@@ -259,7 +300,7 @@
                     :style="{ background: modelColors[index] }"
                   ></span>
                   <span class="legend-model-name">{{ model.name }}</span>
-                  <span class="legend-percent">{{ model.percent }}%</span>
+                  <span class="legend-percent">{{ Number(model.percent ?? 0).toFixed(1) }}%</span>
                 </div>
               </div>
             </div>
@@ -269,23 +310,30 @@
             <div class="performance-list">
               <div class="performance-item">
                 <span class="perf-label">平均响应时间</span>
-                <span class="perf-value">{{ avgResponseTime }}ms</span>
+                <span v-if="hasStat('avgResponseTime')" class="perf-value">{{ Math.round(avgResponseTime) }}ms</span>
+                <span v-else class="perf-value perf-value--none">未统计</span>
               </div>
               <div class="performance-item">
                 <span class="perf-label">P50 响应时间</span>
-                <span class="perf-value">{{ p50ResponseTime }}ms</span>
+                <span v-if="hasStat('p50ResponseTime')" class="perf-value">{{ Math.round(p50ResponseTime) }}ms</span>
+                <span v-else class="perf-value perf-value--none">未统计</span>
               </div>
               <div class="performance-item">
                 <span class="perf-label">P90 响应时间</span>
-                <span class="perf-value">{{ p90ResponseTime }}ms</span>
+                <span v-if="hasStat('p90ResponseTime')" class="perf-value">{{ Math.round(p90ResponseTime) }}ms</span>
+                <span v-else class="perf-value perf-value--none">未统计</span>
               </div>
+              <!-- 这两率后端没有统计口径（GEO 那段还明确「一次超时即计入失败、不自动重试」），
+                   所以不许念 0%：0% 读起来像「一次都没重试」，而真相是「没数」。 -->
               <div class="performance-item">
                 <span class="perf-label">失败重试率</span>
-                <span class="perf-value">{{ retryRate }}%</span>
+                <span v-if="hasStat('retryRate')" class="perf-value">{{ retryRate }}%</span>
+                <span v-else class="perf-value perf-value--none">未统计</span>
               </div>
               <div class="performance-item">
                 <span class="perf-label">限流触发率</span>
-                <span class="perf-value">{{ limitRate }}%</span>
+                <span v-if="hasStat('limitRate')" class="perf-value">{{ limitRate }}%</span>
+                <span v-else class="perf-value perf-value--none">未统计</span>
               </div>
             </div>
           </a-card>
@@ -380,6 +428,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons-vue'
 import { aiModelApi } from '../../api/ai-model'
+import StateBlock from '../../components/StateBlock.vue'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { logError } from '../../utils/errorLog'
@@ -420,12 +469,16 @@ const todayStats = reactive({
 const budgetUsed = ref(0)
 const budgetTotal = ref(0)
 
+// 统计那一次请求到底回没回。没回就不许把四格初始值当数念（见上面那排卡的注释）
+const statsError = ref(false)
+
 const timeRange = ref('7d')
 const avgResponseTime = ref(0)
 const p50ResponseTime = ref(0)
 const p90ResponseTime = ref(0)
-const retryRate = ref(0)
-const limitRate = ref(0)
+// null = 接口没给这一项（界面上念「未统计」），0 = 真的测出来是 0%。这两个不能都写 0
+const retryRate = ref<number | null>(null)
+const limitRate = ref<number | null>(null)
 
 const modelColors = ['#722ed1', '#1890ff', '#52c41a', '#fa8c16', '#eb2f96']
 
@@ -433,8 +486,17 @@ const modelUsageList = ref<any[]>([])
 
 const usageChartData = ref<any[]>([])
 
+/**
+ * 环中心那个数与它下面那串图例同源（Spec-G P2）。
+ * 以前中心念的是统计口的 totalTokens，图例来自另一个接口的模型清单，两边一不相等就是「总数对不上」。
+ */
+const pieTotalTokens = computed(() =>
+  modelUsageList.value.reduce((sum, row: any) => sum + (Number(row.tokens) || 0), 0)
+)
+
+// 一条数据都没有时 Math.max() 给 -Infinity，柱高会变成 NaN%；全 0 同理。兜成 1 让所有柱子站平
 const maxToken = computed(() => {
-  return Math.max(...usageChartData.value.map(d => d.tokens))
+  return Math.max(1, ...usageChartData.value.map(d => Number(d.tokens) || 0))
 })
 
 const getBudgetColor = () => {
@@ -599,10 +661,47 @@ const getCommonParams = () => {
   }
 }
 
+/**
+ * 接口回来的是什么，界面就只念什么（Spec-G P2 现场挖出的那条，同 §9.6 的纪律）。
+ *
+ * <p>以前这里是一串 `result.xxx ?? 0`：后端从来没回过 todayTokens / costGrowth / budgetTotal /
+ * retryRate 这几组键，于是它们被 ?? 兜成 0 之后，屏幕上稳定出现「今日 Token 0」「较上月 0%」
+ * 「剩余 ¥0.00」「预计可使用 NaN 天」。0 是一个数，而真相是「没有这个数」，两者不能互换。</p>
+ */
+const statsPayload = ref<Record<string, unknown>>({})
+
+function hasStat(key: string): boolean {
+  const value = statsPayload.value?.[key]
+  return value !== undefined && value !== null
+}
+
+const QUICK_DATE_LABELS: Record<string, string> = {
+  today: '今日',
+  week: '本周',
+  month: '本月',
+  '7d': '近 7 天',
+  '30d': '近 30 天',
+}
+
+/** 卡片标题上那个时间限定词跟着真正生效的选择器走，不再写死「本月」 */
+const rangeLabel = computed(() => QUICK_DATE_LABELS[quickDate.value] ?? '所选区间')
+
+/** 后端把这一屏取的是哪一段说了回来，界面就把它摆在筛选栏里（左闭右开，末日整天在内） */
+const windowText = computed(() => {
+  const from = statsPayload.value?.windowFrom
+  const to = statsPayload.value?.windowTo
+  if (typeof from !== 'string' || typeof to !== 'string') {
+    return ''
+  }
+  return `取数区间 ${from.slice(0, 10)} 至 ${to.slice(0, 10)}（含末日整天）`
+})
+
 const loadStats = async () => {
   try {
     const params = getCommonParams()
     const result = await aiModelApi.getStats(params)
+    statsPayload.value = result ?? {}
+    statsError.value = false
     totalCost.value = result.totalCost ?? 0
     totalTokens.value = result.totalTokens ?? 0
     totalCalls.value = result.totalCalls ?? 0
@@ -622,11 +721,12 @@ const loadStats = async () => {
     avgResponseTime.value = result.avgResponseTime ?? 0
     p50ResponseTime.value = result.p50ResponseTime ?? 0
     p90ResponseTime.value = result.p90ResponseTime ?? 0
-    retryRate.value = result.retryRate ?? 0
-    limitRate.value = result.limitRate ?? 0
+    retryRate.value = result.retryRate ?? null
+    limitRate.value = result.limitRate ?? null
   } catch (error) {
     message.error('加载统计数据失败')
     logError('ai/model-usage-view', 'Failed to load stats:', error)
+    statsError.value = true
   }
 }
 
@@ -642,10 +742,18 @@ const loadUsageByModel = async () => {
   }
 }
 
+/** 趋势图自己那排按钮（近7天/30天/90天）→ 天数。它以前只是长得像控件：改了不重新取数，图永远是那 7 天 */
+const TREND_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90 }
+
 const loadUsageTrend = async () => {
   try {
-    const params = getCommonParams()
-    const result = await aiModelApi.getUsageTrend(params)
+    const days = TREND_DAYS[timeRange.value] ?? 7
+    const end = dayjs()
+    const result = await aiModelApi.getUsageTrend({
+      tenantId: authStore.selectedTenantId ?? undefined,
+      startDate: end.subtract(days - 1, 'day').format('YYYY-MM-DD'),
+      endDate: end.format('YYYY-MM-DD'),
+    })
     usageChartData.value = result ?? []
   } catch (error) {
     message.error('加载用量趋势数据失败')
@@ -653,6 +761,10 @@ const loadUsageTrend = async () => {
     usageChartData.value = []
   }
 }
+
+watch(timeRange, () => {
+  loadUsageTrend()
+})
 
 const loadLogs = async () => {
   try {
@@ -776,6 +888,18 @@ onMounted(() => {
   font-size: 14px;
   color: #666;
   font-weight: 500;
+}
+
+/* 取数区间那一行：数本身没说错，说的是「这是哪一段的数」 */
+.usage-window {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.perf-value--none {
+  color: #8c8c8c;
+  font-weight: 400;
 }
 
 .stat-card {

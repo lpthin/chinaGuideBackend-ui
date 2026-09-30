@@ -158,24 +158,38 @@ export const usageApi = {
 }
 
 // AI模型使用统计 API
+/**
+ * 这四个口的取数区间现在是真的生效（Spec-G P2）：不传 startDate/endDate 时后端退到「滚动 12 个月」，
+ * 传了就以界面选的那一天区间为准，并且会把实际取数的区间随响应回传（windowFrom / windowTo）。
+ */
+export interface AiStatsQuery {
+  tenantId?: number
+  /** YYYY-MM-DD，含当日 */
+  startDate?: string
+  /** YYYY-MM-DD，含当日（后端按次日零点做右开界） */
+  endDate?: string
+}
+
 export const aiModelApi = {
   // 获取统计总览
-  getStats: (params?: { tenantId?: number }) =>
+  getStats: (params?: AiStatsQuery) =>
     http.get<any>('/ai/model/stats', { params }),
 
   // 按模型统计
-  getUsageByModel: (params?: { tenantId?: number }) =>
+  getUsageByModel: (params?: AiStatsQuery) =>
     http.get<any[]>('/ai/model/usage', { params }),
 
   // 按日期统计趋势
-  getUsageTrend: (params?: { tenantId?: number }) =>
+  getUsageTrend: (params?: AiStatsQuery) =>
     http.get<any[]>('/ai/model/trend', { params }),
 
   // 获取调用日志列表
-  getLogs: (params?: { tenantId?: number; page?: number; size?: number }) =>
+  getLogs: (params?: AiStatsQuery & { page?: number; size?: number }) =>
     http.get<{
       records: any[]
       total: number
+      windowFrom?: string
+      windowTo?: string
     }>('/ai/model/logs', { params }),
 }
 
