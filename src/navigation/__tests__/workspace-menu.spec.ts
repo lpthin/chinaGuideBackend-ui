@@ -292,4 +292,33 @@ describe('选中态与面包屑', () => {
     expect(keywords?.group).toBe('content')
     expect(grouped.map(leaf => leaf.label)).not.toContain('关键词库')
   })
+
+  it('G1：SEO/GEO 这一族每一项都带读码——「看得见、点进去 403」不再可能发生', () => {
+    const geoFamily = grouped.filter(leaf =>
+      /^(workspace-geoseo-|workspace-geo-)/.test(leaf.routeName) || leaf.routeName === 'workspace-portal-citations')
+    expect(geoFamily.length).toBeGreaterThanOrEqual(6)
+    geoFamily.forEach(leaf => {
+      // 这一族一项都不靠「没写权限要求 = 人人可见」兜底：
+      // 之前 geoseo/dashboard 正是因为 meta 里没有 requiredPermission，被 collectMenuLeaves
+      // 当成公开项渲染进租户菜单，而后端 GeoDashboardController 要 geo:overview:view（V143 只授超管）。
+      expect(leaf.permission, `${leaf.label}（${leaf.routeName}）的 meta 没有 requiredPermission`).toBeTruthy()
+    })
+
+    // SITE_ADMIN 的真实权限形状：库里除 SUPER_ADMIN 之外没有任何一档授过 geo:overview:view
+    const siteAdmin = {
+      isSuperAdmin: false,
+      hasPermission: (code: string) =>
+        ['seo:audit:view', 'geo:brand:view', 'geo:campaign:view', 'geo:report:view', 'analytics:view'].includes(code),
+      openContentEntries: null
+    }
+    const dashboard = grouped.find(leaf => leaf.routeName === 'workspace-geoseo-dashboard')
+    expect(dashboard && leafVisible(dashboard, siteAdmin), '总览仪表盘仍挂在租户菜单里').toBe(false)
+    // 反向对照：同一份视图下真授了码的项照常可见，别把这条修成「整族都藏」
+    const campaign = grouped.find(leaf => leaf.routeName === 'workspace-geo-campaign')!
+    const crawlability = grouped.find(leaf => leaf.routeName === 'workspace-geoseo-crawlability')!
+    expect(leafVisible(campaign, siteAdmin)).toBe(true)
+    expect(leafVisible(crawlability, siteAdmin)).toBe(true)
+    // 超管进得去这一页（菜单是藏入口，不是把页拆了）
+    expect(dashboard && leafVisible(dashboard, SUPER)).toBe(true)
+  })
 })

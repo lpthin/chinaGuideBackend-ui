@@ -759,11 +759,16 @@ export const routes: RouteRecordRaw[] = [
       },
 
       // ===== 🔍 SEO & GEO =====
+      // GEO 总览仪表盘（Spec-G G1）：这一页的数据口径是平台侧跨租户汇总，后端
+      // GeoDashboardController 挂的是 geo:overview:view，而 V143 那一档只把它授给 SUPER_ADMIN
+      // （库里再没有第二处授码）。之前路由不挂码 = 菜单不做过滤 ⇒ 租户看得见、点进去必 403。
+      // 拍板口径是「不授、只藏」：不摘页（平台侧仍要用），也不给 SITE_ADMIN 补码
+      // （那会在「读给租户、跑给平台」的边界上再开一个口）。挂上读码后菜单与守卫读同一份。
       {
         path: 'geoseo/dashboard',
         name: 'workspace-geoseo-dashboard',
         component: GeoSeoDashboardView,
-        meta: { title: '总览仪表盘', icon: 'dashboard' }
+        meta: { title: '总览仪表盘', icon: 'dashboard', requiredPermission: 'geo:overview:view' }
       },
       // 可抓取性体检（Spec-F §8、§10-7，P5）：闸的码与后端 GeoCrawlabilityController 一一对应——
       // 路由挂读码 seo:audit:view（V153 已补授 SITE_ADMIN），「跑一次」那一码 seo:audit:run
