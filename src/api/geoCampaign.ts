@@ -125,6 +125,15 @@ export interface GeoRun {
    */
   queuedReason: string | null
   /**
+   * 排在<b>同一段</b>前面的轮数（G3，Spec-G P4）：服务端按提问池 / 判定池各算各的，与上面那句
+   * {@code queuedReason} 里的数字同一出处。
+   *
+   * <p>为什么还要单独有这一列：卡片那一格放不下整句，而界面若从 {@code queuedReason} 里正则抠数字，
+   * 就等于把服务端那份判据抄了一遍——两处迟早对不上（§5 单源）。null 与 0 也是两件事：
+   * 0 = 还在排队、前面没别人；null = 这一轮压根没在排队。</p>
+   */
+  queueAhead: number | null
+  /**
    * 判定那一段的状态（JUDGING / DONE / FAILED，null = 这一轮从没判过）。
    * 它和上面 `status` 是【两份词表】，刻意的：「提问已完成、判定还在跑」可以同时成立，
    * 合成一列就把「报告上那些率还空着」说成「这一轮跑完了」（GeoJudgeStates 的类注释同一条判据）。

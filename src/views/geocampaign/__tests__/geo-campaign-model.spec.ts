@@ -22,6 +22,7 @@ import {
   metricObjectText,
   parseWizardState,
   platformHint,
+  queuedShortText,
   runGate,
   runPhaseText,
   runPercent,
@@ -84,6 +85,7 @@ function run(overrides: Partial<GeoRun> = {}): GeoRun {
     errorMessage: null,
     stalledReason: null,
     queuedReason: null,
+    queueAhead: null,
     judgeState: null,
     judgeStateLabel: '未判定',
     judgeCallCount: null,
@@ -215,6 +217,38 @@ describe('排队那一轮（#143）：它没停着，它还没开始', () => {
       .toBe('第 6 轮 · 诊断中 · 还在排队，没开始提问 · 准备提问')
     expect(campaignRunSummary({ latestRun: run({ status: 'RUNNING', statusLabel: '诊断中', stageText: '已问 3/30 次' }) }))
       .toBe('第 88 轮 · 诊断中 · 已问 3/30 次')
+  })
+})
+
+describe('排队短版跟着段走（G3，Spec-G P4：两池各数各的深度）', () => {
+  const ASK = '这一轮还在排队：排在你前面的还有 2 轮（提问那一池同时在跑的最多 2 轮、最多再排 5 轮，第 8 轮会被当场拒掉）。它一次模型都没调、一分钱都没花'
+  const JUDGE = '这一轮的判定还在排队：排在你前面的还有 4 轮（判定跑在它自己那一池，同时只判 1 轮、最多再排 10 轮，第 12 轮会被当场拒掉）。它一条都还没判'
+
+  it('提问排队念「没开始提问」，判定排队念「一条都还没判」——旧那一句对后者是错的', () => {
+    expect(queuedShortText(run({ status: 'RUNNING', queuedReason: ASK, queueAhead: 2 })))
+      .toBe('还在排队，没开始提问，前面还有 2 轮')
+    expect(queuedShortText(run({ status: 'SUCCEEDED', judgeState: 'JUDGING', queuedReason: JUDGE, queueAhead: 4 })))
+      .toBe('判定还在排队，一条都还没判，前面还有 4 轮')
+  })
+
+  it('数取自接口那一列而不是从话术里抠：抠数字等于把服务端判据抄第二份（§5 单源）', () => {
+    // 话术里写 4 轮、queueAhead 给 0 ⇒ 短版念 0（不出现「前面还有」），证明前端没有正则
+    expect(queuedShortText(run({ status: 'RUNNING', queuedReason: JUDGE, queueAhead: 0 })))
+      .toBe('还在排队，没开始提问')
+    // null 也不许当成 0 念成「前面有零轮」
+    expect(queuedShortText(run({ status: 'RUNNING', queuedReason: ASK, queueAhead: null })))
+      .toBe('还在排队，没开始提问')
+  })
+
+  it('卡片那一行：提问已跑完、判定还在排的那一轮，不许念成「没开始提问」', () => {
+    const summary = campaignRunSummary({
+      latestRun: run({
+        id: 7, status: 'SUCCEEDED', statusLabel: '已完成', stageText: '已完成',
+        judgeState: 'JUDGING', queuedReason: JUDGE, queueAhead: 4,
+      }),
+    })
+    expect(summary).toBe('第 7 轮 · 已完成 · 判定还在排队，一条都还没判，前面还有 4 轮')
+    expect(summary).not.toContain('没开始提问')
   })
 })
 

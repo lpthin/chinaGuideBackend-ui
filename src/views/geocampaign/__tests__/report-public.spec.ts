@@ -84,7 +84,7 @@ function publicReport(): GeoReport {
       status: 'SUCCEEDED', statusLabel: 'SUCCEEDED', stageText: null, progress: 100,
       accessChannel: 'API', questionCount: 4, platformCount: 1, repeatTimes: 1,
       callCount: 4, failedCallCount: 0, promptTokens: 100, completionTokens: 200,
-      errorMessage: null, stalledReason: null, queuedReason: null,
+      errorMessage: null, stalledReason: null, queuedReason: null, queueAhead: null,
       // 故意给「判过之前」那一态：登录态下这一屏本来摆得出「判定这一轮」那一发与勾选框，
       // 公开态把它们全摘掉才测得出来——DONE 那一态下两边都不摆，断言就成了空跑
       judgeState: null, judgeStateLabel: null, judgeCallCount: 0,

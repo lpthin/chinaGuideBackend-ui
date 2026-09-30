@@ -168,6 +168,7 @@ function report(overrides: Partial<GeoReport> = {}): GeoReport {
       errorMessage: null,
       stalledReason: null,
       queuedReason: null,
+      queueAhead: null,
       judgeState: null,
       judgeStateLabel: '未判定',
       judgeCallCount: null,

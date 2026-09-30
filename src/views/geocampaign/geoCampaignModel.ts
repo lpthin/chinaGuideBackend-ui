@@ -198,7 +198,7 @@ export function judgeGate(input: {
   if (!askSettled(run)) return { disabled: true, text: '这一轮还在提问，先等它' }
   if (run.judgeState === 'DONE') return { disabled: true, text: '这一轮判过了' }
   if (geoJudgeIsInFlight(run.judgeState) && !run.judgeStalledReason) {
-    // 判定派的也是那一个池（#143）：排队里的一条都还没判，说「正在判定」等于让人以为钱在花
+    // 判定排的是它自己那一池（G3 拆池）：排队里的一条都还没判，说「正在判定」等于让人以为钱在花
     return { disabled: true, text: run.queuedReason ? '判定还在排队，先等它' : '正在判定，等它跑完' }
   }
   if ((run.callCount ?? 0) <= 0) return { disabled: true, text: '这一轮没有可判的回答' }
@@ -528,7 +528,26 @@ export function campaignRunSummary(campaign: { latestRun: GeoRun | null }): stri
   if (!run) return '还没跑过一轮'
   const status = run.statusLabel || run.status
   const parts = [`第 ${run.id} 轮`, status]
-  if (run.queuedReason) parts.push('还在排队，没开始提问')
+  if (run.queuedReason) parts.push(queuedShortText(run))
   if (run.stageText && run.stageText !== status) parts.push(run.stageText)
   return parts.join(' · ')
+}
+
+/**
+ * 排队那一轮的短版（卡片那一格放不下服务端整句），<b>段跟着账走</b>（G3，Spec-G P4）：
+ * 提问在飞 ⇒ 排的是提问那一池；提问已终态而 {@code judgeState} 还在飞 ⇒ 排的是判定那一池。
+ *
+ * <p>原来这里只有一句「还在排队，没开始提问」，对判定排队的那一轮是错的：它的提问早跑完了，
+ * 卡片却念成「没开始提问」。拆池之后两段的深度也是两个数（服务端 {@code queueAhead} 各数各的池），
+ * 所以那句必须先看段再取数——绝不去正则 {@code queuedReason} 里的数字（§5 单源）。</p>
+ */
+export function queuedShortText(run: GeoRun): string {
+  const ahead = typeof run.queueAhead === 'number' && run.queueAhead > 0
+    ? `，前面还有 ${run.queueAhead} 轮`
+    : ''
+  // 判定排队 ⇒ 提问那一段已经终态了
+  if (!geoRunIsInFlight(run.status) && geoJudgeIsInFlight(run.judgeState)) {
+    return `判定还在排队，一条都还没判${ahead}`
+  }
+  return `还在排队，没开始提问${ahead}`
 }
