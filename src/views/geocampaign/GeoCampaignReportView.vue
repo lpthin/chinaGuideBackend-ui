@@ -298,54 +298,58 @@ watch(id, () => void load())
         </p>
         <StateBlock v-if="!mentionRows.length" state="not-measured" title="这一轮没有提及率行"
           next="品牌词短到认不出来门槛，或这一轮一次回答都没取到——先看上面那排「未取到」，再回品牌档案补词" />
-        <table v-else class="geo-report__table">
-          <thead>
-            <tr>
-              <th>平台</th>
-              <th>提及率</th>
-              <th>分子 / 分母</th>
-              <th>95% 区间</th>
-              <th>分母口径</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in mentionRows" :key="row.id" :data-scope="row.scope">
-              <td>{{ row.modelLabel || PH_DASH }}</td>
-              <td class="geo-report__value">{{ formatRate(row.value) }}</td>
-              <td>{{ fractionText(row.numerator, row.denominator) }}</td>
-              <td>{{ formatInterval(row.ciLow, row.ciHigh) || PH_DASH }}</td>
-              <td class="geo-report__definition">{{ row.definition || PH_DASH }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="geo-report__scroll">
+          <table class="geo-report__table">
+            <thead>
+              <tr>
+                <th>平台</th>
+                <th>提及率</th>
+                <th>分子 / 分母</th>
+                <th>95% 区间</th>
+                <th>分母口径</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in mentionRows" :key="row.id" :data-scope="row.scope">
+                <td>{{ row.modelLabel || PH_DASH }}</td>
+                <td class="geo-report__value">{{ formatRate(row.value) }}</td>
+                <td>{{ fractionText(row.numerator, row.denominator) }}</td>
+                <td>{{ formatInterval(row.ciLow, row.ciHigh) || PH_DASH }}</td>
+                <td class="geo-report__definition">{{ row.definition || PH_DASH }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section class="geo-report__card" data-card="recommend">
         <h3 class="geo-report__card-title">AI 推荐（分平台）</h3>
         <StateBlock v-if="!recommendRows.length" state="not-measured" title="这一轮还没有推荐率行"
           next="推荐率是语义判定的产物，一次模型都不调的 SOV 重算产不出它：按上面那一发「判定这一轮」，它只把已有的回答送进模型，不重跑提问" />
-        <table v-else class="geo-report__table">
-          <thead>
-            <tr>
-              <th>平台</th>
-              <th>对象</th>
-              <th>推荐率</th>
-              <th>分子 / 分母</th>
-              <th>判不成</th>
-              <th>分母口径</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in recommendRows" :key="row.id" :data-scope="row.scope">
-              <td>{{ row.modelLabel || PH_DASH }}</td>
-              <td class="geo-report__object">{{ metricObjectText(row) }}</td>
-              <td class="geo-report__value">{{ formatRate(row.value) }}</td>
-              <td>{{ fractionText(row.numerator, row.denominator) }}</td>
-              <td>{{ row.notMeasuredCount ?? 0 }} 条</td>
-              <td class="geo-report__definition">{{ row.definition || PH_DASH }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="geo-report__scroll">
+          <table class="geo-report__table">
+            <thead>
+              <tr>
+                <th>平台</th>
+                <th>对象</th>
+                <th>推荐率</th>
+                <th>分子 / 分母</th>
+                <th>判不成</th>
+                <th>分母口径</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in recommendRows" :key="row.id" :data-scope="row.scope">
+                <td>{{ row.modelLabel || PH_DASH }}</td>
+                <td class="geo-report__object">{{ metricObjectText(row) }}</td>
+                <td class="geo-report__value">{{ formatRate(row.value) }}</td>
+                <td>{{ fractionText(row.numerator, row.denominator) }}</td>
+                <td>{{ row.notMeasuredCount ?? 0 }} 条</td>
+                <td class="geo-report__definition">{{ row.definition || PH_DASH }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p v-if="recommendRows.length" class="geo-report__card-note">{{ MENTION_VS_RECOMMEND_NOTE }}</p>
       </section>
 
@@ -397,26 +401,28 @@ watch(id, () => void load())
         <h3 class="geo-report__card-title">推荐问题覆盖</h3>
         <StateBlock v-if="!coverage" state="not-measured" title="这一轮没有可判的题"
           next="所有题的核心词都短到门槛以下或落在通用词里：先在题池里补核心词，再来跑一轮" />
-        <table v-else class="geo-report__table">
-          <thead>
-            <tr>
-              <th>覆盖率</th>
-              <th>分子 / 分母</th>
-              <th>95% 区间</th>
-              <th>{{ PH_NOT_COVERED }}</th>
-              <th>分母口径</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="geo-report__value">{{ formatRate(coverage.value) }}</td>
-              <td>{{ fractionText(coverage.numerator, coverage.denominator) }}</td>
-              <td>{{ formatInterval(coverage.ciLow, coverage.ciHigh) || PH_DASH }}</td>
-              <td>{{ uncoveredCount ?? PH_DASH }} 道</td>
-              <td class="geo-report__definition">{{ coverage.definition || PH_DASH }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="geo-report__scroll">
+          <table class="geo-report__table">
+            <thead>
+              <tr>
+                <th>覆盖率</th>
+                <th>分子 / 分母</th>
+                <th>95% 区间</th>
+                <th>{{ PH_NOT_COVERED }}</th>
+                <th>分母口径</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="geo-report__value">{{ formatRate(coverage.value) }}</td>
+                <td>{{ fractionText(coverage.numerator, coverage.denominator) }}</td>
+                <td>{{ formatInterval(coverage.ciLow, coverage.ciHigh) || PH_DASH }}</td>
+                <td>{{ uncoveredCount ?? PH_DASH }} 道</td>
+                <td class="geo-report__definition">{{ coverage.definition || PH_DASH }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p class="geo-report__card-note">
           「覆盖」= 站内有内容对得上这道题，与「被 AI 引用」是两条指标；
           差在哪、补哪一页，逐条列在下面那一卡「机会问题」里。
@@ -427,26 +433,28 @@ watch(id, () => void load())
         <h3 class="geo-report__card-title">竞品对比（AI SOV，分平台）</h3>
         <StateBlock v-if="!sovRows.length" state="not-measured" title="这一轮没有 SOV 行"
           next="只有自家一家的「份额」恒等于 100%，那不是一个观测值：去竞品组勾选至少一家可判定的竞品，然后按下面那一发「按当前勾选重算份额」，不用重跑一轮" />
-        <table v-else class="geo-report__table">
-          <thead>
-            <tr>
-              <th>平台</th>
-              <th>对象</th>
-              <th>SOV</th>
-              <th>分子 / 分母</th>
-              <th>分母口径</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in sovRows" :key="row.id" :data-scope="row.scope">
-              <td>{{ row.modelLabel || PH_DASH }}</td>
-              <td class="geo-report__object">{{ metricObjectText(row) }}</td>
-              <td class="geo-report__value">{{ formatRate(row.value) }}</td>
-              <td>{{ fractionText(row.numerator, row.denominator) }}</td>
-              <td class="geo-report__definition">{{ row.definition || PH_DASH }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="geo-report__scroll">
+          <table class="geo-report__table">
+            <thead>
+              <tr>
+                <th>平台</th>
+                <th>对象</th>
+                <th>SOV</th>
+                <th>分子 / 分母</th>
+                <th>分母口径</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in sovRows" :key="row.id" :data-scope="row.scope">
+                <td>{{ row.modelLabel || PH_DASH }}</td>
+                <td class="geo-report__object">{{ metricObjectText(row) }}</td>
+                <td class="geo-report__value">{{ formatRate(row.value) }}</td>
+                <td>{{ fractionText(row.numerator, row.denominator) }}</td>
+                <td class="geo-report__definition">{{ row.definition || PH_DASH }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p v-if="sovRows.length" class="geo-report__card-note">
           同一平台的每一行共用同一个分母：本品牌 + 勾选参与对比的竞品被提及次数之和。
           没勾进来的竞品不在这个分母里，所以这一串数字加起来是 100%，而不是「市场上有多少」。
@@ -695,6 +703,17 @@ watch(id, () => void load())
   &__object {
     font-weight: 500;
     color: #262626;
+  }
+
+  /* 窄屏（375 那一档）不许把六列表压成「每列一个字宽」：量到过，那一屏的字是竖着排的。
+     给它一个读得下去的下限，多出来的宽度由这一层横向滚动来付——卡片标题与卡底那几句解释留在原地，
+     滚动条只在真要滚的那一段出现。 */
+  &__scroll {
+    overflow-x: auto;
+
+    > .geo-report__table {
+      min-width: 560px;
+    }
   }
 
   &__definition {
