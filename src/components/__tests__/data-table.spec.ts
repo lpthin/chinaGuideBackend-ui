@@ -9,7 +9,7 @@ import StateBlock from '../StateBlock.vue'
  */
 const TableStub = {
   name: 'ATable',
-  props: ['dataSource', 'loading', 'rowKey', 'pagination'],
+  props: ['dataSource', 'loading', 'rowKey', 'pagination', 'scroll'],
   template: '<div class="table-stub"><slot /></div>',
 }
 
@@ -69,5 +69,28 @@ describe('DataTable', () => {
     })
     expect(w.findComponent(TableStub).attributes('columns')).toBeTruthy()
     expect(w.findComponent(TableStub).attributes('size')).toBe('middle')
+  })
+
+  // ===== G12（Spec-G P0）：窄屏兜底 =====
+  // 浏览器那一侧的判据更硬，这两例只守组件契约——别让下一次重构又把兜底删了。
+  // 现场账（同一支判据两头各量一遍，存档 scratch/p6g-out/）：
+  //   squeeze-m-old2.json = 改之前 375 档 5 屏里 4 屏 FAIL、合计 29 格被压成「一字一行」（最狠每行 1 字）；
+  //   squeeze-m-new2.json = 改之后 0 格，且渲染出的 10 张表全部有横向滚动层；
+  //   squeeze-pc-new2.json = 1440 档两头都 0 格（判据不是「逢窄屏就红」）。
+  // 上一轮那条「越界才 FAIL」的旧判据对这 4 屏全绿——它量不到压缩，所以判据先于修复提交。
+
+  it('G12：页面没写 scroll 时，组件给 { x: max-content } 兜底', () => {
+    const w = mountTable()
+    expect(w.findComponent(TableStub).props('scroll')).toEqual({ x: 'max-content' })
+  })
+
+  it('G12：页面显式传的 scroll 优先，兜底不许吃掉它', () => {
+    const w = mountTable({ scroll: { x: 1200, y: 400 } })
+    expect(w.findComponent(TableStub).props('scroll')).toEqual({ x: 1200, y: 400 })
+  })
+
+  it('G12：scroll=false 是「这张表明确不要横向滚动」，不许被兜底改成对象', () => {
+    const w = mountTable({ scroll: false })
+    expect(w.findComponent(TableStub).props('scroll')).toBe(false)
   })
 })
