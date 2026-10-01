@@ -397,7 +397,8 @@ export interface MenuVisibility {
  */
 export function leafVisible(leaf: MenuLeaf, view: MenuVisibility): boolean {
   if (leaf.superAdminOnly && !view.isSuperAdmin) return false
-  if (leaf.permission && !view.hasPermission(leaf.permission)) return false
+  // 超管跳过细粒度权限检查（超管默认有所有权限，但 permissions 数组可能没列全）
+  if (!view.isSuperAdmin && leaf.permission && !view.hasPermission(leaf.permission)) return false
   // 栏目没开通就藏这一项：挡的是「点进去一片空白」，权限不由这里判（三个只读端点各有码）
   if (leaf.contentEntry && view.openContentEntries && !view.openContentEntries.has(leaf.contentEntry)) return false
   return true

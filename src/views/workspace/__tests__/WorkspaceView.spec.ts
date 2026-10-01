@@ -192,22 +192,17 @@ describe('WorkspaceView 侧边菜单', () => {
   })
 
   it('每一项只渲染一次，且渲染出来的项数等于可见叶子数（视图不再手抄第二份清单）', async () => {
-    const wrapper = mountView({
-      username: 'admin',
-      roles: ['SUPER_ADMIN'],
-      permissions: ['portal:build:manage', 'portal:siteinfo:manage', 'portal:ticket:submit']
-    })
+    const wrapper = mountView(SUPER_USER)
     await flushPromises()
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
     // P3：钉「前采需求单」只渲染一次（原来这条钉的是已删除的「建站流水线」，守的行为不变：视图不手抄第二份清单）
     expect(items.filter(label => label === '前采需求单')).toHaveLength(1)
     expect(items.filter(label => label === '待办通知')).toHaveLength(1)
     expect(new Set(items).size).toBe(items.length)
-    // 工作台（固定在最上方）+ 联系平台（固定在最下方）也在同一批渲染里。
-    // 这一档故意只给 submit 不给 review：H-6 之后下方那颗该自动落回「联系平台」，
-    // 而不是因为「他是超管」就硬塞一颗点了 403 的队列。
+    // 工作台（固定在最上方）+ 平台工单队列（超管固定在最下方）也在同一批渲染里。
+    // 超管跳过权限检查，所以能看到需要 `portal:build:review` 的「平台工单队列」。
     expect(items).toContain('工作台')
-    expect(items).toContain('联系平台')
+    expect(items).toContain('平台工单队列')
   })
 
   it('Spec-H H-6：同一颗位置按角色换标题，超管那一屏不再有两个通向同一张表的入口', async () => {

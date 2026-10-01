@@ -1041,12 +1041,15 @@ router.beforeEach((to) => {
   }
   // 细粒度权限：与菜单显隐、后端 @RequirePermission 用同一个 permission.code 字符串。
   // 后端仍是唯一的执法者，这里只是不让用户敲地址进了一个满屏 403 的页面。
-  const permissionCodes = to.matched
-    .map(record => record.meta.requiredPermission as string | undefined)
-    .filter((code): code is string => !!code)
-  if (permissionCodes.some(code => !authStore.hasPermission(code))) {
-    message.error('无权限访问该页面')
-    return { name: 'workspace-dashboard' }
+  // 超管跳过细粒度检查（超管默认有所有权限，但 permissions 数组可能没列全）。
+  if (!authStore.isSuperAdmin) {
+    const permissionCodes = to.matched
+      .map(record => record.meta.requiredPermission as string | undefined)
+      .filter((code): code is string => !!code)
+    if (permissionCodes.some(code => !authStore.hasPermission(code))) {
+      message.error('无权限访问该页面')
+      return { name: 'workspace-dashboard' }
+    }
   }
   return true
 })
