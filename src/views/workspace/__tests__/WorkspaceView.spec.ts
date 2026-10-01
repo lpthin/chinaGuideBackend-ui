@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import WorkspaceView from '../WorkspaceView.vue'
 import { useAuthStore } from '../../../stores/auth'
 import { portalSectionsApi } from '../../../api/portalSections'
+import { routes } from '../../../router'
+import { MENU_GROUPS, collectMenuLeaves } from '../../../navigation/workspaceMenu'
 
 /**
  * 侧边菜单（Spec-C §3.1）。
@@ -21,11 +24,20 @@ vi.mock('../../../api/portalSections', () => ({
 const layoutStub = (name: string) => ({ name, template: '<div><slot /></div>' })
 
 const MENU_STUBS = {
-  'a-menu': { name: 'AMenu', template: '<div class="menu-stub"><slot /></div>' },
+  // Spec-H H-1b：视图把「哪几组开着」按段喂给两个 `<a-menu>`，所以 stub 要把 openKeys 收成 prop
+  // 并落到 data-open 上——这样用例能直接读出「租户段开了哪几组」，而不是靠整页文字猜。
+  'a-menu': {
+    name: 'AMenu',
+    props: ['openKeys', 'selectedKeys', 'inlineCollapsed'],
+    template: '<div class="menu-stub" :data-open="(openKeys || []).join(\',\')"><slot /></div>'
+  },
   'a-menu-item': { name: 'AMenuItem', template: '<div class="menu-item-stub"><slot /></div>' },
-  'a-menu-item-group': {
-    name: 'AMenuItemGroup',
-    template: '<div class="menu-group-stub"><div class="menu-group-title"><slot name="title" /></div><slot /></div>'
+  // Spec-H H-1a：组从 `<a-menu-item-group>`（静态标题）换成 `<a-sub-menu>`（可收合）。
+  // stub 同样要渲染 title 槽 + 默认槽，否则组名与组里的项在这份用例里一起消失。
+  'a-sub-menu': {
+    name: 'ASubMenu',
+    props: ['title'],
+    template: '<div class="menu-group-stub ant-submenu-stub"><div class="menu-group-title"><slot name="title" /></div><slot /></div>'
   },
   // Spec-H Q6-a / Q5-a：组头小字与「热词库（搜索联想）」那半句都换成 tooltip。
   // stub 必须把默认槽渲出来（否则界面上的组名与项名在这份用例里直接消失），
@@ -38,6 +50,16 @@ const MENU_STUBS = {
 }
 
 const TENANT_CODES = ['portal:siteinfo:manage', 'media:manage', 'analytics:view', 'portal:ticket:submit', 'case:manage']
+
+/**
+ * 「满权限」那份码表：从路由 meta 现取，不手抄。
+ * 用来把 11 个组全部渲出来数一颗不少的 SubMenu（Spec-H H-1a 的判据是「组数 = 轨道图标数」）。
+ */
+const ALL_CODES = Array.from(
+  new Set(collectMenuLeaves(routes).map(leaf => leaf.permission).filter(Boolean) as string[])
+)
+
+const SUPER_USER = { username: 'admin', roles: ['SUPER_ADMIN'], permissions: ALL_CODES }
 
 function mountView(user: Record<string, any>) {
   const auth = useAuthStore()
@@ -70,6 +92,9 @@ function mountView(user: Record<string, any>) {
 describe('WorkspaceView 侧边菜单', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // 开合与整栏折叠现在会读写 localStorage（H-1b / Q3-a）：不清的话，上一条留下的偏好会决定这一条的默认态
+    localStorage.removeItem('nav_open_groups')
+    localStorage.removeItem('nav_sider_collapsed')
     ;(portalSectionsApi.list as any).mockResolvedValue([
       { key: 'news', contentEntry: 'article', enabled: true },
       { key: 'cases', contentEntry: 'case', enabled: true },
@@ -152,5 +177,59 @@ describe('WorkspaceView 侧边菜单', () => {
     // 工作台（固定在最上方）+ 联系平台（固定在最下方）也在同一批渲染里
     expect(items).toContain('工作台')
     expect(items).toContain('联系平台')
+  })
+
+  it('Spec-H H-1a：组渲成可收合的 SubMenu，颗数 = 组数（超管 11 / 租户 5）', async () => {
+    const wrapper = mountView(SUPER_USER)
+    await flushPromises()
+    const rails = wrapper.findAll('.ant-submenu-stub')
+    expect(rails).toHaveLength(11)
+    // 组标题必须还在，而且顺序 = MENU_GROUPS 的顺序（收起只藏子项，组名一颗不许少）
+    expect(wrapper.findAll('.menu-group-title').map(node => node.text().trim())).toEqual(
+      MENU_GROUPS.map(group => group.label)
+    )
+    // 租户这一侧：真实那份码表（TENANT_CODES）判完权限后只剩租户段的组。
+    // 这里不写死「5」：组数随栏目开通态与授权而变（上一档用例已经在钉「平台项一项都不出现」），
+    // 这一条要钉的是「租户看到的每一组都属于租户段」+「一颗组名都不许是平台段的」。
+    const tenantWrapper = mountView({ username: 'siteadmin', roles: ['SITE_ADMIN'], permissions: TENANT_CODES })
+    await flushPromises()
+    const tenantLabels = MENU_GROUPS.filter(group => group.domain === 'tenant').map(group => group.label)
+    const rendered = tenantWrapper.findAll('.menu-group-title').map(node => node.text().trim())
+    expect(rendered.length).toBeGreaterThan(0)
+    expect(rendered.filter(label => !tenantLabels.includes(label))).toEqual([])
+    expect(tenantWrapper.text()).not.toContain('平台管理')
+  })
+
+  it('Spec-H H-1b：开合按段喂给两个菜单，一段的事件不许把另一段已开的组抹掉', async () => {
+    localStorage.setItem('nav_open_groups', JSON.stringify(['article', 'billing']))
+    const wrapper = mountView(SUPER_USER)
+    await flushPromises()
+    const menus = wrapper.findAllComponents({ name: 'AMenu' })
+    const tenant = menus.find(node => node.attributes('data-domain') === 'tenant')!
+    const platform = menus.find(node => node.attributes('data-domain') === 'platform')!
+    expect(tenant.attributes('data-open')).toBe('article')
+    expect(platform.attributes('data-open')).toBe('billing')
+
+    // antd 的 update:openKeys 只带**那一个菜单**认识的键。直接拿它覆盖全局开合表 = 平台段被清空。
+    tenant.vm.$emit('update:openKeys', ['content'])
+    await nextTick()
+    expect(tenant.attributes('data-open')).toBe('content')
+    expect(platform.attributes('data-open'), '租户段的点击把平台段的开合抹掉了').toBe('billing')
+    // 落盘那份按组表顺序，不按点击顺序（否则用例钉不住、刷新后顺序还会漂）
+    expect(JSON.parse(localStorage.getItem('nav_open_groups') as string)).toEqual(['content', 'billing'])
+  })
+
+  it('Spec-H Q3-a：整栏折叠是偏好，按一下就记住；组开合没存过时才用默认策略', async () => {
+    const wrapper = mountView(SUPER_USER)
+    await flushPromises()
+    // 没存过 → 首屏一组都不开（路由是 '/'，不在任何组里；进了某一组才会开那一组）
+    expect(wrapper.findAllComponents({ name: 'AMenu' })
+      .filter(node => node.attributes('data-domain'))
+      .every(node => node.attributes('data-open') === '')).toBe(true)
+
+    await wrapper.find('.collapse-btn').trigger('click')
+    expect(localStorage.getItem('nav_sider_collapsed')).toBe('1')
+    await wrapper.find('.collapse-btn').trigger('click')
+    expect(localStorage.getItem('nav_sider_collapsed')).toBe('0')
   })
 })

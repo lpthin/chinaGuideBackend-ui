@@ -55,13 +55,22 @@ describe('后台主题单源（styles/theme.ts）', () => {
     expect(block).toMatch(/#e6f7ff/)
   })
 
-  it('折叠菜单里分组标题不占位：55px 的轨道上不能浮着一列没有归属的组名', () => {
-    // 这一条只能在源码上断言：jsdom 没有布局引擎，量不出 height 归零，
-    // 而真浏览器那一档已经量过了（375 ⇒ railW=55、16 个标题 h=0；1440 ⇒ 16 个标题 h=53 仍在）。
-    // 钉的是「这条规则别被顺手删掉」——它针对的是 antd 折叠态只藏菜单项文字、不藏组标题这个行为。
-    const view = sourceOf('src/views/workspace/WorkspaceView.vue')
-    expect(view).toMatch(/\.ant-menu-inline-collapsed\s+\.ant-menu-item-group-title/)
-    const rule = view.slice(view.indexOf('.ant-menu-inline-collapsed .ant-menu-item-group-title'))
-    expect(rule.slice(0, 200)).toMatch(/height:\s*0/)
+  it('折叠轨靠 SubMenu 自己收，不再给分组标题打 height:0 的补丁', () => {
+    // Spec-H H-1d：这条以前钉的是「那条 CSS 补丁还在」（病灶 = antd 折叠态只藏菜单项文字、不藏组标题，
+    // 于是 55px 轨道上浮着一列没有归属的组名，375 档实测 16 个标题 h=0 才勉强能看）。
+    // 组换成 `<a-sub-menu>` 之后那个 DOM 节点整体不存在了，补丁连同病灶一起删；
+    // 这条改成钉「别退回 ItemGroup、别把 openKeys 的受控写掉」——退回去就等于把折叠轨重新弄坏。
+    //
+    // 只能在源码上断言：jsdom 没有布局引擎。真浏览器那侧的判据是折叠态滚动 = 0 屏、轨道 11 颗图标。
+    const raw = sourceOf('src/views/workspace/WorkspaceView.vue')
+    // 先把注释摘掉：这一段里到处写着「原来那条 height:0 补丁」「原来用 a-menu-item-group」，
+    // 留着注释判等于自己打自己——要钉的是生效的那几行，不是解释它的说明。
+    const view = raw.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(view).not.toMatch(/ant-menu-item-group-title/)
+    expect(view).not.toMatch(/a-menu-item-group/)
+    expect(view).toMatch(/<a-sub-menu/)
+    // 受控开合：没有 :open-keys 的话，localStorage 里那份偏好就只是写进去好看，刷新照样回到默认
+    expect(view).toMatch(/:open-keys=/)
+    expect(view).toMatch(/@update:open-keys=/)
   })
 })

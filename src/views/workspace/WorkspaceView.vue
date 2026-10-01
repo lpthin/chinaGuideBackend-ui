@@ -89,16 +89,27 @@
 
             <a-menu
               mode="inline"
+              :data-domain="section.domain"
               :selected-keys="selectedKeys"
+              :open-keys="openKeysFor(section.domain)"
               :inline-collapsed="siderCollapsed"
               class="sidebar-menu"
+              @update:open-keys="(keys: (string | number)[]) => onOpenKeysChange(section.domain, keys)"
               @click="handleMenuClick"
             >
-              <a-menu-item-group v-for="group in section.groups" :key="group.def.key">
+              <!--
+                Spec-H H-1a：组从 `<a-menu-item-group>`（静态标题，收不了）换成 `<a-sub-menu>`。
+                换完这三件事一起成立：标题带箭头可点收（H-1a）、折叠轨收成 11 颗分类图标 + hover 弹层
+                （H-1d，那条给组标题打的 height:0 补丁随之删掉）、开合能被记住（H-1b，见 navState.ts）。
+                组图标取 `MENU_GROUPS[].icon`，与项图标同一个注册表，视图里不写死第二份。
+              -->
+              <a-sub-menu v-for="group in section.groups" :key="group.def.key">
+                <template #icon><component :is="menuIcon(group.def.icon)" /></template>
                 <template #title>
-                  <a-tooltip :title="group.def.hint" placement="right">
+                  <a-tooltip v-if="!siderCollapsed" :title="group.def.hint" placement="right">
                     <span class="menu-group__label">{{ group.def.label }}</span>
                   </a-tooltip>
+                  <span v-else class="menu-group__label">{{ group.def.label }}</span>
                 </template>
                 <a-menu-item v-for="leaf in group.items" :key="leaf.key">
                   <template #icon><component :is="leaf.icon" /></template>
@@ -107,7 +118,7 @@
                   </a-tooltip>
                   <span v-else>{{ leaf.label }}</span>
                 </a-menu-item>
-              </a-menu-item-group>
+              </a-sub-menu>
             </a-menu>
           </section>
 
@@ -196,8 +207,20 @@ import {
   findLeaf,
   leafVisible,
   menuCrumb,
-  selectedMenuKey
+  menuIcon,
+  selectedMenuKey,
+  type MenuDomain
 } from '../../navigation/workspaceMenu'
+import {
+  applyOpenKeysChange,
+  initialOpenGroups,
+  openKeysForDomain,
+  readStoredOpenGroups,
+  readStoredSiderCollapsed,
+  withGroupOpen,
+  writeStoredOpenGroups,
+  writeStoredSiderCollapsed
+} from '../../navigation/navState'
 import { portalSectionsApi } from '../../api/portalSections'
 import { message } from 'ant-design-vue'
 import { describeHttpError } from '../../api/http'
@@ -256,7 +279,39 @@ const selectedKeys = computed(() => (currentMenuKey.value ? [currentMenuKey.valu
 /** 面包屑两级来自组与项本身：那张 60 行的 currentParentMenu 手抄表删掉了 */
 const crumb = computed(() => menuCrumb(currentMenuKey.value, menuLeaves.value))
 
-const collapsed = ref(false)
+/**
+ * 组的开合表（Spec-H H-1b/H-1c）。规则只有一条：**用户的手比默认值大**。
+ * - 第一次进来（localStorage 没记过）→ 只展开当前路由所在那一组，其余收起；
+ * - 记过 → 原样还给他，连「当前这一组也被他收过」都不例外（判据：收起三组刷新仍是收起态）；
+ * - 换到一个收起的组里的页面 → 那一组自动开，不然会出现「菜单选中了但那一行看不见」。
+ * 合并、顺序、旧键清洗这些都在 `navigation/navState.ts`，用例直接钉那几支纯函数。
+ */
+const currentGroupKey = computed(() => {
+  const leaf = menuLeaves.value.find(item => item.key === currentMenuKey.value)
+  return leaf?.group ?? ''
+})
+
+const openGroups = ref<string[]>(initialOpenGroups(readStoredOpenGroups(), currentGroupKey.value))
+
+watch(openGroups, keys => writeStoredOpenGroups(keys))
+watch(currentGroupKey, key => {
+  if (key) openGroups.value = withGroupOpen(openGroups.value, key)
+})
+
+/** 两段各一个 `<a-menu>`，antd 每次只吐自己那段的键 ⇒ 这里按段取、按段并回去 */
+function openKeysFor(domain: MenuDomain) {
+  return openKeysForDomain(openGroups.value, domain)
+}
+
+function onOpenKeysChange(domain: MenuDomain, keys: Array<string | number>) {
+  openGroups.value = applyOpenKeysChange(openGroups.value, domain, keys.map(String))
+}
+
+/**
+ * 整栏折叠（Q3-a）：这一位是「人按了那下折叠键」的偏好，所以进 localStorage。
+ * 窄屏那位（`narrow`）不进——那是窗口宽度决定的，记下来等于替用户做了他没做过的选择。
+ */
+const collapsed = ref(readStoredSiderCollapsed())
 const pageKey = ref(0)
 const refreshing = ref(false)
 const importCallback = ref<(() => void) | null>(null)
@@ -296,6 +351,7 @@ const showImportBtn = computed(() => currentMenuKey.value === 'keywords')
 
 const toggleCollapse = () => {
   collapsed.value = !collapsed.value
+  writeStoredSiderCollapsed(collapsed.value)
 }
 
 const handleMenuClick = ({ key }: { key: string }) => {
@@ -526,6 +582,10 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 /*
  * 组标题（Spec-H Q6-a）：一行、不带第二行小字。
  * 小字以前摊在这里（11 条 180 字 = 组头 803px 里的一大半），现在只作为 tooltip 存在。
+ *
+ * H-1a 之后组是 `SubMenu`：这一行落在 `.ant-menu-submenu-title` 里，比菜单项重一点，
+ * 让「一组」与「一项」在视觉上还分得开（以前靠字号小、颜色浅的 ItemGroup 标题区分，
+ * 换成可收合的行之后只能靠字重，不然 11 个组名跟 73 个项名混成一片）。
  */
 .menu-group__label {
   display: block;
@@ -534,17 +594,17 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   text-overflow: ellipsis;
 }
 
-/*
- * 折叠那一档（窄屏 56px / 手动折叠 80px）里，antd 只藏「菜单项」的文字，分组标题它不藏。
- * 于是 375 那一档实测：轨道里浮着一列没有归属的组名（内容生产 / 文章管理 / 知识库 / 客户案例 /
- * 网站内容……），跟下面那排图标对不齐，看着像菜单坏了。折叠时分组标题不占位——
- * 域与域之间已经有 .menu-domain__rule 那条线在分组，不靠组名说话。
- */
-:deep(.ant-menu-inline-collapsed .ant-menu-item-group-title) {
-  height: 0;
-  padding: 0;
-  overflow: hidden;
+:deep(.ant-menu-submenu-title .menu-group__label) {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.75);
 }
+
+/*
+ * H-1d：折叠轨不再需要给分组标题打 `height:0` 的补丁。
+ * 那条补丁针对的病灶（antd 折叠时只藏菜单项文字、不藏组标题，于是 55px 的轨道上浮着一列
+ * 没有归属的组名）随 `<a-menu-item-group>` 一起消失了——`SubMenu` 在折叠态原生收成
+ * 一颗图标 + hover 弹层，弹层里才是组名与子项。
+ */
 
 .workspace-content {
   flex: 1;
