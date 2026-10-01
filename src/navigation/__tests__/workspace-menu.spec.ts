@@ -312,7 +312,8 @@ describe('选中态与面包屑', () => {
   it('G1：SEO/GEO 这一族每一项都带读码——「看得见、点进去 403」不再可能发生', () => {
     const geoFamily = grouped.filter(leaf =>
       /^(workspace-geoseo-|workspace-geo-)/.test(leaf.routeName) || leaf.routeName === 'workspace-portal-citations')
-    expect(geoFamily.length).toBeGreaterThanOrEqual(6)
+    // H-4 把品牌档案/诊断向导/诊断工作台三颗收成一颗「诊断工作台」，所以从 ≥6 降到 ≥4
+    expect(geoFamily.length).toBeGreaterThanOrEqual(4)
     geoFamily.forEach(leaf => {
       // 这一族一项都不靠「没写权限要求 = 人人可见」兜底：
       // 之前 geoseo/dashboard 正是因为 meta 里没有 requiredPermission，被 collectMenuLeaves
@@ -330,9 +331,10 @@ describe('选中态与面包屑', () => {
     const dashboard = grouped.find(leaf => leaf.routeName === 'workspace-geoseo-dashboard')
     expect(dashboard && leafVisible(dashboard, siteAdmin), '总览仪表盘仍挂在租户菜单里').toBe(false)
     // 反向对照：同一份视图下真授了码的项照常可见，别把这条修成「整族都藏」
-    const campaign = grouped.find(leaf => leaf.routeName === 'workspace-geo-campaign')!
+    // H-4 后诊断工作台是 workspace-geo-diagnostic（读码 geo:brand:view）
+    const diagnostic = grouped.find(leaf => leaf.routeName === 'workspace-geo-diagnostic')!
     const crawlability = grouped.find(leaf => leaf.routeName === 'workspace-geoseo-crawlability')!
-    expect(leafVisible(campaign, siteAdmin)).toBe(true)
+    expect(leafVisible(diagnostic, siteAdmin)).toBe(true)
     expect(leafVisible(crawlability, siteAdmin)).toBe(true)
     // 超管进得去这一页（菜单是藏入口，不是把页拆了）
     expect(dashboard && leafVisible(dashboard, SUPER)).toBe(true)
@@ -360,12 +362,12 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     expect(domains.slice(5).every(d => d === 'platform')).toBe(true)
   })
 
-  it('项数账：73 项 −H-6(1) −H-5(2) = 70（租户 39 + 平台 31）', () => {
+  it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) = 68（租户 37 + 平台 31）', () => {
     // 16 组时是 39 + 34 = 73 项（再加固定两项 = 75）。P0 归组一个页面都没动；
     // P3 往下每摘一颗都要在这里减一个数，并且 `MENU_EXCLUDED` 里要多一行理由——
     // 以后谁借着「合并栏目」把页面从菜单里摘掉却不留地址、不留理由，这条会直接问他要。
-    expect(grouped).toHaveLength(70)
-    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(39)
+    expect(grouped).toHaveLength(68)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(37)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(31)
   })
 
@@ -402,8 +404,9 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
       expect(group.hint, `组「${group.label}」没有说明：折叠后用户只能猜这一组是干什么的`).toBeTruthy()
     })
     // 名字被砍短的那些项，砍掉的信息必须还在（否则界面就开始说谎：看得见的名词认不出是哪个页面）
+    // H-4 把品牌档案/诊断向导/诊断工作台三颗收成一颗「诊断工作台」，所以只保留 workspace-geo-diagnostic
     const renamed = ['workspace-keywords', 'workspace-portal-banners', 'workspace-portal-site-info',
-      'workspace-system-prompt', 'workspace-geo-brand', 'workspace-geo-brand-wizard', 'workspace-geo-campaign',
+      'workspace-system-prompt', 'workspace-geo-diagnostic',
       'workspace-knowledge-dashboard', 'workspace-case-list', 'workspace-operation-cases']
     renamed.forEach(routeName => {
       const leaf = grouped.find(item => item.routeName === routeName)
@@ -529,5 +532,59 @@ describe('Spec-H P3 / H-5：报警三件收成一颗「报警中心」', () => {
     expect(labels).not.toContain('报警规则')
     expect(labels).not.toContain('报警记录')
     expect(labels).not.toContain('通知渠道')
+  })
+})
+
+/**
+ * Spec-H P3 / H-4：GEO 诊断工作台三收一。
+ *
+ * `geo/brand`、`geo/diagnosis`、`geo/campaign` 三个路由以前各自占一颗菜单项，
+ * 但它们是同一主题（GEO 品牌诊断的档案 / 向导 / 计划与轮次）的不同面。现在：
+ * - 容器 `geo/diagnostic` 挂一颗「诊断工作台」，页内三 tab；
+ * - 三个老地址变成无名 redirect，带 `?tab=…` 落到对应 tab（收藏夹与文档链接不断）；
+ * - 效果与经营 11 → 9（−2）。
+ *
+ * 判据：
+ * - 老三个路由名不在分组里（它们是无名 redirect，collectMenuLeaves 跳过）；
+ * - 新的 `workspace-geo-diagnostic` 在「效果与经营」组里，requiresPermission: geo:brand:view；
+ * - 老三个地址在路由表里还在（redirect 也是路由定义），但没名字 ⇒ 不进菜单。
+ */
+describe('Spec-H P3 / H-4：GEO 诊断工作台三收一', () => {
+  it('老三个路由名不在分组里，新的「诊断工作台」在「效果与经营」组', () => {
+    const diagnostic = grouped.find(leaf => leaf.routeName === 'workspace-geo-diagnostic')
+    expect(diagnostic, '诊断工作台没进菜单').toBeTruthy()
+    expect(diagnostic!.label).toBe('诊断工作台')
+    expect(diagnostic!.group).toBe('site-effect')
+    expect(diagnostic!.permission).toBe('geo:brand:view')
+    expect(diagnostic!.tip, '「诊断工作台」是被改短的名字，说明该进 tooltip').toBeTruthy()
+    // 老三个路由名不在 grouped 里（它们是无名 redirect，collectMenuLeaves 跳过）
+    const oldNames = ['workspace-geo-brand', 'workspace-geo-brand-wizard', 'workspace-geo-campaign']
+    oldNames.forEach(name => {
+      expect(grouped.find(leaf => leaf.routeName === name), `${name} 还在菜单里`).toBeUndefined()
+    })
+  })
+
+  it('老三个地址在路由表里还在（redirect），收藏夹与文档链接不断', () => {
+    const workspace = routes.find(route => route.name === 'workspace')
+    const childPaths = (workspace?.children ?? []).map(child => child.path)
+    expect(childPaths).toContain('geo/brand')
+    expect(childPaths).toContain('geo/diagnosis')
+    expect(childPaths).toContain('geo/campaign')
+    expect(childPaths).toContain('geo/diagnostic')
+    // 老三个没名字（无名 redirect）
+    const childNames = (workspace?.children ?? []).map(child => child.name)
+    expect(childNames).not.toContain('workspace-geo-brand')
+    expect(childNames).not.toContain('workspace-geo-brand-wizard')
+    expect(childNames).not.toContain('workspace-geo-campaign')
+    expect(childNames).toContain('workspace-geo-diagnostic')
+  })
+
+  it('效果与经营组从 11 降到 9（−2）', () => {
+    const siteEffectItems = grouped.filter(leaf => leaf.group === 'site-effect')
+    expect(siteEffectItems).toHaveLength(9)
+    const labels = siteEffectItems.map(leaf => leaf.label)
+    expect(labels).toContain('诊断工作台')
+    expect(labels).not.toContain('品牌档案')
+    expect(labels).not.toContain('诊断向导')
   })
 })

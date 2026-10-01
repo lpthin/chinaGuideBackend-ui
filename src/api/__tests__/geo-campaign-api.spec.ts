@@ -233,6 +233,7 @@ describe('I-1：P2 前端不抄第二份词表', () => {
       'CampaignRunPanel.vue',
       'GeoCampaignReportView.vue',
       'GeoCampaignWorkbenchView.vue',
+      'GeoDiagnosticWorkbenchView.vue',
       'GeoJudgmentDrawer.vue',
       'GeoOpportunityDrawer.vue',
       'GeoOpportunityPanel.vue',

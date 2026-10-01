@@ -101,6 +101,7 @@ const GeoCrawlabilityView = () => import('../views/geoseo/GeoCrawlabilityView.vu
 const GeoBrandProfileView = () => import('../views/geobrand/GeoBrandProfileView.vue')
 const GeoBrandDiagnosisWizardView = () => import('../views/geobrand/GeoBrandDiagnosisWizardView.vue')
 const GeoCampaignWorkbenchView = () => import('../views/geocampaign/GeoCampaignWorkbenchView.vue')
+const GeoDiagnosticWorkbenchView = () => import('../views/geocampaign/GeoDiagnosticWorkbenchView.vue')
 const GeoCampaignReportView = () => import('../views/geocampaign/GeoCampaignReportView.vue')
 // 🔓 诊断报告的只读外链（Spec-G G6）：令牌就在地址里，形状跟 /brief/:token 同一条路 ——
 // 顶层路由 + requiresAuth:false，刻意不挂进 /workspace 的 children（侧边菜单由那组 children 单源生成）。
@@ -808,30 +809,23 @@ export const routes: RouteRecordRaw[] = [
         component: GeoCrawlabilityView,
         meta: { title: '可抓取性体检', icon: 'safety', requiredPermission: 'seo:audit:view' }
       },
+      // ===== 🧭 GEO 诊断工作台（Spec-H P3 / H-4）=====
+      // 把「品牌档案 / 诊断向导 / 诊断工作台」三颗收成一颗，页内三 tab。
+      // 容器挂 `geo/diagnostic`，三个老地址变成无名 redirect，带 `?tab=…` 落到对应 tab。
       {
-        path: 'geo/brand',
-        name: 'workspace-geo-brand',
-        component: GeoBrandProfileView,
-        // 后端闸是 geo:brand:view（读）/ geo:brand:manage（写）；这里挂读码，
-        // 没码的人菜单里看不见，敲地址进来由守卫拦——与「看得见必然不 403」同一条纪律。
-        // Spec-H §4.2 规则 2：组名已经不是 GEO，标签也不再带「GEO」这个前缀占字数；
-        // GEO 这件事由 desc 与页内说明卡说清楚（P3 的 H-4 会把这三颗收成一颗「诊断工作台」）。
-        meta: { title: '品牌档案', desc: 'GEO 品牌档案：品牌词、官网与竞品组', icon: 'card', requiredPermission: 'geo:brand:view' }
+        path: 'geo/diagnostic',
+        name: 'workspace-geo-diagnostic',
+        component: GeoDiagnosticWorkbenchView,
+        meta: {
+          title: '诊断工作台',
+          desc: 'GEO 品牌诊断：档案 / 向导 / 计划与轮次，同一件事的三面',
+          icon: 'chart',
+          requiredPermission: 'geo:brand:view'
+        }
       },
-      {
-        path: 'geo/diagnosis',
-        name: 'workspace-geo-brand-wizard',
-        component: GeoBrandDiagnosisWizardView,
-        meta: { title: '诊断向导', desc: 'GEO 品牌诊断三步：档案 → 问题池 → 预估确认', icon: 'aim', requiredPermission: 'geo:brand:view' }
-      },
-      // GEO 诊断工作台（§10-1）与报告（§10-4）：闸的码与后端 GeoCampaignController 一一对应，
-      // 「看价」是读口 geo:campaign:view，起跑另挂 geo:campaign:run（在这一页的按钮上，不在路由上）。
-      {
-        path: 'geo/campaign',
-        name: 'workspace-geo-campaign',
-        component: GeoCampaignWorkbenchView,
-        meta: { title: '诊断工作台', desc: 'GEO 诊断的计划、预估与轮次（报告从轮次行进）', icon: 'chart', requiredPermission: 'geo:campaign:view' }
-      },
+      { path: 'geo/brand', redirect: { path: 'geo/diagnostic', query: { tab: 'brand' } } },
+      { path: 'geo/diagnosis', redirect: { path: 'geo/diagnostic', query: { tab: 'wizard' } } },
+      { path: 'geo/campaign', redirect: { path: 'geo/diagnostic', query: { tab: 'campaign' } } },
       {
         path: 'geo/campaign/run/:runId/report',
         name: 'workspace-geo-campaign-report',

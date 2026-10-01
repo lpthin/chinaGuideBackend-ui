@@ -156,12 +156,8 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // 可抓取性体检（Spec-F §8）：读码 seo:audit:view 已授 SITE_ADMIN（V153），租户进得来这一页，
   // 所以它跟总览同组。「跑一次」那一码在按钮上不在路由上，组归属不因它挪进平台段。
   'workspace-geoseo-crawlability': 'site-effect',
-  // GEO 品牌诊断（Spec-F §9.4 归组 + §11.2 P1）：档案与向导都进效果那一组，
-  // 向导是第①步入口的下一页，不是建站动作，不进平台段。
-  'workspace-geo-brand': 'site-effect',
-  'workspace-geo-brand-wizard': 'site-effect',
-  // 诊断工作台（§10-1）：计划/预估/轮次这一圈的家，报告页是 hidden 的下一页。
-  'workspace-geo-campaign': 'site-effect',
+  // GEO 诊断工作台（Spec-H P3 / H-4）：品牌档案/诊断向导/诊断工作台三颗收成一颗，页内三 tab
+  'workspace-geo-diagnostic': 'site-effect',
   'workspace-operation-dashboard': 'site-effect',
   'workspace-operation-cases': 'site-effect',
   'workspace-operation-reports': 'site-effect',
