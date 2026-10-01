@@ -26,6 +26,14 @@ const MENU_STUBS = {
   'a-menu-item-group': {
     name: 'AMenuItemGroup',
     template: '<div class="menu-group-stub"><div class="menu-group-title"><slot name="title" /></div><slot /></div>'
+  },
+  // Spec-H Q6-a / Q5-a：组头小字与「热词库（搜索联想）」那半句都换成 tooltip。
+  // stub 必须把默认槽渲出来（否则界面上的组名与项名在这份用例里直接消失），
+  // 并把 title 落到 data-tip 上，好让用例能判「说明确实还在，只是换了地方」。
+  'a-tooltip': {
+    name: 'ATooltip',
+    props: ['title', 'placement'],
+    template: '<span class="tooltip-stub" :data-tip="title"><slot /></span>'
   }
 }
 
@@ -49,7 +57,6 @@ function mountView(user: Record<string, any>) {
         'a-button': true,
         'a-dropdown': true,
         'a-divider': true,
-        'a-tooltip': true,
         'a-avatar': true,
         'a-space': true,
         'router-view': true,
@@ -79,8 +86,12 @@ describe('WorkspaceView 侧边菜单', () => {
     })
     await flushPromises()
     const text = wrapper.text()
-    expect(text).toContain('内容与维护')
-    expect(text).toContain('平台 · 建站与治理')
+    expect(text).toContain('租户日常')
+    expect(text).toContain('平台管理')
+    // Spec-H Q7-a：两行域标题收成一行，说明句进 tooltip（这里判的是「说明没丢，只是不在标签里」）
+    expect(text).not.toContain('日常：填内容、看效果')
+    expect(wrapper.find('[data-tip="日常：填内容、看效果"]').exists()).toBe(true)
+    expect(wrapper.find('[data-tip="超管动作：建站、开栏目、改样式、跑探测"]').exists()).toBe(true)
     // Spec-C P3：「建站流水线」整页删除（主线收进需求单详情），菜单里它必须随之绝迹——
     // 留着就是一条点了 404 的假入口
     expect(text).not.toContain('建站流水线')
@@ -96,14 +107,14 @@ describe('WorkspaceView 侧边菜单', () => {
     await flushPromises()
     const text = wrapper.text()
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
-    expect(text).not.toContain('平台 · 建站与治理')
+    expect(text).not.toContain('平台管理')
     expect(items).not.toContain('前采需求单')
     expect(items).not.toContain('栏目开通')
     expect(items).not.toContain('页面搭建')
     expect(items).not.toContain('站点管理')
     expect(items).not.toContain('大模型配置')
-    // 该看的还在：内容生产、企业信息、以及固定在菜单最下方的「联系平台」
-    expect(text).toContain('内容生产')
+    // 该看的还在：AI 写稿那组、企业信息、以及固定在菜单最下方的「联系平台」
+    expect(text).toContain('AI 写稿')
     expect(items).toContain('企业信息')
     expect(items).toContain('联系平台')
   })
@@ -114,12 +125,16 @@ describe('WorkspaceView 侧边菜单', () => {
     ])
     const wrapper = mountView({ username: 'siteadmin', roles: ['SITE_ADMIN'], permissions: TENANT_CODES })
     await flushPromises()
-    // 只判菜单项本身：组标题那行小字里也写着「企业信息」，用整页 text() 判会自欺欺人
+    // 只判菜单项本身：组标题的 tooltip 里也写着「企业信息」，用整页 text() 判会自欺欺人
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
     expect(items).not.toContain('招聘管理')
     expect(items).not.toContain('企业信息')
-    expect(items).toContain('文章管理')
-    expect(items).toContain('Banner管理')
+    expect(items).toContain('文章列表')
+    expect(items).toContain('横幅')
+    // Q5-a：括号那半句现在只在 tooltip 上，项名就是干净的三个字
+    expect(items).not.toContain('热词库（搜索联想）')
+    expect(items).toContain('热词库')
+    expect(wrapper.find('[data-tip*="搜索联想"]').exists()).toBe(true)
   })
 
   it('每一项只渲染一次，且渲染出来的项数等于可见叶子数（视图不再手抄第二份清单）', async () => {

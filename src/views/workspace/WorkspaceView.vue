@@ -81,10 +81,10 @@
           </a-menu>
 
           <section v-for="section in menuSections" :key="section.domain" class="menu-domain">
-            <div v-if="!siderCollapsed" class="menu-domain__label">
-              {{ section.label }}
-              <span class="menu-domain__hint">{{ section.hint }}</span>
-            </div>
+            <!-- Spec-H Q7-a：段标题一行说完，第二行说明进 tooltip（Q6-a 同一条纪律：说明不许消失，只许换地方） -->
+            <a-tooltip v-if="!siderCollapsed" :title="section.hint" placement="right">
+              <div class="menu-domain__label">{{ section.label }}</div>
+            </a-tooltip>
             <div v-else class="menu-domain__rule" aria-hidden="true"></div>
 
             <a-menu
@@ -96,12 +96,16 @@
             >
               <a-menu-item-group v-for="group in section.groups" :key="group.def.key">
                 <template #title>
-                  <span class="menu-group__label">{{ group.def.label }}</span>
-                  <span v-if="group.def.hint && !siderCollapsed" class="menu-group__hint">{{ group.def.hint }}</span>
+                  <a-tooltip :title="group.def.hint" placement="right">
+                    <span class="menu-group__label">{{ group.def.label }}</span>
+                  </a-tooltip>
                 </template>
                 <a-menu-item v-for="leaf in group.items" :key="leaf.key">
                   <template #icon><component :is="leaf.icon" /></template>
-                  {{ leaf.label }}
+                  <a-tooltip v-if="leaf.tip" :title="leaf.tip" placement="right">
+                    <span class="menu-leaf__label">{{ leaf.label }}</span>
+                  </a-tooltip>
+                  <span v-else>{{ leaf.label }}</span>
                 </a-menu-item>
               </a-menu-item-group>
             </a-menu>
@@ -503,7 +507,8 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 
 /*
  * 两段标题把「租户日常」与「平台建站动作」分家（Spec「建站重构」R-1 的第一半：先分开）。
- * 折叠成窄栏时只留一条分隔线，两行中文收掉——窄栏里塞说明会把菜单挤成一团。
+ * Spec-H Q7-a：段标题只有一行（「日常：填内容…」那句挪进 tooltip，见模板上的 a-tooltip）；
+ * 折叠成窄栏时连这一行也收掉，只留一条分隔线——窄栏里塞说明会把菜单挤成一团。
  */
 .menu-domain__label {
   padding: 10px 16px 2px;
@@ -513,28 +518,20 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   line-height: 18px;
 }
 
-.menu-domain__hint {
-  display: block;
-  font-weight: 400;
-  color: rgba(0, 0, 0, 0.35);
-}
-
 .menu-domain__rule {
   margin: 10px 12px 4px;
   border-top: 1px solid #f0f0f0;
 }
 
+/*
+ * 组标题（Spec-H Q6-a）：一行、不带第二行小字。
+ * 小字以前摊在这里（11 条 180 字 = 组头 803px 里的一大半），现在只作为 tooltip 存在。
+ */
 .menu-group__label {
   display: block;
-}
-
-.menu-group__hint {
-  display: block;
-  font-weight: 400;
-  font-size: 11px;
-  color: rgba(0, 0, 0, 0.35);
-  white-space: normal;
-  line-height: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /*

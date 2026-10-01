@@ -100,17 +100,19 @@ describe('菜单从路由单源生成', () => {
     expect(labels).not.toContain('建站工作台')
   })
 
-  it('P5 合并：旧的两处 SEO/GEO 页面路由绝迹，「网站信息」取代它们且成租户可见入口', () => {
-    // §7 那张表：GeoSeoConfigView + GeoSeoCompanyView 并入「网站信息」，企业信息只剩 portal/company 一处。
+  it('P5 合并：旧的两处 SEO/GEO 页面路由绝迹，「站点设置」取代它们且成租户可见入口', () => {
+    // §7 那张表：GeoSeoConfigView + GeoSeoCompanyView 并入这一页，企业信息只剩 portal/company 一处。
     // 断言的是「同一件事不再有两个入口」这条行为，不是旧的菜单字符串（拍板 13：改断言不删断言）。
     const workspace = routes.find(route => route.name === 'workspace')
     const childNames = (workspace?.children ?? []).map(child => child.name)
     expect(childNames).not.toContain('workspace-geoseo-config')
     expect(childNames).not.toContain('workspace-geoseo-company')
-    // 替代它的那一页在，且落在「网站信息」组、租户读得到（portal:siteinfo:manage 在租户码名单里）
+    // 替代它的那一页在，且落在「网站内容」组（Spec-H §4.3：原 site-info 组并进 site-content），
+    // 租户读得到（portal:siteinfo:manage 在租户码名单里）
     const siteInfo = grouped.find(leaf => leaf.routeName === 'workspace-portal-site-info')
-    expect(siteInfo, '「网站信息」没进菜单，做完的页面没人进得去').toBeTruthy()
-    expect(siteInfo?.group).toBe('site-info')
+    expect(siteInfo, '「站点设置」没进菜单，做完的页面没人进得去').toBeTruthy()
+    expect(siteInfo?.label).toBe('站点设置')
+    expect(siteInfo?.group).toBe('site-content')
     expect(siteInfo?.permission).toBe('portal:siteinfo:manage')
     expect(leafVisible(siteInfo!, TENANT)).toBe(true)
     // 「企业信息」这一个词在菜单里只指 portal/company 一处，geoseo 那份重名异物已经没了
@@ -152,10 +154,12 @@ describe('平台段与租户段分家', () => {
     })
   })
 
-  it('前采需求单是平台项：进「建站交付」组，与邻页同一条闸，租户既看不见也进不去', () => {
+  it('前采需求单是平台项：进「建站」组，与邻页同一条闸，租户既看不见也进不去', () => {
     const briefs = grouped.find(leaf => leaf.routeName === 'workspace-portal-briefs')
     expect(briefs?.label).toBe('前采需求单')
-    expect(briefs?.group).toBe('build-delivery')
+    // Spec-H §4.3：原「建站交付」2 项 + 原「参考与样式」3 项 + 骨架库 = 「建站」6 项，
+    // 那个只有两项的组（C-1 第二例）不再存在
+    expect(briefs?.group).toBe('build')
     expect(briefs?.superAdminOnly).toBe(true)
     expect(briefs?.permission).toBe('portal:build:manage')
     // 新建/录入页藏在列表后面：不进菜单（group 为空串），但闸与列表同一条——敲地址也不给过
@@ -169,7 +173,7 @@ describe('平台段与租户段分家', () => {
     expect(leafVisible(briefs!, TENANT)).toBe(false)
   })
 
-  it('P3 降级与删除：整站组装挪进「质量与效果（平台）」组，建站流水线整页从路由绝迹', () => {
+  it('P3 降级与删除：整站组装留在「平台质量」组，建站流水线整页从路由绝迹', () => {
     // §7 那行「不再是一级菜单入口（建站段）」+ N-2「能力留着给已上线站改版」：组要挪、码不许动
     const assemble = grouped.find(leaf => leaf.routeName === 'workspace-portal-assemble-jobs')
     expect(assemble?.group).toBe('build-quality')
@@ -190,7 +194,7 @@ describe('平台段与租户段分家', () => {
   it('租户视角仍看得见自己该做的事：内容、企业信息与联系平台', () => {
     const visible = buildMenuSections(leaves, TENANT)
       .flatMap(section => section.groups.flatMap(group => group.items.map(item => item.label)))
-    expect(visible).toContain('文章管理')
+    expect(visible).toContain('文章列表')
     expect(visible).toContain('企业信息')
     expect(visible).toContain('内容工作台')
     // 「联系平台」不在分组里，它是视图按 MENU_BOTTOM_ROUTE 固定在菜单最下方那一项（所以单独判）
@@ -236,7 +240,7 @@ describe('栏目开通态只影响显隐，不影响权限', () => {
       .flatMap(section => section.groups.flatMap(group => group.items.map(item => item.label)))
     expect(labels).not.toContain('招聘管理')
     expect(labels).not.toContain('企业信息')
-    expect(labels).toContain('Banner管理')
+    expect(labels).toContain('横幅')
   })
 })
 
@@ -257,13 +261,20 @@ describe('选中态与面包屑', () => {
     // 正好证明父级是从组表现算的，不是哪里手抄的第二份（原来这条用的是已删除的建站流水线）
     const crumb = menuCrumb('portal/assemble-jobs', leaves)
     expect(crumb.current).toBe('整站组装')
-    expect(crumb.parent).toBe('质量与效果（平台）')
-    expect(menuCrumb('categories', leaves)).toEqual({ parent: '文章管理', current: '文章分类' })
+    expect(crumb.parent).toBe('平台质量')
+    expect(menuCrumb('categories', leaves)).toEqual({ parent: '文章与案例', current: '文章分类' })
   })
 
-  it('组名与项名撞车时只留一级：面包屑不许连着两格写同一句话', () => {
-    // 「文章管理」既是组名也是那一页的标题，两级照抄就成了「文章管理 / 文章管理」
-    expect(menuCrumb('articles', leaves)).toEqual({ parent: undefined, current: '文章管理' })
+  it('Spec-H C-2：两级面包屑永远是两句不同的话（撞名的补丁已经删掉，靠归组表保证）', () => {
+    // 以前这里有一条「组名 == 项名时把父级藏掉」的补丁，专门给「文章管理组里有一项也叫文章管理」
+    // 「网站信息组里有一项也叫网站信息」擦屁股。Spec-H §4.2 规则 2 把这两个撞名都修掉了，
+    // 补丁跟着删——留着它等于允许撞名继续发生，还会把该显示的父级一起藏掉。
+    grouped.forEach(leaf => {
+      const crumb = menuCrumb(leaf.key, leaves)
+      expect(crumb.current, `${leaf.routeName} 的当前级应当是它的菜单标签`).toBe(leaf.label)
+      expect(crumb.parent, `「${leaf.label}」这一项算不出父级组名`).toBeTruthy()
+      expect(crumb.parent, `组名与项名又撞车了：${crumb.parent}`).not.toBe(leaf.label)
+    })
     // 反向对照：不同名时父级照留，别把这条修成「永远没有父级」
     expect(menuCrumb('knowledge/dashboard', leaves).parent).toBe('知识库')
   })
@@ -278,19 +289,23 @@ describe('选中态与面包屑', () => {
       expect(meta, `${String(child.name)} 的 meta 又长出 breadcrumb`).not.toHaveProperty('breadcrumb')
     })
     // 删了那批字符串之后，界面那一行还是算得出来：当前级 = meta.title，父级 = 组表
-    expect(menuCrumb('keywords', leaves)).toEqual({ parent: '内容生产', current: '热词库（搜索联想）' })
-    expect(menuCrumb('geoseo/dashboard', leaves)).toEqual({ parent: '效果与引用', current: '总览仪表盘' })
+    expect(menuCrumb('keywords', leaves)).toEqual({ parent: 'AI 写稿', current: '热词库' })
+    expect(menuCrumb('geoseo/dashboard', leaves)).toEqual({ parent: '效果与经营', current: '总览仪表盘' })
     // 跨组再验一条（巡检项挪过组）：父级跟着组表走，不是跟着某个写死的数组走
-    expect(menuCrumb('portal/health', leaves).parent).toBe('质量与效果（平台）')
+    expect(menuCrumb('portal/health', leaves).parent).toBe('平台质量')
   })
 
-  it('Q11-A：菜单里这一项改叫「热词库（搜索联想）」，「关键词库」这个旧名不再出现在菜单', () => {
+  it('Spec-H Q5-a：菜单里这一项叫「热词库」，被砍掉的括号语活在 tooltip 里（推翻 Spec-F Q11-A）', () => {
     const keywords = grouped.find(leaf => leaf.routeName === 'workspace-keywords')
     expect(keywords, '热词库没进菜单').toBeTruthy()
-    expect(keywords?.label).toBe('热词库（搜索联想）')
-    // 组仍是「内容生产」：只改名，没挪位置（挪组会让用户找不到它）
+    expect(keywords?.label).toBe('热词库')
+    // 说明不许消失，只许换地方（§4.2 规则 6）：搜索联想这个用途点仍在 desc → tip 里
+    expect(keywords?.tip, '「搜索联想」那半句被删掉了，界面开始说谎').toContain('搜索联想')
+    // 组还是原来那一组：只改名，没挪位置（挪组会让用户找不到它）
     expect(keywords?.group).toBe('content')
     expect(grouped.map(leaf => leaf.label)).not.toContain('关键词库')
+    // 全仓菜单标签里不再有任何带括号的项（规则 3）
+    expect(grouped.filter(leaf => /[（）()]/.test(leaf.label))).toEqual([])
   })
 
   it('G1：SEO/GEO 这一族每一项都带读码——「看得见、点进去 403」不再可能发生', () => {
@@ -320,5 +335,89 @@ describe('选中态与面包屑', () => {
     expect(leafVisible(crawlability, siteAdmin)).toBe(true)
     // 超管进得去这一页（菜单是藏入口，不是把页拆了）
     expect(dashboard && leafVisible(dashboard, SUPER)).toBe(true)
+  })
+})
+
+/**
+ * Spec-H（后台左侧导航整理）§4.2 / §4.3 的硬规则。
+ *
+ * 这些不是「今天长这样」的快照，而是**下一轮加页面时必须遵守的规则**（Q4-a 拍的是「写进用例」）：
+ * 项名超长、括号语、一个组只包一个入口、组名与项名撞车——这四件事以前是靠人盯，现在靠用例。
+ * 判据用 `grouped`（组表里定义过的全部项），不用「某人视角可见项」：
+ * 归组合规性与登录者是谁无关，用可见集合会让平台段在租户视角下自动免检。
+ */
+describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () => {
+  const itemsOf = (key: string) => grouped.filter(leaf => leaf.group === key)
+
+  it('组数 = 11：租户 5 组 + 平台 6 组（16 → 11，靠归组治「栏目太多」，不靠删页面）', () => {
+    expect(MENU_GROUPS).toHaveLength(11)
+    expect(MENU_GROUPS.filter(g => g.domain === 'tenant')).toHaveLength(5)
+    expect(MENU_GROUPS.filter(g => g.domain === 'platform')).toHaveLength(6)
+    // 顺序 = 界面上的上下顺序：租户段整体在前，平台段整体在后（两段分家这条不许被插队打破）
+    const domains = MENU_GROUPS.map(g => g.domain)
+    expect(domains.slice(0, 5).every(d => d === 'tenant')).toBe(true)
+    expect(domains.slice(5).every(d => d === 'platform')).toBe(true)
+  })
+
+  it('归组一个页面都没动：73 项照旧全在菜单里（L1 的「项一个不删」）', () => {
+    // 16 组时是 39 + 34 = 73 项（再加固定两项 = 75）。这里钉死总数，
+    // 以后谁借着「合并栏目」偷偷把页面从菜单里摘掉，这条会直接问他要理由。
+    expect(grouped).toHaveLength(73)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(39)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(34)
+  })
+
+  it('项名 ≤6 个字：超一个字就是导航在替页面写说明书（Q4-a）', () => {
+    // 按字符数算，中英混排同理：「Banner管理」是 8 个字符，所以它必须改叫「横幅」。
+    // 旧实现取路径首段并手抄白名单那类问题与此无关，这一条只管标签长度。
+    const tooLong = grouped.filter(leaf => leaf.label.length > 6)
+    expect(tooLong.map(leaf => `${leaf.label}(${leaf.label.length}) ${leaf.routeName}`), '有菜单项超过 6 个字').toEqual([])
+  })
+
+  it('组名 ≤5 个字，且组名与项名都不带括号补充语（规则 1/3）', () => {
+    const longGroups = MENU_GROUPS.filter(g => g.label.length > 5)
+    expect(longGroups.map(g => `${g.label}(${g.label.length})`), '有组名超过 5 个字').toEqual([])
+    const withParen = [...MENU_GROUPS.map(g => g.label), ...grouped.map(leaf => leaf.label)]
+      .filter(text => /[（）()]/.test(text))
+    expect(withParen, '括号补充语该进 tooltip，不该进菜单').toEqual([])
+  })
+
+  it('没有单项组（C-1）：每组至少两项，一个组名加一句说明只为包一个入口是不成的', () => {
+    MENU_GROUPS.forEach(group => {
+      expect(itemsOf(group.key).length, `组「${group.label}」只剩一项，应该并到隔壁去`).toBeGreaterThanOrEqual(2)
+    })
+  })
+
+  it('组名不与组内任何项名撞车（C-2：菜单里不许连着两行同一句话）', () => {
+    MENU_GROUPS.forEach(group => {
+      const sameName = itemsOf(group.key).filter(leaf => leaf.label === group.label)
+      expect(sameName.map(leaf => leaf.routeName), `组「${group.label}」里又出现同名的项`).toEqual([])
+    })
+  })
+
+  it('说明不许消失，只许换地方（规则 6）：每组一句 hint 给 tooltip，被砍掉的那半句在 leaf.tip 里', () => {
+    MENU_GROUPS.forEach(group => {
+      expect(group.hint, `组「${group.label}」没有说明：折叠后用户只能猜这一组是干什么的`).toBeTruthy()
+    })
+    // 名字被砍短的那些项，砍掉的信息必须还在（否则界面就开始说谎：看得见的名词认不出是哪个页面）
+    const renamed = ['workspace-keywords', 'workspace-portal-banners', 'workspace-portal-site-info',
+      'workspace-system-prompt', 'workspace-geo-brand', 'workspace-geo-brand-wizard', 'workspace-geo-campaign',
+      'workspace-knowledge-dashboard', 'workspace-case-list', 'workspace-operation-cases']
+    renamed.forEach(routeName => {
+      const leaf = grouped.find(item => item.routeName === routeName)
+      expect(leaf, `${routeName} 不在菜单里了`).toBeTruthy()
+      expect(leaf!.tip, `「${leaf!.label}」是被改短的名字，但说明没地方去了`).toBeTruthy()
+    })
+  })
+
+  it('两段的标题是一行话（Q7-a：「内容与维护 / 日常：…」那种两行域标题不再出现）', () => {
+    const sections = buildMenuSections(leaves, SUPER)
+    expect(sections.map(section => section.label)).toEqual(['租户日常', '平台管理'])
+    // 一行 = 标签本身不含换行，且长度 ≤4；说明句还在（走 tooltip）
+    sections.forEach(section => {
+      expect(section.label).not.toMatch(/\n/)
+      expect(section.label.length).toBeLessThanOrEqual(4)
+      expect(section.hint).toBeTruthy()
+    })
   })
 })

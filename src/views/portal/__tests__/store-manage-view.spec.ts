@@ -396,13 +396,14 @@ describe('StoreManageView 的写入：判据在后端，界面不另立一套', 
 })
 
 describe('门店页的菜单归属（Spec-C §2.1 纪律）', () => {
-  it('路由挂「网站内容维护」组（tenant 域），绝不进 build-* 建站组', () => {
+  it('路由挂「网站内容」组（tenant 域），绝不进建站组', () => {
     const routeName = 'workspace-portal-stores'
     expect(MENU_GROUP_BY_ROUTE[routeName]).toBe('site-content')
     const group = MENU_GROUPS.find(entry => entry.key === MENU_GROUP_BY_ROUTE[routeName])
-    expect(group?.label).toBe('网站内容维护')
+    expect(group?.label).toBe('网站内容')
     expect(group?.domain).toBe('tenant')
-    expect(group?.key.startsWith('build-')).toBe(false)
+    // Spec-H 把建站那组的键从 build-* 收成 `build`，原来的 `startsWith('build-')` 会漏掉它，判据跟着收紧
+    expect(group?.key).not.toMatch(/^build/)
   })
 
   it('菜单显隐、路由守卫、后端 @RequirePermission 三处是同一个码，图标也已登记', () => {

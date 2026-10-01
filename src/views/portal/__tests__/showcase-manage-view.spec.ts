@@ -13,7 +13,7 @@ import { routes } from '../../../router'
  * 2. is_demo=1 的行必须带「示意」徽标与「请替换为真实资料」，且只挂在示意的行上；
  * 3. 空列表说「还没有内容」，读失败说读失败——两句话不许互相冒充；
  * 4. 后端拒绝保存时那句中文（认不出的 kind 等）原样上屏，不许吞、不许改写。
- * 菜单归属另钉一条：这一页进「网站内容维护」（site-content），绝不进任何 build-* 组。
+ * 菜单归属另钉一条：这一页进「网站内容」（site-content），绝不进任何建站组（键以 build 开头）。
  */
 
 vi.mock('../../../api/portalShowcase', () => ({
@@ -342,11 +342,14 @@ describe('ShowcaseManageView 的表单与后端报错', () => {
 })
 
 describe('展示内容页的菜单归属（Spec-C §2.1 纪律）', () => {
-  it('路由挂「网站内容维护」组（tenant 域），绝不进 build-* 建站组', () => {
+  it('路由挂「网站内容」组（tenant 域），绝不进建站组（Spec-H 后组名收短、键名去掉连字符，判据同步收紧）', () => {
     expect(MENU_GROUP_BY_ROUTE['workspace-portal-showcase']).toBe('site-content')
     const group = MENU_GROUPS.find(entry => entry.key === MENU_GROUP_BY_ROUTE['workspace-portal-showcase'])
-    expect(group?.label).toBe('网站内容维护')
+    expect(group?.label).toBe('网站内容')
     expect(group?.domain).toBe('tenant')
+    // 以前的判据是 `!key.startsWith('build-')`；Spec-H 把建站那组改名成键 `build`，
+    // 那条前缀判据就漏了它自己，所以这里改成「任何 build 开头的组都不许进」。
+    expect(group?.key).not.toMatch(/^build/)
     const workspace = routes.find(route => route.name === 'workspace')
     const showcase = workspace?.children?.find(child => child.name === 'workspace-portal-showcase')
     expect(showcase?.path).toBe('portal/showcase')

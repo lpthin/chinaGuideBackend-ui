@@ -58,9 +58,9 @@ import {
  *
  * 现在的分工：
  * - **标签、图标、权限码**只来自路由 meta（与守卫读的是同一条 `meta.requiredPermission`，
- *   结构上不可能再分家）；
+ *   结构上不可能再分家）；被砍掉的补充说明走 `meta.desc` → `MenuLeaf.tip`（Spec-H §4.2 规则 3/4）；
  * - **分组**是菜单独有的关注点，留在本文件那张表里（一个路由名只出现一次，用例钉住）；
- * - **域**（租户内容维护 / 平台建设治理）挂在组上，用来把两拨东西物理分开。
+ * - **域**（租户日常 / 平台管理）挂在组上，用来把两拨东西物理分开。
  */
 
 export type MenuDomain = 'tenant' | 'platform'
@@ -71,28 +71,34 @@ export interface MenuGroupDef {
   domain: MenuDomain
   /** 组标题的图标；取不到不报错，但用例要求它必须是注册表里的键 */
   icon: string
-  /** 组下面那行小字：告诉用户这一组是干什么的，不写「请自行理解」 */
+  /**
+   * 这一组是干什么的。Spec-H §4.2 规则 6 + Q6-a：这句话**不再摊在导航上占第二行**，
+   * 只作为组标题的 tooltip 存在（说明不许消失，只许换地方）。
+   */
   hint?: string
 }
 
-/** 组的唯一真相：顺序 = 菜单里的上下顺序 */
+/**
+ * 组的唯一真相：顺序 = 菜单里的上下顺序。
+ *
+ * Spec-H（后台左侧导航整理）L1 的归组表：16 组 → 11 组，**一项页面都没动、一项都没删**，
+ * 只把「一个组名包一个入口」（C-1）和「组名与项名同一句话」（C-2）这两种形状消掉。
+ * 硬规则由 `workspace-menu.spec.ts` 钉住：组名 ≤5 字、每组 ≥2 项、组名不与组内项名相同。
+ */
 export const MENU_GROUPS: MenuGroupDef[] = [
-  { key: 'content', label: '内容生产', domain: 'tenant', icon: 'funnel', hint: '关键词 → 生成 → 审核 → 发布' },
-  { key: 'article', label: '文章管理', domain: 'tenant', icon: 'file-text', hint: '文章、分类、模板与图片素材' },
+  // ===== 租户日常（5 组 39 项）=====
+  { key: 'content', label: 'AI 写稿', domain: 'tenant', icon: 'funnel', hint: '从热词到发布的一条流水线' },
+  { key: 'article', label: '文章与案例', domain: 'tenant', icon: 'file-text', hint: '文章、分类、模板、图片素材与案例' },
   { key: 'knowledge', label: '知识库', domain: 'tenant', icon: 'book', hint: 'AI 写作与答疑的资料来源' },
-  { key: 'case', label: '客户案例', domain: 'tenant', icon: 'case', hint: '案例内容与它的 SEO 都在这里' },
-  { key: 'site-content', label: '网站内容维护', domain: 'tenant', icon: 'global', hint: '你站点上访客看到的东西' },
-  { key: 'site-info', label: '网站信息', domain: 'tenant', icon: 'building', hint: 'AI 填好的企业信息与站点配置，可审可改' },
-  { key: 'site-effect', label: '效果与引用', domain: 'tenant', icon: 'chart', hint: '流量来源与被 AI 引用的情况' },
-  { key: 'operation', label: '运营管理', domain: 'tenant', icon: 'pie-chart' },
-  { key: 'build-delivery', label: '建站交付', domain: 'platform', icon: 'rocket', hint: '前采需求单 → 出方案（详情页门禁） → 页面搭建' },
-  { key: 'build-assets', label: '站点资产', domain: 'platform', icon: 'database', hint: '站点、租户、栏目开通与骨架' },
-  { key: 'build-style', label: '参考与样式', domain: 'platform', icon: 'bg-colors', hint: '参考站摄取、区块与皮肤' },
-  { key: 'build-quality', label: '质量与效果（平台）', domain: 'platform', icon: 'safety', hint: '巡检、引用探测、改版工单与整站组装（已上线站改版）' },
-  { key: 'billing', label: '计费系统', domain: 'platform', icon: 'account-book' },
-  { key: 'ai', label: 'AI 配置', domain: 'platform', icon: 'robot' },
-  { key: 'system', label: '系统管理', domain: 'platform', icon: 'setting' },
-  { key: 'alert', label: '报警与待办', domain: 'platform', icon: 'bell' }
+  { key: 'site-content', label: '网站内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看到的东西，含企业信息与站点设置' },
+  { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', hint: '流量、引用、GEO 体检与客户经营' },
+  // ===== 平台管理（6 组 34 项）=====
+  { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', hint: '前采需求单 → 出方案 → 页面搭建，含骨架与皮肤' },
+  { key: 'build-assets', label: '站点与租户', domain: 'platform', icon: 'database', hint: '站点、租户与栏目开通' },
+  { key: 'build-quality', label: '平台质量', domain: 'platform', icon: 'safety', hint: '页面巡检、引用探测、整站组装与改版工单' },
+  { key: 'billing', label: '计费', domain: 'platform', icon: 'account-book', hint: '账单、订单、钱包与发票' },
+  { key: 'ai', label: 'AI 配置', domain: 'platform', icon: 'robot', hint: '模型、向量化、用量与生成模板' },
+  { key: 'system', label: '系统与告警', domain: 'platform', icon: 'setting', hint: '账号权限、系统设置、报警与待办' }
 ]
 
 /**
@@ -100,18 +106,19 @@ export const MENU_GROUPS: MenuGroupDef[] = [
  * `meta.hidden` 的可见路由会被用例判为「漏挂菜单」（那等于页面做完了但没人进得去）。
  */
 export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
-  // 内容生产
+  // AI 写稿（原「内容生产」，一项没动：这条本来就是关键词 → 生成 → 审 → 发布六步）
   'workspace-keywords': 'content',
   'workspace-cluster': 'content',
   'workspace-article-generate': 'content',
   'workspace-review': 'content',
   'workspace-publish': 'content',
   'workspace-publish-config': 'content',
-  // 文章管理
+  // 文章与案例（原「文章管理」4 项 + 原「客户案例」那个单项组 C-1，案例并入内容对象）
   'workspace-articles': 'article',
   'workspace-categories': 'article',
   'workspace-article-templates': 'article',
   'workspace-media-library': 'article',
+  'workspace-case-list': 'article',
   // 知识库
   'workspace-knowledge-dashboard': 'knowledge',
   'workspace-knowledge-documents': 'knowledge',
@@ -120,9 +127,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-knowledge-tags': 'knowledge',
   'workspace-knowledge-graph': 'knowledge',
   'workspace-knowledge-search': 'knowledge',
-  // 客户案例
-  'workspace-case-list': 'case',
-  // 网站内容维护（租户侧）
+  // 网站内容（原「网站内容维护」8 项 + 原「网站信息」2 项；C-2 那个「组名=项名」在这里消掉）
   'workspace-portal-content': 'site-content',
   // 「门户上线」是一页检查清单：超管在这一格灌演示包，租户在这一格看还差什么（视图里两条分支都有），
   // 所以它留在租户可见的一组，不因为「名字像建站」就挪进平台段——那会让租户丢掉唯一一个上线自检入口。
@@ -137,41 +142,40 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-portal-jobs': 'site-content',
   'workspace-portal-guestbook': 'site-content',
   'workspace-portal-messages': 'site-content',
-  // 网站信息（租户审改 AI 填的内容）：企业信息一处、站点级 SEO/GEO 与 robots 一处（P5 合并后）
-  'workspace-portal-company': 'site-info',
-  'workspace-portal-site-info': 'site-info',
-  // 效果与引用
+  // 企业信息一处、站点级 SEO/GEO 与 robots 一处（P5 合并后）；项名「站点设置」，组名不再与它同名
+  'workspace-portal-company': 'site-content',
+  'workspace-portal-site-info': 'site-content',
+  // 效果与经营（原「效果与引用」7 项 + 原「运营管理」4 项：都是看结果、跟客户）
   'workspace-portal-analytics': 'site-effect',
   'workspace-portal-citations': 'site-effect',
   'workspace-geoseo-dashboard': 'site-effect',
   // 可抓取性体检（Spec-F §8）：读码 seo:audit:view 已授 SITE_ADMIN（V153），租户进得来这一页，
   // 所以它跟总览同组。「跑一次」那一码在按钮上不在路由上，组归属不因它挪进平台段。
   'workspace-geoseo-crawlability': 'site-effect',
-  // GEO 品牌诊断（Spec-F §9.4 归组 + §11.2 P1）：档案与向导都进「效果与引用」，
+  // GEO 品牌诊断（Spec-F §9.4 归组 + §11.2 P1）：档案与向导都进效果那一组，
   // 向导是第①步入口的下一页，不是建站动作，不进平台段。
   'workspace-geo-brand': 'site-effect',
   'workspace-geo-brand-wizard': 'site-effect',
   // 诊断工作台（§10-1）：计划/预估/轮次这一圈的家，报告页是 hidden 的下一页。
   'workspace-geo-campaign': 'site-effect',
-  // 运营管理
-  'workspace-operation-dashboard': 'operation',
-  'workspace-operation-cases': 'operation',
-  'workspace-operation-reports': 'operation',
-  'workspace-operation-customers': 'operation',
-  // 平台：建站交付（Spec-C §7 P3：「建站流水线」整页删除，主线收进需求单详情；
-  // 「整站组装」按 N-2 挪去「质量与效果」——它今天的服务对象是已上线站的改版，不是出候选）
-  'workspace-portal-briefs': 'build-delivery',
-  'workspace-portal-pages': 'build-delivery',
-  // 平台：站点资产
+  'workspace-operation-dashboard': 'site-effect',
+  'workspace-operation-cases': 'site-effect',
+  'workspace-operation-reports': 'site-effect',
+  'workspace-operation-customers': 'site-effect',
+  // 建站（原「建站交付」2 + 原「参考与样式」3 + 骨架库；Spec-C §7 P3：「建站流水线」整页删除，
+  // 主线收进需求单详情。骨架库跟着它服务的「造一个站」走，不再单列一组）
+  'workspace-portal-briefs': 'build',
+  'workspace-portal-pages': 'build',
+  'workspace-portal-reference-sites': 'build',
+  'workspace-portal-blocks': 'build',
+  'workspace-portal-presets': 'build',
+  'workspace-portal-skeletons': 'build',
+  // 站点与租户（治理三件）
   'workspace-sites': 'build-assets',
   'workspace-tenant': 'build-assets',
   'workspace-portal-sections': 'build-assets',
-  'workspace-portal-skeletons': 'build-assets',
-  // 平台：参考与样式
-  'workspace-portal-reference-sites': 'build-style',
-  'workspace-portal-blocks': 'build-style',
-  'workspace-portal-presets': 'build-style',
-  // 平台：质量与效果
+  // 平台质量（原样保留；**「整站组装」不挪回建站**——Spec-C N-2 已定它服务的是已上线站改版，
+  // 挪回去等于推翻拍板）
   'workspace-portal-health': 'build-quality',
   'workspace-portal-assemble-jobs': 'build-quality',
   'workspace-portal-citation-probes': 'build-quality',
@@ -188,19 +192,18 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-ai-embedding': 'ai',
   'workspace-ai-usage': 'ai',
   'workspace-ai-article-templates': 'ai',
-  // 系统管理
-  'workspace-users': 'system',
+  // 系统与告警（原「系统管理」7 + 原「报警与待办」4；P3 的 H-5 会把报警三件收成一颗）
+  'workspace-system-prompt': 'system',
   'workspace-roles': 'system',
   'workspace-permissions': 'system',
-  'workspace-system-prompt': 'system',
+  'workspace-users': 'system',
   'workspace-settings': 'system',
   'workspace-audit-log': 'system',
   'workspace-media-storage': 'system',
-  // 报警与待办
-  'workspace-alert-rules': 'alert',
-  'workspace-alert-records': 'alert',
-  'workspace-alert-channels': 'alert',
-  'workspace-notifications': 'alert'
+  'workspace-alert-rules': 'system',
+  'workspace-alert-records': 'system',
+  'workspace-alert-channels': 'system',
+  'workspace-notifications': 'system'
 }
 
 /**
@@ -309,6 +312,11 @@ export interface MenuLeaf {
   superAdminOnly: boolean
   /** 栏目开通态门控（Spec-A §7.1）：后端词表里 contentEntry 的取值 */
   contentEntry?: string
+  /**
+   * 这一项的补充说明（来自路由 `meta.desc`）。Spec-H §4.2 规则 3/4：菜单标签只留 ≤6 个字，
+   * 被砍掉的那半句（括号语、中英混排的全称）换到 tooltip 里说，不许直接消失。
+   */
+  tip?: string
   /** 组内顺序，取路由定义顺序 */
   order: number
 }
@@ -320,6 +328,7 @@ interface MenuRouteMeta {
   requiresSuperAdmin?: boolean
   requiredPermission?: string
   contentEntry?: string
+  desc?: string
 }
 
 /**
@@ -346,6 +355,7 @@ export function collectMenuLeaves(input: readonly RouteRecordRaw[]): MenuLeaf[] 
       permission: meta.requiredPermission,
       superAdminOnly: meta.requiresSuperAdmin === true,
       contentEntry: meta.contentEntry,
+      tip: meta.desc,
       order: index
     })
   })
@@ -385,9 +395,13 @@ export interface MenuSection {
   groups: Array<{ def: MenuGroupDef; items: MenuLeaf[] }>
 }
 
+/**
+ * 两段的标题（Spec-H Q7-a：一行，不再摊出第二行说明）。
+ * `hint` 留着当 tooltip——「说明不许消失，只许换地方」（§4.2 规则 6）。
+ */
 const DOMAINS: Array<{ domain: MenuDomain; label: string; hint: string }> = [
-  { domain: 'tenant', label: '内容与维护', hint: '日常：填内容、看效果' },
-  { domain: 'platform', label: '平台 · 建站与治理', hint: '超管动作：建站、开栏目、改样式、跑探测' }
+  { domain: 'tenant', label: '租户日常', hint: '日常：填内容、看效果' },
+  { domain: 'platform', label: '平台管理', hint: '超管动作：建站、开栏目、改样式、跑探测' }
 ]
 
 /**
@@ -428,11 +442,14 @@ export function selectedMenuKey(path: string, leaves: MenuLeaf[]): string {
 export function menuCrumb(key: string, leaves: MenuLeaf[]): { parent?: string; current?: string } {
   const leaf = leaves.find(item => item.key === key)
   if (!leaf) return {}
-  // 固定项（工作台、联系平台）没有组：面包屑只留它自己那一级，不硬凑一个「父级」
+  // 固定项（工作台、联系平台）没有组：面包屑只留它自己那一级，不硬凑一个「父级」。
+  //
+  // Spec-H C-2 收口：以前这里打过一条补丁——组名与项名相同时把父级藏掉，免得面包屑连着两格
+  // 写同一句话。那是给「文章管理组里有一项也叫文章管理」这种归组错误擦屁股。现在组表与项名
+  // 都不许撞车（`workspace-menu.spec.ts` 有硬断言），补丁没有存在的病人，删掉；
+  // 留着它反而会把「父级真的该显示」的那些档一起藏掉。
   const def = MENU_GROUPS.find(group => group.key === leaf.group)
-  // 组名与项名撞车时（「文章管理」既是组也是项）只留一级：面包屑连着两格同一句话，
-  // 看着像渲染坏了，而且它本来也没多说出任何信息。
-  return { parent: def && def.label !== leaf.label ? def.label : undefined, current: leaf.label }
+  return { parent: def?.label, current: leaf.label }
 }
 
 /** 按路由名取叶子（视图用它渲染菜单上下两端，标签与图标仍不抄第二份） */

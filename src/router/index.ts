@@ -276,7 +276,10 @@ export const routes: RouteRecordRaw[] = [
         path: 'keywords',
         name: 'workspace-keywords',
         component: KeywordLibraryView,
-        meta: { title: '热词库（搜索联想）', icon: 'database' }
+        // Spec-H §4.2 规则 3（Q5-a）：菜单标签只留「热词库」三个字，被砍掉的括号语进 tooltip 与页内。
+        // 这一条推翻了 Spec-F 的 Q11-A（当年特意加括号是为了跟旧名「关键词库」区分），
+        // 区分这件事由 desc 这句话继续做，不再靠菜单里那 4 个字的噪音。
+        meta: { title: '热词库', desc: '搜索联想用的热词库（旧名「关键词库」）', icon: 'database' }
       },
       {
         path: 'article-templates',
@@ -320,12 +323,14 @@ export const routes: RouteRecordRaw[] = [
         redirect: { name: 'workspace-publish' }
       },
 
-      // ===== ✍️ 文章管理 =====
+      // ===== ✍️ 文章与案例 =====
       {
         path: 'articles',
         name: 'workspace-articles',
         component: ArticlesPanel,
-        meta: { title: '文章管理', icon: 'article' }
+        // Spec-H C-2：这一项以前也叫「文章管理」，而它上面那个组标题同样叫「文章管理」，
+        // 菜单里连着两行同一句话（面包屑还为此打过补丁）。组改名「文章与案例」，这一项改叫「文章列表」。
+        meta: { title: '文章列表', icon: 'article' }
       },
       {
         path: 'articles/:id',
@@ -364,13 +369,14 @@ export const routes: RouteRecordRaw[] = [
         path: 'knowledge/dashboard',
         name: 'workspace-knowledge-dashboard',
         component: KnowledgeDashboardView,
-        meta: { title: '知识库仪表板', icon: 'dashboard' }
+        // Spec-H §4.2 规则 2：组名已经是「知识库」，项名不再把它念第二遍
+        meta: { title: '仪表板', desc: '知识库的数据概览：资料、卡片与图谱的量', icon: 'dashboard' }
       },
       {
         path: 'knowledge/search',
         name: 'workspace-knowledge-search',
         component: KnowledgeSearchView,
-        meta: { title: '知识库搜索', icon: 'search' }
+        meta: { title: '知识搜索', icon: 'search' }
       },
       {
         path: 'knowledge/documents',
@@ -415,12 +421,14 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '标签管理', icon: 'tag' }
       },
 
-      // ===== 💼 案例管理 =====
+      // ===== 💼 内容案例（与「运营管理 > 客户案例」是两张表，Spec-H C-3：一个词只指一个东西）=====
       {
         path: 'case/list',
         name: 'workspace-case-list',
         component: CaseListView,
-        meta: { title: '案例列表', icon: 'file-text' }
+        // 原名「案例列表」，而它的组叫「客户案例」，组里另一处又有一项叫「客户案例」——
+        // 同一个词指两个东西。现在这一项点名它是门户访客看的那些案例（case 表）。
+        meta: { title: '内容案例', desc: '门户访客看到的案例（case 表）；运营侧那条叫「客户案例」', icon: 'file-text' }
       },
 
       // ===== 💰 计费系统 =====
@@ -585,8 +593,8 @@ export const routes: RouteRecordRaw[] = [
         // 整站组装会替租户烧 token 配额、还会把整站内容重写成草稿，决策 N4 把它只留给平台侧：
         // 租户侧没有这条路。后端 PortalAssembleController 的类级 portal:build:assemble 是唯一的执法者
         // （租户令牌打过来是真 403），这里挂同一个码只是不让用户敲地址进来后对着一屏 403。
-        // Spec-C §7 降级 + §10 N-2：它不再挂「建站交付」段（出方案的主线在需求单详情里），
-        // 留在「质量与效果（平台）」组做**已上线站改版**——需求只留能力，别把功能删掉。
+        // Spec-C §7 降级 + §10 N-2：它不挂「建站」那组（出方案的主线在需求单详情里），
+        // 留在「平台质量」组做**已上线站改版**——需求只留能力，别把功能删掉（Spec-H §4.3 明确不许挪回去）。
         meta: {
           title: '整站组装',
           icon: 'rocket',
@@ -610,14 +618,16 @@ export const routes: RouteRecordRaw[] = [
         path: 'portal/banners',
         name: 'workspace-portal-banners',
         component: BannerManageView,
-        meta: { title: 'Banner管理', icon: 'image', requiredPermission: 'portal:siteinfo:manage' }
+        // Spec-H §4.2 规则 4：中英混排按显示宽度算，「Banner管理」这一条被「横幅」替掉，
+        // Banner 这个词进 desc，认得英文的人照样找得到。
+        meta: { title: '横幅', desc: '门户首页的轮播图与横幅（Banner）', icon: 'image', requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/showcase',
         name: 'workspace-portal-showcase',
         component: ShowcaseManageView,
         // Spec-D D2：租户侧「展示内容」（团队/历程/客户标志/指标/评价/资质/FAQ 七类一页签）。
-        // 挂「网站内容维护」组、绝不进建站组（Spec-C §2.1 的混排老病）；权限码与后端
+        // 挂「网站内容」组（Spec-H 归组后组名收短）、绝不进建站组（Spec-C §2.1 的混排老病）；权限码与后端
         // PortalShowcaseItemController 类级同一条（菜单/守卫/后端一个码）。
         meta: { title: '展示内容', icon: 'profile', requiredPermission: 'portal:siteinfo:manage' }
       },
@@ -664,8 +674,11 @@ export const routes: RouteRecordRaw[] = [
         // 站点级 SEO/GEO 与 robots 形态一屏可见，每项带来源角标（AI 生成 / 人工修改 / 未记录）：
         // 读口与写口都只有一处（/api/portal/site-info），robots 真相是爬虫勾选、文本由后端推导，
         // 界面上不再摆一份 textarea 让人「从零填」。权限码与邻页同一条（菜单/守卫/后端一个码）。
+        // Spec-H C-2：它的组曾经也叫「网站信息」，菜单里连着两行同一句话。组并进了「网站内容」，
+        // 这一项改叫「站点设置」——它管的确实是站点级的 SEO/GEO 与 robots，不是页面内容。
         meta: {
-          title: '网站信息',
+          title: '站点设置',
+          desc: '站点级 SEO/GEO、robots 与站点信息：AI 填好的可审可改',
           icon: 'building',
           requiredPermission: 'portal:siteinfo:manage'
         }
@@ -796,13 +809,15 @@ export const routes: RouteRecordRaw[] = [
         component: GeoBrandProfileView,
         // 后端闸是 geo:brand:view（读）/ geo:brand:manage（写）；这里挂读码，
         // 没码的人菜单里看不见，敲地址进来由守卫拦——与「看得见必然不 403」同一条纪律。
-        meta: { title: 'GEO 品牌档案', icon: 'card', requiredPermission: 'geo:brand:view' }
+        // Spec-H §4.2 规则 2：组名已经不是 GEO，标签也不再带「GEO」这个前缀占字数；
+        // GEO 这件事由 desc 与页内说明卡说清楚（P3 的 H-4 会把这三颗收成一颗「诊断工作台」）。
+        meta: { title: '品牌档案', desc: 'GEO 品牌档案：品牌词、官网与竞品组', icon: 'card', requiredPermission: 'geo:brand:view' }
       },
       {
         path: 'geo/diagnosis',
         name: 'workspace-geo-brand-wizard',
         component: GeoBrandDiagnosisWizardView,
-        meta: { title: 'GEO 诊断向导', icon: 'aim', requiredPermission: 'geo:brand:view' }
+        meta: { title: '诊断向导', desc: 'GEO 品牌诊断三步：档案 → 问题池 → 预估确认', icon: 'aim', requiredPermission: 'geo:brand:view' }
       },
       // GEO 诊断工作台（§10-1）与报告（§10-4）：闸的码与后端 GeoCampaignController 一一对应，
       // 「看价」是读口 geo:campaign:view，起跑另挂 geo:campaign:run（在这一页的按钮上，不在路由上）。
@@ -810,7 +825,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'geo/campaign',
         name: 'workspace-geo-campaign',
         component: GeoCampaignWorkbenchView,
-        meta: { title: 'GEO 诊断工作台', icon: 'chart', requiredPermission: 'geo:campaign:view' }
+        meta: { title: '诊断工作台', desc: 'GEO 诊断的计划、预估与轮次（报告从轮次行进）', icon: 'chart', requiredPermission: 'geo:campaign:view' }
       },
       {
         path: 'geo/campaign/run/:runId/report',
@@ -875,7 +890,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'operation/cases',
         name: 'workspace-operation-cases',
         component: CaseManageView,
-        meta: { title: '客户案例', icon: 'case' }
+        meta: { title: '客户案例', desc: '运营侧跟进的客户案例（operation_case 表），不是门户访客看的那张 case 表', icon: 'case' }
       },
       {
         path: 'operation/reports',
@@ -909,7 +924,8 @@ export const routes: RouteRecordRaw[] = [
         path: 'system-prompt',
         name: 'workspace-system-prompt',
         component: SystemPromptPanel,
-        meta: { title: 'Prompt管理', icon: 'prompt', requiresSuperAdmin: true }
+        // Spec-H §4.2 规则 4：「Prompt管理」按显示宽度是 8，改成「提示词」，Prompt 进 desc
+        meta: { title: '提示词', desc: '平台级 AI 提示词（Prompt）模板', icon: 'prompt', requiresSuperAdmin: true }
       },
       {
         path: 'roles',
