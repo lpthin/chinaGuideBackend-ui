@@ -199,7 +199,8 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-ai-embedding': 'ai',
   'workspace-ai-usage': 'ai',
   'workspace-ai-article-templates': 'ai',
-  // 系统与告警（原「系统管理」7 + 原「报警与待办」4；P3 的 H-5 会把报警三件收成一颗）
+  // 系统与告警（原「系统管理」7 + 原「报警与待办」4）
+  // Spec-H P3 / H-5：报警三件收成一颗「报警中心」（页内三 tab），10 → 8
   'workspace-system-prompt': 'system',
   'workspace-roles': 'system',
   'workspace-permissions': 'system',
@@ -207,9 +208,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-settings': 'system',
   'workspace-audit-log': 'system',
   'workspace-media-storage': 'system',
-  'workspace-alert-rules': 'system',
-  'workspace-alert-records': 'system',
-  'workspace-alert-channels': 'system',
+  'workspace-alert-center': 'system',
   'workspace-notifications': 'system'
 }
 

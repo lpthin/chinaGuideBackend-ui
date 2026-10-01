@@ -360,13 +360,13 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     expect(domains.slice(5).every(d => d === 'platform')).toBe(true)
   })
 
-  it('项数账：73 项 −H-6 一颗重复工单入口 = 72（租户 39 + 平台 33）', () => {
+  it('项数账：73 项 −H-6(1) −H-5(2) = 70（租户 39 + 平台 31）', () => {
     // 16 组时是 39 + 34 = 73 项（再加固定两项 = 75）。P0 归组一个页面都没动；
     // P3 往下每摘一颗都要在这里减一个数，并且 `MENU_EXCLUDED` 里要多一行理由——
     // 以后谁借着「合并栏目」把页面从菜单里摘掉却不留地址、不留理由，这条会直接问他要。
-    expect(grouped).toHaveLength(72)
+    expect(grouped).toHaveLength(70)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(39)
-    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(33)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(31)
   })
 
   it('项名 ≤6 个字：超一个字就是导航在替页面写说明书（Q4-a）', () => {
@@ -474,5 +474,60 @@ describe('Spec-H P3 / H-6：工单两颗收成一颗，按角色显示不同标�
     expect(revision, '改版工单是独立一页，仍在平台质量组里').toBeTruthy()
     expect(revision!.label).toBe('改版工单')
     expect(revision!.permission).toBe('portal:build:review')
+  })
+})
+
+/**
+ * Spec-H P3 / H-5：报警三件收成一颗「报警中心」。
+ *
+ * `alert/rules`、`alert/records`、`alert/channels` 三个路由以前各自占一颗菜单项，
+ * 但它们是同一主题（报警这件事的 CRUD / 列表 / 配置）的不同面。现在：
+ * - 容器 `alert/center` 挂一颗「报警中心」，页内三 tab；
+ * - 三个老地址变成无名 redirect，带 `?tab=…` 落到对应 tab（收藏夹与文档链接不断）；
+ * - 系统与告警 10 → 8（−2）。
+ *
+ * 判据：
+ * - 老三个路由名不在分组里（它们是无名 redirect，collectMenuLeaves 跳过）；
+ * - 新的 `workspace-alert-center` 在「系统与告警」组里，requiresSuperAdmin；
+ * - 老三个地址在路由表里还在（redirect 也是路由定义），但没名字 ⇒ 不进菜单。
+ */
+describe('Spec-H P3 / H-5：报警三件收成一颗「报警中心」', () => {
+  it('老三个路由名不在分组里，新的「报警中心」在「系统与告警」组', () => {
+    const center = grouped.find(leaf => leaf.routeName === 'workspace-alert-center')
+    expect(center, '报警中心没进菜单').toBeTruthy()
+    expect(center!.label).toBe('报警中心')
+    expect(center!.group).toBe('system')
+    expect(center!.superAdminOnly).toBe(true)
+    expect(center!.tip, '「报警中心」是被改短的名字，说明该进 tooltip').toBeTruthy()
+    // 老三个路由名不在 grouped 里（它们是无名 redirect，collectMenuLeaves 跳过）
+    const oldNames = ['workspace-alert-rules', 'workspace-alert-records', 'workspace-alert-channels']
+    oldNames.forEach(name => {
+      expect(grouped.find(leaf => leaf.routeName === name), `${name} 还在菜单里`).toBeUndefined()
+    })
+  })
+
+  it('老三个地址在路由表里还在（redirect），收藏夹与文档链接不断', () => {
+    const workspace = routes.find(route => route.name === 'workspace')
+    const childPaths = (workspace?.children ?? []).map(child => child.path)
+    expect(childPaths).toContain('alert/rules')
+    expect(childPaths).toContain('alert/records')
+    expect(childPaths).toContain('alert/channels')
+    expect(childPaths).toContain('alert/center')
+    // 老三个没名字（无名 redirect）
+    const childNames = (workspace?.children ?? []).map(child => child.name)
+    expect(childNames).not.toContain('workspace-alert-rules')
+    expect(childNames).not.toContain('workspace-alert-records')
+    expect(childNames).not.toContain('workspace-alert-channels')
+    expect(childNames).toContain('workspace-alert-center')
+  })
+
+  it('系统与告警组从 11 降到 9（−2）', () => {
+    const systemItems = grouped.filter(leaf => leaf.group === 'system')
+    expect(systemItems).toHaveLength(9)
+    const labels = systemItems.map(leaf => leaf.label)
+    expect(labels).toContain('报警中心')
+    expect(labels).not.toContain('报警规则')
+    expect(labels).not.toContain('报警记录')
+    expect(labels).not.toContain('通知渠道')
   })
 })

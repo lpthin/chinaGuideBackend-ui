@@ -142,6 +142,7 @@ const TenantPanel = () => import('../views/workspace/TenantPanel.vue')
 const AlertRuleManageView = () => import('../views/workspace/AlertRuleManageView.vue')
 const AlertRecordView = () => import('../views/workspace/AlertRecordView.vue')
 const AlertChannelView = () => import('../views/workspace/AlertChannelView.vue')
+const AlertCenterView = () => import('../views/workspace/AlertCenterView.vue')
 const NotificationInboxView = () => import('../views/workspace/NotificationInboxView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
@@ -975,24 +976,23 @@ export const routes: RouteRecordRaw[] = [
       },
 
       // ===== 🔔 报警管理 =====
+      // Spec-H P3 / H-5：三颗收成一颗「报警中心」，页内三 tab（规则 / 记录 / 渠道）。
+      // 容器挂 `alert/center`，三个老地址变成无名 redirect，带 `?tab=…` 落到对应 tab ——
+      // 收藏夹与文档链接不断，菜单项 3 → 1（系统与告警 10 → 8）。
       {
-        path: 'alert/rules',
-        name: 'workspace-alert-rules',
-        component: AlertRuleManageView,
-        meta: { title: '报警规则', icon: 'alert', requiresSuperAdmin: true }
+        path: 'alert/center',
+        name: 'workspace-alert-center',
+        component: AlertCenterView,
+        meta: {
+          title: '报警中心',
+          icon: 'alert',
+          desc: '报警规则、触发记录与通知渠道：同一件事的三条面，不再分三颗入口',
+          requiresSuperAdmin: true
+        }
       },
-      {
-        path: 'alert/records',
-        name: 'workspace-alert-records',
-        component: AlertRecordView,
-        meta: { title: '报警记录', icon: 'notification', requiresSuperAdmin: true }
-      },
-      {
-        path: 'alert/channels',
-        name: 'workspace-alert-channels',
-        component: AlertChannelView,
-        meta: { title: '通知渠道', icon: 'setting', requiresSuperAdmin: true }
-      },
+      { path: 'alert/rules', redirect: { path: 'alert/center', query: { tab: 'rules' } } },
+      { path: 'alert/records', redirect: { path: 'alert/center', query: { tab: 'records' } } },
+      { path: 'alert/channels', redirect: { path: 'alert/center', query: { tab: 'channels' } } },
       // 站内待办：巡检闭环写的那一条要有地方看得见（Spec §13.3-6），否则「通知超管」只落到库里
       {
         path: 'notifications',
