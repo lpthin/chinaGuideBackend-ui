@@ -105,12 +105,10 @@ const fetchTenants = async () => {
     const result = await tenantApi.list()
     tenants.value = result || []
     listFailed.value = false
-    // 默认选择第一个租户（如果没有选中任何租户）
-    if (selectedValue.value === null && tenants.value.length > 0) {
-      const firstTenant = tenants.value[0]
-      selectedValue.value = firstTenant.id
-      authStore.switchTenant(firstTenant.id, firstTenant.code)
-      window.location.reload()
+    // 默认显示平台模式（selectedTenantId = null）
+    // 如果当前没有选中任何租户，就保持平台模式
+    if (selectedValue.value === null) {
+      selectedValue.value = 'platform'
     }
   } catch (error) {
     // 读失败要记账：不记就只能把「列表是空的」当成「这家不存在」，而兜底 label 也分不清该念哪一句

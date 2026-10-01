@@ -94,8 +94,8 @@ function mountView(user: Record<string, any>) {
   const auth = useAuthStore()
   auth.accessToken = 'token'
   auth.user = user as any
-  // 默认设置一个租户 ID，避免超管进入平台模式（平台模式只显示平台段）
-  auth.selectedTenantId = 15
+  // 默认不设置租户 ID，进入平台模式（只显示平台段）
+  auth.selectedTenantId = null
   return mount(WorkspaceView, {
     global: {
       stubs: {
@@ -133,7 +133,7 @@ describe('WorkspaceView 侧边菜单', () => {
     ])
   })
 
-  it('超管看到两段，且没有「两个栏目管理」这种重名异物', async () => {
+  it('平台模式（默认状态）：只显示平台段，不显示租户段和固定项', async () => {
     const wrapper = mountView({
       username: 'admin',
       roles: ['SUPER_ADMIN'],
@@ -141,27 +141,30 @@ describe('WorkspaceView 侧边菜单', () => {
     })
     await flushPromises()
     const text = wrapper.text()
-    expect(text).toContain('租户日常')
+    // 平台模式：只显示平台段
+    expect(text).not.toContain('租户日常')
     expect(text).toContain('平台管理')
-    // Spec-H Q7-a：两行域标题收成一行，说明句进 tooltip（这里判的是「说明没丢，只是不在标签里」）
-    expect(text).not.toContain('日常：填内容、看效果')
-    expect(wrapper.find('[data-tip="日常：填内容、看效果"]').exists()).toBe(true)
-    expect(wrapper.find('[data-tip="超管动作：建站、开栏目、改样式、跑探测"]').exists()).toBe(true)
-    // Spec-C P3：「建站流水线」整页删除（主线收进需求单详情），菜单里它必须随之绝迹——
-    // 留着就是一条点了 404 的假入口
-    expect(text).not.toContain('建站流水线')
+    // 不显示固定项（工作台、联系平台/平台工单队列）
+    expect(text).not.toContain('工作台')
+    expect(text).not.toContain('联系平台')
+    expect(text).not.toContain('平台工单队列')
+    // 平台段的项应该还在
     expect(text).toContain('前采需求单')
-    expect(text).toContain('栏目开通')
-    expect(text).toContain('文章分类')
+    expect(text).toContain('站点管理')
+    expect(text).not.toContain('建站流水线')
     expect(text).not.toContain('栏目管理')
     expect(text).not.toContain('建站工作台')
   })
 
-  it('平台模式（超管未选租户）：只显示平台段，不显示租户段和固定项', async () => {
+  it('租户模式（超管选中租户）：看到两段，且没有「两个栏目管理」这种重名异物', async () => {
     const auth = useAuthStore()
     auth.accessToken = 'token'
-    auth.user = { username: 'admin', roles: ['SUPER_ADMIN'], permissions: ALL_CODES } as any
-    auth.selectedTenantId = null  // 平台模式：没有选中任何租户
+    auth.user = {
+      username: 'admin',
+      roles: ['SUPER_ADMIN'],
+      permissions: ['portal:build:manage', 'portal:build:section', 'portal:siteinfo:manage', 'media:manage', 'analytics:view']
+    } as any
+    auth.selectedTenantId = 15  // 选中租户，进入租户模式
     const wrapper = mount(WorkspaceView, {
       global: {
         stubs: {
@@ -185,16 +188,20 @@ describe('WorkspaceView 侧边菜单', () => {
     })
     await flushPromises()
     const text = wrapper.text()
-    // 平台模式：只显示平台段
-    expect(text).not.toContain('租户日常')
+    expect(text).toContain('租户日常')
     expect(text).toContain('平台管理')
-    // 不显示固定项（工作台、联系平台/平台工单队列）
-    expect(text).not.toContain('工作台')
-    expect(text).not.toContain('联系平台')
-    expect(text).not.toContain('平台工单队列')
-    // 平台段的项应该还在
+    // Spec-H Q7-a：两行域标题收成一行，说明句进 tooltip（这里判的是「说明没丢，只是不在标签里」）
+    expect(text).not.toContain('日常：填内容、看效果')
+    expect(wrapper.find('[data-tip="日常：填内容、看效果"]').exists()).toBe(true)
+    expect(wrapper.find('[data-tip="超管动作：建站、开栏目、改样式、跑探测"]').exists()).toBe(true)
+    // Spec-C P3：「建站流水线」整页删除（主线收进需求单详情），菜单里它必须随之绝迹——
+    // 留着就是一条点了 404 的假入口
+    expect(text).not.toContain('建站流水线')
     expect(text).toContain('前采需求单')
-    expect(text).toContain('站点管理')
+    expect(text).toContain('栏目开通')
+    expect(text).toContain('文章分类')
+    expect(text).not.toContain('栏目管理')
+    expect(text).not.toContain('建站工作台')
   })
 
   it('租户只看到自己那一段：建设项与系统项一项都不出现', async () => {
@@ -233,7 +240,33 @@ describe('WorkspaceView 侧边菜单', () => {
   })
 
   it('每一项只渲染一次，且渲染出来的项数等于可见叶子数（视图不再手抄第二份清单）', async () => {
-    const wrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式（这样才有固定项）
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
     // P3：钉「前采需求单」只渲染一次（原来这条钉的是已删除的「建站流水线」，守的行为不变：视图不手抄第二份清单）
@@ -247,7 +280,33 @@ describe('WorkspaceView 侧边菜单', () => {
   })
 
   it('Spec-H H-6：同一颗位置按角色换标题，超管那一屏不再有两个通向同一张表的入口', async () => {
-    const superWrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式（这样才有底部固定项）
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const superWrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     const superItems = superWrapper.findAll('.menu-item-stub').map(node => node.text().trim())
     expect(superItems).toContain('平台工单队列')
@@ -268,7 +327,33 @@ describe('WorkspaceView 侧边菜单', () => {
   })
 
   it('Spec-H H-1a：组渲成可收合的 SubMenu，颗数 = 组数（超管 11 / 租户 5）', async () => {
-    const wrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式（这样才有 11 个组）
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     const rails = wrapper.findAll('.ant-submenu-stub')
     expect(rails).toHaveLength(11)
@@ -290,7 +375,33 @@ describe('WorkspaceView 侧边菜单', () => {
 
   it('Spec-H H-1b：开合按段喂给两个菜单，一段的事件不许把另一段已开的组抹掉', async () => {
     localStorage.setItem('nav_open_groups', JSON.stringify(['article', 'billing']))
-    const wrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式（这样才有两个菜单段）
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     const menus = wrapper.findAllComponents({ name: 'AMenu' })
     const tenant = menus.find(node => node.attributes('data-domain') === 'tenant')!
@@ -337,7 +448,33 @@ describe('WorkspaceView 侧边菜单', () => {
   }
 
   it('Spec-H H-2：输入「引用」→ 只剩含「引用」的项 + 其组名，树与别的组一起退场', async () => {
-    const wrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式（这样菜单才有租户段）
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     expect(wrapper.find('input.menu-search-stub').exists()).toBe(true)
     expect(wrapper.find('input.menu-search-stub').attributes('placeholder')).toBe('搜索栏目')
@@ -358,7 +495,33 @@ describe('WorkspaceView 侧边菜单', () => {
   })
 
   it('Spec-H H-2：没有命中要明说「没有这一项」，不许留一片空白', async () => {
-    const wrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     await typeIntoMenuSearch(wrapper, '一定不存在的栏目名字')
     expect(wrapper.findAll('.menu-item-stub')).toHaveLength(0)
@@ -370,7 +533,33 @@ describe('WorkspaceView 侧边菜单', () => {
 
   it('Spec-H H-2：清空搜索回到树，而且开合表一个字没被搜索改过', async () => {
     localStorage.setItem('nav_open_groups', JSON.stringify(['article']))
-    const wrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     await typeIntoMenuSearch(wrapper, '引用')
     await typeIntoMenuSearch(wrapper, '   ')
@@ -381,7 +570,33 @@ describe('WorkspaceView 侧边菜单', () => {
   })
 
   it('Spec-H H-2：点命中项跳得过去，跳完回到树并且把目标那一组开着', async () => {
-    const wrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     await typeIntoMenuSearch(wrapper, '引用')
 
@@ -408,7 +623,33 @@ describe('WorkspaceView 侧边菜单', () => {
   })
 
   it('Spec-H H-2：折叠成图标轨时搜索框与命中列表一起退场（窄轨放不下输入框）', async () => {
-    const wrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     await typeIntoMenuSearch(wrapper, '引用')
     expect(wrapper.findAll('.menu-item-stub')).toHaveLength(2)
@@ -444,7 +685,33 @@ describe('WorkspaceView 侧边菜单', () => {
   })
 
   it('Spec-H Q11：段过滤可以只显示租户段或只显示平台段', async () => {
-    const wrapper = mountView(SUPER_USER)
+    // 设置租户 ID，让超管进入租户模式（这样段过滤控件才会显示）
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     
     // 默认是「全部」：应该看到两段（租户日常 + 平台管理）
@@ -462,37 +729,85 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(sections).toHaveLength(1)
     expect(sections[0].text()).toContain('租户日常')
     
+    // 切换到「全部」：应该看到两段
+    await buttons[0].trigger('click') // 第一个是「全部」
+    await nextTick()
+    sections = wrapper.findAll('.menu-domain')
+    expect(sections).toHaveLength(2)
+    expect(sections[0].text()).toContain('租户日常')
+    expect(sections[1].text()).toContain('平台管理')
+    
     // 切换到「平台」：应该只看到平台段
     await buttons[2].trigger('click') // 第三个是「平台」
     await nextTick()
     sections = wrapper.findAll('.menu-domain')
     expect(sections).toHaveLength(1)
     expect(sections[0].text()).toContain('平台管理')
-    
-    // 切换回「全部」：应该看到两段
-    await buttons[0].trigger('click') // 第一个是「全部」
-    await nextTick()
-    sections = wrapper.findAll('.menu-domain')
-    expect(sections).toHaveLength(2)
   })
 
   it('Spec-H Q11：段过滤偏好会持久化到 localStorage', async () => {
     localStorage.removeItem('nav_domain_filter')
     
-    const wrapper1 = mountView(SUPER_USER)
+    // 先设置一个租户 ID，让超管进入租户模式（这样段过滤控件才会显示）
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = SUPER_USER as any
+    auth.selectedTenantId = 15
+    
+    const wrapper1 = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     
-    // 切换到「租户」
+    // 默认是「全部」，切换到「租户」
     const segmented = wrapper1.find('.ant-segmented')
     const buttons = segmented.findAll('.ant-segmented-item')
-    await buttons[1].trigger('click')
+    await buttons[1].trigger('click') // 第二个是「租户」
     await nextTick()
     
     // 检查 localStorage
     expect(localStorage.getItem('nav_domain_filter')).toBe('"tenant"')
     
     // 重新挂载，应该保持「租户」过滤
-    const wrapper2 = mountView(SUPER_USER)
+    const wrapper2 = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
     await flushPromises()
     let sections = wrapper2.findAll('.menu-domain')
     expect(sections).toHaveLength(1)
