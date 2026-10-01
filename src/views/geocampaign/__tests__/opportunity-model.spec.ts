@@ -216,6 +216,29 @@ describe('预估那几行只做显示不做算术', () => {
     )
     expect(billingLine(estimate({ tenantBearsCost: false }))).toContain('通用 AI 额度池')
   })
+
+  /**
+   * V158 / N2 之后「本月剩余」有三种状态，界面上必须分开念：
+   * 有数 ⇒ 念数；null ⇒ 念「未设月度上限，不限制」；接口没回这一格 ⇒ 念占位符。
+   * 把 null 兜成 0 是最坏的一种谎：那一格读起来像「钱花光了」，真相是「没人设过上限」。
+   */
+  it('GEO 那一池没设水位（N2）：念「不限制」，四个动作里走 GEO 池的那一个不许念成剩 0', () => {
+    expect(billingLine(estimate({ quotaPoolLabel: 'GEO 诊断专用额度池', remainingTokens: null }))).toBe(
+      '计入本租户的「GEO 诊断专用额度池」，该池未设月度上限，不限制。',
+    )
+    // 平台承担那一支同样不能把 null 抄成一个数：没有数的时候连「账上的数」那句都不成立
+    expect(billingLine(estimate({ tenantBearsCost: false, quotaPoolLabel: 'GEO 诊断专用额度池', remainingTokens: null }))).toBe(
+      '由平台承担，不计入本租户额度（本租户的「GEO 诊断专用额度池」未设月度上限，这一发也不走它）。',
+    )
+  })
+
+  it('接口没回余额那一格：念「未取到」而不是猜一个', () => {
+    expect(billingLine(estimate({ remainingTokens: undefined }))).toContain('本月剩余 未取到')
+  })
+
+  it('真剩 0 照念 0：那是「这个月花光了」，与「没设上限」是两件事', () => {
+    expect(billingLine(estimate({ remainingTokens: 0 }))).toContain('该池本月剩余 0 token')
+  })
 })
 
 describe('行上那两格读数', () => {

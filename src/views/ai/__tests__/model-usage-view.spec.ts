@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import dayjs from 'dayjs'
+import { message } from 'ant-design-vue'
 import ModelUsageView from '../ModelUsageView.vue'
 import { aiModelApi } from '../../../api/ai-model'
 import { statsApi } from '../../../api/billing'
+import { geoQuotaApi } from '../../../api/geoQuota'
 import { useAuthStore } from '../../../stores/auth'
 
 /**
@@ -48,6 +50,17 @@ vi.mock('../../../api/billing', async (importOriginal) => {
     },
   }
 })
+
+/**
+ * GEO 池水位的读与写（V158 / N2）：这一对替件钉的是「界面只把后端回的原文念出来」，
+ * 界面自己拼规则的那一处（为什么是这个数、去哪儿设）一律以后端那句为准。
+ */
+vi.mock('../../../api/geoQuota', () => ({
+  geoQuotaApi: {
+    status: vi.fn(),
+    set: vi.fn(),
+  },
+}))
 
 vi.mock('ant-design-vue', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('ant-design-vue')
@@ -98,6 +111,18 @@ const globalStubs = {
   'a-select': SLOT('ASelect'),
   'a-select-option': SLOT('ASelectOption'),
   'a-input-search': { name: 'AInputSearch', props: ['value'], template: '<i class="input-search" />' },
+  /**
+   * 数字输入框要挂成真的 `<input>`：用例填的是屏幕上那一格，不是绕过去改组件状态。
+   * 清空（不限制）在界面上就是把这一格留空，所以空串必须回 null 而不是 0——0 是「上限为零」，
+   * 与「没人设过上限」是两个相反的意思（V158 / N2）。
+   */
+  'a-input-number': {
+    name: 'AInputNumber',
+    props: ['value', 'min', 'placeholder'],
+    emits: ['update:value'],
+    template: '<input class="input-number" :placeholder="placeholder" :value="value ?? \'\'"'
+      + ' @input="$emit(\'update:value\', $event.target.value === \'\' ? null : Number($event.target.value))" />',
+  },
   'a-table': { name: 'ATable', props: ['dataSource', 'columns'], template: '<div class="table-stub" />' },
   'a-pagination': { name: 'APagination', props: ['total'], template: '<i class="pagination-stub" />' },
   'a-tag': { name: 'ATag', props: ['color'], template: '<span class="tag-stub"><slot /></span>' },
@@ -125,12 +150,32 @@ const STATS = {
   windowTo: '2026-10-01T00:00:00',
 }
 
+/**
+ * 挂过的组件要摘掉。
+ *
+ * 这一页 `watch` 着全局 auth store 的 `selectedTenantId`，而 store 是整个文件共用的一份：
+ * 上一条用例留下的实例还活着，下一条用例改 store 时它会跟着重新取一次数。
+ * 于是「这条用例到底请求了几次额度口」那种断言会数到别人家的份上（实测能数到 28）。
+ */
+const liveWrappers: ReturnType<typeof mount>[] = []
+
+function mountPage() {
+  const global = { stubs: globalStubs }
+  const wrapper = mount(ModelUsageView, { global })
+  liveWrappers.push(wrapper)
+  return wrapper
+}
+
+afterEach(() => {
+  liveWrappers.splice(0).forEach((wrapper) => wrapper.unmount())
+})
+
 async function mountView(stats: Record<string, unknown> = STATS) {
   vi.mocked(aiModelApi.getStats).mockResolvedValue(stats as never)
   vi.mocked(aiModelApi.getUsageByModel).mockResolvedValue([] as never)
   vi.mocked(aiModelApi.getUsageTrend).mockResolvedValue([] as never)
   vi.mocked(aiModelApi.getLogs).mockResolvedValue({ records: [], total: 0, page: 1, size: 20 } as never)
-  const wrapper = mount(ModelUsageView, { global: { stubs: globalStubs } })
+  const wrapper = mountPage()
   await flushPromises()
   return wrapper
 }
@@ -235,7 +280,7 @@ describe('统计口整体失败时不摆四格 0', () => {
     vi.mocked(aiModelApi.getUsageByModel).mockResolvedValue([] as never)
     vi.mocked(aiModelApi.getUsageTrend).mockResolvedValue([] as never)
     vi.mocked(aiModelApi.getLogs).mockResolvedValue({ records: [], total: 0 } as never)
-    const wrapper = mount(ModelUsageView, { global: { stubs: globalStubs } })
+    const wrapper = mountPage()
     await flushPromises()
     const text = wrapper.text()
     expect(text).toContain('这屏的统计没读到')
@@ -300,7 +345,7 @@ describe('趋势那排按钮要真的重新取数', () => {
       { date: '10-01', tokens: 0, cost: 0, calls: 0 },
       { date: '10-02', tokens: 0, cost: 0, calls: 0 },
     ] as never)
-    const wrapper = mount(ModelUsageView, { global: { stubs: globalStubs } })
+    const wrapper = mountPage()
     await flushPromises()
     const bars = wrapper.findAll('.bar-token')
     expect(bars).toHaveLength(2)
@@ -318,7 +363,7 @@ describe('趋势那排按钮要真的重新取数', () => {
       { name: 'doubao-pro', tokens: 200, percent: 33.33, cost: 0.2 },
       { name: 'deepseek-chat', tokens: 300, percent: 50, cost: 0.3 },
     ] as never)
-    const wrapper = mount(ModelUsageView, { global: { stubs: globalStubs } })
+    const wrapper = mountPage()
     await flushPromises()
     expect(wrapper.find('.pie-total').text()).toBe('600')
     expect(wrapper.findAll('.legend-row')).toHaveLength(3)
@@ -345,6 +390,8 @@ const POOLS = [
     monthlyQuota: 1000000,
     usedTokens: 7000,
     remainingTokens: 993000,
+    // 通用池那一路永远有个数（套餐 → 全局默认），所以这一格对它恒为 false（BillingStatsController#poolStats）
+    quotaUnlimited: false,
   },
   {
     usageType: 'AI_GEO',
@@ -354,17 +401,31 @@ const POOLS = [
     monthlyQuota: 80000,
     usedTokens: 1500,
     remainingTokens: 78500,
+    quotaUnlimited: false,
   },
 ]
 
-async function mountPools(pools: unknown, tenantId: number | null = 15) {
+/** 没设水位那一态（V158 / N2）：额度与剩余是 null，不是 0。界面必须念「未设月度上限，不限制」 */
+const GEO_UNLIMITED = {
+  usageType: 'AI_GEO',
+  poolLabel: 'GEO 诊断专用额度池',
+  monthTokenAmount: 1500,
+  monthCount: 1,
+  monthlyQuota: null,
+  usedTokens: 1500,
+  remainingTokens: null,
+  quotaUnlimited: true,
+}
+
+async function mountPools(pools: unknown, tenantId: number | null = 15, geoQuota: unknown = null) {
   useAuthStore().selectedTenantId = tenantId
   vi.mocked(statsApi.overview).mockResolvedValue({ pools } as never)
+  vi.mocked(geoQuotaApi.status).mockResolvedValue(geoQuota as never)
   vi.mocked(aiModelApi.getStats).mockResolvedValue(STATS as never)
   vi.mocked(aiModelApi.getUsageByModel).mockResolvedValue([] as never)
   vi.mocked(aiModelApi.getUsageTrend).mockResolvedValue([] as never)
   vi.mocked(aiModelApi.getLogs).mockResolvedValue({ records: [], total: 0 } as never)
-  const wrapper = mount(ModelUsageView, { global: { stubs: globalStubs } })
+  const wrapper = mountPage()
   await flushPromises()
   return wrapper
 }
@@ -407,7 +468,7 @@ describe('本月额度念的是两池，不是相加那一个数（G4）', () =>
     expect(rows[1].text()).not.toContain('拆池之前')
   })
 
-  it('GEO 那一池没设水位（月度额度 0）：百分比念 0，不念 NaN% / Infinity%', async () => {
+  it('通用池的水位真是 0：百分比念 0，不念 NaN% / Infinity%', async () => {
     const wrapper = await mountPools([
       { ...POOLS[0], monthlyQuota: 0, usedTokens: 0, remainingTokens: 0 },
       { ...POOLS[1], monthlyQuota: 0, usedTokens: 1500, remainingTokens: 0 },
@@ -416,6 +477,26 @@ describe('本月额度念的是两池，不是相加那一个数（G4）', () =>
     const text = wrapper.text()
     expect(text).not.toContain('NaN')
     expect(text).not.toContain('Infinity')
+  })
+
+  /**
+   * V158 / N2 拍板：「GEO 的额度池可以先空着…如果不设置，不用去限制额度」。
+   * 于是这一池有一种新状态：额度与剩余都是 null。界面最坏的写法是 `?? 0`——
+   * 「剩余 0」读作「钱花光了」，而真相是「根本没人设过上限」，两个相反的意思不许共用一个数。
+   */
+  it('GEO 池没设水位：念「未设月度上限，不限制」，不许念成剩 0 或额度 0', async () => {
+    const wrapper = await mountPools([POOLS[0], GEO_UNLIMITED])
+    const rows = wrapper.findAll('.pool-row')
+    expect(rows[1].text()).toContain('未设月度上限，不限制')
+    expect(rows[1].text()).toContain('本月已用 1,500 token')
+    expect(rows[1].text()).not.toContain('剩余 0')
+    expect(rows[1].text()).not.toContain('月度额度 0')
+    // 通用池那一行不受影响：另一池永远有自己的数
+    expect(rows[0].text()).toContain('剩余 993,000')
+    // 没有分母就不画那根条子：画一条 0% 的条子读起来是「一分钱都没花」
+    expect(wrapper.findAll('.progress-stub').map(n => n.attributes('data-percent'))).toEqual(['1'])
+    expect(rows[1].text()).toContain('不是 0%，是「没人设过上限」')
+    expect(wrapper.text()).not.toContain('NaN')
   })
 
   it('后端只回了一行也要照念，不硬凑第二行的 0', async () => {
@@ -441,7 +522,7 @@ describe('本月额度念的是两池，不是相加那一个数（G4）', () =>
     vi.mocked(aiModelApi.getUsageByModel).mockResolvedValue([] as never)
     vi.mocked(aiModelApi.getUsageTrend).mockResolvedValue([] as never)
     vi.mocked(aiModelApi.getLogs).mockResolvedValue({ records: [], total: 0 } as never)
-    const wrapper = mount(ModelUsageView, { global: { stubs: globalStubs } })
+    const wrapper = mountPage()
     await flushPromises()
     expect(wrapper.findAll('.pool-row')).toHaveLength(0)
     // 认卡片标题，不认整页文案：那块说明里的「下一步」本来就要点名这块的名字，整页念会误判
@@ -457,5 +538,113 @@ describe('本月额度念的是两池，不是相加那一个数（G4）', () =>
     const wrapper = await mountPools(undefined)
     expect(wrapper.findAll('.pool-row')).toHaveLength(0)
     expect(wrapper.text()).toContain('预算那一格还没有接上额度口径')
+  })
+})
+
+/**
+ * 超管在本页设 GEO 池的水位（V158 / N2 拍板界面上那一半）。
+ *
+ * 拍板原文是「GEO 的额度池可以先空着，留给后端（超级管理员）设置」——这句话要成立，
+ * 必须有一处界面<b>能写</b>。水位只住在 application.yml 里时，「留给超级管理员设置」就等于
+ * 留给一个既不持有 YAML、也重启不了服务的人设置，那句话是空的。
+ *
+ * 用例钉三件事：
+ * 1. 写入口只给超管（这一行决定「这个租户还能不能继续花平台付给第三方模型的钱」）；
+ * 2. 「为什么现在是这个数」念的是后端原文，界面不拼第二份规则；
+ * 3. 留空提交的是 null 而不是 0（0 = 上限为零、一分钱花不了；null = 没人设过 = 不限制）。
+ */
+const GEO_STATUS = {
+  tenantId: 15,
+  usageType: 'AI_GEO',
+  poolLabel: 'GEO 诊断专用额度池',
+  tenantQuota: null as number | null,
+  platformQuota: 500000,
+  monthlyQuota: 500000 as number | null,
+  quotaSource: 'PLATFORM',
+  quotaUnlimited: false,
+  usedTokens: 1500,
+  remainingTokens: 498500 as number | null,
+  usedPercent: 0,
+  whereToSet: '这一池的水位请让超级管理员在后台「AI 配置中心 · 用量监控」页给本租户设置（留空 = 不限制）。',
+  note: '这个租户没有单独设置，吃到的是平台兜底水位。在这里填一个数就会盖住平台值；要撤销回到平台值，请留空后保存。',
+  updatedAt: null as string | null,
+  updatedBy: null as number | null,
+}
+
+function becomeSuperAdmin(): void {
+  useAuthStore().user = { id: 1, username: 'admin', roles: ['SUPER_ADMIN'], permissions: [] } as never
+}
+
+async function mountWithQuota(status: unknown, pools: unknown = [POOLS[0], GEO_UNLIMITED]) {
+  becomeSuperAdmin()
+  return mountPools(pools, 15, status)
+}
+
+describe('超管在本页设 GEO 池的水位（N2 的写入口）', () => {
+  afterEach(() => {
+    // 全局 store：超管身份与选中的租户都会串到后面的用例
+    const auth = useAuthStore()
+    auth.user = null
+    auth.selectedTenantId = null
+  })
+
+  it('不是超管：这一整块不出现，也不去读那个只有超管能读的口', async () => {
+    const wrapper = await mountPools([POOLS[0], GEO_UNLIMITED])
+    expect(wrapper.findAll('.geo-quota-setter')).toHaveLength(0)
+    expect(geoQuotaApi.status).not.toHaveBeenCalled()
+  })
+
+  it('是超管：写入口出现，并把后端那句「为什么现在是这个数」原样念出来', async () => {
+    const wrapper = await mountWithQuota(GEO_STATUS)
+    const block = wrapper.find('.geo-quota-setter')
+    expect(block.exists()).toBe(true)
+    expect(block.text()).toContain('设置 GEO 诊断池的月度上限')
+    expect(block.text()).toContain(GEO_STATUS.note)
+    // 「留空算什么」必须写在输入框上：让人在按保存之前就知道 null 与 0 是两回事
+    expect(wrapper.find('.input-number').attributes('placeholder')).toBe('留空 = 不限制')
+  })
+
+  it('平台兜底在生效、租户没单独设：回填的是「这个租户自己设的那个数」（空），不是平台值', async () => {
+    // 把平台值抄进输入框，下一次保存就会把「平台兜底」悄悄变成「这个租户单独设的」——
+    // 数没变、来源变了，是最难查的那种账
+    const wrapper = await mountWithQuota(GEO_STATUS)
+    expect((wrapper.find('.input-number').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.find('.geo-quota-setter__now').text()).toContain('平台兜底')
+  })
+
+  it('真填一个数点保存：交出去的是这个数字，跟着刷新两池那块', async () => {
+    const wrapper = await mountWithQuota(GEO_STATUS)
+    vi.mocked(geoQuotaApi.set).mockResolvedValue({ ...GEO_STATUS, tenantQuota: 200000, monthlyQuota: 200000, quotaSource: 'TENANT' })
+    await wrapper.find('.input-number').setValue('200000')
+    buttonsByText(wrapper, '保存')[0].trigger('click')
+    await flushPromises()
+    expect(geoQuotaApi.set).toHaveBeenCalledWith({ tenantId: 15, monthlyTokenQuota: 200000 })
+    expect(statsApi.overview).toHaveBeenCalledTimes(2)
+  })
+
+  it('点「清空」交出去的是 null，不是 0：0 是「上限为零」，null 才是「不限制」', async () => {
+    const wrapper = await mountWithQuota({ ...GEO_STATUS, tenantQuota: 200000, monthlyQuota: 200000, quotaSource: 'TENANT' })
+    vi.mocked(geoQuotaApi.set).mockResolvedValue(GEO_STATUS)
+    buttonsByText(wrapper, '清空（改为不限制）')[0].trigger('click')
+    await flushPromises()
+    expect(geoQuotaApi.set).toHaveBeenCalledWith({ tenantId: 15, monthlyTokenQuota: null })
+  })
+
+  it('输入框里清空再保存，交的同样是 null', async () => {
+    const wrapper = await mountWithQuota({ ...GEO_STATUS, tenantQuota: 200000, monthlyQuota: 200000, quotaSource: 'TENANT' })
+    vi.mocked(geoQuotaApi.set).mockResolvedValue(GEO_STATUS)
+    await wrapper.find('.input-number').setValue('')
+    buttonsByText(wrapper, '保存')[0].trigger('click')
+    await flushPromises()
+    expect(geoQuotaApi.set).toHaveBeenCalledWith({ tenantId: 15, monthlyTokenQuota: null })
+  })
+
+  it('保存失败时把原因念出来，不假装「已保存」', async () => {
+    const wrapper = await mountWithQuota(GEO_STATUS)
+    vi.mocked(geoQuotaApi.set).mockRejectedValue(new Error('GEO_QUOTA_VALUE_INVALID: 0 个 token 不是「不设上限」'))
+    buttonsByText(wrapper, '清空（改为不限制）')[0].trigger('click')
+    await flushPromises()
+    expect(message.error).toHaveBeenCalledWith('GEO_QUOTA_VALUE_INVALID: 0 个 token 不是「不设上限」')
+    expect(message.success).not.toHaveBeenCalled()
   })
 })

@@ -211,27 +211,65 @@
               <div v-for="pool in pools" :key="pool.usageType" class="pool-row">
                 <div class="pool-head">
                   <span class="pool-name">{{ pool.poolLabel }}</span>
-                  <span class="pool-nums">
-                    剩余 {{ pool.remainingTokens?.toLocaleString() ?? '—' }} / 本月已用
-                    {{ pool.usedTokens?.toLocaleString() ?? '—' }} · 月度额度
-                    {{ pool.monthlyQuota?.toLocaleString() ?? '—' }} token
+                  <!-- 三态各有各的念法（V158 / N2）：有上限念数，没上限念「不限制」，接口没回才念占位符 -->
+                  <span v-if="poolIsUnlimited(pool)" class="pool-nums">
+                    未设月度上限，不限制 · 本月已用
+                    {{ pool.usedTokens?.toLocaleString() ?? PH_DASH }} token
+                  </span>
+                  <span v-else class="pool-nums">
+                    剩余 {{ pool.remainingTokens?.toLocaleString() ?? PH_DASH }} / 本月已用
+                    {{ pool.usedTokens?.toLocaleString() ?? PH_DASH }} · 月度额度
+                    {{ pool.monthlyQuota?.toLocaleString() ?? PH_DASH }} token
                   </span>
                 </div>
+                <!-- 没有上限就没有「用了百分之几」这个数：那根条子的分母不存在。
+                     画一条 0% 的条子读起来是「一分钱都没花」，而这一行的真相常常是已经花掉了几十万 -->
                 <a-progress
+                  v-if="!poolIsUnlimited(pool)"
                   :percent="poolUsedPercent(pool)"
                   :stroke-color="poolUsedPercent(pool) >= 90 ? '#d4380d' : '#1677ff'"
                   :show-info="false"
                 />
+                <div v-else class="pool-unlimited">
+                  这一池没有上限可除，所以不算已用占比——不是 0%，是「没人设过上限」。
+                </div>
                 <div class="pool-ledger">
-                  本月这一池的扣费流水 {{ pool.monthCount?.toLocaleString() ?? '—' }} 笔、合计
-                  {{ pool.monthTokenAmount?.toLocaleString() ?? '—' }} token<span
+                  本月这一池的扣费流水 {{ pool.monthCount?.toLocaleString() ?? PH_DASH }} 笔、合计
+                  {{ pool.monthTokenAmount?.toLocaleString() ?? PH_DASH }} token<span
                     v-if="pool.usageType === 'AI_TOKEN'"
                   >（含拆池之前那几笔——它们没记池子，按当时的口径算进通用池）</span>。
                 </div>
               </div>
               <div class="pool-note">
-                两池分账：GEO 诊断花的钱不挤文章生成的额度，反过来也一样。GEO 那一池的水位由
-                app.ai.quota.geo-monthly-quota 设，没设时跟随本租户计费套餐的月度额度。
+                两池分账：GEO 诊断花的钱不挤文章生成的额度，反过来也一样。
+                通用池的水位跟着本租户的计费套餐；GEO 那一池由超级管理员在本页设，
+                <b>没设 = 不限制</b>（不是「额度为 0」，也不会去跟套餐的数）。
+              </div>
+
+              <!--
+                超管写入口（V158 / N2 拍板：「留给后端（超级管理员）设置」）。
+                这句话要成立，必须有一处界面能写——水位只住在 application.yml 里，
+                就等于留给一个既不持有 YAML、也无法重启服务的人设置。
+                判据一条都不在这里重复实现：能不能存、留空算什么，以接口回的那句 note 为准。
+              -->
+              <div v-if="authStore.isSuperAdmin" class="geo-quota-setter">
+                <div class="geo-quota-setter__title">设置 GEO 诊断池的月度上限（仅超级管理员）</div>
+                <a-space>
+                  <a-input-number
+                    v-model:value="geoQuotaInput"
+                    :min="1"
+                    :step="10000"
+                    :controls="false"
+                    placeholder="留空 = 不限制"
+                    style="width: 180px"
+                  />
+                  <a-button :loading="geoQuotaSaving" @click="saveGeoQuota">保存</a-button>
+                  <a-button :loading="geoQuotaSaving" @click="clearGeoQuota">清空（改为不限制）</a-button>
+                </a-space>
+                <div v-if="geoQuota" class="geo-quota-setter__now">{{ geoQuotaNowText }}</div>
+                <!-- 「为什么现在是这个数」与「去哪儿设」都由后端发原文，界面不拼第二份规则 -->
+                <div v-if="geoQuota?.note" class="geo-quota-setter__note">{{ geoQuota.note }}</div>
+                <div v-if="geoQuota" class="geo-quota-setter__who">{{ geoQuotaWhoText }}</div>
               </div>
             </div>
             <div v-else-if="hasStat('budgetTotal')" class="budget-container">
@@ -460,9 +498,11 @@ import {
 } from '@ant-design/icons-vue'
 import { aiModelApi } from '../../api/ai-model'
 import { statsApi } from '../../api/billing'
+import { geoQuotaApi, type GeoQuotaStatus } from '../../api/geoQuota'
 import StateBlock from '../../components/StateBlock.vue'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
+import { PH_DASH } from '../../utils/display'
 import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
@@ -511,17 +551,29 @@ const budgetTotal = ref(0)
  *
  * <p>只有点名了租户才读得到：全租户视角下「月度额度」没有归属，把各家的水位相加是个假上限。
  * 所以 {@link loadPools} 没选租户时直接清空这块，由那块说明文字解释为什么没有数。</p>
+ *
+ * <p>V158（N2 拍板）之后多了一格 {@code quotaUnlimited}：GEO 那一池可以<b>压根没设上限</b>，
+ * 那时 {@code monthlyQuota} 与 {@code remainingTokens} 是 null。这一格必须由后端说，界面不许自己
+ * 拿「额度是 0」去推断——0 是「钱花光了」，null 是「没人设过上限」，两个相反的意思共用一个数
+ * 就是下一句谎。</p>
  */
 interface PoolStat {
   usageType: string
   poolLabel: string
   monthTokenAmount?: number
   monthCount?: number
-  monthlyQuota?: number
+  monthlyQuota?: number | null
   usedTokens?: number
-  remainingTokens?: number
+  remainingTokens?: number | null
+  /** 后端直说「这一池没设上限」；通用池那一路恒为 false */
+  quotaUnlimited?: boolean
 }
 const pools = ref<PoolStat[]>([])
+
+/** 这一池是不是「没人设过上限」：只认后端那一格，不拿 monthlyQuota 是否为 0/null 去猜 */
+function poolIsUnlimited(pool: PoolStat): boolean {
+  return pool.quotaUnlimited === true
+}
 
 /** 已用占比：没有水位就不算百分比（除以 0 会念成 Infinity%，那一类假数这次已经清过一遍） */
 function poolUsedPercent(pool: PoolStat): number {
@@ -537,6 +589,7 @@ const loadPools = async () => {
   const tenantId = authStore.selectedTenantId ?? undefined
   if (!tenantId) {
     pools.value = []
+    geoQuota.value = null
     return
   }
   try {
@@ -546,6 +599,89 @@ const loadPools = async () => {
     logError('ai/model-usage-view', 'Failed to load token pools:', error)
     pools.value = []
   }
+  await loadGeoQuota(tenantId)
+}
+
+/**
+ * 超管写 GEO 池水位那一块（V158 / N2 拍板唯一能「留给超级管理员设置」的入口）。
+ *
+ * <p>界面在这里只做两件事：把后端回的那句「为什么现在是这个数」原样念出来，和把人填的数交出去。
+ * 「留空 = 不限制」「填 0 会被拒」这两条判据都在 `GeoQuotaService.setTenantQuota`，
+ * 这里不复制一份（复制一次就是下一次两边对不上的来源）。</p>
+ */
+const geoQuota = ref<GeoQuotaStatus | null>(null)
+const geoQuotaInput = ref<number | null>(null)
+const geoQuotaSaving = ref(false)
+
+async function loadGeoQuota(tenantId: number): Promise<void> {
+  if (!authStore.isSuperAdmin) {
+    geoQuota.value = null
+    return
+  }
+  try {
+    const status = await geoQuotaApi.status(tenantId)
+    geoQuota.value = status ?? null
+    // 回填的是「这个租户单独设的那个数」，不是生效值：生效值可能是平台兜底，
+    // 把它当租户级设置回填，下一次保存就会把平台值抄成租户值（来源悄悄变了，数没变，最难查）
+    geoQuotaInput.value = status?.tenantQuota ?? null
+  } catch (error) {
+    logError('ai/model-usage-view', 'Failed to load GEO quota:', error)
+    geoQuota.value = null
+  }
+}
+
+/** 提交这一池的水位。{@code quota} 为 null 就是「清空 = 不限制」，与填 0 是两件事 */
+async function submitGeoQuota(quota: number | null): Promise<void> {
+  const tenantId = authStore.selectedTenantId
+  if (!tenantId) {
+    message.warning('请先在右上角选择一个租户：这一池是按租户分账的，没有租户号就没有「设给谁」')
+    return
+  }
+  geoQuotaSaving.value = true
+  try {
+    const status = await geoQuotaApi.set({ tenantId, monthlyTokenQuota: quota })
+    geoQuota.value = status ?? null
+    geoQuotaInput.value = status?.tenantQuota ?? null
+    message.success(status?.note || '已保存')
+    // 两池那块读的是另一条口（/billing/stats/overview），改完必须一起刷新，否则同一屏两个数各说一套
+    await loadPools()
+  } catch (error: any) {
+    message.error(error?.message || '保存失败')
+    logError('ai/model-usage-view', 'Failed to save GEO quota:', error)
+  } finally {
+    geoQuotaSaving.value = false
+  }
+}
+
+const saveGeoQuota = () => submitGeoQuota(geoQuotaInput.value ?? null)
+
+const clearGeoQuota = async () => {
+  geoQuotaInput.value = null
+  await submitGeoQuota(null)
+}
+
+const geoQuotaNowText = computed(() => {
+  const status = geoQuota.value
+  if (!status) return ''
+  const quota = status.monthlyQuota
+  const effective = quota === null || quota === undefined ? '不限制（没设过上限）' : `${quota.toLocaleString()} token`
+  const source = QUOTA_SOURCE_TEXT[status.quotaSource] || status.quotaSource
+  return `现在生效的是 ${effective}，来源：${source}；本月已用 ${status.usedTokens.toLocaleString()} token。`
+})
+
+const geoQuotaWhoText = computed(() => {
+  const status = geoQuota.value
+  if (!status) return ''
+  const at = status.updatedAt ? formatDateTime(status.updatedAt) : '这个租户还没单独设过'
+  const by = status.updatedBy === null || status.updatedBy === undefined ? '没记到改动人' : `管理员 id ${status.updatedBy}`
+  return `最后一次单独设置：${at} · ${by}（要核对是谁，按这个 id 在「用户管理」里查）`
+})
+
+/** 生效水位来自哪一路：词表在这一份文件里只有一份，跟后端三个常量一一对应 */
+const QUOTA_SOURCE_TEXT: Record<string, string> = {
+  TENANT: '本租户单独设置',
+  PLATFORM: '平台兜底（app.ai.quota.geo-monthly-quota）',
+  UNLIMITED: '两处都没设',
 }
 
 // 统计那一次请求到底回没回。没回就不许把四格初始值当数念（见上面那排卡的注释）
@@ -1134,6 +1270,48 @@ onMounted(() => {
     margin-top: 16px;
     font-size: 12px;
     color: #6b7280;
+  }
+
+  /* 「不限制」那一行替代进度条的位置：没有分母就没有百分比，这里留一句解释而不是画一条 0% 的条子 */
+  .pool-unlimited {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #389e0d;
+  }
+
+  /*
+   * 超管设 GEO 池水位那一块（V158 / N2）。放在两池列表下面、同一张卡里：
+   * 它改的就是上面那一行的数，分开两处就会「改了不知道改的是哪一行」。
+   */
+  .geo-quota-setter {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px dashed #d9d9d9;
+
+    .geo-quota-setter__title {
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .geo-quota-setter__now {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #1f2937;
+    }
+
+    .geo-quota-setter__note {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .geo-quota-setter__who {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #8c8c8c;
+    }
   }
 }
 

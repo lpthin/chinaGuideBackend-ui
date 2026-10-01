@@ -90,6 +90,28 @@ export function estimateLines(estimate: GeoEstimate): Array<{ label: string; val
 }
 
 /**
+ * 「这一池还剩多少钱」那一半句子（V158 / N2）。
+ *
+ * 三个状态必须分开念，一个都不许兜成数字：
+ * - 有数 ⇒ 念那个数；
+ * - **null ⇒ 念「未设月度上限，不限制」**。这一格最容易写坏：`?? 0` 会念出「剩余 0 token」，
+ *   而 0 读作「钱花光了」，那一刻真相是「根本没人设过上限」。两个相反的意思不能共用一个数；
+ * -  undefined（接口没回这一格）⇒ 念占位符，不猜。
+ *
+ * 这一句只说余额，不说「哪一池」——池子名后端逐字发在 `quotaPoolLabel` 里，两处各拼一次
+ * 就是下一次对不上的来源（§12 词表单源那条纪律）。
+ */
+export function poolBalancePhrase(remainingTokens: number | null | undefined): string {
+  if (remainingTokens === null) {
+    return '未设月度上限，不限制'
+  }
+  if (remainingTokens === undefined) {
+    return `本月剩余 ${PH_NOT_MEASURED}`
+  }
+  return `本月剩余 ${remainingTokens} token`
+}
+
+/**
  * 这一笔钱记在谁账上（跟 `tenantBearsCost` 走，与 V142 那条交付态闸同一份判据）。
  * 未交付租户念「平台承担」，已交付念「计入额度池」——念错方向等于让客户以为在花钱或以为不花钱。
  *
@@ -99,7 +121,7 @@ export function estimateLines(estimate: GeoEstimate): Array<{ label: string; val
  */
 export function billingLine(estimate: GeoEstimate): string {
   return estimate.tenantBearsCost
-    ? `这一轮的消耗计入本租户的「${estimate.quotaPoolLabel}」，该池本月剩余 ${estimate.remainingTokens} token。`
+    ? `这一轮的消耗计入本租户的「${estimate.quotaPoolLabel}」，该池${poolBalancePhrase(estimate.remainingTokens)}。`
     : '这一轮由平台承担，不计入本租户的 token 额度（站还没交出去）。'
 }
 

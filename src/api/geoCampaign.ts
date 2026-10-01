@@ -57,12 +57,21 @@ export interface GeoEstimate {
   /** 提问那一段的预计 token，跟下面 judgeEstimatedTokens 各归各的账（§6.2 两段式） */
   estimatedTokens: number
   estimatedMinutes: number
-  remainingTokens: number
+  /**
+   * 这一池本月还剩多少 token；**null = 这一池没设月度上限**（V158 / N2：留给超级管理员设，不设就不限）。
+   *
+   * 界面这一格必须分三态念：有数念数、null 念「未设上限」、读不到接口才是「—」。
+   * 拿 `?? 0` 把 null 兜成 0 是最坏的一形——0 读作「钱花光了」，而这一刻根本没有上限这个东西。
+   */
+  remainingTokens: number | null
   /**
    * `remainingTokens` 是<b>哪一池</b>的剩余（G4 拆池之后必须有这一格）：GEO 诊断走
    * 「GEO 诊断专用额度池」，其余产品线走「通用 AI 额度池」。这个词由后端
    * `TokenQuotaService.poolLabel` 出，界面不许自己拼——拆池之后「本租户额度」已经指不清
    * 是哪一个上限了，而这句话是要拿去做定价沟通的。
+   *
+   * 还要注意：GEO 那一池自 V158 起可以<b>没设上限</b>（那时 `remainingTokens` 是 null）。
+   * 「未设上限」与「剩余 0」是两件相反的事，都由 `quotaPoolLabel` + `remainingTokens` 这两格一起说。
    */
   quotaPoolLabel: string
   campaignEnabled: boolean
@@ -346,7 +355,8 @@ export interface GeoOpportunityEstimate {
   actionDefinition: string | null
   callCount: number
   estimatedTokens: number
-  remainingTokens: number
+  /** 这一池本月剩余；**null = 没设月度上限**（V158 / N2），界面念「未设上限」不念 0 */
+  remainingTokens: number | null
   /**
    * 这一笔剩余额度属于哪一池（G4）。四个动作分属两池：加问答在 GEO 专用池，
    * 新建页 / 写文章 / 加案例在通用池，所以这个词必须按动作现读，界面不许写死一个。

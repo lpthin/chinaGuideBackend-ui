@@ -556,6 +556,28 @@ describe('这一笔钱记在谁账上（V142 交付态闸的界面那一半）',
     expect(line).toContain('平台承担')
     expect(line).not.toContain('900000')
   })
+
+  /**
+   * V158 / N2 拍板：「GEO 的额度池可以先空着…如果不设置，不用去限制额度」。
+   * 于是「本月剩余」多了一种状态：接口给的是 null（这一池没有上限这个数）。
+   * 界面最坏的写法是 `?? 0`：那一格会念出「剩余 0 token」，读的人以为钱花光了，
+   * 而真相是「根本没人设过上限」——两个相反的意思不许共用一个数。
+   */
+  it('没设月度上限：念「未设月度上限，不限制」，不许念成剩 0', () => {
+    expect(billingLine(estimate({ tenantBearsCost: true, remainingTokens: null }))).toBe(
+      '这一轮的消耗计入本租户的「GEO 诊断专用额度池」，该池未设月度上限，不限制。',
+    )
+  })
+
+  it('接口压根没回这一格（undefined）：念占位符，不猜一个数', () => {
+    expect(billingLine(estimate({ tenantBearsCost: true, remainingTokens: undefined }))).toBe(
+      '这一轮的消耗计入本租户的「GEO 诊断专用额度池」，该池本月剩余 未取到。',
+    )
+  })
+
+  it('真剩 0 也照念 0：不许把「花光了」藏成「不限制」', () => {
+    expect(billingLine(estimate({ tenantBearsCost: true, remainingTokens: 0 }))).toContain('该池本月剩余 0 token')
+  })
 })
 
 describe('率与区间：没测过不显示 0%（§9.6）', () => {

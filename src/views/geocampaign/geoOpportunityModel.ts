@@ -17,7 +17,7 @@ import type {
   GeoVocabulary,
 } from '../../api/geoCampaign'
 import { PH_DASH } from '../../utils/display'
-import { UNMEASURABLE_WAY } from './geoCampaignModel'
+import { poolBalancePhrase, UNMEASURABLE_WAY } from './geoCampaignModel'
 
 /** 放弃理由的字符上限：逐字镜像 `GeoOpportunityService.dismiss` 里那一个 500，界面先拦住比拿一次 400 好 */
 export const DISMISS_REASON_MAX = 500
@@ -127,9 +127,15 @@ export function estimateLines(estimate: GeoOpportunityEstimate): Array<{ label: 
  * 名字来自后端的 `quotaPoolLabel`（按这一动作的 bizType 现算），界面不另拼一份。</p>
  */
 export function billingLine(estimate: GeoOpportunityEstimate): string {
-  return estimate.tenantBearsCost
-    ? `计入本租户的「${estimate.quotaPoolLabel}」，该池本月剩余 ${estimate.remainingTokens} token。`
-    : `由平台承担，不计入本租户额度（${estimate.quotaPoolLabel}本月剩余那一格 ${estimate.remainingTokens} token 只是账上的数，不是你的上限）。`
+  if (estimate.tenantBearsCost) {
+    return `计入本租户的「${estimate.quotaPoolLabel}」，该池${poolBalancePhrase(estimate.remainingTokens)}。`
+  }
+  // 未交付：账上那一池的数照念，但必须补一句「这一发不走它」。不补，客户看到「本月剩余 88000」
+  // 就以为自己按下去要扣那 88000 里的钱；念的是「未设月度上限」时更容易读反（不限制 = 随便花），
+  // 所以那一支另起一句，不共用「那只是账上的数」——没有数的时候那句话没有指代。
+  return estimate.remainingTokens === null
+    ? `由平台承担，不计入本租户额度（本租户的「${estimate.quotaPoolLabel}」未设月度上限，这一发也不走它）。`
+    : `由平台承担，不计入本租户额度（本租户的「${estimate.quotaPoolLabel}」${poolBalancePhrase(estimate.remainingTokens)}，那只是账上的数，这一发不走它）。`
 }
 
 /**
