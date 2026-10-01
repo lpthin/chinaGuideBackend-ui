@@ -19,8 +19,8 @@ import {
 } from '../navState'
 import {
   MENU_GROUPS,
-  MENU_BOTTOM_ROUTE,
   MENU_TOP_ROUTE,
+  bottomMenuLeaf,
   buildMenuSections,
   collectMenuLeaves,
   findLeaf,
@@ -125,7 +125,9 @@ function realEntries() {
   return flattenMenuEntries(
     sections,
     findLeaf(MENU_TOP_ROUTE, leaves),
-    findLeaf(MENU_BOTTOM_ROUTE, leaves)
+    // H-6 之后下方那颗不是固定一条路由，而是「这个人该看到的那颗」：
+    // EVERYONE 是超管 ⇒ 队列。搜索列表里出现的下方那一条，就是界面上那一条。
+    bottomMenuLeaf(leaves, EVERYONE)
   )
 }
 
@@ -139,12 +141,36 @@ describe('navState 菜单搜索', () => {
     // 键不许撞：撞了就是「同一个地址在搜索结果里出现两次」，与「菜单不手抄第二份」同一条病
     expect(new Set(entries.map(entry => entry.key)).size).toBe(entries.length)
     // 每一项都带着自己的组名（界面上「命中项 + 其组名」靠这一列）
-    expect(entries.filter(entry => !entry.groupLabel).map(entry => entry.label)).toEqual(['工作台', '联系平台'])
+    // H-6：超管下方那颗现在是「平台工单队列」，队列也不在组表里了 ⇒ 它和工作台一样没有组名
+    expect(entries.filter(entry => !entry.groupLabel).map(entry => entry.label)).toEqual(['工作台', '平台工单队列'])
     // 摊平顺序 = 界面顺序：组表顺序在前，固定项一头一尾
     expect(entries[0].key).toBe('dashboard')
-    expect(entries[entries.length - 1].key).toBe('portal/support')
+    expect(entries[entries.length - 1].key).toBe('portal/support-queue')
     const groupOrder = Array.from(new Set(entries.map(entry => entry.groupKey).filter(Boolean)))
     expect(groupOrder).toEqual(MENU_GROUPS.map(group => group.key))
+  })
+
+  it('H-6：搜索列表里的下方那一条跟着角色走，不是写死的那颗', () => {
+    // 同一个函数、同一个夹具，换成租户视图（只有 submit 码）时尾部那条就该是「联系平台」：
+    // 命中集合来自界面渲染的那几项，视图换了它就跟着换。
+    const leaves = collectMenuLeaves(routes)
+    const tenant: MenuVisibility = {
+      isSuperAdmin: false,
+      hasPermission: code => code === 'portal:ticket:submit',
+      openContentEntries: null
+    }
+    const entries = flattenMenuEntries(
+      buildMenuSections(leaves, tenant),
+      findLeaf(MENU_TOP_ROUTE, leaves),
+      bottomMenuLeaf(leaves, tenant)
+    )
+    expect(entries[entries.length - 1].key).toBe('portal/support')
+    // 租户那一项在菜单上叫「联系平台」，页面自己的词是「提交工单」——搜「工单」得找得到它，
+    // 靠的就是 H-6 补进 meta.desc 的那句（命中面 = 项名 + 说明，§4.2 规则 4）
+    expect(searchMenuHits(entries, '工单').map(hit => hit.key)).toEqual(['portal/support'])
+    // 超管视角下「工单」这个词命中的是队列 + 改版工单，租户一颗都看不到队列
+    expect(searchMenuHits(realEntries(), '工单').map(hit => hit.key))
+      .toEqual(['portal/tickets', 'portal/support-queue'])
   })
 
   it('判据那一档：输入「引用」只剩含「引用」的项，且带得出它属于哪一组', () => {

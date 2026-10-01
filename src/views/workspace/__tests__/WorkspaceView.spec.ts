@@ -184,9 +184,32 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(items.filter(label => label === '前采需求单')).toHaveLength(1)
     expect(items.filter(label => label === '待办通知')).toHaveLength(1)
     expect(new Set(items).size).toBe(items.length)
-    // 工作台（固定在最上方）+ 联系平台（固定在最下方）也在同一批渲染里
+    // 工作台（固定在最上方）+ 联系平台（固定在最下方）也在同一批渲染里。
+    // 这一档故意只给 submit 不给 review：H-6 之后下方那颗该自动落回「联系平台」，
+    // 而不是因为「他是超管」就硬塞一颗点了 403 的队列。
     expect(items).toContain('工作台')
     expect(items).toContain('联系平台')
+  })
+
+  it('Spec-H H-6：同一颗位置按角色换标题，超管那一屏不再有两个通向同一张表的入口', async () => {
+    const superWrapper = mountView(SUPER_USER)
+    await flushPromises()
+    const superItems = superWrapper.findAll('.menu-item-stub').map(node => node.text().trim())
+    expect(superItems).toContain('平台工单队列')
+    expect(superItems).not.toContain('联系平台')
+    // 队列以前同时在「平台质量」组和菜单最下方各挂一颗（同一个 SupportTicketView 的两个 mode）；
+    // 现在只剩下方那一颗，「工单」这一族在界面上就是这两个不同视图、各一颗
+    expect(superItems.filter(label => label.includes('工单'))).toEqual(['改版工单', '平台工单队列'])
+    expect(superItems[superItems.length - 1]).toBe('平台工单队列')
+
+    const tenantWrapper = mountView({ username: 'siteadmin', roles: ['SITE_ADMIN'], permissions: TENANT_CODES })
+    await flushPromises()
+    const tenantItems = tenantWrapper.findAll('.menu-item-stub').map(node => node.text().trim())
+    expect(tenantItems[tenantItems.length - 1]).toBe('联系平台')
+    expect(tenantItems).not.toContain('平台工单队列')
+    // H-6 给这一颗补的那句 desc 是在界面上说得出话的（tooltip），不是只写进路由没人看：
+    // 它同时是「租户搜『工单』能找到这一项」的命中面。
+    expect(tenantWrapper.find('[data-tip*="提交工单"]').exists()).toBe(true)
   })
 
   it('Spec-H H-1a：组渲成可收合的 SubMenu，颗数 = 组数（超管 11 / 租户 5）', async () => {

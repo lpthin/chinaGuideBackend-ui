@@ -81,9 +81,13 @@ export interface MenuGroupDef {
 /**
  * 组的唯一真相：顺序 = 菜单里的上下顺序。
  *
- * Spec-H（后台左侧导航整理）L1 的归组表：16 组 → 11 组，**一项页面都没动、一项都没删**，
+ * Spec-H（后台左侧导航整理）L1 的归组表：16 组 → 11 组，**这一期一项页面都没动、一项都没删**，
  * 只把「一个组名包一个入口」（C-1）和「组名与项名同一句话」（C-2）这两种形状消掉。
  * 硬规则由 `workspace-menu.spec.ts` 钉住：组名 ≤5 字、每组 ≥2 项、组名不与组内项名相同。
+ *
+ * P3（L2）往下才动入口：H-6 摘掉重复的工单队列（`build-quality` 5 → 4），
+ * H-5 把报警三件收成一颗「报警中心」，H-4 把 GEO 三入口收成一颗「诊断工作台」。
+ * 每一次摘都在**这里**留一行理由、并在 `MENU_EXCLUDED` 留一条——地址不断，菜单不再重复。
  */
 export const MENU_GROUPS: MenuGroupDef[] = [
   // ===== 租户日常（5 组 39 项）=====
@@ -180,7 +184,10 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-portal-assemble-jobs': 'build-quality',
   'workspace-portal-citation-probes': 'build-quality',
   'workspace-portal-tickets': 'build-quality',
-  'workspace-portal-support-queue': 'build-quality',
+  // Spec-H P3 的 H-6：「平台工单队列」原来在这一组、菜单最下方又有一颗「联系平台」，
+  // 两项是同一个视图 `SupportTicketView` 的两个 mode ⇒ 超管在同一侧边栏里看到两个入口、
+  // 点进去是同一张表。现在队列挪去下方那一颗（按角色取标题），这里摘掉。
+  // 「改版工单」`portal/tickets` 是另一个视图（`RevisionTicketView`），**不许跟着一起收**。
   // 计费
   'workspace-billing-manage': 'billing',
   'workspace-billing-stats': 'billing',
@@ -208,11 +215,14 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
 
 /**
  * 有路由但故意不进分组的，逐条写理由（`findMenuOrphanRoutes` 拿这张表放行）。
- * 固定渲染在菜单上/下两端的「工作台」「联系平台」也在这里——它们不是漏挂，是别处渲染。
+ * 固定渲染在菜单上/下两端的那些项（工作台、联系平台 / 平台工单队列）也在这里——
+ * 它们不是漏挂，是别处渲染。
  */
 export const MENU_EXCLUDED: Record<string, string> = {
   'workspace-dashboard': '它是面包屑的「首页」与登录落点，固定在菜单最上方单独渲染，不分组',
   'workspace-portal-support': '租户的「联系平台」：与内容/建站两域都不属于，固定在菜单最下方单独渲染',
+  'workspace-portal-support-queue':
+    '超管的「平台工单队列」：与上面那颗是同一个视图的另一个 mode（Spec-H H-6），同一颗位置按角色取其一，不再单列一组',
   'workspace-user-profile': '从右上角头像进，不占侧边栏',
   // geoseo/competitors 与 geoseo/keywords 那两条不再需要排除理由——路由与视图整体删除了
   // （Spec-F Q6/Q7-A：排名与竞品数字全是人工抄录，`/keywords/{id}/check` 现在返回 501）。
@@ -221,7 +231,17 @@ export const MENU_EXCLUDED: Record<string, string> = {
 
 /** 菜单上下两端各固定一项：路由名写死在这里，视图只认这两个名字，不再手抄标签 */
 export const MENU_TOP_ROUTE = 'workspace-dashboard'
-export const MENU_BOTTOM_ROUTE = 'workspace-portal-support'
+
+/**
+ * 菜单最下方那一颗（Spec-H H-6：两颗工单入口收成一颗，按角色显示不同标题）。
+ *
+ * **顺序即优先级**，取这条名单里第一个「这个人看得见」的项：
+ * - `portal:build:review` 只授 SUPER_ADMIN（V93），队列排在前面 ⇒ 超管拿到「平台工单队列」，
+ *   他是处理方，同一侧边栏里不再有两个通向同一张表的入口；
+ * - `portal:ticket:submit` 授 SUPER_ADMIN + SITE_ADMIN ⇒ 租户拿到的还是「联系平台」。
+ * 两条地址都还在路由表里（`MENU_EXCLUDED` 那两行），老收藏夹与文档链接不断。
+ */
+export const MENU_BOTTOM_ROUTES: string[] = ['workspace-portal-support-queue', 'workspace-portal-support']
 
 /**
  * 图标注册表：路由 meta 里那个字符串 → 组件。
@@ -455,6 +475,22 @@ export function menuCrumb(key: string, leaves: MenuLeaf[]): { parent?: string; c
 /** 按路由名取叶子（视图用它渲染菜单上下两端，标签与图标仍不抄第二份） */
 export function findLeaf(routeName: string, leaves: MenuLeaf[]): MenuLeaf | null {
   return leaves.find(leaf => leaf.routeName === routeName) ?? null
+}
+
+/**
+ * 菜单最下方那一项该给这个人看哪一颗（Spec-H H-6）。
+ *
+ * 判据还是 `leafVisible`，也就是路由 meta 上那一条权限码 —— 与守卫同一份，
+ * 所以「队列给拿不到 review 码的人露出来」这种形状不可能再出现。
+ * 全都不可见时返回 null（比如 CONTENT_EDITOR 两码都没有，V93 明确「编辑不代提」）：
+ * 下方那一格整行不渲染，而不是留一行点了 403 的假入口。
+ */
+export function bottomMenuLeaf(leaves: MenuLeaf[], view: MenuVisibility): MenuLeaf | null {
+  for (const routeName of MENU_BOTTOM_ROUTES) {
+    const leaf = findLeaf(routeName, leaves)
+    if (leaf && leafVisible(leaf, view)) return leaf
+  }
+  return null
 }
 
 /**

@@ -171,7 +171,10 @@
           >
             <a-menu-item :key="bottomLeaf.key">
               <template #icon><component :is="bottomLeaf.icon" /></template>
-              {{ bottomLeaf.label }}
+              <a-tooltip v-if="bottomLeaf.tip" :title="bottomLeaf.tip" placement="right">
+                <span class="menu-leaf__label">{{ bottomLeaf.label }}</span>
+              </a-tooltip>
+              <span v-else>{{ bottomLeaf.label }}</span>
             </a-menu-item>
           </a-menu>
           </template>
@@ -241,8 +244,8 @@ import {
 } from '@ant-design/icons-vue'
 import { routes } from '../../router'
 import {
-  MENU_BOTTOM_ROUTE,
   MENU_TOP_ROUTE,
+  bottomMenuLeaf,
   buildMenuSections,
   collectMenuLeaves,
   findLeaf,
@@ -302,14 +305,15 @@ const visibility = computed(() => ({
 
 const menuSections = computed(() => buildMenuSections(menuLeaves.value, visibility.value))
 
-/** 菜单上/下两端各固定一项（工作台、联系平台）：标签与图标同样来自那条路由，视图里不写死中文 */
+/** 菜单最上方那颗固定项（工作台）：标签与图标同样来自那条路由，视图里不写死中文 */
 function visibleFixedLeaf(routeName: string) {
   const leaf = findLeaf(routeName, menuLeaves.value)
   return leaf && leafVisible(leaf, visibility.value) ? leaf : null
 }
 
 const topLeaf = computed(() => visibleFixedLeaf(MENU_TOP_ROUTE))
-const bottomLeaf = computed(() => visibleFixedLeaf(MENU_BOTTOM_ROUTE))
+// 下方那一颗按角色取（Spec-H H-6）：超管 = 平台工单队列，租户 = 联系平台，同一个位置只留一颗
+const bottomLeaf = computed(() => bottomMenuLeaf(menuLeaves.value, visibility.value))
 
 /**
  * 选中态用最长前缀匹配。旧实现取「路径首段」+ 手抄一份前缀白名单，于是 `media/library`（图片库）
@@ -640,7 +644,7 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   flex: none;
 }
 
-/* 「联系平台」压在菜单最后：它是租户唯一的平台沟通口，不该混在内容项中间 */
+/* 菜单最下方那一颗（租户 = 联系平台，超管 = 平台工单队列）：压在最后，不该混在内容项中间 */
 .sidebar-menu--bottom {
   margin-top: auto;
   border-top: 1px solid #f0f0f0;

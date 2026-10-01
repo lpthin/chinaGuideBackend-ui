@@ -767,6 +767,10 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '联系平台',
           icon: 'message',
+          // Spec-H H-6：这一颗现在是「按角色换标题」的那一颗，标签只有四个字，
+          // 而页面自己用的词是「提交工单」（`SupportTicketView` 的弹窗与 `supportTickets` 那套接口）。
+          // desc 把这层关系说清楚，同时它是菜单搜索的命中面之一（§4.2 规则 4：说明只换地方，不许消失）。
+          desc: '向平台提交工单：建站与内容上的疑问在这里说，处理结果回到这一页',
           requiredPermission: 'portal:ticket:submit'
         }
       },

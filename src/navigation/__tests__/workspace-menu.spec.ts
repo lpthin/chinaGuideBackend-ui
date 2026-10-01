@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { routes } from '../../router'
 import {
-  MENU_BOTTOM_ROUTE,
+  MENU_BOTTOM_ROUTES,
   MENU_EXCLUDED,
   MENU_GROUPS,
   MENU_GROUP_BY_ROUTE,
+  bottomMenuLeaf,
   buildMenuSections,
   collectMenuLeaves,
-  findLeaf,
   findMenuOrphanRoutes,
   leafVisible,
   menuCrumb,
@@ -197,10 +197,11 @@ describe('平台段与租户段分家', () => {
     expect(visible).toContain('文章列表')
     expect(visible).toContain('企业信息')
     expect(visible).toContain('内容工作台')
-    // 「联系平台」不在分组里，它是视图按 MENU_BOTTOM_ROUTE 固定在菜单最下方那一项（所以单独判）
-    const support = findLeaf(MENU_BOTTOM_ROUTE, leaves)
-    expect(support).not.toBeNull()
-    expect(leafVisible(support!, TENANT)).toBe(true)
+    // 「联系平台」不在分组里：它是视图按 `bottomMenuLeaf` 固定在菜单最下方那一项（所以单独判）
+    const support = bottomMenuLeaf(leaves, TENANT)
+    expect(support, '租户下方那一颗没了：他唯一的平台沟通口被摘掉了').not.toBeNull()
+    expect(support!.routeName).toBe('workspace-portal-support')
+    expect(support!.label).toBe('联系平台')
     expect(visible).not.toContain('联系平台')
   })
 
@@ -359,12 +360,13 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     expect(domains.slice(5).every(d => d === 'platform')).toBe(true)
   })
 
-  it('归组一个页面都没动：73 项照旧全在菜单里（L1 的「项一个不删」）', () => {
-    // 16 组时是 39 + 34 = 73 项（再加固定两项 = 75）。这里钉死总数，
-    // 以后谁借着「合并栏目」偷偷把页面从菜单里摘掉，这条会直接问他要理由。
-    expect(grouped).toHaveLength(73)
+  it('项数账：73 项 −H-6 一颗重复工单入口 = 72（租户 39 + 平台 33）', () => {
+    // 16 组时是 39 + 34 = 73 项（再加固定两项 = 75）。P0 归组一个页面都没动；
+    // P3 往下每摘一颗都要在这里减一个数，并且 `MENU_EXCLUDED` 里要多一行理由——
+    // 以后谁借着「合并栏目」把页面从菜单里摘掉却不留地址、不留理由，这条会直接问他要。
+    expect(grouped).toHaveLength(72)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(39)
-    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(34)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(33)
   })
 
   it('项名 ≤6 个字：超一个字就是导航在替页面写说明书（Q4-a）', () => {
@@ -419,5 +421,58 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
       expect(section.label.length).toBeLessThanOrEqual(4)
       expect(section.hint).toBeTruthy()
     })
+  })
+})
+
+/**
+ * Spec-H P3 / H-6：`portal/support` 与 `portal/support-queue` 是同一个视图
+ * （`SupportTicketView`，只差 `props.mode`）的两颗入口，以前一颗固定在菜单最下方、
+ * 一颗挂在「平台质量」组里 ⇒ 超管在同一侧边栏看到两个名字、点进去是同一张表。
+ *
+ * 拍板是「租户看到联系平台、超管看到工单队列、同一颗位置」（§4.1 H-6），所以这里判的是：
+ * 组里那一颗真的没了（项数 −1）、下方那一颗按角色取到的正是该给他的那颗、
+ * 两条老地址都还在（摘的是入口，不是页面）、隔壁那颗「改版工单」没被顺手一起收
+ * （它是另一个视图 `RevisionTicketView`，收进来就是把两个东西当同一个）。
+ */
+describe('Spec-H P3 / H-6：工单两颗收成一颗，按角色显示不同标题', () => {
+  const queue = leaves.find(leaf => leaf.routeName === 'workspace-portal-support-queue')
+  const support = leaves.find(leaf => leaf.routeName === 'workspace-portal-support')
+
+  it('队列摘出分组，且在排除表里留了理由（地址没断，只是不再单列一颗）', () => {
+    expect(queue, '队列那条路由不能删：收藏夹与文档里的链接要还能翻开').toBeTruthy()
+    expect(queue!.group, '队列还挂在某个组里，超管就还是看到两颗').toBe('')
+    expect(MENU_GROUP_BY_ROUTE['workspace-portal-support-queue']).toBeUndefined()
+    expect(MENU_EXCLUDED['workspace-portal-support-queue'], '摘掉菜单项必须留理由').toBeTruthy()
+    expect(MENU_BOTTOM_ROUTES).toContain('workspace-portal-support-queue')
+    // 一个词只指一个东西：菜单里「工单」两颗只剩一颗，另一颗是改版工单
+    expect(grouped.filter(leaf => leaf.label.includes('工单')).map(leaf => leaf.label)).toEqual(['改版工单'])
+  })
+
+  it('同一颗位置按角色取标题：超管 = 平台工单队列，租户 = 联系平台', () => {
+    // V93 的授权形状：portal:build:review 只授 SUPER_ADMIN，portal:ticket:submit 授 SUPER_ADMIN + SITE_ADMIN
+    expect(bottomMenuLeaf(leaves, SUPER)?.label).toBe('平台工单队列')
+    expect(bottomMenuLeaf(leaves, SUPER)?.routeName).toBe('workspace-portal-support-queue')
+    expect(bottomMenuLeaf(leaves, TENANT)?.routeName).toBe('workspace-portal-support')
+    // 两码都没有的人（CONTENT_EDITOR：V93 写明「编辑不代提」）：那一行整颗不渲染，
+    // 而不是留一行点了 403 的假入口
+    const nobody = { isSuperAdmin: false, hasPermission: () => false, openContentEntries: null }
+    expect(bottomMenuLeaf(leaves, nobody)).toBeNull()
+  })
+
+  it('判权仍走同一条 meta：可见性与守卫不会分家', () => {
+    // 队列只认 portal:build:review，联系平台只认 portal:ticket:submit——
+    // 万一以后有人把下方那颗改成「isSuperAdmin 硬判」，这条会红：那是第二份真相。
+    expect(queue!.permission).toBe('portal:build:review')
+    expect(support!.permission).toBe('portal:ticket:submit')
+    const submitOnly = { isSuperAdmin: false, hasPermission: (code: string) => code === 'portal:ticket:submit', openContentEntries: null }
+    expect(leafVisible(queue!, submitOnly)).toBe(false)
+    expect(bottomMenuLeaf(leaves, submitOnly)?.routeName).toBe('workspace-portal-support')
+  })
+
+  it('「改版工单」没被跟着一起收：它是另一个视图，不是同一件事的另一个 mode', () => {
+    const revision = grouped.find(leaf => leaf.routeName === 'workspace-portal-tickets')
+    expect(revision, '改版工单是独立一页，仍在平台质量组里').toBeTruthy()
+    expect(revision!.label).toBe('改版工单')
+    expect(revision!.permission).toBe('portal:build:review')
   })
 })
