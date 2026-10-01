@@ -81,10 +81,7 @@
           <!-- 面包屑：放在搜索框上面 -->
           <div v-if="!siderCollapsed && crumb.current" class="sidebar-breadcrumb">
             <a-breadcrumb>
-              <a-breadcrumb-item @click="router.push('/workspace/dashboard')">
-                <DashboardOutlined style="margin-right: 4px; font-size: 12px" />
-              </a-breadcrumb-item>
-              <a-breadcrumb-item v-if="crumb.parent">
+              <a-breadcrumb-item v-if="crumb.parent" @click="router.push('/workspace/dashboard')">
                 {{ crumb.parent }}
               </a-breadcrumb-item>
               <a-breadcrumb-item>
@@ -230,7 +227,6 @@ import { useAuthStore } from '../../stores/auth'
 import TenantSwitcher from '../../components/TenantSwitcher.vue'
 import {
   BarChartOutlined,
-  DashboardOutlined,
   DownOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
