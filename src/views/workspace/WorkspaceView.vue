@@ -78,21 +78,6 @@
       <a-layout-sider width="240" :collapsed-width="narrow ? 56 : 80" class="side-menu"
         :collapsed="siderCollapsed" collapsible :trigger="null">
         <nav class="sidebar-nav">
-          <!-- 面包屑：放在侧边栏顶部，不占页面内容空间 -->
-          <div v-if="!siderCollapsed && crumb.current" class="sidebar-breadcrumb">
-            <a-breadcrumb>
-              <a-breadcrumb-item @click="router.push('/workspace/dashboard')">
-                <DashboardOutlined style="margin-right: 4px; font-size: 12px" />
-              </a-breadcrumb-item>
-              <a-breadcrumb-item v-if="crumb.parent">
-                {{ crumb.parent }}
-              </a-breadcrumb-item>
-              <a-breadcrumb-item>
-                {{ crumb.current }}
-              </a-breadcrumb-item>
-            </a-breadcrumb>
-          </div>
-
           <!--
             Spec-H H-2（Q10-a）：菜单搜索框。
             P1 现场量到最大那组展开后整栏要滚 1.57 屏，「知道要找什么但不想一屏屏翻」得有解法。
@@ -210,20 +195,6 @@
 
       <!-- 主要工作区 -->
       <a-layout-content class="workspace-content">
-        <!-- 页面操作按钮（面包屑已移到侧边栏顶部） -->
-        <div class="page-actions">
-          <a-space>
-            <a-button type="primary" v-if="showImportBtn" @click="handleImport">
-              <template #icon><UploadOutlined /></template>
-              导入数据
-            </a-button>
-            <a-button :loading="refreshing" @click="refresh">
-              <template #icon><ReloadOutlined /></template>
-              刷新
-            </a-button>
-          </a-space>
-        </div>
-        
         <!-- 工作区 -->
         <div class="workspace-area">
           <router-view v-slot="{ Component }">
