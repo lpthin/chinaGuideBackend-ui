@@ -195,6 +195,28 @@
 
       <!-- 主要工作区 -->
       <a-layout-content class="workspace-content">
+        <!-- 面包屑 + 操作按钮（同一行，节省空间） -->
+        <div class="page-header-bar">
+          <a-breadcrumb>
+            <a-breadcrumb-item @click="router.push('/workspace/dashboard')">
+              <DashboardOutlined style="margin-right: 4px" />
+              首页
+            </a-breadcrumb-item>
+            <a-breadcrumb-item v-if="crumb.parent">
+              {{ crumb.parent }}
+            </a-breadcrumb-item>
+            <a-breadcrumb-item>
+              {{ crumb.current || '工作台' }}
+            </a-breadcrumb-item>
+          </a-breadcrumb>
+          <a-space>
+            <a-button :loading="refreshing" @click="refresh">
+              <template #icon><ReloadOutlined /></template>
+              刷新
+            </a-button>
+          </a-space>
+        </div>
+        
         <!-- 工作区 -->
         <div class="workspace-area">
           <router-view v-slot="{ Component }">
@@ -604,36 +626,6 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   padding-bottom: 8px;
 }
 
-/* 侧边栏面包屑：放在搜索框上面，不占页面内容空间 */
-.sidebar-breadcrumb {
-  flex: none;
-  padding: 12px 16px 8px;
-  border-bottom: 1px solid #f0f0f0;
-  margin-bottom: 4px;
-}
-
-.sidebar-breadcrumb :deep(.ant-breadcrumb) {
-  font-size: 12px;
-}
-
-.sidebar-breadcrumb :deep(.ant-breadcrumb-separator) {
-  margin: 0 4px;
-}
-
-.sidebar-breadcrumb :deep(.ant-breadcrumb-link) {
-  color: rgba(0, 0, 0, 0.45);
-  cursor: pointer;
-}
-
-.sidebar-breadcrumb :deep(.ant-breadcrumb-link:hover) {
-  color: #1890ff;
-}
-
-.sidebar-breadcrumb :deep(.ant-breadcrumb-last) {
-  color: rgba(0, 0, 0, 0.88);
-  cursor: default;
-}
-
 .sidebar-menu {
   border-right: none;
 }
@@ -741,6 +733,30 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   box-sizing: border-box;
 }
 
+.page-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.page-header-bar :deep(.ant-breadcrumb) {
+  font-size: 13px;
+}
+
+.page-header-bar :deep(.ant-breadcrumb-link) {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.page-header-bar :deep(.ant-breadcrumb-separator) {
+  margin: 0 6px;
+  color: rgba(0, 0, 0, 0.25);
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -749,16 +765,6 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   background: #fff;
   padding: 12px 16px;
   border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
-.page-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 8px;
-  margin-bottom: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
