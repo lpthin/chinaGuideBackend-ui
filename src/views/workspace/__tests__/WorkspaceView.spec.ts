@@ -56,6 +56,25 @@ const MENU_STUBS = {
     props: ['value', 'placeholder'],
     emits: ['update:value'],
     template: '<input class="menu-search-stub" :value="value" :placeholder="placeholder" @input="$emit(\'update:value\', $event.target.value)" />'
+  },
+  // Spec-H Q11：段过滤控件。stub 要渲染 options 并支持点击切换，这样用例能判「切换过滤后菜单段数变化」。
+  'a-segmented': {
+    name: 'ASegmented',
+    props: ['value', 'options', 'size'],
+    emits: ['update:value'],
+    template: `
+      <div class="ant-segmented">
+        <div
+          v-for="(opt, idx) in options"
+          :key="idx"
+          class="ant-segmented-item"
+          :class="{ 'ant-segmented-item-selected': opt.value === value }"
+          @click="$emit('update:value', opt.value)"
+        >
+          {{ opt.label }}
+        </div>
+      </div>
+    `
   }
 }
 
@@ -90,7 +109,7 @@ function mountView(user: Record<string, any>) {
         'a-dropdown': true,
         'a-divider': true,
         'a-avatar': true,
-        'a-space': true,
+        'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
         'router-view': true,
         'router-link': true,
         TenantSwitcher: true
@@ -371,5 +390,79 @@ describe('WorkspaceView 侧边菜单', () => {
     // 展开后那份输入还在，用户没被折叠那一下清掉搜索
     expect(menuSearchValue(wrapper)).toBe('引用')
     expect(wrapper.findAll('.menu-item-stub')).toHaveLength(2)
+  })
+
+  // ══════════════ Spec-H Q11：顶栏段过滤（只看租户 / 只看平台）══════════════
+  // 判据：超管视角下可以只看租户 / 只看平台 / 全看；租户视角永远看全部（他们本来就只有租户段）。
+
+  it('Spec-H Q11：段过滤控件只对超管可见，租户视角不出现', async () => {
+    const superWrapper = mountView(SUPER_USER)
+    await flushPromises()
+    // 超管视角：段过滤控件应该存在
+    expect(superWrapper.find('.ant-segmented').exists()).toBe(true)
+    
+    // 租户视角：段过滤控件不应该存在
+    const tenantWrapper = mountView({ username: 'siteadmin', roles: ['SITE_ADMIN'], permissions: TENANT_CODES })
+    await flushPromises()
+    expect(tenantWrapper.find('.ant-segmented').exists()).toBe(false)
+  })
+
+  it('Spec-H Q11：段过滤可以只显示租户段或只显示平台段', async () => {
+    const wrapper = mountView(SUPER_USER)
+    await flushPromises()
+    
+    // 默认是「全部」：应该看到两段（租户日常 + 平台管理）
+    let sections = wrapper.findAll('.menu-domain')
+    expect(sections).toHaveLength(2)
+    expect(sections[0].text()).toContain('租户日常')
+    expect(sections[1].text()).toContain('平台管理')
+    
+    // 切换到「租户」：应该只看到租户段
+    const segmented = wrapper.find('.ant-segmented')
+    const buttons = segmented.findAll('.ant-segmented-item')
+    await buttons[1].trigger('click') // 第二个是「租户」
+    await nextTick()
+    sections = wrapper.findAll('.menu-domain')
+    expect(sections).toHaveLength(1)
+    expect(sections[0].text()).toContain('租户日常')
+    
+    // 切换到「平台」：应该只看到平台段
+    await buttons[2].trigger('click') // 第三个是「平台」
+    await nextTick()
+    sections = wrapper.findAll('.menu-domain')
+    expect(sections).toHaveLength(1)
+    expect(sections[0].text()).toContain('平台管理')
+    
+    // 切换回「全部」：应该看到两段
+    await buttons[0].trigger('click') // 第一个是「全部」
+    await nextTick()
+    sections = wrapper.findAll('.menu-domain')
+    expect(sections).toHaveLength(2)
+  })
+
+  it('Spec-H Q11：段过滤偏好会持久化到 localStorage', async () => {
+    localStorage.removeItem('nav_domain_filter')
+    
+    const wrapper1 = mountView(SUPER_USER)
+    await flushPromises()
+    
+    // 切换到「租户」
+    const segmented = wrapper1.find('.ant-segmented')
+    const buttons = segmented.findAll('.ant-segmented-item')
+    await buttons[1].trigger('click')
+    await nextTick()
+    
+    // 检查 localStorage
+    expect(localStorage.getItem('nav_domain_filter')).toBe('"tenant"')
+    
+    // 重新挂载，应该保持「租户」过滤
+    const wrapper2 = mountView(SUPER_USER)
+    await flushPromises()
+    let sections = wrapper2.findAll('.menu-domain')
+    expect(sections).toHaveLength(1)
+    expect(sections[0].text()).toContain('租户日常')
+    
+    // 清理
+    localStorage.removeItem('nav_domain_filter')
   })
 })

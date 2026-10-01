@@ -15,6 +15,7 @@ import { MENU_GROUPS, type MenuDomain, type MenuLeaf, type MenuSection } from '.
 
 export const OPEN_GROUPS_STORAGE_KEY = 'nav_open_groups'
 export const SIDER_COLLAPSED_STORAGE_KEY = 'nav_sider_collapsed'
+export const DOMAIN_FILTER_STORAGE_KEY = 'nav_domain_filter'
 
 const GROUP_ORDER = MENU_GROUPS.map(group => group.key)
 
@@ -114,6 +115,40 @@ export function writeStoredSiderCollapsed(collapsed: boolean): void {
   } catch {
     /* 同上 */
   }
+}
+
+/**
+ * 段过滤（Spec-H Q11）：超管视角下可以只看租户 / 只看平台 / 全看。
+ * 这一位是「人按了那一下」的偏好，所以进 localStorage。
+ */
+export type DomainFilter = 'all' | 'tenant' | 'platform'
+
+export function readStoredDomainFilter(): DomainFilter {
+  const raw = localStorage.getItem(DOMAIN_FILTER_STORAGE_KEY)
+  if (!raw) return 'all'
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed === 'tenant' || parsed === 'platform' || parsed === 'all') return parsed
+  } catch {
+    // 旧格式（非 JSON）兼容：直接是字符串
+    if (raw === 'tenant' || raw === 'platform' || raw === 'all') return raw
+  }
+  return 'all'
+}
+
+export function writeStoredDomainFilter(value: DomainFilter): void {
+  localStorage.setItem(DOMAIN_FILTER_STORAGE_KEY, JSON.stringify(value))
+}
+
+/**
+ * 按段过滤菜单。
+ * - 'all'：原样返回
+ * - 'tenant'：只留租户段
+ * - 'platform'：只留平台段
+ */
+export function filterMenuSections(sections: readonly MenuSection[], filter: DomainFilter): MenuSection[] {
+  if (filter === 'all') return sections as MenuSection[]
+  return sections.filter(section => section.domain === filter)
 }
 
 /* ══════════════ 菜单搜索（Spec-H H-2 / Q10-a）══════════════ */
