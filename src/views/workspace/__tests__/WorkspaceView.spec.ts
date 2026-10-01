@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import type { Router } from 'vue-router'
 import WorkspaceView from '../WorkspaceView.vue'
 import { useAuthStore } from '../../../stores/auth'
 import { portalSectionsApi } from '../../../api/portalSections'
@@ -46,6 +47,15 @@ const MENU_STUBS = {
     name: 'ATooltip',
     props: ['title', 'placement'],
     template: '<span class="tooltip-stub" :data-tip="title"><slot /></span>'
+  },
+  // Spec-H H-2：搜索框要能**真打字**。stub 用原生 `<input>` 并把 input 事件转成 antd 那条
+  // `update:value`，这样 `setValue()` 走的仍是浏览器的事件链，父组件的 v-model 是真被驱动的，
+  // 不是把查询串当 prop 塞进去（那等于用例替界面造假数据）。
+  'a-input': {
+    name: 'AInput',
+    props: ['value', 'placeholder'],
+    emits: ['update:value'],
+    template: '<input class="menu-search-stub" :value="value" :placeholder="placeholder" @input="$emit(\'update:value\', $event.target.value)" />'
   }
 }
 
@@ -231,5 +241,112 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(localStorage.getItem('nav_sider_collapsed')).toBe('1')
     await wrapper.find('.collapse-btn').trigger('click')
     expect(localStorage.getItem('nav_sider_collapsed')).toBe('0')
+  })
+
+  // ══════════════ Spec-H P2：菜单搜索框（H-2 / Q10-a）══════════════
+  // 命中规则本身（哪些文字参与命中、组说明为什么不参与）在 navigation/__tests__/nav-state.spec.ts
+  // 里钉纯函数；这一档只钉界面这三件事：真打字能换成命中列表、没命中要明说、命中项点得进去。
+
+  /** 从 stub 的 input 真输入；setValue 走的是 DOM 的 input 事件 ⇒ 父组件 v-model 真被驱动 */
+  async function typeIntoMenuSearch(wrapper: ReturnType<typeof mountView>, text: string) {
+    await wrapper.find('input.menu-search-stub').setValue(text)
+    await nextTick()
+  }
+
+  /** 读输入框里显示的那串字（判的是界面上的值，不是组件内部状态） */
+  function menuSearchValue(wrapper: ReturnType<typeof mountView>): string {
+    return (wrapper.find('input.menu-search-stub').element as HTMLInputElement).value
+  }
+
+  it('Spec-H H-2：输入「引用」→ 只剩含「引用」的项 + 其组名，树与别的组一起退场', async () => {
+    const wrapper = mountView(SUPER_USER)
+    await flushPromises()
+    expect(wrapper.find('input.menu-search-stub').exists()).toBe(true)
+    expect(wrapper.find('input.menu-search-stub').attributes('placeholder')).toBe('搜索栏目')
+    // 搜之前是完整的树：11 个组
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(11)
+
+    await typeIntoMenuSearch(wrapper, '引用')
+    const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
+    expect(items).toHaveLength(2)
+    // 判据的后半句：每一项都带着它属于哪一组（不然命中两条看不出来源）
+    expect(items).toContain('引用与来源效果与经营')
+    expect(items).toContain('品牌引用探测平台质量')
+    expect(items.every(text => text.includes('引用'))).toBe(true)
+    // 「只剩」：两段树这时一项都不该在（组、组标题、段标题全部退场）
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(0)
+    expect(wrapper.findAll('.menu-group-title')).toHaveLength(0)
+    expect(wrapper.text()).not.toContain('租户日常')
+  })
+
+  it('Spec-H H-2：没有命中要明说「没有这一项」，不许留一片空白', async () => {
+    const wrapper = mountView(SUPER_USER)
+    await flushPromises()
+    await typeIntoMenuSearch(wrapper, '一定不存在的栏目名字')
+    expect(wrapper.findAll('.menu-item-stub')).toHaveLength(0)
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(0)
+    const empty = wrapper.find('[data-testid="menu-search-empty"]')
+    expect(empty.exists()).toBe(true)
+    expect(empty.text()).toBe('没有「一定不存在的栏目名字」这一项')
+  })
+
+  it('Spec-H H-2：清空搜索回到树，而且开合表一个字没被搜索改过', async () => {
+    localStorage.setItem('nav_open_groups', JSON.stringify(['article']))
+    const wrapper = mountView(SUPER_USER)
+    await flushPromises()
+    await typeIntoMenuSearch(wrapper, '引用')
+    await typeIntoMenuSearch(wrapper, '   ')
+    // 只剩空格 = 没在搜（否则用户清了字却对着一片空白）
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(11)
+    // 命中列表走的是「不展开组」那条路（见 WorkspaceView 里那段偏离说明）：偏好不该被一次搜索改掉
+    expect(JSON.parse(localStorage.getItem('nav_open_groups') as string)).toEqual(['article'])
+  })
+
+  it('Spec-H H-2：点命中项跳得过去，跳完回到树并且把目标那一组开着', async () => {
+    const wrapper = mountView(SUPER_USER)
+    await flushPromises()
+    await typeIntoMenuSearch(wrapper, '引用')
+
+    // setup.ts 里那份路由是空表（`routes: []`），直接 push 会 reject；
+    // 也不能再装第二只 router（vue-router 的 install 定义 `$route` 是不可重定义的，第二次 use 直接抛）。
+    // 所以拿**视图正在用的那一只**补一条能吃 /workspace/** 的路由：跳的仍是组件里那条 push。
+    const testRouter = (wrapper.vm as unknown as { $router: Router }).$router
+    testRouter.addRoute({ path: '/workspace/:pathMatch(.*)*', name: 'spec-workspace', component: { template: '<div />' } })
+
+    const hitsMenu = wrapper.findAllComponents({ name: 'AMenu' })
+      .find(node => (node.attributes('class') || '').includes('sidebar-menu--hits'))!
+    // antd 的菜单点击事件带的是那一项的 key，这里发的是真实形状（不是替界面猜一个）
+    hitsMenu.vm.$emit('click', { key: 'portal/citations' })
+    await flushPromises()
+
+    expect(testRouter.currentRoute.value.path).toBe('/workspace/portal/citations')
+    // 跳完不留搜索态：树回来了，而且「选中了却看不见」不能发生 ⇒ 目标组被打开
+    expect(wrapper.findAll('.ant-submenu-stub').length).toBeGreaterThan(0)
+    const tenant = wrapper.findAllComponents({ name: 'AMenu' })
+      .find(node => node.attributes('data-domain') === 'tenant')!
+    expect(tenant.attributes('data-open')).toBe('site-effect')
+    expect(menuSearchValue(wrapper)).toBe('')
+    testRouter.removeRoute('spec-workspace')
+  })
+
+  it('Spec-H H-2：折叠成图标轨时搜索框与命中列表一起退场（窄轨放不下输入框）', async () => {
+    const wrapper = mountView(SUPER_USER)
+    await flushPromises()
+    await typeIntoMenuSearch(wrapper, '引用')
+    expect(wrapper.findAll('.menu-item-stub')).toHaveLength(2)
+
+    await wrapper.find('.collapse-btn').trigger('click')
+    expect(wrapper.find('input.menu-search-stub').exists()).toBe(false)
+    // 折叠态回到树（图标轨 + hover 弹层才是那一档的找法）：命中列表那一整块窄轨里放不下，
+    // 连「没有这一项」那行也不该留在窄轨里（`.menu-item-stub` 两种形状都在用，判不出是谁，
+    // 所以这里钉的是命中列表那个菜单本身退场 + 组重新数得出 11 颗）。
+    expect(wrapper.find('.sidebar-menu--hits').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="menu-search-empty"]').exists()).toBe(false)
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(11)
+
+    await wrapper.find('.collapse-btn').trigger('click')
+    // 展开后那份输入还在，用户没被折叠那一下清掉搜索
+    expect(menuSearchValue(wrapper)).toBe('引用')
+    expect(wrapper.findAll('.menu-item-stub')).toHaveLength(2)
   })
 })

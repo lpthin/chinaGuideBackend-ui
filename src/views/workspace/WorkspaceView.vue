@@ -66,6 +66,45 @@
       <a-layout-sider width="240" :collapsed-width="narrow ? 56 : 80" class="side-menu"
         :collapsed="siderCollapsed" collapsible :trigger="null">
         <nav class="sidebar-nav">
+          <!--
+            Spec-H H-2（Q10-a）：菜单搜索框。
+            P1 现场量到最大那组展开后整栏要滚 1.57 屏，「知道要找什么但不想一屏屏翻」得有解法。
+            折叠成图标轨（80 / 窄屏 56 宽）时整块搜索 UI 都不出现：那个宽度放不下输入框，
+            而折叠态的找法本来就是 hover 弹层，不是过滤。
+          -->
+          <div v-if="showMenuSearch" class="menu-search">
+            <a-input
+              v-model:value="menuQuery"
+              class="menu-search__input"
+              placeholder="搜索栏目"
+              allow-clear
+              data-testid="menu-search"
+            >
+              <template #prefix><SearchOutlined /></template>
+            </a-input>
+          </div>
+
+          <template v-if="isSearching">
+            <a-menu
+              v-if="menuHits.length"
+              mode="inline"
+              :selected-keys="selectedKeys"
+              class="sidebar-menu sidebar-menu--hits"
+              @click="handleMenuClick"
+            >
+              <a-menu-item v-for="hit in menuHits" :key="hit.key">
+                <template #icon><component :is="hit.icon" /></template>
+                <span class="menu-leaf__label">{{ hit.label }}</span>
+                <span class="menu-hit__group">{{ hit.groupLabel || '固定入口' }}</span>
+              </a-menu-item>
+            </a-menu>
+            <!-- H-2 判据的后半句：没有命中要明说，不许留一片空白让人以为菜单坏了 -->
+            <div v-else class="menu-search__empty" data-testid="menu-search-empty">
+              没有「{{ menuQuery.trim() }}」这一项
+            </div>
+          </template>
+
+          <template v-else>
           <a-menu
             v-if="topLeaf"
             mode="inline"
@@ -135,6 +174,7 @@
               {{ bottomLeaf.label }}
             </a-menu-item>
           </a-menu>
+          </template>
         </nav>
       </a-layout-sider>
 
@@ -195,6 +235,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ReloadOutlined,
+  SearchOutlined,
   UploadOutlined,
   UserOutlined
 } from '@ant-design/icons-vue'
@@ -213,10 +254,13 @@ import {
 } from '../../navigation/workspaceMenu'
 import {
   applyOpenKeysChange,
+  flattenMenuEntries,
   initialOpenGroups,
+  normalizeMenuQuery,
   openKeysForDomain,
   readStoredOpenGroups,
   readStoredSiderCollapsed,
+  searchMenuHits,
   withGroupOpen,
   writeStoredOpenGroups,
   writeStoredSiderCollapsed
@@ -346,6 +390,28 @@ onUnmounted(() => {
 
 /** 侧栏实际给不给宽度：窄屏一律收成图标那一列，否则 240 的菜单会把内容挤成一列一个字 */
 const siderCollapsed = computed(() => collapsed.value || narrow.value)
+
+/**
+ * 菜单搜索（Spec-H H-2 / Q10-a）：输入即过滤，命中项不必先展开组就看得见。
+ *
+ * 判据与实现的一处有意偏离，写清楚（拍板原话是「命中项展开」）：
+ * 这里**不去改树里的开合表**。展开要把那一组写进 `openGroups`，而 `openGroups` 是要落盘的
+ * 用户偏好（H-1b）——一次搜索就改掉这个人记住的那份开合，清空搜索框之后那些组还收不回去，
+ * 「我搜了个东西」变成了「程序替我改了菜单偏好」。
+ * 换成扁平命中列表之后，「看得见命中项 + 它属于哪一组」这个效果一样达到，偏好一个字不动。
+ * 命中面（项名 / 项说明 / 组名）与「组说明为什么不参与命中」写在 `navState.searchMenuHits` 上，
+ * 用例直接钉那支纯函数。
+ */
+const menuQuery = ref('')
+const showMenuSearch = computed(() => !siderCollapsed.value)
+const menuEntries = computed(() => flattenMenuEntries(menuSections.value, topLeaf.value, bottomLeaf.value))
+const isSearching = computed(() => showMenuSearch.value && normalizeMenuQuery(menuQuery.value).length > 0)
+const menuHits = computed(() => (isSearching.value ? searchMenuHits(menuEntries.value, menuQuery.value) : []))
+
+/** 点了命中项就回到正常的树：选中的那一组由上面 `watch(currentGroupKey)` 负责开，不留搜索态 */
+watch(currentMenuKey, () => {
+  menuQuery.value = ''
+})
 
 const showImportBtn = computed(() => currentMenuKey.value === 'keywords')
 
@@ -539,6 +605,35 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 
 .sidebar-menu {
   border-right: none;
+}
+
+/*
+ * 菜单搜索框（Spec-H H-2）：贴在菜单最上方、固定项「工作台」之上。
+ * 下边框跟段分隔线同一个色，视觉上属于同一条竖排层级，不是一块浮在菜单上的卡片。
+ */
+.menu-search {
+  flex: none;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 4px;
+}
+
+/* 命中项右侧那 little 组名：让用户知道这一项从哪一组来（H-2 判据「只剩含"引用"的项 + 其组名」） */
+.menu-hit__group {
+  margin-left: 8px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 无结果那一行是明说的，不是留白 */
+.menu-search__empty {
+  padding: 16px;
+  font-size: 13px;
+  line-height: 20px;
+  color: rgba(0, 0, 0, 0.45);
 }
 
 .sidebar-menu--single {
