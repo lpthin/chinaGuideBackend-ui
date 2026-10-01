@@ -94,7 +94,8 @@ function mountView(user: Record<string, any>) {
   const auth = useAuthStore()
   auth.accessToken = 'token'
   auth.user = user as any
-  auth.selectedTenantId = null
+  // 默认设置一个租户 ID，避免超管进入平台模式（平台模式只显示平台段）
+  auth.selectedTenantId = 15
   return mount(WorkspaceView, {
     global: {
       stubs: {
@@ -154,6 +155,46 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(text).toContain('文章分类')
     expect(text).not.toContain('栏目管理')
     expect(text).not.toContain('建站工作台')
+  })
+
+  it('平台模式（超管未选租户）：只显示平台段，不显示租户段和固定项', async () => {
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = { username: 'admin', roles: ['SUPER_ADMIN'], permissions: ALL_CODES } as any
+    auth.selectedTenantId = null  // 平台模式：没有选中任何租户
+    const wrapper = mount(WorkspaceView, {
+      global: {
+        stubs: {
+          'a-layout': layoutStub('ALayout'),
+          'a-layout-header': layoutStub('ALayoutHeader'),
+          'a-layout-content': layoutStub('ALayoutContent'),
+          'a-layout-sider': layoutStub('ALayoutSider'),
+          'a-breadcrumb': layoutStub('ABreadcrumb'),
+          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
+          ...MENU_STUBS,
+          'a-button': true,
+          'a-dropdown': true,
+          'a-divider': true,
+          'a-avatar': true,
+          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
+          'router-view': true,
+          'router-link': true,
+          TenantSwitcher: true
+        }
+      }
+    })
+    await flushPromises()
+    const text = wrapper.text()
+    // 平台模式：只显示平台段
+    expect(text).not.toContain('租户日常')
+    expect(text).toContain('平台管理')
+    // 不显示固定项（工作台、联系平台/平台工单队列）
+    expect(text).not.toContain('工作台')
+    expect(text).not.toContain('联系平台')
+    expect(text).not.toContain('平台工单队列')
+    // 平台段的项应该还在
+    expect(text).toContain('前采需求单')
+    expect(text).toContain('站点管理')
   })
 
   it('租户只看到自己那一段：建设项与系统项一项都不出现', async () => {

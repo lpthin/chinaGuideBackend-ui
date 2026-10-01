@@ -22,9 +22,9 @@
       size="small"
       class="tenant-unresolved__action"
       data-test="tenant-unresolved-clear"
-      @click="clearSelection"
+      @click="switchToFirstTenant"
     >
-      看全部租户
+      切换到第一个租户
     </a-button>
   </div>
 </template>
@@ -50,7 +50,7 @@ const loading = ref(true)
  * 打在顶栏上（现场截图上那个孤零零的「15」就是这么来的：一个裸数字，客户不知道它是谁）。
  */
 const listFailed = ref(false)
-const selectedValue = ref<number | null>(authStore.selectedTenantId)
+const selectedValue = ref<number | 'platform' | null>(authStore.selectedTenantId)
 
 /** 选中项在列表里找不到 label 时兜一条，顶栏至少念得出「租户 15」，不念一个裸数字 */
 const options = computed(() => {
@@ -58,6 +58,9 @@ const options = computed(() => {
     label: tenant.name,
     value: tenant.id,
   }))
+  // 添加「平台」选项
+  base.unshift({ label: '平台', value: 'platform' })
+  
   if (selectedValue.value === null) return base
   if (base.some((o) => o.value === selectedValue.value)) return base
   const id = selectedValue.value
@@ -79,7 +82,7 @@ const filterOption: SelectProps['filterOption'] = (input, option) => {
  */
 const declaredByBackend = computed(() => authStore.tenantUnresolvedDeclaration ?? '')
 const missingFromList = computed(() =>
-  selectedValue.value !== null
+  selectedValue.value !== null && selectedValue.value !== 'platform'
   && !loading.value
   && !listFailed.value
   && tenants.value.length > 0
@@ -102,6 +105,13 @@ const fetchTenants = async () => {
     const result = await tenantApi.list()
     tenants.value = result || []
     listFailed.value = false
+    // 默认选择第一个租户（如果没有选中任何租户）
+    if (selectedValue.value === null && tenants.value.length > 0) {
+      const firstTenant = tenants.value[0]
+      selectedValue.value = firstTenant.id
+      authStore.switchTenant(firstTenant.id, firstTenant.code)
+      window.location.reload()
+    }
   } catch (error) {
     // 读失败要记账：不记就只能把「列表是空的」当成「这家不存在」，而兜底 label 也分不清该念哪一句
     listFailed.value = true
@@ -111,17 +121,27 @@ const fetchTenants = async () => {
   }
 }
 
-const handleChange = (value: number) => {
-  const tenant = tenants.value.find((t) => t.id === value)
-  authStore.switchTenant(value, tenant?.code || null)
-  window.location.reload()
+const handleChange = (value: number | 'platform') => {
+  if (value === 'platform') {
+    // 切换到平台模式：清除租户选择
+    authStore.switchTenant(null)
+    selectedValue.value = 'platform'
+    window.location.reload()
+  } else {
+    const tenant = tenants.value.find((t) => t.id === value)
+    authStore.switchTenant(value, tenant?.code || null)
+    window.location.reload()
+  }
 }
 
-/** 出路就是「清空选择」：回到超管的全租户视角，与右上角「返回管理员端」同一动作 */
-const clearSelection = () => {
-  authStore.switchTenant(null)
-  selectedValue.value = null
-  window.location.reload()
+/** 出路就是「切换到第一个租户」 */
+const switchToFirstTenant = () => {
+  if (tenants.value.length > 0) {
+    const firstTenant = tenants.value[0]
+    authStore.switchTenant(firstTenant.id, firstTenant.code)
+    selectedValue.value = firstTenant.id
+    window.location.reload()
+  }
 }
 
 watch(

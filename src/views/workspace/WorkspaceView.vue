@@ -311,7 +311,27 @@ const domainFilter = ref<DomainFilter>(auth.isSuperAdmin ? readStoredDomainFilte
 watch(domainFilter, value => {
   if (auth.isSuperAdmin) writeStoredDomainFilter(value)
 })
-const filteredMenuSections = computed(() => filterMenuSections(menuSections.value, domainFilter.value))
+
+/**
+ * 平台模式：当超管切换到「平台」时，只显示平台段，隐藏所有租户相关内容。
+ * 平台模式下：
+ * - 不显示租户段（租户日常）
+ * - 只显示平台段（平台管理）
+ * - 不显示固定项（工作台、联系平台/平台工单队列）
+ */
+const isPlatformMode = computed(() => {
+  // 超管且没有选中任何租户 = 平台模式
+  return auth.isSuperAdmin && auth.selectedTenantId === null
+})
+
+const filteredMenuSections = computed(() => {
+  // 平台模式：只显示平台段
+  if (isPlatformMode.value) {
+    return menuSections.value.filter(section => section.domain === 'platform')
+  }
+  // 非平台模式：使用 domainFilter 过滤
+  return filterMenuSections(menuSections.value, domainFilter.value)
+})
 
 /** 菜单最上方那颗固定项（工作台）：标签与图标同样来自那条路由，视图里不写死中文 */
 function visibleFixedLeaf(routeName: string) {
@@ -319,9 +339,17 @@ function visibleFixedLeaf(routeName: string) {
   return leaf && leafVisible(leaf, visibility.value) ? leaf : null
 }
 
-const topLeaf = computed(() => visibleFixedLeaf(MENU_TOP_ROUTE))
+// 平台模式下不显示固定项（工作台、联系平台/平台工单队列）
+const topLeaf = computed(() => {
+  if (isPlatformMode.value) return null
+  return visibleFixedLeaf(MENU_TOP_ROUTE)
+})
+
 // 下方那一颗按角色取（Spec-H H-6）：超管 = 平台工单队列，租户 = 联系平台，同一个位置只留一颗
-const bottomLeaf = computed(() => bottomMenuLeaf(menuLeaves.value, visibility.value))
+const bottomLeaf = computed(() => {
+  if (isPlatformMode.value) return null
+  return bottomMenuLeaf(menuLeaves.value, visibility.value)
+})
 
 /**
  * 选中态用最长前缀匹配。旧实现取「路径首段」+ 手抄一份前缀白名单，于是 `media/library`（图片库）
