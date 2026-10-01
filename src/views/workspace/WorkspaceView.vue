@@ -78,6 +78,21 @@
       <a-layout-sider width="240" :collapsed-width="narrow ? 56 : 80" class="side-menu"
         :collapsed="siderCollapsed" collapsible :trigger="null">
         <nav class="sidebar-nav">
+          <!-- 面包屑：放在侧边栏顶部，不占页面内容空间 -->
+          <div v-if="!siderCollapsed && crumb.current" class="sidebar-breadcrumb">
+            <a-breadcrumb>
+              <a-breadcrumb-item @click="router.push('/workspace/dashboard')">
+                <DashboardOutlined style="margin-right: 4px; font-size: 12px" />
+              </a-breadcrumb-item>
+              <a-breadcrumb-item v-if="crumb.parent">
+                {{ crumb.parent }}
+              </a-breadcrumb-item>
+              <a-breadcrumb-item>
+                {{ crumb.current }}
+              </a-breadcrumb-item>
+            </a-breadcrumb>
+          </div>
+
           <!--
             Spec-H H-2（Q10-a）：菜单搜索框。
             P1 现场量到最大那组展开后整栏要滚 1.57 屏，「知道要找什么但不想一屏屏翻」得有解法。
@@ -195,34 +210,18 @@
 
       <!-- 主要工作区 -->
       <a-layout-content class="workspace-content">
-        <!-- 面包屑导航 -->
-        <div class="breadcrumb-wrapper">
-          <a-breadcrumb>
-            <a-breadcrumb-item @click="router.push('/workspace/dashboard')">
-              <DashboardOutlined style="margin-right: 4px" />
-              首页
-            </a-breadcrumb-item>
-            <a-breadcrumb-item v-if="crumb.parent">
-              {{ crumb.parent }}
-            </a-breadcrumb-item>
-            <a-breadcrumb-item>
-              {{ crumb.current || '工作台' }}
-            </a-breadcrumb-item>
-          </a-breadcrumb>
-          
-          <!-- 上下文操作按钮 -->
-          <div class="context-actions">
-            <a-space>
-              <a-button type="primary" v-if="showImportBtn" @click="handleImport">
-                <template #icon><UploadOutlined /></template>
-                导入数据
-              </a-button>
-              <a-button :loading="refreshing" @click="refresh">
-                <template #icon><ReloadOutlined /></template>
-                刷新
-              </a-button>
-            </a-space>
-          </div>
+        <!-- 页面操作按钮（面包屑已移到侧边栏顶部） -->
+        <div class="page-actions">
+          <a-space>
+            <a-button type="primary" v-if="showImportBtn" @click="handleImport">
+              <template #icon><UploadOutlined /></template>
+              导入数据
+            </a-button>
+            <a-button :loading="refreshing" @click="refresh">
+              <template #icon><ReloadOutlined /></template>
+              刷新
+            </a-button>
+          </a-space>
         </div>
         
         <!-- 工作区 -->
@@ -634,6 +633,36 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   padding-bottom: 8px;
 }
 
+/* 侧边栏面包屑：放在搜索框上面，不占页面内容空间 */
+.sidebar-breadcrumb {
+  flex: none;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 4px;
+}
+
+.sidebar-breadcrumb :deep(.ant-breadcrumb) {
+  font-size: 12px;
+}
+
+.sidebar-breadcrumb :deep(.ant-breadcrumb-separator) {
+  margin: 0 4px;
+}
+
+.sidebar-breadcrumb :deep(.ant-breadcrumb-link) {
+  color: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.sidebar-breadcrumb :deep(.ant-breadcrumb-link:hover) {
+  color: #1890ff;
+}
+
+.sidebar-breadcrumb :deep(.ant-breadcrumb-last) {
+  color: rgba(0, 0, 0, 0.88);
+  cursor: default;
+}
+
 .sidebar-menu {
   border-right: none;
 }
@@ -741,17 +770,6 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   box-sizing: border-box;
 }
 
-.breadcrumb-wrapper {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -765,7 +783,12 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 
 .page-actions {
   display: flex;
-  gap: 12px;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .workspace-area {
@@ -884,10 +907,6 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 
   .workspace-content {
     padding: 8px;
-  }
-
-  .breadcrumb-wrapper {
-    margin-bottom: 8px;
   }
 }
 </style>
