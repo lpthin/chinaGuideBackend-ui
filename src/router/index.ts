@@ -824,9 +824,11 @@ export const routes: RouteRecordRaw[] = [
           requiredPermission: 'geo:brand:view'
         }
       },
-      { path: 'geo/brand', redirect: { path: 'geo/diagnostic', query: { tab: 'brand' } } },
-      { path: 'geo/diagnosis', redirect: { path: 'geo/diagnostic', query: { tab: 'wizard' } } },
-      { path: 'geo/campaign', redirect: { path: 'geo/diagnostic', query: { tab: 'campaign' } } },
+      // redirect 的目标必须写绝对路径：vue-router 把不带前导斜杠的 path 当根级路径解析，
+      // 写成 'geo/diagnostic' 会跳到 /geo/diagnostic 而落到 404（全站普查实测「页面未找到」）。
+      { path: 'geo/brand', redirect: { path: '/workspace/geo/diagnostic', query: { tab: 'brand' } } },
+      { path: 'geo/diagnosis', redirect: { path: '/workspace/geo/diagnostic', query: { tab: 'wizard' } } },
+      { path: 'geo/campaign', redirect: { path: '/workspace/geo/diagnostic', query: { tab: 'campaign' } } },
       {
         path: 'geo/campaign/run/:runId/report',
         name: 'workspace-geo-campaign-report',
@@ -985,9 +987,9 @@ export const routes: RouteRecordRaw[] = [
           requiresSuperAdmin: true
         }
       },
-      { path: 'alert/rules', redirect: { path: 'alert/center', query: { tab: 'rules' } } },
-      { path: 'alert/records', redirect: { path: 'alert/center', query: { tab: 'records' } } },
-      { path: 'alert/channels', redirect: { path: 'alert/center', query: { tab: 'channels' } } },
+      { path: 'alert/rules', redirect: { path: '/workspace/alert/center', query: { tab: 'rules' } } },
+      { path: 'alert/records', redirect: { path: '/workspace/alert/center', query: { tab: 'records' } } },
+      { path: 'alert/channels', redirect: { path: '/workspace/alert/center', query: { tab: 'channels' } } },
       // 站内待办：巡检闭环写的那一条要有地方看得见（Spec §13.3-6），否则「通知超管」只落到库里
       {
         path: 'notifications',
