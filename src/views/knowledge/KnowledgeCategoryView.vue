@@ -51,17 +51,20 @@
               <a-input-search
                 v-model:value="searchText"
                 placeholder="搜索分类"
+                size="small"
                 @search="onSearch"
               />
               <template #actions>
                 <a-space>
+                  <!-- 文案跟「文章分类」那张卡对齐（展开/收起/新增）：这条筛选栏只有 ~260px，
+                       四个字的名字在窄容器里会把按钮挤到折行 -->
                   <a-button size="small" @click="expandAll">
                     <template #icon><DownOutlined /></template>
-                    全部展开
+                    展开
                   </a-button>
                   <a-button size="small" @click="collapseAll">
                     <template #icon><UpOutlined /></template>
-                    全部收起
+                    收起
                   </a-button>
                   <a-button type="primary" size="small" @click="showAddModal">
                     <template #icon><PlusOutlined /></template>
