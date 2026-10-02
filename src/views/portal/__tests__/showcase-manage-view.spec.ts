@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { Button } from 'ant-design-vue'
 import ShowcaseManageView from '../ShowcaseManageView.vue'
 import { portalShowcaseApi, resolveMediaIdByUrl, fetchMediaUrl } from '../../../api/portalShowcase'
-import { siteApi } from '../../../api/workspace'
+import { portalSitesApi } from '../../../api/portalSites'
 import { MENU_GROUPS, MENU_GROUP_BY_ROUTE } from '../../../navigation/workspaceMenu'
 import { routes } from '../../../router'
 
@@ -30,8 +30,8 @@ vi.mock('../../../api/portalShowcase', () => ({
   fetchMediaUrl: vi.fn()
 }))
 
-vi.mock('../../../api/workspace', () => ({
-  siteApi: { list: vi.fn() }
+vi.mock('../../../api/portalSites', () => ({
+  portalSitesApi: { listMine: vi.fn() }
 }))
 
 vi.mock('../../../stores/auth', () => ({
@@ -199,7 +199,7 @@ beforeEach(() => {
   routeQuery.current = {}
   vi.mocked(portalShowcaseApi.kinds).mockResolvedValue(KINDS as any)
   vi.mocked(portalShowcaseApi.list).mockResolvedValue(rowsFixture() as any)
-  vi.mocked(siteApi.list).mockResolvedValue([{ id: 7, name: '测试站' }] as any)
+  vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 7, name: '测试站' }] as any)
   vi.mocked(fetchMediaUrl).mockResolvedValue('https://cdn.test/seeded.png')
 })
 
@@ -361,7 +361,7 @@ describe('展示内容页的菜单归属（Spec-C §2.1 纪律）', () => {
 describe('交棒链接的站点定位（D5-3 那条 ?siteId=）', () => {
   it('query 带的 siteId 在可选清单里：取数取的是它指的那个站，不回落 sites[0]', async () => {
     routeQuery.current = { siteId: '8' }
-    vi.mocked(siteApi.list).mockResolvedValue([{ id: 7, name: '甲站' }, { id: 8, name: '乙站' }] as any)
+    vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 7, name: '甲站' }, { id: 8, name: '乙站' }] as any)
     const wrapper = await mountView()
     expect(portalShowcaseApi.list).toHaveBeenLastCalledWith(8)
     wrapper.unmount()
@@ -369,7 +369,7 @@ describe('交棒链接的站点定位（D5-3 那条 ?siteId=）', () => {
 
   it('query 带的 siteId 不在清单里：回落既有默认，绝不拿一个幽灵 id 去读写', async () => {
     routeQuery.current = { siteId: '99' }
-    vi.mocked(siteApi.list).mockResolvedValue([{ id: 7, name: '甲站' }, { id: 8, name: '乙站' }] as any)
+    vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 7, name: '甲站' }, { id: 8, name: '乙站' }] as any)
     const wrapper = await mountView()
     expect(portalShowcaseApi.list).toHaveBeenLastCalledWith(null)
     wrapper.unmount()
@@ -378,6 +378,27 @@ describe('交棒链接的站点定位（D5-3 那条 ?siteId=）', () => {
   it('没带 query 且只有一个站：维持既有的自动选中', async () => {
     const wrapper = await mountView()
     expect(portalShowcaseApi.list).toHaveBeenLastCalledWith(7)
+    wrapper.unmount()
+  })
+})
+
+describe('站点下拉走的是租户侧自己的口（Q-3）', () => {
+  it('下拉的站点来自 /portal/sites，不再打建设域那个 /admin/sites', async () => {
+    const wrapper = await mountView()
+    expect(portalSitesApi.listMine).toHaveBeenCalled()
+    // a-select 桩把 options 当 prop 收，不渲染成文字，所以这里读 prop
+    expect(wrapper.findComponent({ name: 'ASelect' }).props('options')).toEqual([{ value: 7, label: '测试站' }])
+    wrapper.unmount()
+  })
+
+  it('站点口读失败只说站点读失败，内容表格照旧渲染', async () => {
+    vi.mocked(portalSitesApi.listMine).mockRejectedValue(new Error('缺少权限: portal:build:manage'))
+    const wrapper = await mountView()
+    // 页首那条 info 说明与这条 error 共用同一个类名，所以按「有没有这一句」判而不是取第一条
+    const notices = wrapper.findAll('.showcase-manage-page__notice').map(node => node.text())
+    expect(notices.join(' ')).toContain('缺少权限: portal:build:manage')
+    // 站点没选成时列表按「全部站点」取，行数是桩里那三条还是子集不重要——重要的是这一页没有整页报死
+    expect(wrapper.findAll('.row').length).toBeGreaterThan(0)
     wrapper.unmount()
   })
 })

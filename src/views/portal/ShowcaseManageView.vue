@@ -191,7 +191,7 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import MediaImageLibraryModal from '../../components/MediaImageLibraryModal.vue'
 import FilterBar from '../../components/FilterBar.vue'
-import { siteApi } from '../../api/workspace'
+import { portalSitesApi } from '../../api/portalSites'
 import { useAuthStore } from '../../stores/auth'
 import {
   portalShowcaseApi,
@@ -327,8 +327,10 @@ async function loadKinds() {
 
 async function loadSites() {
   try {
-    const list = await siteApi.list()
-    sites.value = (list || []).map((site: any) => ({ id: site.id, name: site.name }))
+    // 租户侧自己的站点口：/api/admin/sites 要 portal:build:manage（V93：租户不做建站），
+    // 以前这一页无条件打它，租户档就是一条 403 摆在这里
+    const list = await portalSitesApi.listMine()
+    sites.value = (list || []).map((site) => ({ id: site.id, name: site.name }))
     // 交棒链接（D5-3）带着 ?siteId= 指到这一页：只有这个号真的在可选清单里才采用——
     // 不在就回落原有默认（单站自动选中），绝不选中一个列表里没有的站（那等于往拿不到的 id 上写数据）
     const wanted = Number(route.query.siteId)
