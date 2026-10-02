@@ -10,7 +10,7 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ stats.total }}</div>
-                <div class="stat-title">图片总数</div>
+                <div class="stat-title">素材总数</div>
               </div>
             </div>
           </a-card>
