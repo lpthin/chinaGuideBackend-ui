@@ -70,6 +70,7 @@ import { useRouter } from 'vue-router'
 import { EditOutlined } from '@ant-design/icons-vue'
 import { portalSectionsApi, type SectionState, type SectionSummary } from '../../api/portalSections'
 import { portalPagesApi } from '../../api/portalPages'
+import { useAuthStore } from '../../stores/auth'
 
 /**
  * 租户「门户内容工作台」（Spec §7.1）。
@@ -90,6 +91,10 @@ import { portalPagesApi } from '../../api/portalPages'
  */
 
 const router = useRouter()
+const authStore = useAuthStore()
+
+/** 读状态词表要的那一码：与这一页路由的 `portal:siteinfo:manage` 不是同一条线 */
+const STATUS_LABELS_PERMISSION = 'portal:build:manage'
 
 interface Card {
   state: SectionState;
@@ -118,13 +123,30 @@ async function load() {
     const summaries = await Promise.all(open.map(state =>
       portalSectionsApi.summary(state.key).catch(() => null)))
     cards.value = open.map((state, index) => ({ state, summary: summaries[index] }))
-    if (Object.keys(statusLabels.value).length === 0) {
-      statusLabels.value = await portalPagesApi.statusLabels()
-    }
   } catch (error: any) {
     loadError.value = error?.message || '栏目读取失败'
   } finally {
     loading.value = false
+  }
+  // 状态词表是另一码管的口（见 loadStatusLabels），它读不到只影响「栏目页」那一行的用词，
+  // 不许把已经加载好的整页卡片一起说成「读取失败」
+  await loadStatusLabels()
+}
+
+/**
+ * `/portal/pages/statuses` 挂的是建设域那一码（`portal:build:manage`，V93：租户不做建站），
+ * 而这一页的路由只要 `portal:siteinfo:manage`——两个码不是同一条线，租户档进来必吃 403。
+ * 所以先按码决定发不发：不发就没有控制台那条红字，界面上「栏目页」那一行退化成露状态原码
+ * （`landingText` 本来就按「词表缺项」设计），而不是整页报「缺少权限」。
+ */
+async function loadStatusLabels() {
+  if (!authStore.hasPermission(STATUS_LABELS_PERMISSION) || Object.keys(statusLabels.value).length > 0) {
+    return
+  }
+  try {
+    statusLabels.value = await portalPagesApi.statusLabels()
+  } catch {
+    // 留着空表：那一行露原码，不谎称读到过
   }
 }
 
@@ -170,7 +192,9 @@ function landingText(card: Card): string {
   if (summary.landingPageStatus === null) {
     return '平台还没为这一栏目建页'
   }
-  const label = statusLabels.value[summary.landingPageStatus] || summary.landingPageStatus
+  // 词表没读到（没有那一码，或那次读失败）就露状态原码并说清楚，不编一个中文
+  const label = statusLabels.value[summary.landingPageStatus]
+    || `${summary.landingPageStatus}（状态原码，中文词表未取到）`
   if (summary.landingPageId) {
     return `已发布${summary.landingPageTitle ? '：' + summary.landingPageTitle : ''}`
   }

@@ -15,6 +15,21 @@ import { portalPagesApi } from '../../../api/portalPages'
 
 const pushSpy = vi.fn()
 
+/** 与真 store 同形状：只给 hasPermission 一个判据，用例改 permissions 数组就能换档 */
+const authState = {
+  isSuperAdmin: false,
+  selectedTenantId: null as number | null,
+  tenantId: 15,
+  permissions: [] as string[],
+  hasPermission(code: string) {
+    return this.permissions.includes(code)
+  },
+}
+
+vi.mock('../../../stores/auth', () => ({
+  useAuthStore: () => authState,
+}))
+
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: pushSpy })
 }))
@@ -117,6 +132,8 @@ async function mountView(states: ReturnType<typeof state>[], summaries: Record<s
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  // 默认按「平台侧账号」测：它两个码都有，词表读得到。租户档那一档在下面单独摆
+  authState.permissions = ['portal:siteinfo:manage', 'portal:build:manage']
 })
 
 describe('栏目卡集合只来自接口', () => {
@@ -253,5 +270,37 @@ describe('租户在这一页没有任何写口', () => {
     const link = [...document.querySelectorAll('a')].find(node => (node.textContent || '').trim() === '/news')
     expect(link).toBeTruthy()
     expect(link!.getAttribute('href')).toBe('https://acme.example/news')
+  })
+})
+
+describe('租户档账号（只有 portal:siteinfo:manage，实测 CONTENT_EDITOR 就是这样）', () => {
+  beforeEach(() => {
+    authState.permissions = ['portal:siteinfo:manage']
+  })
+
+  it('没有建设域那一码就不发词表请求，栏目卡照旧出', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(portalPagesApi.statusLabels).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.acard-stub')).toHaveLength(1)
+    expect(wrapper.text()).toContain('资讯栏')
+    expect(wrapper.text()).not.toContain('缺少权限')
+  })
+
+  it('词表没读时「栏目页」那一行露状态原码并说清没取到中文，不假装读到过', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')], {
+      news: summary('news', { landingPageId: null, landingPageStatus: 'draft' })
+    })
+    expect(wrapper.text()).toContain('draft（状态原码，中文词表未取到）')
+    expect(wrapper.text()).not.toContain('草稿')
+  })
+
+  it('词表这一个口挂了（有码但读失败）也只影响用词，整页卡片照旧在', async () => {
+    authState.permissions = ['portal:siteinfo:manage', 'portal:build:manage']
+    vi.mocked(portalPagesApi.statusLabels).mockRejectedValue(new Error('缺少权限: portal:build:manage'))
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(portalPagesApi.statusLabels).toHaveBeenCalledTimes(1)
+    expect(wrapper.findAll('.acard-stub')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('栏目读取失败')
+    expect(wrapper.text()).not.toContain('缺少权限')
   })
 })
