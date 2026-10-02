@@ -63,7 +63,8 @@
         </div>
         <div class="hero-body">
           <div v-if="trendCard.loading && !trendCard.data" class="hero-state">加载中…</div>
-          <div v-else-if="trendCard.error" class="hero-state hero-state--error">趋势读取失败</div>
+          <div v-else-if="trendCard.denied" class="hero-state hero-state--denied">当前账号没有访问趋势的查看权限</div>
+          <div v-else-if="trendCard.error" class="hero-state hero-state--error" :title="trendCard.error">趋势读取失败</div>
           <template v-else>
             <div ref="trendChartRef" class="hero-chart"></div>
             <div v-if="trendCard.data && trendCard.data.empty" class="hero-empty">
@@ -96,7 +97,8 @@
             </a-tooltip>
           </div>
           <div v-if="citation.loading && !citation.data" class="st-state">加载中…</div>
-          <div v-else-if="citation.error" class="st-state st-state--error">读取失败</div>
+          <div v-else-if="citation.denied" class="st-state st-state--denied">没有查看权限</div>
+          <div v-else-if="citation.error" class="st-state st-state--error" :title="citation.error">读取失败</div>
           <template v-else-if="citation.data">
             <template v-if="citation.data.summary">
               <div v-if="citation.data.summary.probeCount > 0" class="st-value">
@@ -130,7 +132,8 @@
             </a-tooltip>
           </div>
           <div v-if="botCard.loading && !botCard.data" class="st-state">加载中…</div>
-          <div v-else-if="botCard.error" class="st-state st-state--error">读取失败</div>
+          <div v-else-if="botCard.denied" class="st-state st-state--denied">没有查看权限</div>
+          <div v-else-if="botCard.error" class="st-state st-state--error" :title="botCard.error">读取失败</div>
           <template v-else-if="botCard.data">
             <div class="st-value">
               <span class="st-num">{{ formatMoney(searchEngineHits) }}</span>
@@ -156,7 +159,8 @@
             </a-tooltip>
           </div>
           <div v-if="todayCard.loading && !todayCard.data" class="st-state">加载中…</div>
-          <div v-else-if="todayCard.error" class="st-state st-state--error">读取失败</div>
+          <div v-else-if="todayCard.denied" class="st-state st-state--denied">没有查看权限</div>
+          <div v-else-if="todayCard.error" class="st-state st-state--error" :title="todayCard.error">读取失败</div>
           <template v-else-if="todayCard.data">
             <template v-if="!todayCard.data.empty">
               <div class="st-value">
@@ -184,7 +188,8 @@
             </a-tooltip>
           </div>
           <div v-if="geoCard.loading && !geoCard.data" class="st-state">加载中…</div>
-          <div v-else-if="geoCard.error" class="st-state st-state--error">读取失败</div>
+          <div v-else-if="geoCard.denied" class="st-state st-state--denied">没有查看权限</div>
+          <div v-else-if="geoCard.error" class="st-state st-state--error" :title="geoCard.error">读取失败</div>
           <template v-else-if="geoCard.data">
             <template v-if="geoCard.data.report">
               <div class="st-value">
@@ -219,7 +224,8 @@
             </a-tooltip>
           </div>
           <div v-if="seoCard.loading && !seoCard.data" class="st-state">加载中…</div>
-          <div v-else-if="seoCard.error" class="st-state st-state--error">读取失败</div>
+          <div v-else-if="seoCard.denied" class="st-state st-state--denied">没有查看权限</div>
+          <div v-else-if="seoCard.error" class="st-state st-state--error" :title="seoCard.error">读取失败</div>
           <template v-else-if="seoCard.data">
             <div v-if="seoCard.data.neverRun" class="st-value">
               <span class="st-plain">没跑过体检</span>
@@ -316,12 +322,13 @@ import { logError } from '../../utils/errorLog'
 const router = useRouter()
 const auth = useAuthStore()
 
-interface Card<T> { loading: boolean; error: string | null; data: T | null }
-const newCard = <T>(): Card<T> => reactive({ loading: false, error: null, data: null })
+interface Card<T> { loading: boolean; error: string | null; data: T | null; denied: boolean }
+const newCard = <T>(): Card<T> => reactive({ loading: false, error: null, data: null, denied: false })
 
 async function loadCard<T>(card: Card<T>, fn: () => Promise<T>) {
   card.loading = true
   card.error = null
+  card.denied = false
   try {
     card.data = await fn()
   } catch (error) {
@@ -331,6 +338,21 @@ async function loadCard<T>(card: Card<T>, fn: () => Promise<T>) {
   } finally {
     card.loading = false
   }
+}
+
+/**
+ * 这一块的接口后端按权限码执法（analytics:view / seo:audit:view / geo:report:view）。
+ * 明知这个账号进不来还去发请求，换来的是一屏「读取失败」：租户以为系统坏了，
+ * 真实原因只是「没有这块权限」。所以先按码判定，不给权限就不发请求、也不谎报失败。
+ * 码与后端 @RequirePermission 对齐，超管照旧直接放行。
+ */
+function loadIfAllowed<T>(card: Card<T>, permissionCode: string, fn: () => Promise<T>) {
+  if (auth.isSuperAdmin || auth.hasPermission(permissionCode)) return loadCard(card, fn)
+  card.loading = false
+  card.error = null
+  card.data = null
+  card.denied = true
+  return Promise.resolve()
 }
 
 const citation = newCard<CitationLatestSummary>()
@@ -408,18 +430,18 @@ const headerLoading = computed(() =>
   !isPlatformMode.value && (citation.loading || botCard.loading || todayCard.loading || seoCard.loading || geoCard.loading)
 )
 
-const loadCitation = () => loadCard(citation, () => citationApi.summaryLatest())
-const loadBot = () => loadCard(botCard, () => analyticsApi.bot({ tenantId: currentTenantId(), ...windowDays(30) }))
+const loadCitation = () => loadIfAllowed(citation, 'analytics:view', () => citationApi.summaryLatest())
+const loadBot = () => loadIfAllowed(botCard, 'analytics:view', () => analyticsApi.bot({ tenantId: currentTenantId(), ...windowDays(30) }))
 const loadToday = () => {
   const day = toDayParam(new Date())
-  return loadCard(todayCard, () => analyticsApi.overview({ tenantId: currentTenantId(), from: day, to: day }))
+  return loadIfAllowed(todayCard, 'analytics:view', () => analyticsApi.overview({ tenantId: currentTenantId(), from: day, to: day }))
 }
-const loadSeo = () => loadCard(seoCard, () => geoCrawlabilityApi.latest())
-const loadGeo = () => loadCard(geoCard, () => geoCampaignApi.latestReport())
+const loadSeo = () => loadIfAllowed(seoCard, 'seo:audit:view', () => geoCrawlabilityApi.latest())
+const loadGeo = () => loadIfAllowed(geoCard, 'geo:report:view', () => geoCampaignApi.latestReport())
 const loadKeywords = () => loadCard(kwCard, () => keywordApi.getLibraryStats(currentTenantId()))
 const loadStats = () => loadCard(statsCard, () => dashboardApi.getStats(currentTenantId()))
 const loadPublish = () => loadCard(publishCard, () => publishApi.recordStats({ tenantId: currentTenantId() }))
-const loadTrend = () => loadCard(trendCard, () => analyticsApi.trend({ tenantId: currentTenantId(), ...windowDays(trendDays.value) }))
+const loadTrend = () => loadIfAllowed(trendCard, 'analytics:view', () => analyticsApi.trend({ tenantId: currentTenantId(), ...windowDays(trendDays.value) }))
 
 const trendDays = ref(7)
 const trendChartRef = ref<HTMLElement>()
@@ -774,6 +796,8 @@ onUnmounted(() => {
   font-size: 13px;
 
   &--error { color: #fca5a5; }
+  /* 没有权限不是坏了：灰色说「这块不给这个账号看」，别用报错的红去骗运营 */
+  &--denied { color: rgba(203, 213, 225, 0.45); }
 }
 
 .hero-empty {
@@ -940,6 +964,7 @@ onUnmounted(() => {
     padding: 12px 0;
 
     &--error { color: @red; }
+    &--denied { color: @slate; }
   }
 
   .seo-dots {

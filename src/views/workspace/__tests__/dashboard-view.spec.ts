@@ -23,6 +23,10 @@ const authState = reactive({
   isSuperAdmin: true,
   selectedTenantId: null as number | null,
   tenantId: 1,
+  permissions: [] as string[],
+  hasPermission(code: string) {
+    return this.permissions.includes(code)
+  },
 })
 
 vi.mock('../../../stores/auth', () => ({
@@ -142,6 +146,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   authState.isSuperAdmin = true
   authState.selectedTenantId = 1
+  authState.permissions = []
   mockHappyApis()
 })
 
@@ -290,6 +295,63 @@ describe('工作台 · 租户档（趋势图置顶 + 效果五块）', () => {
     expect(wrapper.text()).toContain('读取失败')
     expect(wrapper.text()).toContain('#9')
     expect(wrapper.text()).toContain('42')
+    wrapper.unmount()
+  })
+})
+
+describe('工作台 · 无权限的账号（CONTENT_EDITOR 实测档）', () => {
+  it('没有那块权限就不发那个请求，格子里说「没有查看权限」而不是「读取失败」', async () => {
+    // 真实账号的样子：非超管，只有 portal:siteinfo:manage（租户 15 的 tenant15_admin 实测）
+    authState.isSuperAdmin = false
+    authState.permissions = ['portal:siteinfo:manage']
+
+    const wrapper = mountDashboard()
+    await flushPromises()
+
+    expect(citationApi.summaryLatest).not.toHaveBeenCalled()
+    expect(analyticsApi.bot).not.toHaveBeenCalled()
+    expect(analyticsApi.overview).not.toHaveBeenCalled()
+    expect(analyticsApi.trend).not.toHaveBeenCalled()
+    expect(geoCrawlabilityApi.latest).not.toHaveBeenCalled()
+    expect(geoCampaignApi.latestReport).not.toHaveBeenCalled()
+
+    const text = wrapper.text()
+    expect(wrapper.findAll('.st-state--denied').length).toBe(5)
+    expect(text).toContain('当前账号没有访问趋势的查看权限')
+    // 一屏「读取失败」是这一版要修掉的谎：没权限不是系统坏了
+    expect(text).not.toContain('读取失败')
+
+    wrapper.unmount()
+  })
+
+  it('拦权限只拦效果那六格，生产指标条照旧出数', async () => {
+    // 生产一行读的是内容/发布口，本来就在编辑者权限内，不该被这层判断顺手掐掉
+    authState.isSuperAdmin = false
+    authState.permissions = ['portal:siteinfo:manage']
+
+    const wrapper = mountDashboard()
+    await flushPromises()
+
+    expect(dashboardApi.getStats).toHaveBeenCalledTimes(1)
+    expect(keywordApi.getLibraryStats).toHaveBeenCalledTimes(1)
+    expect(wrapper.findAll('.pb-seg').length).toBe(3)
+    wrapper.unmount()
+  })
+
+  it('只给 analytics:view 一个码时，只放开这一个码管的卡', async () => {
+    authState.isSuperAdmin = false
+    authState.permissions = ['analytics:view']
+
+    const wrapper = mountDashboard()
+    await flushPromises()
+
+    expect(analyticsApi.trend).toHaveBeenCalledTimes(1)
+    expect(citationApi.summaryLatest).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.hero-chart').exists()).toBe(true)
+    // 其余两个码仍拦着
+    expect(geoCrawlabilityApi.latest).not.toHaveBeenCalled()
+    expect(geoCampaignApi.latestReport).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.st-state--denied').length).toBe(2)
     wrapper.unmount()
   })
 })
