@@ -89,3 +89,46 @@ describe('素材库（原图片库）的类别口径', () => {
     expect(wrapper.findAll('.grid-item')).toHaveLength(1)
   })
 })
+
+/**
+ * 全站普查（pass A2）在素材库现场抓到的那条：库自 Spec-J 起列的是全部类别，
+ * 但缩略图一律 <img src>，于是一份 .docx 也在往 /uploads 要图 —— 界面上是一个碎图图标，
+ * 控制台里是一串 onerror。非图片要有非图片的样子，图片读不出来也要有话可说。
+ */
+describe('素材库的缩略图：非图片不许当图片渲染', () => {
+  beforeEach(() => {
+    Object.values(api).forEach(fn => fn.mockReset())
+    api.categories.mockResolvedValue([])
+    api.list.mockResolvedValue({
+      records: [
+        { id: 1, name: 'clinic.jpg', category: '企业基础资料', url: '/uploads/a.jpg', fileType: 'image/jpeg', mimeType: 'image/jpeg', fileSize: 10 },
+        { id: 2, name: '12_口腔常见问题FAQ.docx', category: '诊疗项目库', url: '/uploads/b.docx', fileType: 'application/octet-stream', mimeType: 'application/octet-stream', fileSize: 20 },
+        { id: 3, name: 'faq.txt', category: '诊疗项目库', url: '/uploads/c.txt', fileType: 'text/plain', mimeType: 'text/plain', fileSize: 30 },
+      ],
+      total: 3,
+      page: 1,
+      size: 24,
+    })
+  })
+
+  it('只有图片行发 <img>，docx/txt 行走类别块，一个多余的图请求都不发', async () => {
+    const wrapper = await mountView()
+    const imgs = wrapper.findAll('.image-thumbnail img')
+    expect(imgs).toHaveLength(1)
+    expect(imgs[0].attributes('src')).toBe('/uploads/a.jpg')
+    const tiles = wrapper.findAll('.file-tile')
+    expect(tiles).toHaveLength(2)
+    expect(tiles.map(t => t.text()).join('|')).toContain('DOCX')
+    expect(tiles.map(t => t.text()).join('|')).toContain('TXT')
+  })
+
+  it('图片在服务器上读不出来时换成占位，而不是留一个浏览器碎图', async () => {
+    const wrapper = await mountView()
+    const img = wrapper.find('.image-thumbnail img')
+    expect(img.exists()).toBe(true)
+    await img.trigger('error')
+    expect(wrapper.find('.image-thumbnail img').exists()).toBe(false)
+    const failedTile = wrapper.findAll('.file-tile').find(t => t.text().includes('文件读不出来'))
+    expect(failedTile, '读不出来的图要写成「文件读不出来」').toBeTruthy()
+  })
+})

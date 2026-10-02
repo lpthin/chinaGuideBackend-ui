@@ -115,7 +115,20 @@
                 @click="toggleSelect(item.id)"
               >
                 <div class="image-thumbnail">
-                  <img :src="item.url" :alt="item.name" />
+                  <!-- 素材库自 Spec-J 起列的是全部类别（文档、取证截图都在里面），
+                       无脑 <img> 会让 .docx 与磁盘上已不存在的文件在网格里画成碎图，
+                       还往控制台刷 onerror。非图片给类别块，图片读不出来给占位。 -->
+                  <img
+                    v-if="isImageItem(item) && !failedIds.has(item.id)"
+                    :src="item.url"
+                    :alt="item.name"
+                    @error="onThumbError(item.id)"
+                  />
+                  <div v-else class="file-tile">
+                    <PictureOutlined v-if="isImageItem(item)" class="file-tile__icon" />
+                    <span v-else class="file-tile__ext">{{ extOf(item) }}</span>
+                    <span class="file-tile__note">{{ isImageItem(item) ? '文件读不出来' : '非图片' }}</span>
+                  </div>
                   <div class="overlay">
                     <a-space>
                       <a-button type="primary" size="small" @click.stop="previewImage(item)">
@@ -167,7 +180,17 @@
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'preview'">
-                <img :src="record.url" class="table-thumbnail" @click="previewImage(record)" />
+                <img
+                  v-if="isImageItem(record) && !failedIds.has(record.id)"
+                  :src="record.url"
+                  class="table-thumbnail"
+                  @click="previewImage(record)"
+                  @error="onThumbError(record.id)"
+                />
+                <div v-else class="file-tile file-tile--small">
+                  <PictureOutlined v-if="isImageItem(record)" class="file-tile__icon" />
+                  <span v-else class="file-tile__ext">{{ extOf(record) }}</span>
+                </div>
               </template>
               <template v-else-if="column.key === 'tags'">
                 <div class="table-tags">
@@ -266,7 +289,16 @@
       width="800px"
     >
       <div style="text-align: center">
-        <img v-if="previewItem" :src="previewItem.url" style="max-width: 100%; max-height: 500px" />
+        <img
+          v-if="previewItem && isImageItem(previewItem) && !failedIds.has(previewItem.id)"
+          :src="previewItem.url"
+          style="max-width: 100%; max-height: 500px"
+          @error="onThumbError(previewItem.id)"
+        />
+        <div v-else-if="previewItem" class="preview-fallback">
+          <PictureOutlined />
+          <p>{{ isImageItem(previewItem) ? '这张图在服务器上读不出来了（文件可能已被清理），下面的地址是它记录的位置' : `这不是图片，是 ${extOf(previewItem)} 文件，预览打不开` }}</p>
+        </div>
         <div style="margin-top: 16px; text-align: left">
           <p><strong>文件名：</strong>{{ previewItem?.name }}</p>
           <p><strong>文件大小：</strong>{{ previewItem?.fileSize ? formatFileSize(previewItem.fileSize) : '-' }}</p>
@@ -397,6 +429,30 @@ function toggleSelect(id: number) {
 function previewImage(item: ImageLibrary) {
   previewItem.value = item
   showPreviewModal.value = true
+}
+
+/** 读不出来的缩略图（磁盘上文件已被清理）记在这里：一块占位代替浏览器碎图 + 一条 onerror */
+const failedIds = ref<Set<number>>(new Set())
+function onThumbError(id: number) {
+  if (!failedIds.value.has(id)) failedIds.value = new Set(failedIds.value).add(id)
+}
+
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i
+
+/**
+ * 素材库列的是全部类别，fileType 存的是 MIME；上传时没识别出类型的行落在
+ * application/octet-stream，只能退回按文件名后缀判。
+ */
+function isImageItem(item: ImageLibrary): boolean {
+  const t = (item.fileType || '').toLowerCase()
+  if (t.startsWith('image/')) return true
+  if (t && t !== 'application/octet-stream') return false
+  return IMAGE_EXT.test(item.url || '') || IMAGE_EXT.test(item.name || '')
+}
+
+function extOf(item: ImageLibrary): string {
+  const m = /\.([a-z0-9]{1,5})$/i.exec(item.name || item.url || '')
+  return m ? m[1].toUpperCase() : '文件'
 }
 
 function copyUrl(item: ImageLibrary) {
@@ -723,6 +779,55 @@ onMounted(() => {
   object-fit: cover;
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* 非图片 / 读不出来的素材：跟 .image-thumbnail 一样铺满那块 4:3 的位置，别把网格顶变形 */
+.file-tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #8c8c8c;
+  background: #fafafa;
+
+  &__icon {
+    font-size: 22px;
+  }
+
+  &__ext {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  &__note {
+    font-size: 11px;
+  }
+
+  &--small {
+    position: static;
+    width: 60px;
+    height: 60px;
+    border-radius: 4px;
+    background: #fafafa;
+  }
+}
+
+.preview-fallback {
+  padding: 40px 0;
+  color: #8c8c8c;
+  font-size: 24px;
+
+  p {
+    margin-top: 12px;
+    font-size: 13px;
+  }
 }
 
 .pagination-wrapper {
