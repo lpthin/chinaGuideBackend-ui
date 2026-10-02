@@ -6,12 +6,15 @@ import { portalMessageApi } from '../../../api/portal'
 import { useAuthStore } from '../../../stores/auth'
 
 /**
- * 站内信页的入口按职能收（全站普查 1a，拍板「只收发送消息按钮」）。
+ * 站内信页的入口按职能收（全站普查 → 拍板 1a/2a/3c/4a）。
  *
- * 两条都要钉住，缺一条这页就是坏的：
+ * 钉住的三件事，缺一条这页就是坏的：
  * 1. 租户档仍然看得见自己的站内信——收件箱那一条请求照发；
  * 2. 「发送消息」不摆给没有超管身份的人：弹窗里那个租户下拉读的是 /api/admin/tenants，
- *    后端每个方法第一行 checkSuperAdmin()，摆出来只会让人点开一个空下拉框。
+ *    后端每个方法第一行 checkSuperAdmin()，摆出来只会让人点开一个空下拉框；
+ * 3. 「删除」只摆给这一家的管理员（拍板 1a）：后端 `MessageController.requireTenantAdminOf`
+ *    判的是「角色有 SITE_ADMIN」+「人站在自己归属的那一家」，界面按同一条摆。
+ *    隐藏只是不让人撞墙，真正的拒绝在后端；反过来摆一颗后端会拒的按钮才是问题。
  */
 
 vi.mock('../../../api/portal', () => ({
@@ -42,14 +45,46 @@ const ALERT_STUB = {
   template: '<div class="alert-stub"><slot name="message" /></div>'
 }
 
-async function mountAs(roles: string[], permissions: string[]) {
-  useAuthStore().user = { id: 1, username: 'tester', roles, permissions, tenantId: 15 } as any
+/**
+ * 表格必须自己渲染 #bodyCell，否则「删除摆不摆」这一条在测试里根本看不见。
+ * rowSelection 也一并接成 prop：4a 拍板摘掉勾选列，这里就能断言它真的没传进来。
+ */
+const TABLE_STUB = {
+  name: 'ATableStub',
+  props: ['columns', 'dataSource', 'rowKey', 'rowSelection', 'pagination', 'scroll'],
+  template: `<div class="a-table-stub">
+    <template v-for="record in dataSource" :key="record.id">
+      <template v-for="column in columns" :key="column.key">
+        <slot name="bodyCell" :column="column" :record="record" :text="record[column.dataIndex]" />
+      </template>
+    </template>
+  </div>`
+}
+
+/** 确认弹层在 happy-dom 里要点开才画得出文字，这里把「实际传进去的那句话」原样读出来断言 */
+const POPCONFIRM_STUB = {
+  name: 'APopconfirmStub',
+  props: ['title', 'okText', 'cancelText'],
+  template: '<div class="popconfirm-stub" :data-title="title"><slot /></div>'
+}
+
+interface AsOptions {
+  selectedTenantId?: number | null
+}
+
+async function mountAs(roles: string[], permissions: string[], options: AsOptions = {}) {
+  const auth = useAuthStore()
+  auth.user = { id: 1, username: 'tester', roles, permissions, tenantId: 15 } as any
+  // 这个 store 在整个文件里是同一个实例，不清就会把上一档的租户带到下一档
+  auth.selectedTenantId = options.selectedTenantId ?? null
   const wrapper = mount(MessageManageView, {
     attachTo: document.body,
     global: {
       stubs: {
         'a-button': Button,
         'a-alert': ALERT_STUB,
+        'a-table': TABLE_STUB,
+        'a-popconfirm': POPCONFIRM_STUB,
         'a-space': PASS_THROUGH('a-space'),
         'a-spin': PASS_THROUGH('a-spin'),
         'a-card': PASS_THROUGH('a-card'),
@@ -157,6 +192,57 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
     vi.mocked(portalMessageApi.stats).mockResolvedValue({ inbox: 4, unread: 1, outbox: 9 } as any)
     const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'])
     expect(statValues()).toEqual(['4', '1', '9'])
+    wrapper.unmount()
+  })
+})
+
+describe('删除入口：只有这一家的管理员摆（拍板 1a），删的语义写在确认里（拍板 2a）', () => {
+  function hasDeleteButton() {
+    return buttonTexts().some(text => text.includes('删除'))
+  }
+
+  function deleteConfirmTitle() {
+    const node = document.querySelector('.popconfirm-stub') as HTMLElement | null
+    return node?.dataset.title ?? ''
+  }
+
+  it('SITE_ADMIN（站在自己那一家）：摆，且确认里说清删的是大家共用的那一份', async () => {
+    const wrapper = await mountAs(['SITE_ADMIN'], ['portal:siteinfo:manage'])
+    expect(hasDeleteButton()).toBe(true)
+    // 库里只有一个 is_deleted：他删掉的是这一家租户里所有人都看不到的那一条
+    expect(deleteConfirmTitle()).toContain('所有人都看不到')
+    wrapper.unmount()
+  })
+
+  it('CONTENT_EDITOR：不摆删除，但「查看」照摆', async () => {
+    const wrapper = await mountAs(['CONTENT_EDITOR'], ['portal:siteinfo:manage'])
+    expect(hasDeleteButton()).toBe(false)
+    expect(buttonTexts().some(text => text.includes('查看'))).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('超管切到别家：角色里挂着 SITE_ADMIN 也不摆（他自己那一家才是他的管辖范围）', async () => {
+    const wrapper = await mountAs(['SUPER_ADMIN', 'SITE_ADMIN'], ['portal:admin:tenant'], { selectedTenantId: 9 })
+    expect(hasDeleteButton()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('超管站在自己归属的那一家（15）：摆，与后端比 admin_user.tenant_id 同一条', async () => {
+    const wrapper = await mountAs(['SUPER_ADMIN', 'SITE_ADMIN'], ['portal:admin:tenant'], { selectedTenantId: 15 })
+    expect(hasDeleteButton()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('超管停在平台档（没选租户）：不摆 —— 那一口后端本来就回 TENANT_REQUIRED', async () => {
+    const wrapper = await mountAs(['SUPER_ADMIN', 'SITE_ADMIN'], ['portal:admin:tenant'])
+    expect(hasDeleteButton()).toBe(false)
+    wrapper.unmount()
+  })
+
+  // 拍板 4a：这一列勾选框从上线起没接任何动作（selectedRowKeys 收进来就没人读），摆着就是骗人点
+  it('勾选列已经摘掉：表格收不到 row-selection', async () => {
+    const wrapper = await mountAs(['SITE_ADMIN'], ['portal:siteinfo:manage'])
+    expect(wrapper.findComponent({ name: 'ATableStub' }).props('rowSelection')).toBeUndefined()
     wrapper.unmount()
   })
 })

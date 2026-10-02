@@ -92,7 +92,6 @@
             :data-source="messageList"
             :pagination="paginationConfig"
             :row-key="(record: PortalMessage) => record.id"
-            :row-selection="rowSelection"
             @change="handleTableChange"
           >
             <template #bodyCell="{ column, record }">
@@ -119,8 +118,11 @@
               <template v-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="viewDetail(record)">查看</a-button>
+                  <!-- 拍板 1a：只有这一家的管理员能删，后端 requireTenantAdminOf 是这么判的，界面按同一条摆。
+                       拍板 2a：库里只有一个 is_deleted，删了就是这一家所有人都看不到，所以那句要写在确认里。 -->
                   <a-popconfirm
-                    title="确定要删除这条消息吗？"
+                    v-if="canDelete"
+                    title="删除后这家租户里的所有人都看不到这条消息，确定删除吗？"
                     @confirm="handleDelete(record.id)"
                   >
                     <a-button type="link" size="small" danger>删除</a-button>
@@ -233,14 +235,17 @@ const paginationConfig = reactive({
 
 const messageList = ref<PortalMessage[]>([])
 
-const selectedRowKeys = ref<number[]>([])
+const SITE_ADMIN_ROLE = 'SITE_ADMIN'
 
-const rowSelection = {
-  selectedRowKeys,
-  onChange: (keys: number[]) => {
-    selectedRowKeys.value = keys
-  },
-}
+/** 这一屏的请求会打到哪一家：超管跟右上角走，租户用户由后端按登录态定，客户端说不了话 */
+const actingTenantId = computed(() => (auth.isSuperAdmin ? auth.selectedTenantId : auth.tenantId))
+
+/**
+ * 与后端 `MessageController.requireTenantAdminOf` 同一条判据（拍板 1a）：
+ * 角色要有 SITE_ADMIN，而且人得站在自己归属的那一家 —— 超管切到别家也删不了别人家的信。
+ * 摆不出动作的按钮不摆；真正的拒绝仍然由后端来做，这里只是不让人撞墙。
+ */
+const canDelete = computed(() => auth.hasRole(SITE_ADMIN_ROLE) && actingTenantId.value === auth.tenantId)
 
 const columns = computed(() => [
   { title: '标题', key: 'title', width: 300 },
