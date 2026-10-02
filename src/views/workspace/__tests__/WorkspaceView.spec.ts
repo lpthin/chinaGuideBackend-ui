@@ -29,7 +29,7 @@ const MENU_STUBS = {
   // 并落到 data-open 上——这样用例能直接读出「租户段开了哪几组」，而不是靠整页文字猜。
   'a-menu': {
     name: 'AMenu',
-    props: ['openKeys', 'selectedKeys', 'inlineCollapsed'],
+    props: ['openKeys', 'selectedKeys'],
     template: '<div class="menu-stub" :data-open="(openKeys || []).join(\',\')"><slot /></div>'
   },
   'a-menu-item': { name: 'AMenuItem', template: '<div class="menu-item-stub"><slot /></div>' },

@@ -121,7 +121,6 @@
             v-if="topLeaf"
             mode="inline"
             :selected-keys="selectedKeys"
-            :inline-collapsed="siderCollapsed"
             class="sidebar-menu sidebar-menu--single"
             @click="handleMenuClick"
           >
@@ -146,7 +145,6 @@
               :data-domain="section.domain"
               :selected-keys="selectedKeys"
               :open-keys="openKeysFor(section.domain)"
-              :inline-collapsed="siderCollapsed"
               class="sidebar-menu"
               @update:open-keys="(keys: (string | number)[]) => onOpenKeysChange(section.domain, keys)"
               @click="handleMenuClick"
@@ -180,7 +178,6 @@
             v-if="bottomLeaf"
             mode="inline"
             :selected-keys="selectedKeys"
-            :inline-collapsed="siderCollapsed"
             class="sidebar-menu sidebar-menu--bottom"
             @click="handleMenuClick"
           >
