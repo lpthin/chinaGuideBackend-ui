@@ -69,7 +69,10 @@ describe('I-1 前端不抄第二份栏目词表', () => {
     const menu = Object.values({
       ...import.meta.glob('../../navigation/workspaceMenu.ts', { eager: true, query: '?raw', import: 'default' })
     }).join('\n')
-    expect(menu).toMatch(/openContentEntries\.has\(leaf\.contentEntry\)/)
+    expect(menu).toMatch(/openContentEntries\?\.has\(leaf\.contentEntry\)/)
+    // D4（2026-10-02）：开通态没取到也藏这一项。写成「不知道就当开了」（?? true / || true 一类）
+    // 就等于把注定空白的一页摆到人面前，这一条按源码形状钉住。
+    expect(menu).not.toMatch(/openContentEntries[^)\n]*\?\?\s*true/)
     expect(menu).toMatch(/contentEntry: meta\.contentEntry/)
     // 门控取值只许出现在注释里（后端词表的说明），不许是字符串字面量
     expect(menu).not.toMatch(/contentEntry:\s*['"`]/)

@@ -30,11 +30,19 @@ import {
 const leaves = collectMenuLeaves(routes)
 const grouped = leaves.filter(leaf => leaf.group)
 
+/**
+ * 「词表说这些栏目都开着」那一份读到的结果。
+ *
+ * 组表里的每一项都要能真的点进去，所以凡声明了 contentEntry 的项都得给上对应的开通值；
+ * 故意不留 null——null 现在表示「没读到」，而没读到是要少摆几项的（另一条用例单独钉）。
+ */
+const ALL_OPEN = new Set(grouped.flatMap(leaf => (leaf.contentEntry ? [leaf.contentEntry] : [])))
+
 /** 超管：全部码都有 */
 const SUPER = {
   isSuperAdmin: true,
   hasPermission: () => true,
-  openContentEntries: null
+  openContentEntries: ALL_OPEN
 }
 
 /**
@@ -48,7 +56,7 @@ const TENANT_CODES = ['portal:siteinfo:manage', 'media:manage', 'analytics:view'
 const TENANT = {
   isSuperAdmin: false,
   hasPermission: (code: string) => TENANT_CODES.includes(code),
-  openContentEntries: null
+  openContentEntries: ALL_OPEN
 }
 
 describe('菜单从路由单源生成', () => {
@@ -235,13 +243,23 @@ describe('栏目开通态只影响显隐，不影响权限', () => {
     expect(company?.contentEntry).toBe('company')
   })
 
-  it('取不到开通态时全显示；取到了就按词表隐藏没开的', () => {
+  it('取到了就按词表隐藏没开的', () => {
     const open = { ...SUPER, openContentEntries: new Set(['article', 'case']) }
     const labels = buildMenuSections(leaves, open)
       .flatMap(section => section.groups.flatMap(group => group.items.map(item => item.label)))
     expect(labels).not.toContain('招聘管理')
     expect(labels).not.toContain('企业信息')
     expect(labels).toContain('横幅')
+  })
+
+  it('取不到开通态（null）时宁可少摆：声明了 contentEntry 的一律不摆，其余照旧（D4）', () => {
+    const labels = buildMenuSections(leaves, { ...SUPER, openContentEntries: null })
+      .flatMap(section => section.groups.flatMap(group => group.items.map(item => item.label)))
+    expect(labels).not.toContain('招聘管理')
+    expect(labels).not.toContain('企业信息')
+    // 没声明 contentEntry 的项不受这次读取影响：它们的可见性只由码决定，不该被连坐
+    expect(labels).toContain('横幅')
+    expect(labels).toContain('内容工作台')
   })
 })
 

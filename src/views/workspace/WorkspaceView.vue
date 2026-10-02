@@ -263,8 +263,9 @@ const auth = useAuthStore()
 
 /**
  * 内容类菜单项按栏目开通态显隐（Spec §7.1）。判据是后端词表里每个栏目的 contentEntry 字段，
- * 不是在前端再抄一份栏目清单（I-1）。拉取失败就全显示（null = 不知道）：这一处挡的是
- * 「点进去只有一片空白」，权限从来不由这里判，三个只读端点各自挂着 @RequirePermission。
+ * 不是在前端再抄一份栏目清单（I-1）。拉取失败就按「不知道」处理：声明了 contentEntry 的项
+ * 一律先不摆（宁可少摆一项，也不摆一条点进去必然空白的路），其余项照旧按码判定。
+ * 权限从来不由这里判，三个只读端点各自挂着 @RequirePermission。
  */
 const openContentEntries = ref<Set<string> | null>(null)
 

@@ -385,7 +385,11 @@ function workspaceChildren(input: readonly RouteRecordRaw[]): readonly RouteReco
 export interface MenuVisibility {
   isSuperAdmin: boolean
   hasPermission: (code: string) => boolean
-  /** 已开通栏目的 contentEntry 集合；`null` = 还没取到或取失败，此时不做任何隐藏 */
+  /**
+   * 已开通栏目的 contentEntry 集合；`null` = 还没取到或取失败。
+   * 没取到时**照样藏**那些声明了 contentEntry 的项（这一项的存在依据就是那份开通态，
+   * 依据拿不到就宁可少摆一项）——以前 null 时全摆，用户点到的是必然空白的一页。
+   */
   openContentEntries: Set<string> | null
 }
 
@@ -399,8 +403,8 @@ export function leafVisible(leaf: MenuLeaf, view: MenuVisibility): boolean {
   if (leaf.superAdminOnly && !view.isSuperAdmin) return false
   // 超管跳过细粒度权限检查（超管默认有所有权限，但 permissions 数组可能没列全）
   if (!view.isSuperAdmin && leaf.permission && !view.hasPermission(leaf.permission)) return false
-  // 栏目没开通就藏这一项：挡的是「点进去一片空白」，权限不由这里判（三个只读端点各有码）
-  if (leaf.contentEntry && view.openContentEntries && !view.openContentEntries.has(leaf.contentEntry)) return false
+  // 栏目没开通就藏这一项；读不到开通态（null）也藏——依据不在，就不摆这一项
+  if (leaf.contentEntry && !view.openContentEntries?.has(leaf.contentEntry)) return false
   return true
 }
 
