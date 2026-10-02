@@ -5,6 +5,7 @@ import type {
   JobPost,
   PortalMessage,
   PortalMessageStats,
+  PortalBroadcastReadRow,
   PortalMessageBroadcast,
   Guestbook,
   CompanyInfo,
@@ -97,9 +98,9 @@ export const portalMessageApi = {
   broadcast: (data: PortalMessageBroadcast) =>
     http.post<{ count: number }>('/messages/broadcast', data),
 
-  // 获取消息详情
-  get: (id: number) =>
-    http.get<PortalMessage>(`/messages/${id}`),
+  // 平台档「我发的公告被读了多少」：跨租户按发送人收，只有超管读得到（后端 /messages/broadcast-summary）
+  broadcastSummary: () =>
+    http.get<PortalBroadcastReadRow[]>('/messages/broadcast-summary'),
 
   // 发送消息
   send: (data: { tenantId: number; receiverId: number; title: string; content: string }) =>

@@ -57,17 +57,33 @@ export interface JobPost {
 }
 
 // 站内信
+/**
+ * 字段名照 `GET /messages` 现场真回的键写（`MessageController` 直接返回 `Message` 实体，
+ * 实测键集：content/createTime/delFlag/id/isDeleted/readTime/receiverId/receiverName/
+ * senderId/senderName/status/summary/tenantId/title/type）。
+ *
+ * 这一版之前抄的是 `isRead/readAt/createdAt`——后端根本没这三个键，所以界面上
+ * 「已读/未读」那一列恒显示未读、「发送时间」列恒显示 `-`、状态筛选发了个后端不认的
+ * `isRead` 参数于是筛不动。跟留言板同一类病（库里没那几个名字）。
+ *
+ * `status` 只有 `unread`/`read` 两个值；收件箱里它表示「我读了没」，
+ * 发件箱里同一列表示「对方读了没」（一行 = 一个收件人的那份副本）。
+ */
 export interface PortalMessage {
   id: number
   tenantId: number
   senderId: number
+  senderName?: string
   receiverId: number
+  receiverName?: string
   type: string
   title: string
   content: string
-  isRead: boolean
-  readAt: string
-  createdAt: string
+  summary?: string
+  status: string
+  isDeleted?: number
+  createTime: string
+  readTime?: string
 }
 
 // 消息统计
@@ -84,6 +100,24 @@ export interface PortalMessageStats {
   inbox: number
   unread: number
   outbox: number
+}
+
+/**
+ * 平台档（超管没选租户）里 `GET /messages/broadcast-summary` 的一行 = 我发出的公告摊出去之后的阅读情况。
+ * 字段照后端 `BroadcastReadRow` 的字写，别再抄一套（上一版就是抄错键名导致四格恒 0）。
+ *
+ * 摊行是后端 `sendMessageToAllTenants` 在发送时按收件人一行一行插的，所以 delivered 是副本份数不是人数期望；
+ * 被删掉的那一份从 delivered 里挪进 removedCount，不混进「没读」。
+ */
+export interface PortalBroadcastReadRow {
+  title: string
+  type?: string
+  sentTime: string
+  delivered: number
+  readCount: number
+  unreadCount: number
+  removedCount: number
+  tenantCount: number
 }
 
 // 广播消息发送
@@ -185,10 +219,17 @@ export interface JobPostQuery {
   size?: number
 }
 
+/**
+ * `GET /messages` 与 `GET /messages/outbox` 认的查询键，照 `MessageController` 的形参写：
+ * `status` / `keyword` / `page` / `size` / `tenantId`。
+ *
+ * 之前这里写的是 `isRead?: boolean`，界面也就发 `isRead=true`，后端没这个形参，
+ * 于是状态筛选点了等于没点。`tenantId` 可选：日常走的是 http 里那对租户头。
+ */
 export interface PortalMessageQuery {
-  tenantId: number
-  receiverId?: number
-  isRead?: boolean
+  tenantId?: number
+  status?: string
+  keyword?: string
   page?: number
   size?: number
 }
