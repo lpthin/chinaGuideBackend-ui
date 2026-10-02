@@ -21,6 +21,13 @@ vi.mock('../../../api/http', () => ({
   default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() }
 }))
 
+// 建议这一口挂在需求单下，要的是 portal:build:manage；桩掉 store 免得把 router 那一串拖进来。
+const authState = vi.hoisted(() => ({ permissions: ['portal:build:manage'] as string[] }))
+
+vi.mock('../../../stores/auth', () => ({
+  useAuthStore: () => ({ hasPermission: (code: string) => authState.permissions.includes(code) })
+}))
+
 vi.mock('../../../api/portalSections', async importOriginal => {
   const actual = await importOriginal<typeof import('../../../api/portalSections')>()
   return {
@@ -99,6 +106,7 @@ function bodyText() {
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  authState.permissions = ['portal:build:manage']
   vi.mocked(portalSectionsApi.advice).mockResolvedValue({ generated: false, items: [], generatedAt: null } as any)
 })
 
@@ -128,6 +136,20 @@ describe('进页面只读，不自己花钱', () => {
     await flushPromises()
     expect(portalSectionsApi.advice).not.toHaveBeenCalled()
     expect(bodyText()).toContain('还没有需求单编号')
+    expect(buttonThat('生成一版建议')).toBeUndefined()
+  })
+
+  it('缺 portal:build:manage：一条请求都不发，既不演成「读失败」也不演成「没有建议」', async () => {
+    // 这一口挂在需求单下（要 manage），而这张卡会出现在只按 portal:build:section 放行的栏目页上
+    authState.permissions = ['portal:build:section']
+    document.body.innerHTML = ''
+    mounted()
+    await flushPromises()
+    expect(portalSectionsApi.advice).not.toHaveBeenCalled()
+    expect(portalSectionsApi.generateAdvice).not.toHaveBeenCalled()
+    expect(bodyText()).toContain('这个账号没有 portal:build:manage')
+    expect(bodyText()).not.toContain('建议没读到')
+    expect(bodyText()).not.toContain('还没有生成过建议')
     expect(buttonThat('生成一版建议')).toBeUndefined()
   })
 })

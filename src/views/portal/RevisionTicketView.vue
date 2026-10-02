@@ -31,6 +31,10 @@
       </a-form-item>
     </a-form>
 
+    <a-alert v-if="pagesNote" type="info" show-icon style="margin-bottom: 12px">
+      <template #message>{{ pagesNote }}</template>
+    </a-alert>
+
     <a-table
       :data-source="tickets"
       :columns="columns"
@@ -254,6 +258,7 @@ import {
 import { portalPagesApi, type PortalPage } from '../../api/portalPages'
 import DraftReviewCard from './builder/DraftReviewCard.vue'
 import { formatDateTime } from '../../utils/format'
+import { useAuthStore } from '../../stores/auth'
 
 /**
  * 改版工单审阅页：客户原话 → 预估 → AI 草稿 → 人工看字段级 diff → 应用/丢弃。
@@ -268,10 +273,14 @@ import { formatDateTime } from '../../utils/format'
  * 要按像素看效果，就应用后用页面搭建器的预览（那条路取的是已保存版本）。
  */
 
+const auth = useAuthStore()
+const canManage = computed(() => auth.hasPermission('portal:build:manage'))
+
 const EMPTY_OPTIONS: TicketOptions = { statuses: {}, viewports: {}, intents: {} }
 
 const options = ref<TicketOptions>({ ...EMPTY_OPTIONS })
 const pages = ref<PortalPage[]>([])
+const pagesNote = ref('')
 const tickets = ref<RevisionTicket[]>([])
 const loading = ref(false)
 
@@ -378,8 +387,16 @@ async function reload() {
 }
 
 async function loadPages() {
+  // 页面列表是 portal:build:manage 的口，这一页按 portal:build:review 放行：
+  // 只有审阅码的账号不发这个请求，发了只会得到一条「页面列表加载失败」的红字，那是谎报。
+  if (!canManage.value) {
+    pages.value = []
+    pagesNote.value = '这个账号没有 portal:build:manage，读不到页面清单：按页面筛选和生成预览链接用不了，工单本身照常能审'
+    return
+  }
   try {
     pages.value = await portalPagesApi.list()
+    pagesNote.value = ''
   } catch (error) {
     message.error((error as Error).message || '页面列表加载失败')
   }

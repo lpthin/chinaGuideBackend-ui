@@ -383,6 +383,20 @@ describe('PortalHealthView', () => {
     expect(row.textContent ?? '').toContain('portal:build:manage')
     wrapper.unmount()
   })
+
+
+it('只有 health 码时那两个口一次都不发，缺码那句写在明处，巡检结果照常列出来', async () => {
+  const wrapper = await mountView(['portal:build:health'])
+  expect(portalPagesApi.list).not.toHaveBeenCalled()
+  expect(siteApi.list).not.toHaveBeenCalled()
+  const text = wrapper.text()
+  expect(text).toContain('这个账号没有 portal:build:manage')
+  // 读不到页面清单 ≠ 巡检词表读不到：那一句红字不许出现在这里
+  expect(text).not.toContain('巡检词表加载失败')
+  expect(byText('忽略').length).toBe(3)
+  wrapper.unmount()
+})
+
 })
 
 /** 这个环境里 rAF 不会跑（应用内标签页被隐藏），所以用微任务队列等渲染 */

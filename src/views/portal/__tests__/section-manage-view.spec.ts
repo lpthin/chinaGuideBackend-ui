@@ -22,6 +22,14 @@ import { siteApi } from '../../../api/workspace'
 
 const routeQuery = vi.hoisted(() => ({ current: {} as Record<string, string> }))
 
+// 这一页读站点清单要的是 portal:build:manage（路由只要求 portal:build:section），
+// 真 store 会把 router/api 那一串拖进来，这里只桩这一个函数。
+const authState = vi.hoisted(() => ({ permissions: ['portal:build:manage', 'portal:build:section'] as string[] }))
+
+vi.mock('../../../stores/auth', () => ({
+  useAuthStore: () => ({ hasPermission: (code: string) => authState.permissions.includes(code) })
+}))
+
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: routeQuery.current, params: {} }),
   useRouter: () => ({ push: vi.fn() })
@@ -185,6 +193,7 @@ function bodyText() {
 beforeEach(() => {
   document.body.innerHTML = ''
   routeQuery.current = {}
+  authState.permissions = ['portal:build:manage', 'portal:build:section']
   vi.clearAllMocks()
 })
 
@@ -415,5 +424,19 @@ describe('建议卡与草稿的衔接（拍板 N2：AI 只出建议）', () => {
     expect(wrapper.findComponent(ADVICE_STUB).props('localEditsPending')).toBe(false)
     await typeInto(nameInput(0), '公司新闻')
     expect(wrapper.findComponent(ADVICE_STUB).props('localEditsPending')).toBe(true)
+  })
+})
+
+describe('站点清单是 manage 的口，而这一页只按 portal:build:section 放行', () => {
+  it('缺 manage 时不发那一条站点请求，并把「下拉为什么是空的」写在明处', async () => {
+    authState.permissions = ['portal:build:section']
+    const wrapper = await mountView()
+    expect(siteApi.list).not.toHaveBeenCalled()
+    expect(portalSectionsApi.adminList).not.toHaveBeenCalled()
+    const text = wrapper.text()
+    expect(text).toContain('这个账号没有 portal:build:manage')
+    // 缺码 ≠ 平台没有站点：那一句「先去系统管理 > 站点管理建一个」的兜底话不许在这里出现
+    expect(text).not.toContain('先去系统管理')
+    wrapper.unmount()
   })
 })

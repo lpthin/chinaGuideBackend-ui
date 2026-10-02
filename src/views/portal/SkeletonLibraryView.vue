@@ -15,6 +15,10 @@
       </template>
     </a-alert>
 
+    <a-alert v-if="buildMetaNote" type="info" show-icon class="skeleton-library__notice">
+      <template #message>{{ buildMetaNote }}</template>
+    </a-alert>
+
     <a-form layout="inline" class="skeleton-library__toolbar">
       <a-form-item label="关键字">
         <a-input v-model:value="keyword" allow-clear placeholder="按骨架名称或 key 过滤" style="width: 220px" />
@@ -339,6 +343,7 @@ const metas = ref<PortalBlockMeta[]>([])
 const sites = ref<Array<{ id: number; name: string }>>([])
 const loading = ref(false)
 const loadError = ref('')
+const buildMetaNote = ref('')
 const keyword = ref('')
 
 const previewKey = ref('')
@@ -540,21 +545,40 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    const [list, labels, blocks, siteList] = await Promise.all([
+    const [list, labels] = await Promise.all([
       portalSkeletonsApi.list(),
-      portalSkeletonsApi.statusLabels(),
-      // 区块元数据：把 layout 里的 blockKey 换成 rendererKey、按 dataSchema 解析演示绑定都靠它
-      portalPagesApi.blocks(),
-      siteApi.list()
+      portalSkeletonsApi.statusLabels()
     ])
     skeletons.value = list || []
     statusLabels.value = labels || {}
-    metas.value = blocks || []
-    sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
   } catch (error: any) {
     loadError.value = error?.message || '骨架库加载失败'
   } finally {
     loading.value = false
+  }
+  await loadBuildMeta()
+}
+
+/**
+ * 区块元数据和站点下拉都是 portal:build:manage 的口，而这一页按 portal:build:preset 放行。
+ * 只有 preset 的账号不发这两个请求：拿 manage 域的数据来搭预览是加分项，不该让缺码变成整页报错。
+ */
+async function loadBuildMeta() {
+  if (!canManage.value) {
+    metas.value = []
+    sites.value = []
+    buildMetaNote.value = '这个账号没有 portal:build:manage，预览按区块原码显示、站点列表不加载'
+    return
+  }
+  try {
+    const [blocks, siteList] = await Promise.all([portalPagesApi.blocks(), siteApi.list()])
+    metas.value = blocks || []
+    sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
+    buildMetaNote.value = ''
+  } catch (error: any) {
+    metas.value = []
+    sites.value = []
+    buildMetaNote.value = `区块元数据或站点列表读取失败：${error?.message || '未知原因'}，预览按区块原码显示`
   }
 }
 

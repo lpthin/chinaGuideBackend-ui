@@ -5,6 +5,7 @@ import ReferenceSiteView from '../ReferenceSiteView.vue'
 import { portalReferenceApi, REFERENCE_MAX_PAGES_LIMIT } from '../../../api/referenceSites'
 import { portalPagesApi } from '../../../api/portalPages'
 import { siteApi } from '../../../api/workspace'
+import { useAuthStore } from '../../../stores/auth'
 
 /**
  * 参考站摄取页的「路由清单两步走 + 取证可视化」（Spec-E T2/T3/T5 的界面那一半）。
@@ -425,6 +426,14 @@ function tables(wrapper: any) {
 beforeEach(() => {
   vi.clearAllMocks()
   document.body.innerHTML = ''
+  // 这一页的路由门是 portal:build:reference，但区块/站点两个下拉走的是 portal:build:manage；
+  // 默认两码都给（= 超管那一份），缺码的样子单独有用例钉。
+  useAuthStore().user = {
+    id: 1,
+    username: 'tester',
+    roles: ['SUPER_ADMIN'],
+    permissions: ['portal:build:reference', 'portal:build:manage']
+  } as any
   vi.mocked(portalReferenceApi.statusLabels).mockResolvedValue({
     pending: '排队中',
     crawling: '抓取中',
@@ -806,5 +815,24 @@ describe('成本闸的拒绝理由要念给看预估的那个人', () => {
 
     expect(alerts(wrapper, 'info').join(' ')).toContain('预计 12000 token')
     expect(alerts(wrapper, 'warning').join(' ')).not.toContain('超过了单任务上限')
+  })
+})
+
+describe('底数据按码取：缺 manage 就不发那两个口', () => {
+  it('只有 reference 码时一条 manage 请求都不发，缺码那句写在明处，任务列表照常', async () => {
+    useAuthStore().user = {
+      id: 2,
+      username: 'reviewer',
+      roles: ['CONTENT_EDITOR'],
+      permissions: ['portal:build:reference']
+    } as any
+    const wrapper = await mountView()
+    expect(portalPagesApi.blocks).not.toHaveBeenCalled()
+    expect(siteApi.list).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('这个账号没有 portal:build:manage')
+    // 缺码只影响那两个下拉：任务列表这一半该照常拉，且一个 error 提示都不该弹出来
+    expect(portalReferenceApi.list).toHaveBeenCalledTimes(1)
+    expect(alerts(wrapper, 'error')).toHaveLength(0)
+    wrapper.unmount()
   })
 })

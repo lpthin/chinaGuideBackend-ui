@@ -76,6 +76,15 @@ vi.mock('vue-router', async importOriginal => {
   return { ...actual, useRoute: () => ({ query: routeQuery.current, params: {} }) }
 })
 
+// 这一页按 portal:build:assemble 放行，但底数据分属 manage / preset / reference 三个码；
+// 默认给全，缺码的那几档在下面按用例收走。
+const { authState } = vi.hoisted(() => ({
+  authState: { permissions: [] as string[] }
+}))
+vi.mock('../../../stores/auth', () => ({
+  useAuthStore: () => ({ hasPermission: (code: string) => authState.permissions.includes(code) })
+}))
+
 /** 按 dataSource 逐行走 bodyCell 插槽的表壳：真 a-table 在这个环境里渲不出表体，空态也得自己接上 */
 const TABLE_STUB = {
   name: 'ATable',
@@ -297,6 +306,7 @@ async function openDetail(wrapper: any) {
 beforeEach(() => {
   document.body.innerHTML = ''
   routeQuery.current = {}
+  authState.permissions = ['portal:build:assemble', 'portal:build:manage', 'portal:build:preset', 'portal:build:reference']
   vi.clearAllMocks()
 })
 
@@ -695,6 +705,22 @@ describe('状态中文只有一处来源，读不到的东西不猜', () => {
     expect(noSite.text()).toContain('一个站点都取不到')
     const noSkeleton = await mountView({ skeletons: [{ skeletonKey: 'x', name: '还没定稿', status: 'draft', pages: [] }] })
     expect(noSkeleton.text()).toContain('骨架库里现在没有可组装的骨架')
+  })
+
+  it('底数据各按各的码取：缺码就不发那一条，而且不许说成「站点/骨架不存在」', async () => {
+    authState.permissions = ['portal:build:assemble']
+    const wrapper = await mountView()
+    expect(siteApi.list).not.toHaveBeenCalled()
+    expect(portalSkeletonsApi.list).not.toHaveBeenCalled()
+    expect(portalReferenceApi.list).not.toHaveBeenCalled()
+    const text = wrapper.text()
+    expect(text).toContain('这个账号没有 portal:build:manage')
+    expect(text).toContain('这个账号没有 portal:build:preset')
+    expect(text).toContain('这个账号没有 portal:build:reference')
+    // 读不到 ≠ 没有：那两句「一个站点都取不到 / 没有可组装的骨架」在这里都不该出现
+    expect(text).not.toContain('一个站点都取不到')
+    expect(text).not.toContain('骨架库里现在没有可组装的骨架')
+    wrapper.unmount()
   })
 })
 

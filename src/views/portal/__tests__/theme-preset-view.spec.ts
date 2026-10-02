@@ -206,6 +206,18 @@ describe('ThemePresetView', () => {
     wrapper.unmount()
   })
 
+  it('只有 preset 码时不发 manage 那两个口，缺码那句写在明处', async () => {
+    vi.mocked(portalPagesApi.list).mockClear()
+    vi.mocked(siteApi.list).mockClear()
+    const wrapper = await mountView(['portal:build:preset'])
+    expect(portalPagesApi.list).not.toHaveBeenCalled()
+    expect(siteApi.list).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('这个账号没有 portal:build:manage')
+    // 缺码只影响要选页面的那几处：皮肤列表本身照常列出来
+    expect(byText('应用到页面').length).toBe(2)
+    wrapper.unmount()
+  })
+
   it('点「把页面样式沉淀为皮肤」才挂出表单，选好页面后提交的是 trim 过的名称', async () => {
     vi.mocked(themePresetsApi.saveSkin).mockResolvedValue(SKIN as any)
     const wrapper = await mountView(['portal:build:preset'])
@@ -235,7 +247,8 @@ describe('ThemePresetView', () => {
 
   it('应用皮肤带的是页面列表里那一份 version，成功后提示用服务端回读的版本号', async () => {
     vi.mocked(themePresetsApi.apply).mockResolvedValue({ ...PAGE, version: 4 } as any)
-    const wrapper = await mountView(['portal:build:preset'])
+    // 页面清单走的是 portal:build:manage，所以这一档给的是 preset + manage 两码
+    const wrapper = await mountView(['portal:build:preset', 'portal:build:manage'])
 
     byText('应用到页面')[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await nextTick()

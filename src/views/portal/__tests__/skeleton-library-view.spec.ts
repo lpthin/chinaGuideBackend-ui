@@ -627,3 +627,16 @@ describe('参考站 → 骨架沉淀：产物只是待审骨架，证据要当�
     expect(currentWrapper.text()).not.toContain('刚洗出来的是')
   })
 })
+
+describe('底数据按码取：这一页的门是 preset，区块与站点是 manage 的口', () => {
+  it('只有 preset 码时那两个口一次都不发，骨架照常列出，缺码那句写在明处', async () => {
+    currentWrapper = await mountView([skeleton()], ['portal:build:preset'])
+    expect(portalPagesApi.blocks).not.toHaveBeenCalled()
+    expect(siteApi.list).not.toHaveBeenCalled()
+    const text = currentWrapper.text()
+    expect(text).toContain('这个账号没有 portal:build:manage')
+    // 缺 manage 不等于读不到骨架：那半边的口是通的，整页不许变成错误态
+    expect(text).toContain('甲套骨架')
+    expect(text).not.toContain('加载失败')
+  })
+})

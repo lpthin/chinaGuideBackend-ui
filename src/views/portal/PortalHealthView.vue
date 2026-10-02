@@ -40,6 +40,10 @@
       </template>
     </a-alert>
 
+    <a-alert v-if="pagesNote" type="warning" show-icon class="portal-health-page__notice">
+      <template #message>{{ pagesNote }}</template>
+    </a-alert>
+
     <state-block v-if="!loading && findings.length === 0" state="empty" title="没有待处理的巡检结果——还没扫过的话，点右上角「立即巡检」" />
     <data-table
       v-else
@@ -280,6 +284,7 @@ const options = ref<HealthOptions | null>(null)
 const findings = ref<HealthFinding[]>([])
 const pages = ref<Array<{ id: number; title: string | null; slug: string | null }>>([])
 const sites = ref<Array<{ id: number; name: string }>>([])
+const pagesNote = ref('')
 const loading = ref(false)
 const scanning = ref(false)
 const saving = ref(false)
@@ -587,17 +592,27 @@ async function submitAiFix() {
 
 onMounted(async () => {
   try {
-    const [loadedOptions, pageList] = await Promise.all([portalHealthApi.options(), portalPagesApi.list()])
-    options.value = loadedOptions
-    pages.value = (pageList || []).map(page => ({ id: page.id, title: page.title, slug: page.slug }))
+    options.value = await portalHealthApi.options()
   } catch (error) {
     message.error((error as Error).message || '巡检词表加载失败')
   }
-  try {
-    const siteList = await siteApi.list()
-    sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
-  } catch {
-    // 站点下拉只是给超管筛选用，拿不到就把这一格留空，不让它把整页变成错误态
+  if (canManagePages.value) {
+    try {
+      const pageList = await portalPagesApi.list()
+      pages.value = (pageList || []).map(page => ({ id: page.id, title: page.title, slug: page.slug }))
+    } catch (error) {
+      message.error((error as Error).message || '页面列表加载失败')
+    }
+    try {
+      const siteList = await siteApi.list()
+      sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
+    } catch {
+      // 站点下拉只是给超管筛选用，拿不到就把这一格留空，不让它把整页变成错误态
+    }
+  } else {
+    // 页面与站点两个下拉都走 portal:build:manage，而这一页按 portal:build:health 放行：
+    // 只有巡检码的账号不发这两个请求，缺的东西如实写在这里，而不是报成「巡检词表加载失败」。
+    pagesNote.value = '这个账号没有 portal:build:manage，读不到页面与站点清单：按页面/站点筛选用不了，巡检结果与 AI 处理照常'
   }
   await load()
 })

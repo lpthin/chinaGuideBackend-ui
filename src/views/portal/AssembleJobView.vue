@@ -56,7 +56,8 @@
       <p v-else-if="!loadingBase && !sites.length" class="assemble-job-page__error">
         一个站点都取不到：这个账号名下没有站点，先去系统管理 &gt; 站点管理建一个。
       </p>
-      <p v-else-if="!publishedSkeletonOptions.length" class="assemble-job-page__error">
+      <p v-if="skeletonsError" class="assemble-job-page__error">{{ skeletonsError }}</p>
+      <p v-else-if="!loadingBase && sites.length && !publishedSkeletonOptions.length" class="assemble-job-page__error">
         骨架库里现在没有可组装的骨架——整站组装必须按一套骨架来，先去骨架库确认它的状态。
       </p>
     </a-card>
@@ -269,6 +270,7 @@ import { portalReferenceApi, type ReferenceSite } from '../../api/referenceSites
 import { siteApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
+import { useAuthStore } from '../../stores/auth'
 
 /**
  * AI 整站组装任务视图（Spec §6.3，Q3；N4：只有平台能发起）。
@@ -318,6 +320,13 @@ const draftColumns = [
 ]
 
 const sites = ref<Array<{ id: number; name: string }>>([])
+const auth = useAuthStore()
+// 这一页按 portal:build:assemble 放行，但它要读的三份底数据各属不同域：
+// 站点是 manage、骨架是 preset、参考站是 reference。缺哪个码就不发那个请求，
+// 并把「这一格为什么是空的」写在明处——不写就等于让用户以为站点/骨架真的不存在。
+const canReadSites = computed(() => auth.hasPermission('portal:build:manage'))
+const canReadSkeletons = computed(() => auth.hasPermission('portal:build:preset'))
+const canReadReferences = computed(() => auth.hasPermission('portal:build:reference'))
 const route = useRoute()
 /** 从需求单详情带 `?siteId=` 过来时的那句话：站点是地址给的，不是用户在下拉里挑的 */
 const preselectedSiteNotice = ref('')
@@ -331,6 +340,7 @@ const loadingBase = ref(false)
 const loadingJobs = ref(false)
 const creating = ref(false)
 const sitesError = ref('')
+const skeletonsError = ref('')
 const referencesError = ref('')
 const jobsError = ref('')
 
@@ -501,23 +511,48 @@ function fail(fallback: string, error: unknown): string {
 async function loadBaseData() {
   loadingBase.value = true
   sitesError.value = ''
+  await Promise.all([loadSites(), loadSkeletons()])
+  loadingBase.value = false
+  await loadReferences()
+}
+
+async function loadSites() {
+  if (!canReadSites.value) {
+    sites.value = []
+    sitesError.value = '这个账号没有 portal:build:manage，站点清单读不出来：读不到站点就建不了组装任务，这一步要找有该码的同事执行'
+    return
+  }
   try {
-    const [siteList, skeletonList] = await Promise.all([siteApi.list(), portalSkeletonsApi.list()])
+    const siteList = await siteApi.list()
     sites.value = (siteList || []).map((site: { id: number; name: string }) => ({ id: site.id, name: site.name }))
-    skeletons.value = skeletonList || []
   } catch (error) {
     sites.value = []
-    skeletons.value = []
-    sitesError.value = fail('站点或骨架列表加载失败', error)
-  } finally {
-    loadingBase.value = false
+    sitesError.value = fail('站点列表加载失败', error)
   }
-  await loadReferences()
+}
+
+async function loadSkeletons() {
+  if (!canReadSkeletons.value) {
+    skeletons.value = []
+    skeletonsError.value = '这个账号没有 portal:build:preset，骨架库读不出来：下拉为空是因为没读到，不是因为骨架库真的没有骨架'
+    return
+  }
+  try {
+    skeletons.value = (await portalSkeletonsApi.list()) || []
+  } catch (error) {
+    skeletons.value = []
+    skeletonsError.value = fail('骨架列表加载失败', error)
+  }
 }
 
 /** 参考站只是可选语料：它读不到不该把整页变成错误页，只在提示里说一句 */
 async function loadReferences() {
   referencesError.value = ''
+  if (!canReadReferences.value) {
+    references.value = []
+    referencesError.value = '这个账号没有 portal:build:reference，参考站清单读不出来：留空「不用参考站」照样能建任务'
+    return
+  }
   try {
     references.value = await portalReferenceApi.list()
   } catch (error) {

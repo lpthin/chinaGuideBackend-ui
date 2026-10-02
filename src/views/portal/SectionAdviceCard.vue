@@ -20,7 +20,10 @@
     </p>
 
     <template v-else>
-      <a-alert v-if="notReady" type="info" show-icon class="advice-card__notice">
+      <a-alert v-if="adviceDenied" type="warning" show-icon class="advice-card__notice">
+        <template #message>{{ adviceDenied }}</template>
+      </a-alert>
+      <a-alert v-else-if="notReady" type="info" show-icon class="advice-card__notice">
         <template #message>
           这一套还没准备好（后端原话：{{ notReady }}）。
           这里宁可空着也不摆一张「暂无建议」的列表——空列表会让人以为「生成过了、结论是没有」，那不是事实。
@@ -57,7 +60,7 @@
         </p>
       </a-spin>
 
-      <a-space wrap class="advice-card__actions">
+      <a-space v-if="!adviceDenied" wrap class="advice-card__actions">
         <a-button :disabled="!canGenerate" :loading="generating" @click="generate">
           {{ hasAdvice ? '再生成一版（再花一次模型的钱）' : '生成一版建议（会调用模型）' }}
         </a-button>
@@ -102,6 +105,7 @@ import {
   type SectionBulkItem,
   type SectionState
 } from '../../api/portalSections'
+import { useAuthStore } from '../../stores/auth'
 
 /**
  * 「AI 推导栏目建议」复核卡（Spec-D D4，拍板 N2：栏目动作只归超管，AI 只出建议）。
@@ -138,6 +142,11 @@ const emit = defineEmits<{
   (e: 'saved', states: SectionState[]): void
 }>()
 
+const auth = useAuthStore()
+// 建议这一口挂在需求单下（GET/POST /admin/site-briefs/{id}/section-advice），要的是 portal:build:manage，
+// 而这张卡同时挂在栏目页（portal:build:section）上：缺码就不发，也别说成「读失败」。
+const canReadAdvice = computed(() => auth.hasPermission('portal:build:manage'))
+
 const view = ref<SectionAdviceView | null>(null)
 const loading = ref(false)
 const generating = ref(false)
@@ -145,6 +154,8 @@ const saving = ref(false)
 const loadError = ref('')
 /** 后端这一口还没上线时的那句中文原因；有值就只显示这一句，不显示任何列表 */
 const notReady = ref('')
+/** 缺 portal:build:manage 时的那句话：这一口不发请求，也不演成「读失败」或「没有建议」 */
+const adviceDenied = ref('')
 const generateNotice = ref('')
 const saveError = ref('')
 
@@ -162,6 +173,15 @@ async function load() {
   if (props.briefId === null) {
     return
   }
+  if (!canReadAdvice.value) {
+    view.value = null
+    loadError.value = ''
+    notReady.value = ''
+    adviceDenied.value =
+      '这个账号没有 portal:build:manage，建议那一发读不出来：这里不给任何结论——既不是「读失败」，也不是「生成过了、结论是没有」。'
+    return
+  }
+  adviceDenied.value = ''
   loading.value = true
   loadError.value = ''
   notReady.value = ''

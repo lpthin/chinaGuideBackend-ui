@@ -17,6 +17,10 @@
       </template>
     </a-alert>
 
+    <a-alert v-if="pagesNote" type="warning" show-icon class="theme-preset-page__notice">
+      <template #message>{{ pagesNote }}</template>
+    </a-alert>
+
     <a-table
       :data-source="presets"
       :columns="columns"
@@ -256,9 +260,11 @@ import { useAuthStore } from '../../stores/auth'
 const auth = useAuthStore()
 const canManage = computed(() => auth.hasPermission('portal:build:preset'))
 const canPromote = computed(() => auth.hasPermission('portal:template:promote'))
+const canBuild = computed(() => auth.hasPermission('portal:build:manage'))
 
 const presets = ref<ThemePreset[]>([])
 const pages = ref<PortalPage[]>([])
+const pagesNote = ref('')
 const sites = ref<Array<{ id: number; name: string }>>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -327,18 +333,39 @@ function strippedItems(raw: string | null): string[] {
 async function load() {
   loading.value = true
   try {
-    const [presetList, pageList] = await Promise.all([themePresetsApi.list(), portalPagesApi.list()])
+    const presetList = await themePresetsApi.list()
     presets.value = presetList || []
-    pages.value = pageList || []
   } catch (error) {
     message.error((error as Error).message || '沉淀记录加载失败')
   } finally {
     loading.value = false
   }
+  await loadPages()
+}
+
+/**
+ * 页面清单走的是 portal:build:manage 的口，而这一页按 preset 码放行。
+ * 缺这个码就不发请求：三个「选页面」的下拉如实为空，而不是把已经读到的沉淀记录一起报成加载失败。
+ */
+async function loadPages() {
+  if (!canBuild.value) {
+    pages.value = []
+    pagesNote.value = '这个账号没有 portal:build:manage，读不到页面清单：要选页面的操作暂时无法使用，皮肤与模板列表照常'
+    return
+  }
+  try {
+    pages.value = (await portalPagesApi.list()) || []
+    pagesNote.value = ''
+  } catch (error) {
+    message.error((error as Error).message || '页面列表加载失败')
+  }
 }
 
 onMounted(async () => {
   await load()
+  if (!canBuild.value) {
+    return
+  }
   try {
     const siteList = await siteApi.list()
     sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))

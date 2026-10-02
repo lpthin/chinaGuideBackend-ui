@@ -26,6 +26,10 @@
       </template>
     </a-alert>
 
+    <a-alert v-if="staticOptionsNote" type="warning" show-icon class="reference-site-page__notice">
+      <template #message>{{ staticOptionsNote }}</template>
+    </a-alert>
+
     <a-table
       :data-source="tasks"
       :columns="columns"
@@ -644,6 +648,7 @@ import {
 import { portalPagesApi, type PortalBlockMeta } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'
 import { formatDateTime } from '../../utils/format'
+import { useAuthStore } from '../../stores/auth'
 
 /**
  * 参考站摄取任务视图（Spec §7）。
@@ -662,6 +667,9 @@ import { formatDateTime } from '../../utils/format'
 
 const EMPTY_STATUS_LABELS: Record<string, string> = {}
 
+const auth = useAuthStore()
+const canBuild = computed(() => auth.hasPermission('portal:build:manage'))
+
 /** 页数上限的真源在后端 clamp；这里只是把输入框的上限对齐，免得填 20 存成 12 而没人知道 */
 const maxPagesLimit = REFERENCE_MAX_PAGES_LIMIT
 
@@ -675,6 +683,7 @@ const statusFilter = ref<string | undefined>(undefined)
 
 const blocks = ref<PortalBlockMeta[]>([])
 const sites = ref<Array<{ id: number; name: string }>>([])
+const staticOptionsNote = ref('')
 
 const paginationConfig = reactive({
   current: 1,
@@ -1072,11 +1081,20 @@ async function loadVocabularies() {
 }
 
 async function loadStaticOptions() {
+  // 区块元数据与站点下拉都是 portal:build:manage 的口，这一页按 portal:build:reference 放行。
+  // 缺码就不发：摄取任务本身照常列得出来，两个下拉如实为空，而不是各报一次「加载失败」。
+  if (!canBuild.value) {
+    blocks.value = []
+    sites.value = []
+    staticOptionsNote.value = '这个账号没有 portal:build:manage，读不到区块元数据与站点清单：映射时的区块下拉和「生成草稿页」的站点下拉会空着，摄取与分析照常'
+    return
+  }
   try {
     const [blockList, siteList] = await Promise.all([portalPagesApi.blocks(), siteApi.list()])
     blocks.value = blockList || []
     // 站点列表由后端按登录态过滤（TenantGuard）：超管看到全部，租户只看到自己的
     sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
+    staticOptionsNote.value = ''
   } catch (error) {
     // 区块表与站点表只影响下拉可选值；拿不到就报错，但不把已经加载的列表变成空表
     message.error((error as Error).message || '区块/站点列表加载失败')

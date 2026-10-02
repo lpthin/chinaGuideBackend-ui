@@ -24,6 +24,9 @@
       </template>
     </a-alert>
 
+    <a-alert v-if="sitesNote" type="warning" show-icon class="section-admin-page__notice">
+      <template #message>{{ sitesNote }}</template>
+    </a-alert>
     <a-alert v-if="loadError" type="error" show-icon class="section-admin-page__notice" :message="loadError" />
     <a-alert v-if="saveError" type="error" show-icon class="section-admin-page__notice">
       <template #message>
@@ -149,6 +152,7 @@ import { message } from 'ant-design-vue'
 import { portalSectionsApi, type SectionAdviceItem, type SectionBulkItem, type SectionState } from '../../api/portalSections'
 import { portalPagesApi, type PreviewPage } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'
+import { useAuthStore } from '../../stores/auth'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 import SectionAdviceCard from './SectionAdviceCard.vue'
 
@@ -178,6 +182,9 @@ interface Draft {
 }
 
 const sites = ref<Array<{ id: number; name: string }>>([])
+const sitesNote = ref('')
+const auth = useAuthStore()
+const canReadSites = computed(() => auth.hasPermission('portal:build:manage'))
 const siteId = ref<number | null>(null)
 const rows = ref<SectionState[]>([])
 const drafts = reactive<Record<string, Draft>>({})
@@ -404,12 +411,18 @@ async function togglePreview(record: SectionState) {
 }
 
 onMounted(async () => {
-  try {
-    const siteList = await siteApi.list()
-    sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
-    siteId.value = sites.value.length > 0 ? sites.value[0].id : null
-  } catch {
-    // 站点列表拿不到就先空着，让「刷新」按钮保留一次重试的机会
+  // 站点清单是 portal:build:manage 的口，这一页按 portal:build:section 放行：缺码就不发，
+  // 并把下拉为什么是空的写在明处——不然「一个站点都没有」会被读成平台没站点。
+  if (!canReadSites.value) {
+    sitesNote.value = '这个账号没有 portal:build:manage，站点清单读不出来：没有站点可选，这一页就列不出栏目（这一页本身要的是 portal:build:section）'
+  } else {
+    try {
+      const siteList = await siteApi.list()
+      sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
+      siteId.value = sites.value.length > 0 ? sites.value[0].id : null
+    } catch {
+      // 站点列表拿不到就先空着，让「刷新」按钮保留一次重试的机会
+    }
   }
   await load()
 })
