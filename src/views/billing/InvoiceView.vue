@@ -57,23 +57,10 @@
         </a-col>
       </a-row>
 
-      <!-- 操作按钮 -->
-      <a-card :bordered="false" style="margin-bottom: 16px">
-        <a-space>
-          <a-button type="primary" size="large" @click="showApplyModal">
-            <template #icon><PlusOutlined /></template>
-            申请开票
-          </a-button>
-          <a-button size="large" @click="handleExport">
-            <template #icon><ExportOutlined /></template>
-            导出列表
-          </a-button>
-        </a-space>
-      </a-card>
-
       <!-- 发票列表 -->
       <a-card title="发票列表" :bordered="false">
-        <template #extra>
+        <!-- 申请/导出原占独立卡片、搜索又挤在 #extra，三处分散，合并进一个 FilterBar（搜索靠左、按钮靠右） -->
+        <filter-bar>
           <a-input-search
             v-model:value="queryParams.keyword"
             placeholder="搜索发票抬头/税号"
@@ -81,7 +68,19 @@
             enter-button
             @search="handleSearch"
           />
-        </template>
+          <template #actions>
+            <a-space>
+              <a-button size="large" @click="handleExport">
+                <template #icon><ExportOutlined /></template>
+                导出列表
+              </a-button>
+              <a-button type="primary" size="large" @click="showApplyModal">
+                <template #icon><PlusOutlined /></template>
+                申请开票
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -212,6 +211,7 @@ import { invoiceApi } from '../../api/billing'
 import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 

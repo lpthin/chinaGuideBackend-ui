@@ -4,20 +4,26 @@
       <template #title>
         <div class="card-header">
           <h3>角色管理</h3>
+        </div>
+      </template>
+
+      <!-- #title 槽只留文字标题：搜索框与新增按钮移进 FilterBar，免得被卡片头 overflow:hidden 裁掉 -->
+      <filter-bar>
+        <a-input-search
+          v-model:value="searchKeyword"
+          placeholder="搜索角色名称"
+          style="width: 200px"
+          @search="loadRoles"
+        />
+        <template #actions>
           <a-space>
-            <a-input-search
-              v-model:value="searchKeyword"
-              placeholder="搜索角色名称"
-              style="width: 200px"
-              @search="loadRoles"
-            />
             <a-button type="primary" @click="handleAdd">
               <template #icon><PlusOutlined /></template>
               新增角色
             </a-button>
           </a-space>
-        </div>
-      </template>
+        </template>
+      </filter-bar>
 
       <a-table
         :scroll="{ x: 'max-content' }"
@@ -135,6 +141,7 @@ import {
   SafetyOutlined,
   DeleteOutlined,
 } from '@ant-design/icons-vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'

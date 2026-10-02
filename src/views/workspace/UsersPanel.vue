@@ -4,30 +4,36 @@
       <template #title>
         <div class="card-header">
           <h3>用户管理</h3>
+        </div>
+      </template>
+
+      <!-- 卡片 #title 槽是 overflow:hidden，塞控件会被裁；搜索/状态筛选与新增按钮改走 FilterBar -->
+      <filter-bar>
+        <a-input-search
+          v-model:value="searchKeyword"
+          placeholder="搜索用户名/昵称"
+          style="width: 200px"
+          @search="loadUsers"
+        />
+        <a-select
+          v-model:value="filterStatus"
+          placeholder="状态筛选"
+          style="width: 120px"
+          allowClear
+          @change="loadUsers"
+        >
+          <a-select-option value="enabled">启用</a-select-option>
+          <a-select-option value="disabled">禁用</a-select-option>
+        </a-select>
+        <template #actions>
           <a-space>
-            <a-input-search
-              v-model:value="searchKeyword"
-              placeholder="搜索用户名/昵称"
-              style="width: 200px"
-              @search="loadUsers"
-            />
-            <a-select
-              v-model:value="filterStatus"
-              placeholder="状态筛选"
-              style="width: 120px"
-              allowClear
-              @change="loadUsers"
-            >
-              <a-select-option value="enabled">启用</a-select-option>
-              <a-select-option value="disabled">禁用</a-select-option>
-            </a-select>
             <a-button type="primary" @click="handleAdd">
               <template #icon><PlusOutlined /></template>
               新增用户
             </a-button>
           </a-space>
-        </div>
-      </template>
+        </template>
+      </filter-bar>
 
       <a-table
         :scroll="{ x: 'max-content' }"
@@ -153,6 +159,7 @@ import {
   EditOutlined,
   SettingOutlined,
 } from '@ant-design/icons-vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'

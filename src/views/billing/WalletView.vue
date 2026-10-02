@@ -57,49 +57,46 @@
         </a-col>
       </a-row>
 
-      <!-- 操作按钮 -->
-      <a-card :bordered="false" style="margin-bottom: 16px">
-        <a-space>
-          <a-button type="primary" size="large" @click="showRechargeModal">
-            <template #icon><DollarOutlined /></template>
-            充值
-          </a-button>
-          <a-button size="large" :loading="exportLoading" @click="handleExport">
-            <template #icon><ExportOutlined /></template>
-            导出明细
-          </a-button>
-        </a-space>
-      </a-card>
-
       <!-- 消费明细列表 -->
       <a-card title="消费明细" :bordered="false">
-        <template #extra>
-          <a-space>
-            <a-select
-              v-model:value="queryParams.type"
-              style="width: 120px"
-              placeholder="类型"
-              allowClear
-              @change="loadTransactionList"
-            >
-              <a-select-option value="recharge">充值</a-select-option>
-              <a-select-option value="charge">消费</a-select-option>
-              <a-select-option value="refund">退款</a-select-option>
-            </a-select>
-            <a-range-picker
-              v-model:value="dateRange"
-              style="width: 240px"
-              @change="handleDateChange"
-            />
-            <a-input-search
-              v-model:value="queryParams.keyword"
-              placeholder="搜索描述"
-              style="width: 200px"
-              enter-button
-              @search="loadTransactionList"
-            />
-          </a-space>
-        </template>
+        <!-- 充值/导出原占独立卡片、筛选又挤在 #extra，合并进一个 FilterBar（筛选靠左、按钮靠右） -->
+        <filter-bar>
+          <a-select
+            v-model:value="queryParams.type"
+            style="width: 120px"
+            placeholder="类型"
+            allowClear
+            @change="loadTransactionList"
+          >
+            <a-select-option value="recharge">充值</a-select-option>
+            <a-select-option value="charge">消费</a-select-option>
+            <a-select-option value="refund">退款</a-select-option>
+          </a-select>
+          <a-range-picker
+            v-model:value="dateRange"
+            style="width: 240px"
+            @change="handleDateChange"
+          />
+          <a-input-search
+            v-model:value="queryParams.keyword"
+            placeholder="搜索描述"
+            style="width: 200px"
+            enter-button
+            @search="loadTransactionList"
+          />
+          <template #actions>
+            <a-space>
+              <a-button size="large" :loading="exportLoading" @click="handleExport">
+                <template #icon><ExportOutlined /></template>
+                导出明细
+              </a-button>
+              <a-button type="primary" size="large" @click="showRechargeModal">
+                <template #icon><DollarOutlined /></template>
+                充值
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -188,6 +185,7 @@ import { walletApi } from '../../api/billing'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 

@@ -50,53 +50,54 @@
           </a-button>
           <h3 style="margin: 0">{{ getCategoryName(currentCategoryId) }}</h3>
         </a-space>
-        <a-space>
+      </div>
+
+      <a-card :loading="loading">
+        <!-- 视图切换/标签筛选/搜索原先分挂卡外 header 和卡片 #extra 两处，合并成一个 FilterBar -->
+        <filter-bar>
+          <a-select
+            v-model:value="selectedTag"
+            placeholder="按标签筛选"
+            style="width: 160px"
+            allow-clear
+            @change="loadDocuments"
+          >
+            <a-select-option v-for="tag in tags" :key="tag.name" :value="tag.name">
+              <a-tag :color="tag.color" style="margin-right: 0">{{ tag.name }}</a-tag>
+            </a-select-option>
+          </a-select>
+          <a-input-search v-model:value="searchText" placeholder="搜索文件" style="width: 200px" @search="loadDocuments" />
           <a-radio-group v-model:value="viewMode" size="small">
             <a-radio-button value="grid">网格</a-radio-button>
             <a-radio-button value="list">列表</a-radio-button>
           </a-radio-group>
-          <a-upload
-            :showUploadList="false"
-            :multiple="true"
-            :beforeUpload="handleBatchUpload"
-            accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-          >
-            <a-button type="primary" :loading="uploading">
-              <template #icon><UploadOutlined /></template>
-              批量上传
-            </a-button>
-          </a-upload>
-        </a-space>
-      </div>
-
-      <a-card :loading="loading">
-        <template #extra>
-          <a-space>
-            <a-select
-              v-model:value="selectedTag"
-              placeholder="按标签筛选"
-              style="width: 160px"
-              allow-clear
-              @change="loadDocuments"
-            >
-              <a-select-option v-for="tag in tags" :key="tag.name" :value="tag.name">
-                <a-tag :color="tag.color" style="margin-right: 0">{{ tag.name }}</a-tag>
-              </a-select-option>
-            </a-select>
-            <a-input-search v-model:value="searchText" placeholder="搜索文件" style="width: 200px" @search="loadDocuments" />
-            <template v-if="selectedIds.length > 0">
-              <a-button size="small" @click="showBatchCategoryModal">
-                设置项目
-              </a-button>
-              <a-button size="small" @click="showBatchTagModal">
-                设置标签
-              </a-button>
-              <a-button danger size="small" @click="batchDelete">
-                删除选中 ({{ selectedIds.length }})
-              </a-button>
-            </template>
-          </a-space>
-        </template>
+          <template #actions>
+            <a-space>
+              <template v-if="selectedIds.length > 0">
+                <a-button size="small" @click="showBatchCategoryModal">
+                  设置项目
+                </a-button>
+                <a-button size="small" @click="showBatchTagModal">
+                  设置标签
+                </a-button>
+                <a-button danger size="small" @click="batchDelete">
+                  删除选中 ({{ selectedIds.length }})
+                </a-button>
+              </template>
+              <a-upload
+                :showUploadList="false"
+                :multiple="true"
+                :beforeUpload="handleBatchUpload"
+                accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+              >
+                <a-button type="primary" :loading="uploading">
+                  <template #icon><UploadOutlined /></template>
+                  批量上传
+                </a-button>
+              </a-upload>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <!-- 网格视图 -->
         <a-row :gutter="16" v-if="viewMode === 'grid'">
@@ -549,6 +550,7 @@ import type { KnowledgeCategory, KnowledgeTag, KnowledgeCard, KnowledgeDocument 
 import { formatTime as formatAbsoluteTime, formatFileSize } from '@/utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 
 // ==================== 知识库文档相关状态 ====================
 const auth = useAuthStore()

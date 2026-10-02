@@ -48,24 +48,27 @@
         </a-row>
 
         <a-card :bordered="false">
-          <template #title>
-            <a-space class="toolbar-fill" wrap>
-              <a-select
-                v-model:value="queryParams.status"
-                style="width: 140px"
-                placeholder="选择状态"
-                allowClear
-                @change="loadData"
-              >
-                <a-select-option value="ENABLED">展示中</a-select-option>
-                <a-select-option value="DISABLED">已停用</a-select-option>
-              </a-select>
-              <a-button type="primary" @click="openCreate">
-                <template #icon><PlusOutlined /></template>
-                新建 Banner
-              </a-button>
-            </a-space>
-          </template>
+          <!-- 工具条原先塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
+          <filter-bar>
+            <a-select
+              v-model:value="queryParams.status"
+              style="width: 140px"
+              placeholder="选择状态"
+              allowClear
+              @change="loadData"
+            >
+              <a-select-option value="ENABLED">展示中</a-select-option>
+              <a-select-option value="DISABLED">已停用</a-select-option>
+            </a-select>
+            <template #actions>
+              <a-space>
+                <a-button type="primary" @click="openCreate">
+                  <template #icon><PlusOutlined /></template>
+                  新建 Banner
+                </a-button>
+              </a-space>
+            </template>
+          </filter-bar>
 
           <a-table
             :scroll="{ x: 'max-content' }"
@@ -163,7 +166,7 @@
           <a-input v-model:value="form.subtitle" placeholder="可选，补充一句具体信息" />
         </a-form-item>
         <a-form-item label="图片地址" required>
-          <MediaImagePicker v-model="form.imageUrl" placeholder="从媒体库挑一张，或粘贴已有图片地址" />
+          <MediaImagePicker v-model="form.imageUrl" placeholder="从素材库挑一张，或粘贴已有图片地址" />
         </a-form-item>
         <a-form-item label="跳转链接">
           <a-input v-model:value="form.linkUrl" placeholder="留空表示这张 Banner 不跳转" />
@@ -197,6 +200,7 @@ import type { Banner, BannerForm, BannerQuery } from '../../types/portal'
 import { formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { logError } from '../../utils/errorLog'
 
 const loading = ref(false)

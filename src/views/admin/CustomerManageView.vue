@@ -59,7 +59,8 @@
 
       <!-- 筛选区域 -->
       <a-card :bordered="false" style="margin-bottom: 16px">
-        <a-space>
+        <!-- 裸 a-space 换成 FilterBar；本页无操作按钮，靠右动作组留空 -->
+        <filter-bar>
           <a-input-search
             v-model:value="queryParams.keyword"
             placeholder="搜索公司名称/联系人/手机号"
@@ -78,7 +79,7 @@
             <a-select-option value="inactive">未激活</a-select-option>
             <a-select-option value="disabled">已禁用</a-select-option>
           </a-select>
-        </a-space>
+        </filter-bar>
       </a-card>
 
       <!-- 客户列表 -->
@@ -202,6 +203,7 @@ import { customerApi } from '../../api/billing'
 import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 

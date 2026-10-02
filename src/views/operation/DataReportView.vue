@@ -57,30 +57,33 @@
       </a-row>
 
       <a-card :bordered="false">
-        <template #title>
-          <a-space>
-            <a-select
-              v-model:value="queryParams.reportType"
-              style="width: 150px"
-              placeholder="报表类型"
-              @change="loadData"
-            >
-              <a-select-option value="article">文章数据</a-select-option>
-              <a-select-option value="knowledge">知识库数据</a-select-option>
-              <a-select-option value="user">用户数据</a-select-option>
-              <a-select-option value="traffic">流量数据</a-select-option>
-            </a-select>
-            <a-range-picker
-              v-model:value="queryParams.dateRange"
-              style="width: 300px"
-              @change="loadData"
-            />
-            <a-button type="primary" @click="exportReport">
-              <template #icon><DownloadOutlined /></template>
-              导出报表
-            </a-button>
-          </a-space>
-        </template>
+        <!-- 筛选原塞在卡片 #title 槽（overflow:hidden 窄容器会裁切堆行），改用 FilterBar：筛选靠左、动作靠右 -->
+        <filter-bar>
+          <a-select
+            v-model:value="queryParams.reportType"
+            style="width: 150px"
+            placeholder="报表类型"
+            @change="loadData"
+          >
+            <a-select-option value="article">文章数据</a-select-option>
+            <a-select-option value="knowledge">知识库数据</a-select-option>
+            <a-select-option value="user">用户数据</a-select-option>
+            <a-select-option value="traffic">流量数据</a-select-option>
+          </a-select>
+          <a-range-picker
+            v-model:value="queryParams.dateRange"
+            style="width: 300px"
+            @change="loadData"
+          />
+          <template #actions>
+            <a-space>
+              <a-button type="primary" @click="exportReport">
+                <template #icon><DownloadOutlined /></template>
+                导出报表
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-tabs v-model:activeKey="activeTab">
           <a-tab-pane key="overview" tab="数据概览">
@@ -260,6 +263,7 @@ import {
 import { operationApi } from '../../api/operation'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 import type {
   TrafficTrendItem,
   CategoryDistributionItem,

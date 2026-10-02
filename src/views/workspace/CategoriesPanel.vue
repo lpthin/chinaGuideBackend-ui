@@ -58,31 +58,31 @@
                 <span>分类结构</span>
               </div>
             </template>
-            <template #extra>
-              <a-button type="primary" size="small" @click="showAddModal">
-                <template #icon><PlusOutlined /></template>
-                新增
-              </a-button>
-            </template>
-
-            <div class="tree-toolbar">
+            <!-- 「新增」原先孤零零挂在 #extra、搜索另起一行；合并成一条 FilterBar：搜索靠左、按钮组靠右 -->
+            <filter-bar>
               <a-input-search
                 v-model:value="searchText"
                 placeholder="搜索分类"
                 size="small"
                 @search="onSearch"
               />
-              <div class="tree-actions">
-                <a-button size="small" @click="expandAll">
-                  <template #icon><DownOutlined /></template>
-                  展开
-                </a-button>
-                <a-button size="small" @click="collapseAll">
-                  <template #icon><UpOutlined /></template>
-                  收起
-                </a-button>
-              </div>
-            </div>
+              <template #actions>
+                <a-space>
+                  <a-button size="small" @click="expandAll">
+                    <template #icon><DownOutlined /></template>
+                    展开
+                  </a-button>
+                  <a-button size="small" @click="collapseAll">
+                    <template #icon><UpOutlined /></template>
+                    收起
+                  </a-button>
+                  <a-button type="primary" size="small" @click="showAddModal">
+                    <template #icon><PlusOutlined /></template>
+                    新增
+                  </a-button>
+                </a-space>
+              </template>
+            </filter-bar>
 
             <div class="tree-container">
               <a-tree
@@ -437,6 +437,7 @@ import { ref, computed, reactive, onMounted, nextTick, h } from 'vue'
 import * as echarts from 'echarts'
 import { message, Modal } from 'ant-design-vue'
 import DemoFlag from '../../components/DemoFlag.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import {
   ApartmentOutlined,
   FileTextOutlined,

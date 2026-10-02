@@ -101,36 +101,39 @@
       </a-card>
 
       <a-card title="账单管理" :bordered="false">
-        <template #extra>
-          <a-space>
-            <a-select
-              v-model:value="queryParams.status"
-              style="width: 120px"
-              placeholder="状态"
-              allowClear
-              @change="loadInvoices"
-            >
-              <a-select-option :value="InvoiceStatus.PENDING">待支付</a-select-option>
-              <a-select-option :value="InvoiceStatus.PAID">已支付</a-select-option>
-              <a-select-option :value="InvoiceStatus.OVERDUE">已逾期</a-select-option>
-              <a-select-option :value="InvoiceStatus.CANCELLED">已取消</a-select-option>
-            </a-select>
-            <a-range-picker
-              v-model:value="dateRange"
-              value-format="YYYY-MM-DD"
-              style="width: 240px"
-              @change="handleDateChange"
-            />
-            <a-input-search
-              v-model:value="queryParams.keyword"
-              placeholder="搜索账单号"
-              style="width: 200px"
-              enter-button
-              @search="loadInvoices"
-            />
-            <a-button @click="handleExport">导出</a-button>
-          </a-space>
-        </template>
+        <!-- 筛选原挤在卡片 #extra、和列表分两处，收进 FilterBar：字段靠左、导出靠右 -->
+        <filter-bar>
+          <a-select
+            v-model:value="queryParams.status"
+            style="width: 120px"
+            placeholder="状态"
+            allowClear
+            @change="loadInvoices"
+          >
+            <a-select-option :value="InvoiceStatus.PENDING">待支付</a-select-option>
+            <a-select-option :value="InvoiceStatus.PAID">已支付</a-select-option>
+            <a-select-option :value="InvoiceStatus.OVERDUE">已逾期</a-select-option>
+            <a-select-option :value="InvoiceStatus.CANCELLED">已取消</a-select-option>
+          </a-select>
+          <a-range-picker
+            v-model:value="dateRange"
+            value-format="YYYY-MM-DD"
+            style="width: 240px"
+            @change="handleDateChange"
+          />
+          <a-input-search
+            v-model:value="queryParams.keyword"
+            placeholder="搜索账单号"
+            style="width: 200px"
+            enter-button
+            @search="loadInvoices"
+          />
+          <template #actions>
+            <a-space>
+              <a-button @click="handleExport">导出</a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -255,6 +258,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime, formatDecimal } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import InvoiceDetailDrawer from './InvoiceDetailDrawer.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()

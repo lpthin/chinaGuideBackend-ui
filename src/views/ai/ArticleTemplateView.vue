@@ -61,36 +61,40 @@
           <span>生成模板管理</span>
         </div>
       </template>
-      <template #extra>
-        <a-space>
-          <a-select
-            v-model:value="filterCategory"
-            style="width: 140px"
-            placeholder="按分类筛选"
-            allowClear
-            @change="handleSearch"
+
+      <!-- #extra 里的筛选与新建按钮收进 FilterBar，一行内左筛选右动作 -->
+      <filter-bar>
+        <a-select
+          v-model:value="filterCategory"
+          style="width: 140px"
+          placeholder="按分类筛选"
+          allowClear
+          @change="handleSearch"
+        >
+          <a-select-option
+            v-for="cat in categoryList"
+            :key="cat.value"
+            :value="cat.value"
           >
-            <a-select-option
-              v-for="cat in categoryList"
-              :key="cat.value"
-              :value="cat.value"
-            >
-              {{ cat.label }}
-            </a-select-option>
-          </a-select>
-          <a-input-search
-            v-model:value="searchKeyword"
-            placeholder="搜索模板名称"
-            style="width: 240px"
-            enter-button
-            @search="handleSearch"
-          />
-          <a-button type="primary" @click="openModal()">
-            <template #icon><PlusOutlined /></template>
-            新建模板
-          </a-button>
-        </a-space>
-      </template>
+            {{ cat.label }}
+          </a-select-option>
+        </a-select>
+        <a-input-search
+          v-model:value="searchKeyword"
+          placeholder="搜索模板名称"
+          style="width: 240px"
+          enter-button
+          @search="handleSearch"
+        />
+        <template #actions>
+          <a-space>
+            <a-button type="primary" @click="openModal()">
+              <template #icon><PlusOutlined /></template>
+              新建模板
+            </a-button>
+          </a-space>
+        </template>
+      </filter-bar>
 
       <a-table
         :scroll="{ x: 'max-content' }"
@@ -296,6 +300,7 @@ import type {
 } from '../../types/ai-model'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1

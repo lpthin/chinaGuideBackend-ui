@@ -412,31 +412,34 @@
       <a-row style="margin-top: 16px">
         <a-col :span="24">
           <a-card title="调用日志" :bordered="false">
-            <template #extra>
-              <a-space>
-                <a-select
-                  v-model:value="logFilter.type"
-                  style="width: 140px"
-                  placeholder="按类型筛选"
-                  allowClear
-                >
-                  <a-select-option value="chat">聊天模型</a-select-option>
-                  <a-select-option value="vision">视觉模型</a-select-option>
-                  <a-select-option value="embedding">向量模型</a-select-option>
-                  <a-select-option value="image">图像模型</a-select-option>
-                </a-select>
-                <a-input-search
-                  v-model:value="logFilter.keyword"
-                  placeholder="搜索日志内容"
-                  style="width: 240px"
-                  enter-button
-                />
-                <a-button type="primary" :disabled="!paginatedLogs.length" @click="exportLogs">
-                  <template #icon><DownloadOutlined /></template>
-                  导出本页
-                </a-button>
-              </a-space>
-            </template>
+            <!-- 日志表的筛选/导出从卡片 #extra 移入 FilterBar，与全站一行式工具条对齐 -->
+            <filter-bar>
+              <a-select
+                v-model:value="logFilter.type"
+                style="width: 140px"
+                placeholder="按类型筛选"
+                allowClear
+              >
+                <a-select-option value="chat">聊天模型</a-select-option>
+                <a-select-option value="vision">视觉模型</a-select-option>
+                <a-select-option value="embedding">向量模型</a-select-option>
+                <a-select-option value="image">图像模型</a-select-option>
+              </a-select>
+              <a-input-search
+                v-model:value="logFilter.keyword"
+                placeholder="搜索日志内容"
+                style="width: 240px"
+                enter-button
+              />
+              <template #actions>
+                <a-space>
+                  <a-button type="primary" :disabled="!paginatedLogs.length" @click="exportLogs">
+                    <template #icon><DownloadOutlined /></template>
+                    导出本页
+                  </a-button>
+                </a-space>
+              </template>
+            </filter-bar>
 
             <a-table
               :scroll="{ x: 'max-content' }"
@@ -497,6 +500,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons-vue'
 import { aiModelApi } from '../../api/ai-model'
+import FilterBar from '../../components/FilterBar.vue'
 import { statsApi } from '../../api/billing'
 import { geoQuotaApi, type GeoQuotaStatus } from '../../api/geoQuota'
 import StateBlock from '../../components/StateBlock.vue'

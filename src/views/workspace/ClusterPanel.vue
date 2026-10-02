@@ -46,35 +46,8 @@
 
       <!-- Distill Toolbar + Cluster Table -->
       <div class="section-card cluster-table-card">
-        <!-- Toolbar: actions + filters -->
+        <!-- 工具条原本把动作组排在筛选之前（筛选被挤到右边）；按全站约定改成筛选靠左、动作靠右 -->
         <div class="toolbar">
-          <div class="toolbar__actions">
-            <a-button
-              type="primary"
-              size="large"
-              :loading="distilling"
-              class="btn-primary"
-              @click="distillAll"
-            >
-              <template #icon><ExperimentOutlined /></template>
-              {{ distilling ? '蒸馏中...' : '一键智能蒸馏' }}
-            </a-button>
-            <a-button size="large" :loading="generating" @click="generateAllSuggestions">
-              <template #icon><RocketOutlined /></template>
-              批量生成建议
-            </a-button>
-            <a-button
-              danger
-              size="large"
-              :loading="clearing"
-              :disabled="selectedClusterKeys.length === 0"
-              @click="batchDeleteClusters"
-            >
-              <template #icon><DeleteOutlined /></template>
-              批量删除{{ selectedClusterKeys.length > 0 ? ` (${selectedClusterKeys.length})` : '' }}
-            </a-button>
-          </div>
-
           <div class="toolbar__filters">
             <a-input-search
               v-model:value="searchText"
@@ -89,6 +62,33 @@
               <a-select-option value="medium">中 (60-79)</a-select-option>
               <a-select-option value="low">低 (&lt;60)</a-select-option>
             </a-select>
+          </div>
+
+          <div class="toolbar__actions">
+            <a-button
+              danger
+              size="large"
+              :loading="clearing"
+              :disabled="selectedClusterKeys.length === 0"
+              @click="batchDeleteClusters"
+            >
+              <template #icon><DeleteOutlined /></template>
+              批量删除{{ selectedClusterKeys.length > 0 ? ` (${selectedClusterKeys.length})` : '' }}
+            </a-button>
+            <a-button size="large" :loading="generating" @click="generateAllSuggestions">
+              <template #icon><RocketOutlined /></template>
+              批量生成建议
+            </a-button>
+            <a-button
+              type="primary"
+              size="large"
+              :loading="distilling"
+              class="btn-primary"
+              @click="distillAll"
+            >
+              <template #icon><ExperimentOutlined /></template>
+              {{ distilling ? '蒸馏中...' : '一键智能蒸馏' }}
+            </a-button>
           </div>
         </div>
 

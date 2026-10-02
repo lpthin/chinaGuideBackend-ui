@@ -3,29 +3,29 @@
     <a-page-header
       :title="isQueue ? '平台工单队列' : '联系平台'"
       :sub-title="isQueue ? '处理租户提交给平台的工单' : '对网站建设有疑问？在这里联系平台，处理结果会显示在下方'"
-    >
-      <template #extra>
-        <a-button v-if="!isQueue" type="primary" @click="openSubmit">提交新工单</a-button>
-      </template>
-    </a-page-header>
+    />
 
     <div class="content-wrapper">
       <a-card :bordered="false">
-        <template #title>
-          <a-space>
-            <a-select
-              v-model:value="statusFilter"
-              style="width: 140px"
-              placeholder="状态筛选"
-              allowClear
-              @change="loadData"
-            >
-              <a-select-option v-for="(label, code) in statusLabels" :key="code" :value="code">
-                {{ label }}
-              </a-select-option>
-            </a-select>
-          </a-space>
-        </template>
+        <!-- 筛选与动作原先分处卡片 #title、页头 #extra：#title 是 overflow:hidden 的卡头槽，窄容器会被裁切；统一收进 FilterBar -->
+        <filter-bar>
+          <a-select
+            v-model:value="statusFilter"
+            style="width: 140px"
+            placeholder="状态筛选"
+            allowClear
+            @change="loadData"
+          >
+            <a-select-option v-for="(label, code) in statusLabels" :key="code" :value="code">
+              {{ label }}
+            </a-select-option>
+          </a-select>
+          <template #actions>
+            <a-space>
+              <a-button v-if="!isQueue" type="primary" @click="openSubmit">提交新工单</a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -120,6 +120,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { supportTicketsApi, type SupportTicket } from '../../api/supportTickets'
+import FilterBar from '../../components/FilterBar.vue'
 import { formatDateTime } from '../../utils/format'
 import { logError } from '../../utils/errorLog'
 

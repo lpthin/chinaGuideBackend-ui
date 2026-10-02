@@ -48,42 +48,45 @@
         </a-row>
 
         <a-card :bordered="false">
-          <template #title>
-            <a-space class="toolbar-fill" wrap>
-              <a-select
-                v-model:value="queryParams.status"
-                style="width: 140px"
-                placeholder="职位状态"
-                allowClear
-                @change="loadData"
-              >
-                <a-select-option value="OPEN">招聘中</a-select-option>
-                <a-select-option value="CLOSED">已关闭</a-select-option>
-              </a-select>
-              <a-select
-                v-model:value="queryParams.jobType"
-                style="width: 150px"
-                placeholder="职位类型"
-                allowClear
-                @change="loadData"
-              >
-                <a-select-option value="full-time">全职</a-select-option>
-                <a-select-option value="part-time">兼职</a-select-option>
-                <a-select-option value="internship">实习</a-select-option>
-              </a-select>
-              <a-input-search
-                v-model:value="queryParams.keyword"
-                placeholder="搜索职位"
-                style="width: 250px"
-                enter-button
-                @search="loadData"
-              />
-              <a-button type="primary" @click="showAddModal">
-                <template #icon><PlusOutlined /></template>
-                新建职位
-              </a-button>
-            </a-space>
-          </template>
+          <!-- 工具条原先塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
+          <filter-bar>
+            <a-select
+              v-model:value="queryParams.status"
+              style="width: 140px"
+              placeholder="职位状态"
+              allowClear
+              @change="loadData"
+            >
+              <a-select-option value="OPEN">招聘中</a-select-option>
+              <a-select-option value="CLOSED">已关闭</a-select-option>
+            </a-select>
+            <a-select
+              v-model:value="queryParams.jobType"
+              style="width: 150px"
+              placeholder="职位类型"
+              allowClear
+              @change="loadData"
+            >
+              <a-select-option value="full-time">全职</a-select-option>
+              <a-select-option value="part-time">兼职</a-select-option>
+              <a-select-option value="internship">实习</a-select-option>
+            </a-select>
+            <a-input-search
+              v-model:value="queryParams.keyword"
+              placeholder="搜索职位"
+              style="width: 250px"
+              enter-button
+              @search="loadData"
+            />
+            <template #actions>
+              <a-space>
+                <a-button type="primary" @click="showAddModal">
+                  <template #icon><PlusOutlined /></template>
+                  新建职位
+                </a-button>
+              </a-space>
+            </template>
+          </filter-bar>
 
           <a-table
             :scroll="{ x: 'max-content' }"
@@ -232,6 +235,7 @@ import { jobPostApi } from '../../api/portal'
 import type { JobPost, JobPostForm, JobPostQuery } from '../../types/portal'
 import { formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { logError } from '../../utils/errorLog'
 
 const loading = ref(false)

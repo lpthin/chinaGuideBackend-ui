@@ -46,28 +46,30 @@
       <a-row :gutter="24">
         <a-col :span="6">
           <a-card title="分类结构" :bordered="false">
-            <template #extra>
-              <a-space>
-                <a-button type="primary" size="small" @click="showAddModal">
-                  <template #icon><PlusOutlined /></template>
-                  新增
-                </a-button>
-                <a-button size="small" @click="expandAll">
-                  <template #icon><DownOutlined /></template>
-                  全部展开
-                </a-button>
-                <a-button size="small" @click="collapseAll">
-                  <template #icon><UpOutlined /></template>
-                  全部收起
-                </a-button>
-              </a-space>
-            </template>
-            <a-input-search
-              v-model:value="searchText"
-              placeholder="搜索分类"
-              style="margin-bottom: 12px"
-              @search="onSearch"
-            />
+            <!-- 搜索在正文、三个按钮挂在 #extra，一行被拆成两处：合并成 FilterBar（搜索靠左、按钮靠右） -->
+            <filter-bar>
+              <a-input-search
+                v-model:value="searchText"
+                placeholder="搜索分类"
+                @search="onSearch"
+              />
+              <template #actions>
+                <a-space>
+                  <a-button size="small" @click="expandAll">
+                    <template #icon><DownOutlined /></template>
+                    全部展开
+                  </a-button>
+                  <a-button size="small" @click="collapseAll">
+                    <template #icon><UpOutlined /></template>
+                    全部收起
+                  </a-button>
+                  <a-button type="primary" size="small" @click="showAddModal">
+                    <template #icon><PlusOutlined /></template>
+                    新增
+                  </a-button>
+                </a-space>
+              </template>
+            </filter-bar>
             <a-tree
               v-if="filteredTreeData.length"
               v-model:selectedKeys="selectedKeys"
@@ -244,6 +246,7 @@ import { describeHttpError } from '../../api/http'
 import type { KnowledgeCategoryStats } from '../../api/knowledge'
 import type { KnowledgeCategory, KnowledgeCategoryForm } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1

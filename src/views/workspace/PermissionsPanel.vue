@@ -4,24 +4,30 @@
       <template #title>
         <div class="card-header">
           <h3>权限管理</h3>
+        </div>
+      </template>
+
+      <!-- 筛选与按钮原先塞在卡片 #title 槽（overflow:hidden 会裁切），改走统一的 FilterBar -->
+      <filter-bar>
+        <a-select
+          v-model:value="filterType"
+          placeholder="权限类型"
+          style="width: 120px"
+          allowClear
+          @change="loadPermissions"
+        >
+          <a-select-option value="menu">菜单</a-select-option>
+          <a-select-option value="button">按钮</a-select-option>
+        </a-select>
+        <template #actions>
           <a-space>
-            <a-select
-              v-model:value="filterType"
-              placeholder="权限类型"
-              style="width: 120px"
-              allowClear
-              @change="loadPermissions"
-            >
-              <a-select-option value="menu">菜单</a-select-option>
-              <a-select-option value="button">按钮</a-select-option>
-            </a-select>
             <a-button type="primary" @click="handleAdd">
               <template #icon><PlusOutlined /></template>
               新增权限
             </a-button>
           </a-space>
-        </div>
-      </template>
+        </template>
+      </filter-bar>
 
       <a-table
         :scroll="{ x: 'max-content' }"
@@ -107,6 +113,7 @@ import {
   EditOutlined,
   DeleteOutlined,
 } from '@ant-design/icons-vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'

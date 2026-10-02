@@ -57,43 +57,46 @@
       </a-row>
 
       <a-card :bordered="false">
-        <template #title>
-          <a-space>
-            <a-select
-              v-model:value="filterProvider"
-              style="width: 160px"
-              placeholder="按提供商筛选"
-              allowClear
-            >
-              <a-select-option v-for="provider in providers" :key="provider.id" :value="provider.id">
-                <span class="provider-option">
-                  <component :is="provider.icon" style="margin-right: 8px" />
-                  {{ provider.name }}
-                </span>
-              </a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="filterType"
-              style="width: 140px"
-              placeholder="按模型类型筛选"
-              allowClear
-            >
-              <a-select-option value="chat">聊天模型</a-select-option>
-              <a-select-option value="vision">视觉模型</a-select-option>
-              <a-select-option value="embedding">向量化模型</a-select-option>
-              <a-select-option value="image">图像模型</a-select-option>
-              <a-select-option value="audio">语音模型</a-select-option>
-            </a-select>
-            <a-button :loading="checkingAll" @click="handleCheckAllHealth">
-              <template #icon><SafetyCertificateOutlined /></template>
-              立即巡检
-            </a-button>
-            <a-button type="primary" @click="showAddModal = true">
-              <template #icon><PlusOutlined /></template>
-              添加配置
-            </a-button>
-          </a-space>
-        </template>
+        <!-- 筛选原先塞在 #title 槽（overflow:hidden 会裁切），改挂 FilterBar 到卡体 -->
+        <filter-bar>
+          <a-select
+            v-model:value="filterProvider"
+            style="width: 160px"
+            placeholder="按提供商筛选"
+            allowClear
+          >
+            <a-select-option v-for="provider in providers" :key="provider.id" :value="provider.id">
+              <span class="provider-option">
+                <component :is="provider.icon" style="margin-right: 8px" />
+                {{ provider.name }}
+              </span>
+            </a-select-option>
+          </a-select>
+          <a-select
+            v-model:value="filterType"
+            style="width: 140px"
+            placeholder="按模型类型筛选"
+            allowClear
+          >
+            <a-select-option value="chat">聊天模型</a-select-option>
+            <a-select-option value="vision">视觉模型</a-select-option>
+            <a-select-option value="embedding">向量化模型</a-select-option>
+            <a-select-option value="image">图像模型</a-select-option>
+            <a-select-option value="audio">语音模型</a-select-option>
+          </a-select>
+          <template #actions>
+            <a-space>
+              <a-button :loading="checkingAll" @click="handleCheckAllHealth">
+                <template #icon><SafetyCertificateOutlined /></template>
+                立即巡检
+              </a-button>
+              <a-button type="primary" @click="showAddModal = true">
+                <template #icon><PlusOutlined /></template>
+                添加配置
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -341,6 +344,7 @@ import type { ModelConfig } from '../../types/ai-model'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1

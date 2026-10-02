@@ -31,64 +31,62 @@
       </a-row>
 
       <a-card :bordered="false">
-        <template #title>
-          <a-space>
-            <a-select
-              v-model:value="queryParams.categoryId"
-              style="width: 180px"
-              placeholder="选择分类"
-              @change="loadData"
-            >
-              <a-select-option :value="null">全部分类</a-select-option>
-              <a-select-option v-for="cat in categories" :key="cat.id" :value="cat.id">
-                {{ cat.name }}
-              </a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="queryParams.tag"
-              style="width: 180px"
-              placeholder="选择标签"
-              allow-clear
-              @change="loadData"
-            >
-              <a-select-option value="">全部标签</a-select-option>
-              <a-select-option v-for="tag in tags" :key="tag.name" :value="tag.name">
-                <a-tag :color="tag.color" style="margin-right: 0">{{ tag.name }}</a-tag>
-              </a-select-option>
-            </a-select>
-            <a-input-search
-              v-model:value="queryParams.keyword"
-              placeholder="搜索标题/内容/标签"
-              style="width: 280px"
-              @search="loadData"
-              enter-button
-            />
-            <a-button type="primary" @click="goToEdit()">
-              <template #icon><PlusOutlined /></template>
-              新建卡片
-            </a-button>
-          </a-space>
-        </template>
-
-        <template #extra>
-          <a-space>
-            <a-radio-group v-model:value="viewMode" button-style="solid">
-              <a-radio-button value="card">卡片视图</a-radio-button>
-              <a-radio-button value="list">列表视图</a-radio-button>
-            </a-radio-group>
-            <template v-if="selectedRowKeys.length > 0">
-              <a-button size="small" @click="showBatchCategoryModal">
-                移动分类
+        <!-- 筛选栏移出卡片 #title：那个槽 overflow:hidden，窄容器下会被裁掉 -->
+        <filter-bar>
+          <a-select
+            v-model:value="queryParams.categoryId"
+            style="width: 180px"
+            placeholder="选择分类"
+            @change="loadData"
+          >
+            <a-select-option :value="null">全部分类</a-select-option>
+            <a-select-option v-for="cat in categories" :key="cat.id" :value="cat.id">
+              {{ cat.name }}
+            </a-select-option>
+          </a-select>
+          <a-select
+            v-model:value="queryParams.tag"
+            style="width: 180px"
+            placeholder="选择标签"
+            allow-clear
+            @change="loadData"
+          >
+            <a-select-option value="">全部标签</a-select-option>
+            <a-select-option v-for="tag in tags" :key="tag.name" :value="tag.name">
+              <a-tag :color="tag.color" style="margin-right: 0">{{ tag.name }}</a-tag>
+            </a-select-option>
+          </a-select>
+          <a-input-search
+            v-model:value="queryParams.keyword"
+            placeholder="搜索标题/内容/标签"
+            style="width: 280px"
+            @search="loadData"
+            enter-button
+          />
+          <a-radio-group v-model:value="viewMode" button-style="solid">
+            <a-radio-button value="card">卡片视图</a-radio-button>
+            <a-radio-button value="list">列表视图</a-radio-button>
+          </a-radio-group>
+          <template #actions>
+            <a-space>
+              <template v-if="selectedRowKeys.length > 0">
+                <a-button size="small" @click="showBatchCategoryModal">
+                  移动分类
+                </a-button>
+                <a-button size="small" @click="showBatchTagModal">
+                  设置标签
+                </a-button>
+                <a-button danger size="small" @click="batchDelete">
+                  删除选中 ({{ selectedRowKeys.length }})
+                </a-button>
+              </template>
+              <a-button type="primary" @click="goToEdit()">
+                <template #icon><PlusOutlined /></template>
+                新建卡片
               </a-button>
-              <a-button size="small" @click="showBatchTagModal">
-                设置标签
-              </a-button>
-              <a-button danger size="small" @click="batchDelete">
-                删除选中 ({{ selectedRowKeys.length }})
-              </a-button>
-            </template>
-          </a-space>
-        </template>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <div v-if="viewMode === 'card'" class="card-view">
           <a-row :gutter="16">
@@ -281,6 +279,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import type { KnowledgeCard, KnowledgeCategory, KnowledgeTag } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
+import FilterBar from '../../components/FilterBar.vue'
 
 const router = useRouter()
 const auth = useAuthStore()

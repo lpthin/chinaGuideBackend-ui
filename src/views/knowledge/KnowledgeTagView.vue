@@ -2,21 +2,24 @@
   <div class="knowledge-tag-page">
     <a-spin :spinning="loading">
       <a-card :bordered="false">
-        <template #title>
-          <a-space>
-            <a-input-search
-              v-model:value="searchKeyword"
-              placeholder="搜索标签"
-              style="width: 200px"
-              @search="onSearch"
-              enter-button
-            />
-            <a-button type="primary" @click="showAddModal">
-              <template #icon><PlusOutlined /></template>
-              新建标签
-            </a-button>
-          </a-space>
-        </template>
+        <!-- 这排控件原先挂在 #title 槽里，该槽是 overflow:hidden 的卡头标题区，改走 FilterBar -->
+        <filter-bar>
+          <a-input-search
+            v-model:value="searchKeyword"
+            placeholder="搜索标签"
+            style="width: 200px"
+            @search="onSearch"
+            enter-button
+          />
+          <template #actions>
+            <a-space>
+              <a-button type="primary" @click="showAddModal">
+                <template #icon><PlusOutlined /></template>
+                新建标签
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -95,6 +98,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import type { KnowledgeTag, KnowledgeTagForm } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1

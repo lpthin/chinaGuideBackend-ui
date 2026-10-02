@@ -61,40 +61,39 @@
         </a-row>
 
         <a-card :bordered="false">
-          <template #title>
-            <a-space>
-              <a-select
-                v-model:value="queryParams.status"
-                style="width: 120px"
-                placeholder="状态筛选"
-                allowClear
-                @change="loadData"
-              >
-                <a-select-option value="pending">待回复</a-select-option>
-                <a-select-option value="replied">已回复</a-select-option>
-                <a-select-option value="closed">已关闭</a-select-option>
-              </a-select>
-              <!-- 类型名一个都不写在这里：这份词表后端有，抄一份就会跟它分家（I-1） -->
-              <a-select
-                v-model:value="queryParams.type"
-                style="width: 140px"
-                placeholder="类型筛选"
-                allowClear
-                @change="loadData"
-              >
-                <a-select-option v-for="(label, code) in typeLabels" :key="code" :value="code">
-                  {{ label }}
-                </a-select-option>
-              </a-select>
-              <a-input-search
-                v-model:value="queryParams.keyword"
-                placeholder="搜索留言内容/用户"
-                style="width: 250px"
-                enter-button
-                @search="loadData"
-              />
-            </a-space>
-          </template>
+          <!-- 筛选栏原本塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
+          <filter-bar>
+            <a-select
+              v-model:value="queryParams.status"
+              style="width: 120px"
+              placeholder="状态筛选"
+              allowClear
+              @change="loadData"
+            >
+              <a-select-option value="pending">待回复</a-select-option>
+              <a-select-option value="replied">已回复</a-select-option>
+              <a-select-option value="closed">已关闭</a-select-option>
+            </a-select>
+            <!-- 类型名一个都不写在这里：这份词表后端有，抄一份就会跟它分家（I-1） -->
+            <a-select
+              v-model:value="queryParams.type"
+              style="width: 140px"
+              placeholder="类型筛选"
+              allowClear
+              @change="loadData"
+            >
+              <a-select-option v-for="(label, code) in typeLabels" :key="code" :value="code">
+                {{ label }}
+              </a-select-option>
+            </a-select>
+            <a-input-search
+              v-model:value="queryParams.keyword"
+              placeholder="搜索留言内容/用户"
+              style="width: 250px"
+              enter-button
+              @search="loadData"
+            />
+          </filter-bar>
 
           <a-table
             :scroll="{ x: 'max-content' }"
@@ -229,6 +228,7 @@ import {
 import { guestbookApi } from '../../api/portal'
 import type { Guestbook, GuestbookQuery } from '../../types/portal'
 import { formatDateTime } from '../../utils/format'
+import FilterBar from '../../components/FilterBar.vue'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 

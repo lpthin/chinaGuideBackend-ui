@@ -48,31 +48,35 @@
       <template #title>
         <span>租户管理</span>
       </template>
-      <template #extra>
-        <a-space>
-          <a-input-search
-            v-model:value="searchText"
-            placeholder="搜索租户名称"
-            style="width: 200px"
-            @search="handleSearch"
-          />
-          <a-select
-            v-model:value="statusFilter"
-            style="width: 120px"
-            placeholder="状态筛选"
-            @change="loadData"
-          >
-            <a-select-option value="all">全部</a-select-option>
-            <a-select-option value="active">活跃</a-select-option>
-            <a-select-option value="paused">暂停</a-select-option>
-            <a-select-option value="cancelled">注销</a-select-option>
-          </a-select>
-          <a-button type="primary" @click="showCreateModal">
-            <template #icon><PlusOutlined /></template>
-            新建租户
-          </a-button>
-        </a-space>
-      </template>
+
+      <!-- 原来整条工具栏挤在卡片 #extra 槽里；按约定筛选靠左、动作靠右，统一走 FilterBar -->
+      <filter-bar>
+        <a-input-search
+          v-model:value="searchText"
+          placeholder="搜索租户名称"
+          style="width: 200px"
+          @search="handleSearch"
+        />
+        <a-select
+          v-model:value="statusFilter"
+          style="width: 120px"
+          placeholder="状态筛选"
+          @change="loadData"
+        >
+          <a-select-option value="all">全部</a-select-option>
+          <a-select-option value="active">活跃</a-select-option>
+          <a-select-option value="paused">暂停</a-select-option>
+          <a-select-option value="cancelled">注销</a-select-option>
+        </a-select>
+        <template #actions>
+          <a-space>
+            <a-button type="primary" @click="showCreateModal">
+              <template #icon><PlusOutlined /></template>
+              新建租户
+            </a-button>
+          </a-space>
+        </template>
+      </filter-bar>
 
       <a-table
         :scroll="{ x: 'max-content' }"
@@ -211,6 +215,7 @@ import {
   RiseOutlined,
   PlusOutlined,
 } from '@ant-design/icons-vue'
+import FilterBar from '../../components/FilterBar.vue'
 import type { TableProps } from 'ant-design-vue'
 import http, { describeHttpError } from '@/api/http'
 import { formatDateTime } from '@/utils/format'

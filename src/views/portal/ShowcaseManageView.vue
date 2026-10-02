@@ -15,22 +15,25 @@
 
     <div class="content-wrapper">
       <a-card :bordered="false">
-        <template #title>
-          <a-space class="toolbar-fill" wrap>
-            <a-select
-              v-model:value="siteId"
-              style="width: 220px"
-              placeholder="选择站点"
-              :options="siteOptions"
-              @change="loadRows"
-            />
-            <a-button :loading="loading" @click="loadRows">刷新</a-button>
-            <a-button type="primary" :disabled="!activeKind" @click="openCreate">
-              <template #icon><PlusOutlined /></template>
-              新增条目
-            </a-button>
-          </a-space>
-        </template>
+        <!-- 工具条原先塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
+        <filter-bar>
+          <a-select
+            v-model:value="siteId"
+            style="width: 220px"
+            placeholder="选择站点"
+            :options="siteOptions"
+            @change="loadRows"
+          />
+          <template #actions>
+            <a-space>
+              <a-button :loading="loading" @click="loadRows">刷新</a-button>
+              <a-button type="primary" :disabled="!activeKind" @click="openCreate">
+                <template #icon><PlusOutlined /></template>
+                新增条目
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-alert v-if="loadError" type="error" show-icon :message="loadError" class="showcase-manage-page__notice" />
 
@@ -139,7 +142,7 @@
           <div class="media-slot">
             <img v-if="formMediaPreview" :src="formMediaPreview" class="showcase-thumb" />
             <a-space>
-              <a-button :loading="mediaPicking" @click="mediaModalOpen = true">从媒体库选图</a-button>
+              <a-button :loading="mediaPicking" @click="mediaModalOpen = true">从素材库选图</a-button>
               <a-button v-if="form.mediaId" type="link" @click="clearMedia">清除图片</a-button>
             </a-space>
             <p v-if="mediaNote" class="media-note">{{ mediaNote }}</p>
@@ -187,6 +190,7 @@ import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import MediaImageLibraryModal from '../../components/MediaImageLibraryModal.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { siteApi } from '../../api/workspace'
 import { useAuthStore } from '../../stores/auth'
 import {

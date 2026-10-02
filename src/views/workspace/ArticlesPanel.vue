@@ -88,41 +88,45 @@
           <a-card class="main-card" :bordered="false">
             <!-- 筛选与搜索区 -->
             <div class="filter-section">
-              <div class="filter-header">
+              <!-- 标题/搜索行/按钮组分家摆在两行、按钮没有贴右；统一并进 FilterBar：筛选靠左、动作靠右 -->
+              <filter-bar>
                 <div class="filter-title">
                   <FilterOutlined class="title-icon" />
                   <span>筛选与搜索</span>
                 </div>
-                <a-space>
-                  <a-button size="small" @click="showAdvancedFilter = !showAdvancedFilter">
-                    <template #icon><DownOutlined v-if="!showAdvancedFilter" /><UpOutlined v-else /></template>
-                    {{ showAdvancedFilter ? '收起筛选' : '高级筛选' }}
-                  </a-button>
-                  <a-button size="small" @click="resetFilter">
-                    <template #icon><ReloadOutlined /></template>
-                    重置
-                  </a-button>
-                </a-space>
-              </div>
 
-              <!-- 搜索框 -->
-              <div class="search-row">
-                <!-- 关键词命中即由 filteredArticles 响应式生效，无需再挂 @search 调空函数 -->
-                <a-input-search
-                  v-model:value="filterForm.keyword"
-                  placeholder="搜索文章标题或内容..."
-                  size="large"
-                  enter-button
-                >
-                  <template #addonBefore>
-                    <a-select v-model:value="searchType" style="width: 100px">
-                      <a-select-option value="title">标题</a-select-option>
-                      <a-select-option value="content">内容</a-select-option>
-                      <a-select-option value="all">全部</a-select-option>
-                    </a-select>
-                  </template>
-                </a-input-search>
-              </div>
+                <!-- 搜索框 -->
+                <div class="search-row">
+                  <!-- 关键词命中即由 filteredArticles 响应式生效，无需再挂 @search 调空函数 -->
+                  <a-input-search
+                    v-model:value="filterForm.keyword"
+                    placeholder="搜索文章标题或内容..."
+                    size="large"
+                    enter-button
+                  >
+                    <template #addonBefore>
+                      <a-select v-model:value="searchType" style="width: 100px">
+                        <a-select-option value="title">标题</a-select-option>
+                        <a-select-option value="content">内容</a-select-option>
+                        <a-select-option value="all">全部</a-select-option>
+                      </a-select>
+                    </template>
+                  </a-input-search>
+                </div>
+
+                <template #actions>
+                  <a-space>
+                    <a-button size="small" @click="showAdvancedFilter = !showAdvancedFilter">
+                      <template #icon><DownOutlined v-if="!showAdvancedFilter" /><UpOutlined v-else /></template>
+                      {{ showAdvancedFilter ? '收起筛选' : '高级筛选' }}
+                    </a-button>
+                    <a-button size="small" @click="resetFilter">
+                      <template #icon><ReloadOutlined /></template>
+                      重置
+                    </a-button>
+                  </a-space>
+                </template>
+              </filter-bar>
 
               <!-- 状态快速标签 -->
               <div class="status-tags">
@@ -702,6 +706,7 @@ import {
 import { adminApi, articleManageApi, categoryApi } from '../../api'
 import { formatTime, formatDate } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { articleStatusMeta as statusMeta } from '../../utils/contentStatus'
 import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
@@ -1517,7 +1522,9 @@ onMounted(() => {
 }
 
 .search-row {
-  margin-bottom: 16px;
+  flex: 1;
+  min-width: 220px;
+  margin-bottom: 0;
 }
 
 .advanced-filter {

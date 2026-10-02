@@ -60,61 +60,65 @@
         <template #title>
           <span>软文模板管理</span>
         </template>
-        <template #extra>
-          <a-space>
-            <a-select
-              v-model:value="queryParams.type"
-              style="width: 140px"
-              placeholder="模板类型"
-              allowClear
-              @change="loadTemplates"
+
+        <!-- 整排筛选/动作原先挤在卡片 #extra，移入卡体第一行的 FilterBar -->
+        <filter-bar>
+          <a-select
+            v-model:value="queryParams.type"
+            style="width: 140px"
+            placeholder="模板类型"
+            allowClear
+            @change="loadTemplates"
+          >
+            <a-select-option
+              v-for="t in typeOptions"
+              :key="t.value"
+              :value="t.value"
             >
-              <a-select-option
-                v-for="t in typeOptions"
-                :key="t.value"
-                :value="t.value"
-              >
-                {{ t.label }}
-              </a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="queryParams.category"
-              style="width: 140px"
-              placeholder="分类筛选"
-              allowClear
-              @change="loadTemplates"
+              {{ t.label }}
+            </a-select-option>
+          </a-select>
+          <a-select
+            v-model:value="queryParams.category"
+            style="width: 140px"
+            placeholder="分类筛选"
+            allowClear
+            @change="loadTemplates"
+          >
+            <a-select-option
+              v-for="c in categoryOptions"
+              :key="c.value"
+              :value="c.value"
             >
-              <a-select-option
-                v-for="c in categoryOptions"
-                :key="c.value"
-                :value="c.value"
-              >
-                {{ c.label }}
-              </a-select-option>
-            </a-select>
-            <a-input-search
-              v-model:value="queryParams.keyword"
-              placeholder="搜索模板"
-              style="width: 240px"
-              enter-button
-              @search="loadTemplates"
-            />
-            <a-radio-group v-model:value="viewMode" button-style="solid">
-              <a-radio-button value="list">
-                <template #icon><UnorderedListOutlined /></template>
-                列表
-              </a-radio-button>
-              <a-radio-button value="card">
-                <template #icon><AppstoreOutlined /></template>
-                卡片
-              </a-radio-button>
-            </a-radio-group>
-            <a-button type="primary" @click="openModal()">
-              <template #icon><PlusOutlined /></template>
-              新建模板
-            </a-button>
-          </a-space>
-        </template>
+              {{ c.label }}
+            </a-select-option>
+          </a-select>
+          <a-input-search
+            v-model:value="queryParams.keyword"
+            placeholder="搜索模板"
+            style="width: 240px"
+            enter-button
+            @search="loadTemplates"
+          />
+          <a-radio-group v-model:value="viewMode" button-style="solid">
+            <a-radio-button value="list">
+              <template #icon><UnorderedListOutlined /></template>
+              列表
+            </a-radio-button>
+            <a-radio-button value="card">
+              <template #icon><AppstoreOutlined /></template>
+              卡片
+            </a-radio-button>
+          </a-radio-group>
+          <template #actions>
+            <a-space>
+              <a-button type="primary" @click="openModal()">
+                <template #icon><PlusOutlined /></template>
+                新建模板
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <div v-show="viewMode === 'list'">
           <a-table
@@ -399,6 +403,7 @@ import {
 import { formatDateTime } from '@/utils/format'
 import { describeHttpError } from '@/api/http'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 

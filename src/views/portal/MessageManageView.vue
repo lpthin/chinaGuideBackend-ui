@@ -58,35 +58,38 @@
         </a-row>
 
         <a-card :bordered="false">
-          <template #title>
-            <a-space>
-              <a-radio-group v-model:value="queryParams.type" button-style="solid" @change="handleTypeChange">
-                <a-radio-button value="inbox">收件箱</a-radio-button>
-                <a-radio-button value="outbox">发件箱</a-radio-button>
-              </a-radio-group>
-              <a-select
-                v-model:value="queryParams.status"
-                style="width: 120px"
-                placeholder="状态"
-                allowClear
-                @change="handleSearch"
-              >
-                <a-select-option value="unread">未读</a-select-option>
-                <a-select-option value="read">已读</a-select-option>
-              </a-select>
-              <a-input-search
-                v-model:value="queryParams.keyword"
-                placeholder="搜索标题/内容"
-                style="width: 250px"
-                enter-button
-                @search="handleSearch"
-              />
-              <a-button type="primary" @click="showSendModal = true">
-                <template #icon><SendOutlined /></template>
-                发送消息
-              </a-button>
-            </a-space>
-          </template>
+          <!-- 筛选栏原本塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
+          <filter-bar>
+            <a-radio-group v-model:value="queryParams.type" button-style="solid" @change="handleTypeChange">
+              <a-radio-button value="inbox">收件箱</a-radio-button>
+              <a-radio-button value="outbox">发件箱</a-radio-button>
+            </a-radio-group>
+            <a-select
+              v-model:value="queryParams.status"
+              style="width: 120px"
+              placeholder="状态"
+              allowClear
+              @change="handleSearch"
+            >
+              <a-select-option value="unread">未读</a-select-option>
+              <a-select-option value="read">已读</a-select-option>
+            </a-select>
+            <a-input-search
+              v-model:value="queryParams.keyword"
+              placeholder="搜索标题/内容"
+              style="width: 250px"
+              enter-button
+              @search="handleSearch"
+            />
+            <template #actions>
+              <a-space>
+                <a-button type="primary" @click="showSendModal = true">
+                  <template #icon><SendOutlined /></template>
+                  发送消息
+                </a-button>
+              </a-space>
+            </template>
+          </filter-bar>
 
           <a-table
             :scroll="{ x: 'max-content' }"
@@ -199,6 +202,7 @@ import { portalMessageApi } from '../../api/portal'
 import type { PortalMessage, PortalMessageStats, PortalMessageBroadcast } from '../../types/portal'
 import type { Tenant } from '../../types/workspace'
 import TenantSelect from '../../components/TenantSelect.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'

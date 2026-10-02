@@ -57,9 +57,10 @@
         </a-col>
       </a-row>
 
-      <!-- 订单状态筛选 -->
-      <a-card :bordered="false" style="margin-bottom: 16px">
-        <a-space>
+      <!-- 订单列表 -->
+      <a-card title="订单列表" :bordered="false">
+        <!-- 状态筛选原占独立卡片、导出又挤在 #extra，合并进一个 FilterBar（筛选靠左、导出靠右） -->
+        <filter-bar>
           <a-radio-group v-model:value="queryParams.status" @change="handleStatusChange">
             <a-radio-button value="">全部</a-radio-button>
             <a-radio-button value="pending">待支付</a-radio-button>
@@ -74,17 +75,15 @@
             enter-button
             @search="handleSearch"
           />
-        </a-space>
-      </a-card>
-
-      <!-- 订单列表 -->
-      <a-card title="订单列表" :bordered="false">
-        <template #extra>
-          <a-button @click="handleExport">
-            <template #icon><ExportOutlined /></template>
-            导出
-          </a-button>
-        </template>
+          <template #actions>
+            <a-space>
+              <a-button @click="handleExport">
+                <template #icon><ExportOutlined /></template>
+                导出
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -168,6 +167,7 @@ import { orderApi } from '../../api/billing'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 

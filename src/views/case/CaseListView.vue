@@ -57,76 +57,76 @@
       </a-row>
 
       <a-card :bordered="false">
-        <template #title>
-          <a-space wrap>
-            <a-select
-              v-model:value="queryParams.categoryId"
-              style="width: 150px"
-              placeholder="选择分类"
-              allowClear
-              @change="loadCases"
-            >
-              <a-select-option v-for="cat in categories" :key="cat.id" :value="cat.id">
-                {{ cat.name }}
-              </a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="queryParams.status"
-              style="width: 120px"
-              placeholder="状态"
-              allowClear
-              @change="loadCases"
-            >
-              <a-select-option :value="CaseStatus.DRAFT">草稿</a-select-option>
-              <a-select-option :value="CaseStatus.PUBLISHED">已发布</a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="queryParams.type"
-              style="width: 140px"
-              placeholder="案例类型"
-              allowClear
-              @change="loadCases"
-            >
-              <a-select-option :value="CaseType.CUSTOMER_SUCCESS">客户成功</a-select-option>
-              <a-select-option :value="CaseType.TECHNICAL_IMPLEMENTATION">技术实施</a-select-option>
-              <a-select-option :value="CaseType.BEST_PRACTICE">最佳实践</a-select-option>
-              <a-select-option :value="CaseType.INDUSTRY_SOLUTION">行业方案</a-select-option>
-              <a-select-option :value="CaseType.PRODUCT_DEMO">产品演示</a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="queryParams.priority"
-              style="width: 100px"
-              placeholder="优先级"
-              allowClear
-              @change="loadCases"
-            >
-              <a-select-option :value="CasePriority.LOW">低</a-select-option>
-              <a-select-option :value="CasePriority.MEDIUM">中</a-select-option>
-              <a-select-option :value="CasePriority.HIGH">高</a-select-option>
-              <a-select-option :value="CasePriority.URGENT">紧急</a-select-option>
-            </a-select>
-            <a-input-search
-              v-model:value="queryParams.keyword"
-              placeholder="搜索案例名称/客户名称"
-              style="width: 280px"
-              enter-button
-              @search="loadCases"
-            />
-            <a-button type="primary" @click="handleAdd">
-              <template #icon><PlusOutlined /></template>
-              新建案例
-            </a-button>
-          </a-space>
-        </template>
-
-        <template #extra>
-          <a-space>
-            <a-button @click="handleBatchDelete" :disabled="selectedRowKeys.length === 0" danger>
-              <template #icon><DeleteOutlined /></template>
-              批量删除
-            </a-button>
-          </a-space>
-        </template>
+        <!-- 原来这排筛选塞在卡片的 #title 槽里：那个槽是 .ant-card-head-title，overflow:hidden，
+             容器一窄就被裁掉并堆成六行；「批量删除」单独挂在 #extra 上，跟筛选不在一行。
+             改成项目已定稿的 FilterBar（筛选靠左、动作组靠右，见 components/FilterBar.vue）。 -->
+        <filter-bar>
+          <a-select
+            v-model:value="queryParams.categoryId"
+            style="width: 150px"
+            placeholder="选择分类"
+            allowClear
+            @change="loadCases"
+          >
+            <a-select-option v-for="cat in categories" :key="cat.id" :value="cat.id">
+              {{ cat.name }}
+            </a-select-option>
+          </a-select>
+          <a-select
+            v-model:value="queryParams.status"
+            style="width: 120px"
+            placeholder="状态"
+            allowClear
+            @change="loadCases"
+          >
+            <a-select-option :value="CaseStatus.DRAFT">草稿</a-select-option>
+            <a-select-option :value="CaseStatus.PUBLISHED">已发布</a-select-option>
+          </a-select>
+          <a-select
+            v-model:value="queryParams.type"
+            style="width: 140px"
+            placeholder="案例类型"
+            allowClear
+            @change="loadCases"
+          >
+            <a-select-option :value="CaseType.CUSTOMER_SUCCESS">客户成功</a-select-option>
+            <a-select-option :value="CaseType.TECHNICAL_IMPLEMENTATION">技术实施</a-select-option>
+            <a-select-option :value="CaseType.BEST_PRACTICE">最佳实践</a-select-option>
+            <a-select-option :value="CaseType.INDUSTRY_SOLUTION">行业方案</a-select-option>
+            <a-select-option :value="CaseType.PRODUCT_DEMO">产品演示</a-select-option>
+          </a-select>
+          <a-select
+            v-model:value="queryParams.priority"
+            style="width: 100px"
+            placeholder="优先级"
+            allowClear
+            @change="loadCases"
+          >
+            <a-select-option :value="CasePriority.LOW">低</a-select-option>
+            <a-select-option :value="CasePriority.MEDIUM">中</a-select-option>
+            <a-select-option :value="CasePriority.HIGH">高</a-select-option>
+            <a-select-option :value="CasePriority.URGENT">紧急</a-select-option>
+          </a-select>
+          <a-input-search
+            v-model:value="queryParams.keyword"
+            placeholder="搜索案例名称/客户名称"
+            style="width: 280px"
+            enter-button
+            @search="loadCases"
+          />
+          <template #actions>
+            <a-space>
+              <a-button @click="handleBatchDelete" :disabled="selectedRowKeys.length === 0" danger>
+                <template #icon><DeleteOutlined /></template>
+                批量删除
+              </a-button>
+              <a-button type="primary" @click="handleAdd">
+                <template #icon><PlusOutlined /></template>
+                新建案例
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -262,6 +262,7 @@ import {
 import { CaseStatus, CasePriority, CaseType } from '../../types/case'
 import type { Case, CaseCategory, CaseForm } from '../../types/case'
 import CaseDetailDrawer from './CaseDetailDrawer.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { caseApi, caseCategoryApi } from '../../api/case'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime, formatNumber } from '../../utils/format'

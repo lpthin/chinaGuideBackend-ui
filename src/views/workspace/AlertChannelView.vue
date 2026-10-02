@@ -5,13 +5,17 @@
         <h3>通知渠道配置</h3>
       </template>
 
-      <!-- 操作栏 -->
-      <div class="action-bar">
-        <a-button type="primary" @click="handleAdd">
-          <template #icon><PlusOutlined /></template>
-          新增渠道
-        </a-button>
-      </div>
+      <!-- 「新增渠道」原来孤零零靠左、右边空着；动作改走 FilterBar 的 #actions 槽贴右 -->
+      <filter-bar>
+        <template #actions>
+          <a-space>
+            <a-button type="primary" @click="handleAdd">
+              <template #icon><PlusOutlined /></template>
+              新增渠道
+            </a-button>
+          </a-space>
+        </template>
+      </filter-bar>
 
       <!-- 表格 -->
       <a-table
@@ -218,6 +222,7 @@ import type { FormInstance } from 'ant-design-vue'
 import {
   PlusOutlined
 } from '@ant-design/icons-vue'
+import FilterBar from '../../components/FilterBar.vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import { alertApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'

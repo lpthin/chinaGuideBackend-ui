@@ -44,41 +44,44 @@
       </a-row>
 
       <a-card :bordered="false">
-        <template #title>
-          <a-space>
-            <a-select
-              v-model:value="queryParams.industry"
-              style="width: 150px"
-              placeholder="选择行业"
-              allowClear
-            >
-              <a-select-option value="finance">金融科技</a-select-option>
-              <a-select-option value="ecommerce">电子商务</a-select-option>
-              <a-select-option value="education">在线教育</a-select-option>
-              <a-select-option value="health">医疗健康</a-select-option>
-              <a-select-option value="manufacture">智能制造</a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="queryParams.status"
-              style="width: 120px"
-              placeholder="状态"
-              allowClear
-            >
-              <a-select-option value="PUBLISHED">已发布</a-select-option>
-              <a-select-option value="DRAFT">草稿</a-select-option>
-            </a-select>
-            <a-input-search
-              v-model:value="queryParams.keyword"
-              placeholder="搜索案例名称/客户名称"
-              style="width: 280px"
-              enter-button
-            />
-            <a-button type="primary" @click="showAddModal">
-              <template #icon><PlusOutlined /></template>
-              新建案例
-            </a-button>
-          </a-space>
-        </template>
+        <!-- 筛选原塞在卡片 #title 槽（.ant-card-head-title 是 overflow:hidden，窄容器被裁切堆行），改用 FilterBar：筛选靠左、动作靠右 -->
+        <filter-bar>
+          <a-select
+            v-model:value="queryParams.industry"
+            style="width: 150px"
+            placeholder="选择行业"
+            allowClear
+          >
+            <a-select-option value="finance">金融科技</a-select-option>
+            <a-select-option value="ecommerce">电子商务</a-select-option>
+            <a-select-option value="education">在线教育</a-select-option>
+            <a-select-option value="health">医疗健康</a-select-option>
+            <a-select-option value="manufacture">智能制造</a-select-option>
+          </a-select>
+          <a-select
+            v-model:value="queryParams.status"
+            style="width: 120px"
+            placeholder="状态"
+            allowClear
+          >
+            <a-select-option value="PUBLISHED">已发布</a-select-option>
+            <a-select-option value="DRAFT">草稿</a-select-option>
+          </a-select>
+          <a-input-search
+            v-model:value="queryParams.keyword"
+            placeholder="搜索案例名称/客户名称"
+            style="width: 280px"
+            enter-button
+          />
+          <template #actions>
+            <a-space>
+              <a-button type="primary" @click="showAddModal">
+                <template #icon><PlusOutlined /></template>
+                新建案例
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -301,6 +304,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 
