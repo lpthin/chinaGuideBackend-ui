@@ -83,7 +83,9 @@
             />
             <template #actions>
               <a-space>
-                <a-button type="primary" @click="showSendModal = true">
+                <!-- 跨租户群发是平台职能：后端 /api/admin/tenants 每个方法第一行 checkSuperAdmin()，
+                     租户档点开弹窗只会看到一个空的下拉框。入口不摆出来，比摆出来让人撞墙诚实。 -->
+                <a-button v-if="auth.isSuperAdmin" type="primary" @click="showSendModal = true">
                   <template #icon><SendOutlined /></template>
                   发送消息
                 </a-button>
