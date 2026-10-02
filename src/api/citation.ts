@@ -145,8 +145,18 @@ export interface CitationSummary {
   lastProbeNotice: string | null
 }
 
-/** 问题三裁决要的那张表：每个页面、每篇文章各有几条引用。没被引用过 citeCount=0，行照样在 */
-export interface CitationTargetStat {
+/** 工作台便捷口的信封（后端 `CitationStatsController.LatestSummary`）：先说「这是哪一家站的数」 */
+export interface CitationLatestSummary {
+  siteId: number | null
+  siteName: string | null
+  siteCount: number
+  /** 「该租户有 N 个站点，这里展示的是「X」」；单站且非空态时为 null */
+  notice: string | null
+  /** null = 当前租户还没有可统计的站点，此时只有 notice 可读 */
+  summary: CitationSummary | null
+}
+
+/** 问题三裁决要的那张表：每个页面、每篇文章各有几条引用。没被引用过 citeCount=0，行照样在 */export interface CitationTargetStat {
   targetType: string
   targetId: number | null
   label: string | null
@@ -289,6 +299,16 @@ export const citationApi = {
 
   summary: (params: CitationRangeParams) =>
     http.get<CitationSummary>('/portal/citations/summary', { params }),
+
+  /**
+   * 工作台便捷口（Spec-I Q3a）：不用自备 siteId，后端按当前租户自动取站点。
+   *
+   * summary=null 表示这家租户还没有可统计的站，notice 是那一句实话；
+   * 多站点租户看的是哪一家由 notice 念出来，界面不许替它挑。
+   * 平台档（没选租户）会明确报错——工作台在平台档根本不调这一口。
+   */
+  summaryLatest: (params: { from?: string; to?: string } = {}) =>
+    http.get<CitationLatestSummary>('/portal/citations/summary/latest', { params }),
 
   /** targetType 传 page / article / case / site；不传给全部（词表在后端 CitationTargetTypes） */
   targets: (params: CitationRangeParams & { targetType?: string; limit?: number }) =>

@@ -57,25 +57,6 @@ const MENU_STUBS = {
     emits: ['update:value'],
     template: '<input class="menu-search-stub" :value="value" :placeholder="placeholder" @input="$emit(\'update:value\', $event.target.value)" />'
   },
-  // Spec-H Q11：段过滤控件。stub 要渲染 options 并支持点击切换，这样用例能判「切换过滤后菜单段数变化」。
-  'a-segmented': {
-    name: 'ASegmented',
-    props: ['value', 'options', 'size'],
-    emits: ['update:value'],
-    template: `
-      <div class="ant-segmented">
-        <div
-          v-for="(opt, idx) in options"
-          :key="idx"
-          class="ant-segmented-item"
-          :class="{ 'ant-segmented-item-selected': opt.value === value }"
-          @click="$emit('update:value', opt.value)"
-        >
-          {{ opt.label }}
-        </div>
-      </div>
-    `
-  }
 }
 
 const TENANT_CODES = ['portal:siteinfo:manage', 'media:manage', 'analytics:view', 'portal:ticket:submit', 'case:manage']
@@ -156,7 +137,7 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(text).not.toContain('建站工作台')
   })
 
-  it('租户模式（超管选中租户）：看到两段，且没有「两个栏目管理」这种重名异物', async () => {
+  it('租户模式（超管选中租户）：只看租户段，平台段一项不出现', async () => {
     const auth = useAuthStore()
     auth.accessToken = 'token'
     auth.user = {
@@ -188,17 +169,17 @@ describe('WorkspaceView 侧边菜单', () => {
     })
     await flushPromises()
     const text = wrapper.text()
-    expect(text).toContain('租户日常')
-    expect(text).toContain('平台管理')
-    // Spec-H Q7-a：两行域标题收成一行，说明句进 tooltip（这里判的是「说明没丢，只是不在标签里」）
-    expect(text).not.toContain('日常：填内容、看效果')
-    expect(wrapper.find('[data-tip="日常：填内容、看效果"]').exists()).toBe(true)
-    expect(wrapper.find('[data-tip="超管动作：建站、开栏目、改样式、跑探测"]').exists()).toBe(true)
+    // 段标题「租户日常」已删（拍板：顶栏那颗「平台/租户」切换就是范围声明，菜单里不重复念）
+    expect(text).not.toContain('租户日常')
+    // 平台段整块退场
+    expect(text).not.toContain('平台管理')
+    expect(wrapper.find('[data-tip="日常：填内容、看效果"]').exists()).toBe(false)
+    expect(wrapper.find('[data-tip="超管动作：建站、开栏目、改样式、跑探测"]').exists()).toBe(false)
     // Spec-C P3：「建站流水线」整页删除（主线收进需求单详情），菜单里它必须随之绝迹——
     // 留着就是一条点了 404 的假入口
     expect(text).not.toContain('建站流水线')
-    expect(text).toContain('前采需求单')
-    expect(text).toContain('栏目开通')
+    expect(text).not.toContain('前采需求单')
+    expect(text).toContain('站点设置')
     expect(text).toContain('文章分类')
     expect(text).not.toContain('栏目管理')
     expect(text).not.toContain('建站工作台')
@@ -269,9 +250,11 @@ describe('WorkspaceView 侧边菜单', () => {
     })
     await flushPromises()
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
-    // P3：钉「前采需求单」只渲染一次（原来这条钉的是已删除的「建站流水线」，守的行为不变：视图不手抄第二份清单）
-    expect(items.filter(label => label === '前采需求单')).toHaveLength(1)
-    expect(items.filter(label => label === '待办通知')).toHaveLength(1)
+    // 租户档：平台段的项（前采需求单、栏目开通）一项不许出现；租户段的项各只渲染一次（视图不手抄第二份清单）
+    expect(items).not.toContain('前采需求单')
+    expect(items).not.toContain('栏目开通')
+    expect(items.filter(label => label === '文章列表')).toHaveLength(1)
+    expect(items.filter(label => label === '企业信息')).toHaveLength(1)
     expect(new Set(items).size).toBe(items.length)
     // 工作台（固定在最上方）+ 平台工单队列（超管固定在最下方）也在同一批渲染里。
     // 超管跳过权限检查，所以能看到需要 `portal:build:review` 的「平台工单队列」。
@@ -312,8 +295,9 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(superItems).toContain('平台工单队列')
     expect(superItems).not.toContain('联系平台')
     // 队列以前同时在「平台质量」组和菜单最下方各挂一颗（同一个 SupportTicketView 的两个 mode）；
-    // 现在只剩下方那一颗，「工单」这一族在界面上就是这两个不同视图、各一颗
-    expect(superItems.filter(label => label.includes('工单'))).toEqual(['改版工单', '平台工单队列'])
+    // 现在只剩下方那一颗。租户档下平台段整块退场，「改版工单」（平台段）也不出现，
+    // 「工单」这一族在租户档界面上就是「平台工单队列」一颗。
+    expect(superItems.filter(label => label.includes('工单'))).toEqual(['平台工单队列'])
     expect(superItems[superItems.length - 1]).toBe('平台工单队列')
 
     const tenantWrapper = mountView({ username: 'siteadmin', roles: ['SITE_ADMIN'], permissions: TENANT_CODES })
@@ -326,8 +310,8 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(tenantWrapper.find('[data-tip*="提交工单"]').exists()).toBe(true)
   })
 
-  it('Spec-H H-1a：组渲成可收合的 SubMenu，颗数 = 组数（超管 11 / 租户 5）', async () => {
-    // 设置租户 ID，让超管进入租户模式（这样才有 11 个组）
+  it('Spec-H H-1a：组渲成可收合的 SubMenu；租户档轨道只有租户段的组，平台档只有平台段的', async () => {
+    // 设置租户 ID，让超管进入租户模式
     const auth = useAuthStore()
     auth.accessToken = 'token'
     auth.user = SUPER_USER as any
@@ -355,27 +339,31 @@ describe('WorkspaceView 侧边菜单', () => {
       }
     })
     await flushPromises()
-    const rails = wrapper.findAll('.ant-submenu-stub')
-    expect(rails).toHaveLength(11)
-    // 组标题必须还在，而且顺序 = MENU_GROUPS 的顺序（收起只藏子项，组名一颗不许少）
-    expect(wrapper.findAll('.menu-group-title').map(node => node.text().trim())).toEqual(
-      MENU_GROUPS.map(group => group.label)
-    )
+    const tenantLabels = MENU_GROUPS.filter(group => group.domain === 'tenant').map(group => group.label)
+    expect(wrapper.findAll('.menu-group-title').map(node => node.text().trim())).toEqual(tenantLabels)
+    // 收起只藏子项，组名一颗不许少；顺序 = 组表里租户段的顺序
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(tenantLabels.length)
+
+    // 平台档（不选租户）：轨道换成平台段那 6 组，租户段的组一颗不许在
+    const platformWrapper = mountView(SUPER_USER)
+    await flushPromises()
+    const platformLabels = MENU_GROUPS.filter(group => group.domain === 'platform').map(group => group.label)
+    expect(platformWrapper.findAll('.menu-group-title').map(node => node.text().trim())).toEqual(platformLabels)
+
     // 租户这一侧：真实那份码表（TENANT_CODES）判完权限后只剩租户段的组。
     // 这里不写死「5」：组数随栏目开通态与授权而变（上一档用例已经在钉「平台项一项都不出现」），
     // 这一条要钉的是「租户看到的每一组都属于租户段」+「一颗组名都不许是平台段的」。
-    const tenantWrapper = mountView({ username: 'siteadmin', roles: ['SITE_ADMIN'], permissions: TENANT_CODES })
+    const tenantOnlyWrapper = mountView({ username: 'siteadmin', roles: ['SITE_ADMIN'], permissions: TENANT_CODES })
     await flushPromises()
-    const tenantLabels = MENU_GROUPS.filter(group => group.domain === 'tenant').map(group => group.label)
-    const rendered = tenantWrapper.findAll('.menu-group-title').map(node => node.text().trim())
+    const rendered = tenantOnlyWrapper.findAll('.menu-group-title').map(node => node.text().trim())
     expect(rendered.length).toBeGreaterThan(0)
     expect(rendered.filter(label => !tenantLabels.includes(label))).toEqual([])
-    expect(tenantWrapper.text()).not.toContain('平台管理')
+    expect(tenantOnlyWrapper.text()).not.toContain('平台管理')
   })
 
-  it('Spec-H H-1b：开合按段喂给两个菜单，一段的事件不许把另一段已开的组抹掉', async () => {
+  it('Spec-H H-1b：开合按段喂给菜单；租户档只渲染租户段，但平台段已存的开合键不被抹掉', async () => {
     localStorage.setItem('nav_open_groups', JSON.stringify(['article', 'billing']))
-    // 设置租户 ID，让超管进入租户模式（这样才有两个菜单段）
+    // 设置租户 ID，让超管进入租户模式
     const auth = useAuthStore()
     auth.accessToken = 'token'
     auth.user = SUPER_USER as any
@@ -405,15 +393,14 @@ describe('WorkspaceView 侧边菜单', () => {
     await flushPromises()
     const menus = wrapper.findAllComponents({ name: 'AMenu' })
     const tenant = menus.find(node => node.attributes('data-domain') === 'tenant')!
-    const platform = menus.find(node => node.attributes('data-domain') === 'platform')!
+    // 租户档：平台段整块不渲染，但开合表里它那一键还得留着（切回平台档时要还原）
+    expect(menus.find(node => node.attributes('data-domain') === 'platform')).toBeUndefined()
     expect(tenant.attributes('data-open')).toBe('article')
-    expect(platform.attributes('data-open')).toBe('billing')
 
-    // antd 的 update:openKeys 只带**那一个菜单**认识的键。直接拿它覆盖全局开合表 = 平台段被清空。
+    // antd 的 update:openKeys 只带**这一个菜单**认识的键。直接拿它覆盖全局开合表 = 平台段那键被抹掉。
     tenant.vm.$emit('update:openKeys', ['content'])
     await nextTick()
     expect(tenant.attributes('data-open')).toBe('content')
-    expect(platform.attributes('data-open'), '租户段的点击把平台段的开合抹掉了').toBe('billing')
     // 落盘那份按组表顺序，不按点击顺序（否则用例钉不住、刷新后顺序还会漂）
     expect(JSON.parse(localStorage.getItem('nav_open_groups') as string)).toEqual(['content', 'billing'])
   })
@@ -478,15 +465,16 @@ describe('WorkspaceView 侧边菜单', () => {
     await flushPromises()
     expect(wrapper.find('input.menu-search-stub').exists()).toBe(true)
     expect(wrapper.find('input.menu-search-stub').attributes('placeholder')).toBe('搜索栏目')
-    // 搜之前是完整的树：11 个组
-    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(11)
+    // 搜之前是完整的树：租户档只有租户段的组（平台段的组整块不渲染）
+    const tenantGroupCount = MENU_GROUPS.filter(g => g.domain === 'tenant').length
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(tenantGroupCount)
 
     await typeIntoMenuSearch(wrapper, '引用')
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
-    expect(items).toHaveLength(2)
+    // 命中面跟着档走：「品牌引用探测」在平台段，租户档搜不到它
+    expect(items).toHaveLength(1)
     // 判据的后半句：每一项都带着它属于哪一组（不然命中两条看不出来源）
     expect(items).toContain('引用与来源效果与经营')
-    expect(items).toContain('品牌引用探测平台质量')
     expect(items.every(text => text.includes('引用'))).toBe(true)
     // 「只剩」：两段树这时一项都不该在（组、组标题、段标题全部退场）
     expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(0)
@@ -564,7 +552,9 @@ describe('WorkspaceView 侧边菜单', () => {
     await typeIntoMenuSearch(wrapper, '引用')
     await typeIntoMenuSearch(wrapper, '   ')
     // 只剩空格 = 没在搜（否则用户清了字却对着一片空白）
-    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(11)
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(
+      MENU_GROUPS.filter(g => g.domain === 'tenant').length
+    )
     // 命中列表走的是「不展开组」那条路（见 WorkspaceView 里那段偏离说明）：偏好不该被一次搜索改掉
     expect(JSON.parse(localStorage.getItem('nav_open_groups') as string)).toEqual(['article'])
   })
@@ -652,40 +642,44 @@ describe('WorkspaceView 侧边菜单', () => {
     })
     await flushPromises()
     await typeIntoMenuSearch(wrapper, '引用')
-    expect(wrapper.findAll('.menu-item-stub')).toHaveLength(2)
+    expect(wrapper.findAll('.menu-item-stub')).toHaveLength(1)
 
     await wrapper.find('.collapse-btn').trigger('click')
     expect(wrapper.find('input.menu-search-stub').exists()).toBe(false)
     // 折叠态回到树（图标轨 + hover 弹层才是那一档的找法）：命中列表那一整块窄轨里放不下，
     // 连「没有这一项」那行也不该留在窄轨里（`.menu-item-stub` 两种形状都在用，判不出是谁，
-    // 所以这里钉的是命中列表那个菜单本身退场 + 组重新数得出 11 颗）。
+    // 所以这里钉的是命中列表那个菜单本身退场 + 组重新数得出租户段那一整排）。
     expect(wrapper.find('.sidebar-menu--hits').exists()).toBe(false)
     expect(wrapper.find('[data-testid="menu-search-empty"]').exists()).toBe(false)
-    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(11)
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(
+      MENU_GROUPS.filter(g => g.domain === 'tenant').length
+    )
 
     await wrapper.find('.collapse-btn').trigger('click')
     // 展开后那份输入还在，用户没被折叠那一下清掉搜索
     expect(menuSearchValue(wrapper)).toBe('引用')
-    expect(wrapper.findAll('.menu-item-stub')).toHaveLength(2)
+    expect(wrapper.findAll('.menu-item-stub')).toHaveLength(1)
   })
 
-  // ══════════════ Spec-H Q11：顶栏段过滤（只看租户 / 只看平台）══════════════
-  // 判据：超管视角下可以只看租户 / 只看平台 / 全看；租户视角永远看全部（他们本来就只有租户段）。
+  // ══════════════ 平台模式 vs 租户模式 ═══════════════
+  // 平台模式（selectedTenantId = null）：只显示平台段
+  // 租户模式（selectedTenantId 有值）：只显示租户段 + 固定项
 
-  it('Spec-H Q11：段过滤控件只对超管可见，租户视角不出现', async () => {
-    const superWrapper = mountView(SUPER_USER)
+  it('平台模式：只显示平台段，不显示租户段和固定项', async () => {
+    // mountView 默认 selectedTenantId = null，即平台模式
+    const wrapper = mountView(SUPER_USER)
     await flushPromises()
-    // 超管视角：段过滤控件应该存在
-    expect(superWrapper.find('.ant-segmented').exists()).toBe(true)
-    
-    // 租户视角：段过滤控件不应该存在
-    const tenantWrapper = mountView({ username: 'siteadmin', roles: ['SITE_ADMIN'], permissions: TENANT_CODES })
-    await flushPromises()
-    expect(tenantWrapper.find('.ant-segmented').exists()).toBe(false)
+    const text = wrapper.text()
+    // 平台模式：只显示平台段
+    expect(text).not.toContain('租户日常')
+    expect(text).toContain('平台管理')
+    // 不显示固定项
+    expect(text).not.toContain('工作台')
+    expect(text).not.toContain('联系平台')
+    expect(text).not.toContain('平台工单队列')
   })
 
-  it('Spec-H Q11：段过滤可以只显示租户段或只显示平台段', async () => {
-    // 设置租户 ID，让超管进入租户模式（这样段过滤控件才会显示）
+  it('租户模式：只显示租户段 + 固定项，平台段不显示', async () => {
     const auth = useAuthStore()
     auth.accessToken = 'token'
     auth.user = SUPER_USER as any
@@ -713,107 +707,12 @@ describe('WorkspaceView 侧边菜单', () => {
       }
     })
     await flushPromises()
-    
-    // 默认是「全部」：应该看到两段（租户日常 + 平台管理）
-    let sections = wrapper.findAll('.menu-domain')
-    expect(sections).toHaveLength(2)
-    expect(sections[0].text()).toContain('租户日常')
-    expect(sections[1].text()).toContain('平台管理')
-    
-    // 切换到「租户」：应该只看到租户段
-    const segmented = wrapper.find('.ant-segmented')
-    const buttons = segmented.findAll('.ant-segmented-item')
-    await buttons[1].trigger('click') // 第二个是「租户」
-    await nextTick()
-    sections = wrapper.findAll('.menu-domain')
-    expect(sections).toHaveLength(1)
-    expect(sections[0].text()).toContain('租户日常')
-    
-    // 切换到「全部」：应该看到两段
-    await buttons[0].trigger('click') // 第一个是「全部」
-    await nextTick()
-    sections = wrapper.findAll('.menu-domain')
-    expect(sections).toHaveLength(2)
-    expect(sections[0].text()).toContain('租户日常')
-    expect(sections[1].text()).toContain('平台管理')
-    
-    // 切换到「平台」：应该只看到平台段
-    await buttons[2].trigger('click') // 第三个是「平台」
-    await nextTick()
-    sections = wrapper.findAll('.menu-domain')
-    expect(sections).toHaveLength(1)
-    expect(sections[0].text()).toContain('平台管理')
-  })
-
-  it('Spec-H Q11：段过滤偏好会持久化到 localStorage', async () => {
-    localStorage.removeItem('nav_domain_filter')
-    
-    // 先设置一个租户 ID，让超管进入租户模式（这样段过滤控件才会显示）
-    const auth = useAuthStore()
-    auth.accessToken = 'token'
-    auth.user = SUPER_USER as any
-    auth.selectedTenantId = 15
-    
-    const wrapper1 = mount(WorkspaceView, {
-      global: {
-        stubs: {
-          'a-layout': layoutStub('ALayout'),
-          'a-layout-header': layoutStub('ALayoutHeader'),
-          'a-layout-content': layoutStub('ALayoutContent'),
-          'a-layout-sider': layoutStub('ALayoutSider'),
-          'a-breadcrumb': layoutStub('ABreadcrumb'),
-          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
-          ...MENU_STUBS,
-          'a-button': true,
-          'a-dropdown': true,
-          'a-divider': true,
-          'a-avatar': true,
-          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
-          'router-view': true,
-          'router-link': true,
-          TenantSwitcher: true
-        }
-      }
-    })
-    await flushPromises()
-    
-    // 默认是「全部」，切换到「租户」
-    const segmented = wrapper1.find('.ant-segmented')
-    const buttons = segmented.findAll('.ant-segmented-item')
-    await buttons[1].trigger('click') // 第二个是「租户」
-    await nextTick()
-    
-    // 检查 localStorage
-    expect(localStorage.getItem('nav_domain_filter')).toBe('"tenant"')
-    
-    // 重新挂载，应该保持「租户」过滤
-    const wrapper2 = mount(WorkspaceView, {
-      global: {
-        stubs: {
-          'a-layout': layoutStub('ALayout'),
-          'a-layout-header': layoutStub('ALayoutHeader'),
-          'a-layout-content': layoutStub('ALayoutContent'),
-          'a-layout-sider': layoutStub('ALayoutSider'),
-          'a-breadcrumb': layoutStub('ABreadcrumb'),
-          'a-breadcrumb-item': { name: 'ABreadcrumbItem', template: '<span><slot /></span>' },
-          ...MENU_STUBS,
-          'a-button': true,
-          'a-dropdown': true,
-          'a-divider': true,
-          'a-avatar': true,
-          'a-space': { name: 'ASpace', template: '<div class="a-space-stub"><slot /></div>' },
-          'router-view': true,
-          'router-link': true,
-          TenantSwitcher: true
-        }
-      }
-    })
-    await flushPromises()
-    let sections = wrapper2.findAll('.menu-domain')
-    expect(sections).toHaveLength(1)
-    expect(sections[0].text()).toContain('租户日常')
-    
-    // 清理
-    localStorage.removeItem('nav_domain_filter')
+    const text = wrapper.text()
+    // 租户模式：只显示租户段（段标题「租户日常」已删），平台段整块退场
+    expect(text).not.toContain('租户日常')
+    expect(text).not.toContain('平台管理')
+    // 固定项也显示
+    expect(text).toContain('工作台')
+    expect(text).toContain('平台工单队列')
   })
 })

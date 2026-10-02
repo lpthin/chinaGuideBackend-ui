@@ -1,14 +1,29 @@
 <template>
-  <a-select
-    v-model:value="selectedValue"
-    placeholder="切换租户"
-    show-search
-    :options="options"
-    :filter-option="filterOption"
-    class="tenant-switcher"
-    size="small"
-    @change="handleChange"
-  />
+  <div class="tenant-switcher-group">
+    <!--
+      「平台」与「租户」是两种互斥的查看范围，不是租户列表里的一项，
+      所以放在下拉框外面做平级切换；选中「租户」时才出现租户下拉。
+    -->
+    <a-segmented
+      :value="mode"
+      :options="MODE_OPTIONS"
+      size="small"
+      class="tenant-switcher__mode"
+      data-test="scope-mode"
+      @change="handleModeChange"
+    />
+    <a-select
+      v-if="mode === 'tenant'"
+      v-model:value="selectedValue"
+      placeholder="切换租户"
+      show-search
+      :options="options"
+      :filter-option="filterOption"
+      class="tenant-switcher"
+      size="small"
+      @change="handleChange"
+    />
+  </div>
   <!--
     Spec-F §13-13 / P6-B 拍板 A 的界面那一半：超管点了个后端认不出来的租户时，读口回的是空结果，
     而空列表与「这家真的没有数据」在界面上长得一模一样——客户会据此得出「我们门户没人引用」这种假结论。
@@ -50,7 +65,13 @@ const loading = ref(true)
  * 打在顶栏上（现场截图上那个孤零零的「15」就是这么来的：一个裸数字，客户不知道它是谁）。
  */
 const listFailed = ref(false)
-const selectedValue = ref<number | 'platform' | null>(authStore.selectedTenantId)
+type ScopeMode = 'platform' | 'tenant'
+const MODE_OPTIONS: Array<{ label: string; value: ScopeMode }> = [
+  { label: '平台', value: 'platform' },
+  { label: '租户', value: 'tenant' }
+]
+const mode = ref<ScopeMode>(authStore.selectedTenantId !== null ? 'tenant' : 'platform')
+const selectedValue = ref<number | null>(authStore.selectedTenantId)
 
 /** 选中项在列表里找不到 label 时兜一条，顶栏至少念得出「租户 15」，不念一个裸数字 */
 const options = computed(() => {
@@ -58,9 +79,7 @@ const options = computed(() => {
     label: tenant.name,
     value: tenant.id,
   }))
-  // 添加「平台」选项
-  base.unshift({ label: '平台', value: 'platform' })
-  
+
   if (selectedValue.value === null) return base
   if (base.some((o) => o.value === selectedValue.value)) return base
   const id = selectedValue.value
@@ -82,7 +101,7 @@ const filterOption: SelectProps['filterOption'] = (input, option) => {
  */
 const declaredByBackend = computed(() => authStore.tenantUnresolvedDeclaration ?? '')
 const missingFromList = computed(() =>
-  selectedValue.value !== null && selectedValue.value !== 'platform'
+  selectedValue.value !== null
   && !loading.value
   && !listFailed.value
   && tenants.value.length > 0
@@ -105,11 +124,6 @@ const fetchTenants = async () => {
     const result = await tenantApi.list()
     tenants.value = result || []
     listFailed.value = false
-    // 默认显示平台模式（selectedTenantId = null）
-    // 如果当前没有选中任何租户，就保持平台模式
-    if (selectedValue.value === null) {
-      selectedValue.value = 'platform'
-    }
   } catch (error) {
     // 读失败要记账：不记就只能把「列表是空的」当成「这家不存在」，而兜底 label 也分不清该念哪一句
     listFailed.value = true
@@ -119,16 +133,26 @@ const fetchTenants = async () => {
   }
 }
 
-const handleChange = (value: number | 'platform') => {
+const handleChange = (value: number) => {
+  const tenant = tenants.value.find((t) => t.id === value)
+  authStore.switchTenant(value, tenant?.code || null)
+  window.location.reload()
+}
+
+const handleModeChange = (value: ScopeMode) => {
+  mode.value = value
   if (value === 'platform') {
-    // 切换到平台模式：清除租户选择
     authStore.switchTenant(null)
-    selectedValue.value = 'platform'
+    selectedValue.value = null
     window.location.reload()
-  } else {
-    const tenant = tenants.value.find((t) => t.id === value)
-    authStore.switchTenant(value, tenant?.code || null)
-    window.location.reload()
+  } else if (selectedValue.value === null) {
+    // 切到租户档时默认落在第一家；列表还没读回来就先把下拉空着，等客户选
+    const first = tenants.value[0]
+    if (first) {
+      authStore.switchTenant(first.id, first.code)
+      selectedValue.value = first.id
+      window.location.reload()
+    }
   }
 }
 
@@ -146,6 +170,7 @@ watch(
   () => authStore.selectedTenantId,
   (val) => {
     selectedValue.value = val
+    mode.value = val !== null ? 'tenant' : 'platform'
   }
 )
 
@@ -155,6 +180,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.tenant-switcher-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .tenant-switcher {
   width: 160px;
 }

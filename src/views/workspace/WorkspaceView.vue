@@ -14,18 +14,6 @@
       </div>
       <div class="header-right">
         <a-space>
-          <!-- Spec-H Q11：段过滤（只看租户 / 只看平台 / 全看） -->
-          <a-segmented
-            v-if="auth.isSuperAdmin"
-            v-model:value="domainFilter"
-            :options="[
-              { label: '全部', value: 'all' },
-              { label: '租户', value: 'tenant' },
-              { label: '平台', value: 'platform' }
-            ]"
-            size="small"
-            style="margin-right: 8px"
-          />
           <TenantSwitcher v-if="auth.isSuperAdmin" />
           <a-button
             v-if="auth.isSuperAdmin"
@@ -144,11 +132,14 @@
           </a-menu>
 
           <section v-for="section in filteredMenuSections" :key="section.domain" class="menu-domain">
-            <!-- Spec-H Q7-a：段标题一行说完，第二行说明进 tooltip（Q6-a 同一条纪律：说明不许消失，只许换地方） -->
-            <a-tooltip v-if="!siderCollapsed" :title="section.hint" placement="right">
+            <!--
+              Spec-H Q7-a：段标题一行说完，第二行说明进 tooltip（Q6-a 同一条纪律：说明不许消失，只许换地方）。
+              租户档的段标题（「租户日常」）按拍板删掉：顶栏已经有「平台/租户」那颗切换，菜单里不再重复念一遍。
+            -->
+            <a-tooltip v-if="!siderCollapsed && section.domain === 'platform'" :title="section.hint" placement="right">
               <div class="menu-domain__label">{{ section.label }}</div>
             </a-tooltip>
-            <div v-else class="menu-domain__rule" aria-hidden="true"></div>
+            <div v-else-if="siderCollapsed" class="menu-domain__rule" aria-hidden="true"></div>
 
             <a-menu
               mode="inline"
@@ -250,18 +241,14 @@ import {
 } from '../../navigation/workspaceMenu'
 import {
   applyOpenKeysChange,
-  filterMenuSections,
   flattenMenuEntries,
   initialOpenGroups,
   normalizeMenuQuery,
   openKeysForDomain,
-  readStoredDomainFilter,
   readStoredOpenGroups,
   readStoredSiderCollapsed,
   searchMenuHits,
-  type DomainFilter,
   withGroupOpen,
-  writeStoredDomainFilter,
   writeStoredOpenGroups,
   writeStoredSiderCollapsed
 } from '../../navigation/navState'
@@ -303,21 +290,14 @@ const visibility = computed(() => ({
 const menuSections = computed(() => buildMenuSections(menuLeaves.value, visibility.value))
 
 /**
- * 段过滤（Spec-H Q11）：超管视角下可以只看租户 / 只看平台 / 全看。
- * 这一位是「人按了那一下」的偏好，所以进 localStorage。
- * 非超管（租户视角）永远看全部（他们本来就只有租户段，过滤没意义）。
- */
-const domainFilter = ref<DomainFilter>(auth.isSuperAdmin ? readStoredDomainFilter() : 'all')
-watch(domainFilter, value => {
-  if (auth.isSuperAdmin) writeStoredDomainFilter(value)
-})
-
-/**
  * 平台模式：当超管切换到「平台」时，只显示平台段，隐藏所有租户相关内容。
  * 平台模式下：
  * - 不显示租户段（租户日常）
  * - 只显示平台段（平台管理）
  * - 不显示固定项（工作台、联系平台/平台工单队列）
+ *
+ * 租户模式反过来：只显示租户段——平台管理与租户是相互独立的两种范围，
+ * 选中了哪家租户就不该在侧栏里看见建站、计费、AI 配置这些平台动作。
  */
 const isPlatformMode = computed(() => {
   // 超管且没有选中任何租户 = 平台模式
@@ -325,12 +305,8 @@ const isPlatformMode = computed(() => {
 })
 
 const filteredMenuSections = computed(() => {
-  // 平台模式：只显示平台段
-  if (isPlatformMode.value) {
-    return menuSections.value.filter(section => section.domain === 'platform')
-  }
-  // 非平台模式：使用 domainFilter 过滤
-  return filterMenuSections(menuSections.value, domainFilter.value)
+  const wanted = isPlatformMode.value ? 'platform' : 'tenant'
+  return menuSections.value.filter(section => section.domain === wanted)
 })
 
 /** 菜单最上方那颗固定项（工作台）：标签与图标同样来自那条路由，视图里不写死中文 */
@@ -801,6 +777,17 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 }
 
 /* TenantSwitcher 样式适配白色导航栏 */
+:deep(.tenant-switcher__mode) {
+  background-color: #f5f7fa;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+}
+
+:deep(.tenant-switcher__mode .ant-segmented-item-selected) {
+  background-color: #1890ff;
+  color: #fff;
+}
+
 :deep(.tenant-switcher) {
   width: 160px;
 }

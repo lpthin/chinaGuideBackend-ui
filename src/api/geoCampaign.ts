@@ -233,6 +233,14 @@ export interface GeoReport {
   generatedAt: string | null
 }
 
+/** 工作台「最新一轮」信封（后端 `GeoCampaignController.LatestReportVo`） */
+export interface GeoLatestReport {
+  runId: number | null
+  report: GeoReport | null
+  /** 没跑过时的实话一句；有轮次时为 null */
+  notice: string | null
+}
+
 /** 平台卡片唯一出处：后端 `ai_model_config` 的启用聊天模型行，界面不许自己列「支持哪几家」 */
 export interface GeoPlatformOption {
   id: number
@@ -448,7 +456,6 @@ export interface GeoReportLinkSummary {
 
 export const geoCampaignApi = {
   createCampaign: (form: GeoCampaignForm) => http.post<GeoCampaign>('/geo/campaign', form),
-
   updateCampaign: (id: number, form: GeoCampaignUpdateForm) => http.put<GeoCampaign>(`/geo/campaign/${id}`, form),
 
   deleteCampaign: (id: number) => http.delete<void>(`/geo/campaign/${id}`),
@@ -471,6 +478,14 @@ export const geoCampaignApi = {
   getRun: (runId: number) => http.get<GeoRun>(`/geo/campaign/run/${runId}`),
 
   getReport: (runId: number) => http.get<GeoReport>(`/geo/campaign/run/${runId}/report`),
+
+  /**
+   * 工作台便捷口（Spec-I Q5b）：当前租户最近一轮【跑完并有结果】的报告。
+   *
+   * 没跑过时 runId/report 都是 null、notice 是那一句实话（「还没有跑完过任何一轮 GEO 诊断」）；
+   * 界面不许拿一排 0 或 null 冒充指标——0 与没测过是两件事。
+   */
+  latestReport: () => http.get<GeoLatestReport>('/geo/campaign/latest-report'),
 
   /**
    * 按【当前竞品勾选】重算这一轮的 SOV（§11.3 的验收点：勾 2 个与勾 5 个各算一次）。

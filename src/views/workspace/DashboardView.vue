@@ -1,310 +1,370 @@
 <template>
   <div class="dashboard">
-    <a-spin :spinning="loading" :tip="'加载中...'">
-      <div class="page-header">
-        <div class="header-content">
-          <div class="header-avatar">
-            <UserOutlined />
-          </div>
-          <div class="header-info">
-            <h2 class="greeting">
-              {{ greetingText }}，管理员
-            </h2>
-            <p class="subtitle">
-              <span class="date-text">{{ currentDate }}</span>
-              <span class="header-divider"></span>
-              <span class="header-status">
-                <span class="status-dot"></span>
-                系统运行正常
-              </span>
-            </p>
-          </div>
+    <div class="page-header">
+      <div class="header-content">
+        <div class="header-avatar">
+          <UserOutlined />
         </div>
-        <div class="header-actions">
-          <a-button @click="refreshData" class="refresh-btn" :loading="loading">
-            <template #icon><ReloadOutlined /></template>
-            刷新数据
-          </a-button>
+        <div class="header-info">
+          <h2 class="greeting">
+            {{ greetingText }}，管理员
+          </h2>
+          <p class="subtitle">
+            <span class="date-text">{{ currentDate }}</span>
+          </p>
         </div>
       </div>
-
-      <div class="stat-cards">
-        <div
-          class="stat-card"
-          v-for="(item, index) in statItems"
-          :key="item.key"
-          :class="`stat-card--${item.color}`"
-          :style="{ animationDelay: `${index * 0.1}s` }"
-          @click="navigateTo(item.path)"
-        >
-          <div class="stat-card__glow"></div>
-          <div class="stat-card__pattern" aria-hidden="true">
-            <svg viewBox="0 0 100 100" fill="none" overflow="visible">
-              <defs>
-                <linearGradient :id="`stat-arc-${item.key}`" x1="0" y1="1" x2="1" y2="0">
-                  <stop offset="0%" stop-color="currentColor" stop-opacity="0"/>
-                  <stop offset="100%" stop-color="currentColor" stop-opacity="0.8"/>
-                </linearGradient>
-              </defs>
-              <!-- 圆心落在卡片右上角，圆环只有朝卡内的这 1/4 弧在视野里 -->
-              <circle cx="92" cy="8" r="52" stroke="currentColor" stroke-opacity="0.12" stroke-width="10"/>
-              <path
-                d="M 92 60 A 52 52 0 0 1 40 8"
-                :stroke="`url(#stat-arc-${item.key})`"
-                stroke-width="10"
-                stroke-linecap="round"
-              />
-            </svg>
-          </div>
-          <div class="stat-card__content">
-            <div class="stat-card__top">
-              <div class="stat-card__icon">
-                <component :is="item.icon" />
-              </div>
-              <div class="stat-card__trend" :class="item.weekly > 0 ? 'trend-up' : 'trend-flat'">
-                <span class="trend-arrow">{{ item.weekly > 0 ? '↗' : '·' }}</span>
-                <span class="trend-value">近7天 +{{ item.weekly }}</span>
-              </div>
-            </div>
-            <div class="stat-card__value">
-              <span class="value-number">{{ item.value }}</span>
-              <span class="value-unit">{{ item.unit }}</span>
-            </div>
-            <div class="stat-card__bottom">
-              <span class="stat-card__label">{{ item.label }}</span>
-            </div>
-          </div>
-        </div>
+      <div class="header-actions">
+        <a-button @click="refreshAll" class="refresh-btn" :loading="headerLoading">
+          <template #icon><ReloadOutlined /></template>
+          刷新数据
+        </a-button>
       </div>
+    </div>
 
-      <div class="content-grid">
-        <div class="chart-card chart-card--wide">
-          <div class="card-header">
-            <div class="card-title">
-              <div class="card-title__icon card-title__icon--blue">
-                <LineChartOutlined />
-              </div>
-              <div class="card-title__text">
-                <h3>内容发布趋势</h3>
-                <p>追踪内容产出与流量变化</p>
-              </div>
+    <!-- Q2a：平台档不调任何租户效果口，整页引导 -->
+    <div v-if="isPlatformMode" class="platform-guide">
+      <div class="guide-icon"><GlobalOutlined /></div>
+      <h3>工作台是租户视角的效果首页</h3>
+      <p>这里展示的是某一家站点的被 AI 引用、搜索引擎抓取、今日访问与 GEO/SEO 状态；平台档没有「这一家站」的口径。</p>
+      <p class="guide-hint">请在顶栏切换到一家租户后再看。</p>
+    </div>
+
+    <template v-else>
+      <!-- 主视觉：访问趋势（浏览量 + 搜索/AI 爬虫命中），窗口 KPI 直接嵌在头部 -->
+      <section class="hero-card">
+        <div class="hero-head">
+          <div class="hero-title">
+            <div class="hero-badge"><RiseOutlined /></div>
+            <div>
+              <h3>访问趋势</h3>
+              <p v-if="trendCard.data" class="hero-range">{{ trendCard.data.from }} ~ {{ trendCard.data.to }}</p>
             </div>
+          </div>
+          <div class="hero-metrics">
+            <div class="hm"><b>{{ fmt(pvToday) }}</b><span>今日浏览</span></div>
+            <div class="hm"><b>{{ fmt(pvWindow) }}</b><span>近 {{ trendDays }} 天浏览</span></div>
+            <div class="hm hm--amber"><b>{{ fmt(botWindow) }}</b><span>搜索爬虫命中</span></div>
+            <div class="hm hm--violet"><b>{{ fmt(aiWindow) }}</b><span>AI 爬虫命中</span></div>
+          </div>
+          <div class="hero-tools">
             <a-radio-group v-model:value="trendDays" size="small" button-style="solid" class="chart-toggle">
-              <a-radio-button :value="7">近7天</a-radio-button>
-              <a-radio-button :value="30">近30天</a-radio-button>
-              <a-radio-button :value="180">近半年</a-radio-button>
+              <a-radio-button :value="7">7天</a-radio-button>
+              <a-radio-button :value="30">30天</a-radio-button>
+              <a-radio-button :value="180">半年</a-radio-button>
             </a-radio-group>
-          </div>
-          <div class="chart-body">
-            <div ref="trendChartRef" class="chart-container"></div>
-            <div v-if="!loading && !chartLoading && trendIsEmpty" class="chart-empty">
-              近 {{ trendDays }} 天没有新增内容，图表留空
-            </div>
-          </div>
-        </div>
-
-        <div class="chart-card chart-card--narrow">
-          <div class="card-header">
-            <div class="card-title">
-              <div class="card-title__icon card-title__icon--purple">
-                <PieChartOutlined />
-              </div>
-              <div class="card-title__text">
-                <h3>内容分类统计</h3>
-                <p>各分类内容分布</p>
-              </div>
-            </div>
-          </div>
-          <div class="chart-body">
-            <div ref="categoryChartRef" class="chart-container chart-container--pie"></div>
-            <div v-if="!loading && !chartLoading && !categoryData.length" class="chart-empty">
-              还没有可统计的栏目分类
-            </div>
+            <a-tooltip>
+              <template #title>
+                PV/UV 来自门户前端埋点；bot/AI 抓取来自服务端 User-Agent 识别，两类口径不可相加
+              </template>
+              <span class="note-dot"><InfoCircleOutlined /></span>
+            </a-tooltip>
           </div>
         </div>
-      </div>
+        <div class="hero-body">
+          <div v-if="trendCard.loading && !trendCard.data" class="hero-state">加载中…</div>
+          <div v-else-if="trendCard.error" class="hero-state hero-state--error">趋势读取失败</div>
+          <template v-else>
+            <div ref="trendChartRef" class="hero-chart"></div>
+            <div v-if="trendCard.data && trendCard.data.empty" class="hero-empty">
+              近 {{ trendDays }} 天没有采集到访问数据
+            </div>
+          </template>
+        </div>
+      </section>
 
-      <div class="content-grid">
-        <div class="list-card">
-          <div class="card-header">
-            <div class="card-title">
-              <div class="card-title__icon card-title__icon--green">
-                <FileTextOutlined />
-              </div>
-              <div class="card-title__text">
-                <h3>最近文章</h3>
-                <p>最新创建的内容动态</p>
-              </div>
-            </div>
-            <a type="link" @click="navigateTo('articles')" class="view-all">
-              查看全部
-              <ArrowRightOutlined />
-            </a>
+      <!-- 效果五块：数字优先，口径长句收进 ⓘ 悬浮 -->
+      <section class="stat-row">
+        <div
+          class="stat-tile stat-tile--citation"
+          style="--tile-color: #4f46e5; --tile-soft: rgba(79, 70, 229, 0.1)"
+          :style="{ animationDelay: '0.04s' }"
+          @click="goto('workspace-portal-citations')"
+        >
+          <div class="st-head">
+            <span class="st-icon"><RobotOutlined /></span>
+            <span class="st-label">被 AI 引用</span>
+            <a-tooltip v-if="citation.data">
+              <template #title>
+                <span>数据来自平台引用探测轮次（非全站埋点）<template v-if="citation.data.summary && citation.data.summary.probeCount > 0 && citation.data.summary.lastProbedAt">，截至 {{ formatDateTime(citation.data.summary.lastProbedAt) }}</template></span>
+                <br v-if="citation.data.notice" />
+                <span v-if="citation.data.notice">{{ citation.data.notice }}</span>
+                <br v-if="citation.data.summary && citation.data.summary.lastProbeNotice" />
+                <span v-if="citation.data.summary && citation.data.summary.lastProbeNotice">{{ citation.data.summary.lastProbeNotice }}</span>
+              </template>
+              <span class="st-note" @click.stop><InfoCircleOutlined /></span>
+            </a-tooltip>
           </div>
-          <div class="article-list">
-            <div
-              class="article-item"
-              v-for="(item, index) in recentArticles"
-              :key="item.id"
-              :style="{ animationDelay: `${index * 0.06}s` }"
-            >
-              <div class="article-index">{{ String(index + 1).padStart(2, '0') }}</div>
-              <div class="article-icon">
-                <FileTextOutlined />
+          <div v-if="citation.loading && !citation.data" class="st-state">加载中…</div>
+          <div v-else-if="citation.error" class="st-state st-state--error">读取失败</div>
+          <template v-else-if="citation.data">
+            <template v-if="citation.data.summary">
+              <div v-if="citation.data.summary.probeCount > 0" class="st-value">
+                <span class="st-num">{{ formatMoney(citation.data.summary.citedCallCount) }}</span>
+                <span class="st-unit">次</span>
               </div>
-              <div class="article-main">
-                <div class="article-title">{{ item.title || '未命名文章' }}</div>
-                <div class="article-meta">
-                  <span class="meta-item">
-                    <ClockCircleOutlined />
-                    {{ formatTime(item.createdAt) }}
-                  </span>
-                </div>
+              <div v-else class="st-value"><span class="st-plain">未探测</span></div>
+              <div class="st-sub" v-if="citation.data.summary.probeCount > 0">
+                探测 {{ citation.data.summary.probeCount }} 轮 · 对象 {{ citation.data.summary.citedTargets }}/{{ citation.data.summary.totalTargets }}
               </div>
-              <a-tag :color="statusMeta(item.status).color" class="article-status">
-                {{ statusMeta(item.status).label }}
-              </a-tag>
+              <div class="st-sub" v-else>还没发起过任何一轮引用探测</div>
+            </template>
+            <div v-else class="st-value">
+              <span class="st-plain">{{ citation.data.notice || '当前租户还没有可统计的站点' }}</span>
             </div>
-            <div class="list-empty" v-if="!recentArticles.length">
-              <FileTextOutlined class="empty-icon" />
-              <p>暂无文章数据</p>
-            </div>
-          </div>
+          </template>
         </div>
 
-        <div class="action-card">
-          <div class="card-header">
-            <div class="card-title">
-              <div class="card-title__icon card-title__icon--orange">
-                <ThunderboltOutlined />
-              </div>
-              <div class="card-title__text">
-                <h3>快速操作</h3>
-                <p>一键开启常用功能</p>
-              </div>
-            </div>
+        <div
+          class="stat-tile stat-tile--bot"
+          style="--tile-color: #0ea5e9; --tile-soft: rgba(14, 165, 233, 0.1)"
+          :style="{ animationDelay: '0.1s' }"
+          @click="goto('workspace-portal-analytics')"
+        >
+          <div class="st-head">
+            <span class="st-icon"><GlobalOutlined /></span>
+            <span class="st-label">搜索引擎收录抓取</span>
+            <a-tooltip>
+              <template #title>服务端按 User-Agent 识别的抓取命中，不是页面浏览量，也不是搜索排名</template>
+              <span class="st-note" @click.stop><InfoCircleOutlined /></span>
+            </a-tooltip>
           </div>
-          <div class="action-grid">
-            <button
-              class="action-btn action-btn--primary"
-              @click="navigateTo('article-generate')"
-            >
-              <div class="action-btn__bg"></div>
-              <div class="action-btn__content">
-                <div class="action-btn__icon">
-                  <EditOutlined />
-                </div>
-                <div class="action-btn__text">
-                  <span class="action-btn__title">AI生成</span>
-                  <span class="action-btn__desc">智能创作内容</span>
-                </div>
-                <ArrowRightOutlined class="action-btn__arrow" />
-              </div>
-            </button>
-            <button class="action-btn action-btn--blue" @click="navigateTo('keywords')">
-              <div class="action-btn__icon">
-                <DownloadOutlined />
-              </div>
-              <div class="action-btn__text">
-                <span class="action-btn__title">关键词采集</span>
-                <span class="action-btn__desc">挖掘热门话题</span>
-              </div>
-              <ArrowRightOutlined class="action-btn__arrow" />
-            </button>
-            <button class="action-btn action-btn--green" @click="navigateTo('review')">
-              <div class="action-btn__icon">
-                <CheckCircleOutlined />
-              </div>
-              <div class="action-btn__text">
-                <span class="action-btn__title">内容审核</span>
-                <span class="action-btn__desc">审核待发布内容</span>
-              </div>
-              <ArrowRightOutlined class="action-btn__arrow" />
-            </button>
-            <button class="action-btn action-btn--purple" @click="navigateTo('cluster')">
-              <div class="action-btn__icon">
-                <ClusterOutlined />
-              </div>
-              <div class="action-btn__text">
-                <span class="action-btn__title">聚类分析</span>
-                <span class="action-btn__desc">关键词分组</span>
-              </div>
-              <ArrowRightOutlined class="action-btn__arrow" />
-            </button>
-          </div>
-
-          <div class="quick-stats">
-            <div class="quick-stat">
-              <div class="quick-stat__value">{{ pendingTasks }}</div>
-              <div class="quick-stat__label">待处理任务</div>
+          <div v-if="botCard.loading && !botCard.data" class="st-state">加载中…</div>
+          <div v-else-if="botCard.error" class="st-state st-state--error">读取失败</div>
+          <template v-else-if="botCard.data">
+            <div class="st-value">
+              <span class="st-num">{{ formatMoney(searchEngineHits) }}</span>
+              <span class="st-unit">次</span>
             </div>
-            <div class="quick-stat-divider"></div>
-            <div class="quick-stat">
-              <div class="quick-stat__value">{{ todayNew }}</div>
-              <div class="quick-stat__label">今日新增</div>
-            </div>
-            <div class="quick-stat-divider"></div>
-            <div class="quick-stat">
-              <div class="quick-stat__value">{{ monthTotal }}</div>
-              <div class="quick-stat__label">本月产出</div>
-            </div>
-          </div>
+            <div class="st-sub">近 30 天命中</div>
+          </template>
         </div>
-      </div>
-    </a-spin>
+
+        <div
+          class="stat-tile stat-tile--today"
+          style="--tile-color: #10b981; --tile-soft: rgba(16, 185, 129, 0.1)"
+          :style="{ animationDelay: '0.16s' }"
+          @click="goto('workspace-portal-analytics')"
+        >
+          <div class="st-head">
+            <span class="st-icon"><EyeOutlined /></span>
+            <span class="st-label">今日访问</span>
+            <i class="live-dot" title="每分钟自动刷新"></i>
+            <a-tooltip v-if="todayCard.data">
+              <template #title>门户前端埋点 · 今日 {{ todayCard.data.from }} · 每分钟自动刷新</template>
+              <span class="st-note" @click.stop><InfoCircleOutlined /></span>
+            </a-tooltip>
+          </div>
+          <div v-if="todayCard.loading && !todayCard.data" class="st-state">加载中…</div>
+          <div v-else-if="todayCard.error" class="st-state st-state--error">读取失败</div>
+          <template v-else-if="todayCard.data">
+            <template v-if="!todayCard.data.empty">
+              <div class="st-value">
+                <span class="st-num">{{ formatMoney(todayCard.data.pageviews) }}</span>
+                <span class="st-unit">次浏览</span>
+              </div>
+              <div class="st-sub">独立访客 {{ formatMoney(todayCard.data.uniqueVisitors) }}</div>
+            </template>
+            <div v-else class="st-value"><span class="st-plain">今日暂未采集到浏览</span></div>
+          </template>
+        </div>
+
+        <div
+          class="stat-tile stat-tile--geo"
+          style="--tile-color: #f59e0b; --tile-soft: rgba(245, 158, 11, 0.12)"
+          :style="{ animationDelay: '0.22s' }"
+          @click="goto('workspace-geo-diagnostic', { tab: 'campaign' })"
+        >
+          <div class="st-head">
+            <span class="st-icon"><ThunderboltOutlined /></span>
+            <span class="st-label">GEO 诊断</span>
+            <a-tooltip v-if="geoCard.data && geoCard.data.report">
+              <template #title>截至轮次完成时刻 {{ formatDateTime(geoCard.data.report.generatedAt) }}；比率明细在报告页</template>
+              <span class="st-note" @click.stop><InfoCircleOutlined /></span>
+            </a-tooltip>
+          </div>
+          <div v-if="geoCard.loading && !geoCard.data" class="st-state">加载中…</div>
+          <div v-else-if="geoCard.error" class="st-state st-state--error">读取失败</div>
+          <template v-else-if="geoCard.data">
+            <template v-if="geoCard.data.report">
+              <div class="st-value">
+                <span class="st-num">#{{ geoCard.data.runId }}</span>
+              </div>
+              <div class="st-sub">
+                提问 {{ geoCard.data.report.callCount }} 次 · 失败 {{ geoCard.data.report.failedCallCount }}
+                <a class="inline-link" @click.stop="goto('workspace-geo-campaign-report', { runId: String(geoCard.data.runId) })">看报告 →</a>
+              </div>
+            </template>
+            <template v-else>
+              <div class="st-value"><span class="st-plain">{{ geoCard.data.notice || '还没有跑完过 GEO 诊断' }}</span></div>
+              <div class="st-sub">
+                <a class="inline-link" @click.stop="goto('workspace-geo-diagnostic', { tab: 'campaign' })">去跑一轮 →</a>
+              </div>
+            </template>
+          </template>
+        </div>
+
+        <div
+          class="stat-tile stat-tile--seo"
+          style="--tile-color: #8b5cf6; --tile-soft: rgba(139, 92, 246, 0.1)"
+          :style="{ animationDelay: '0.28s' }"
+          @click="goto('workspace-geoseo-crawlability')"
+        >
+          <div class="st-head">
+            <span class="st-icon"><SafetyCertificateOutlined /></span>
+            <span class="st-label">SEO 体检</span>
+            <a-tooltip v-if="seoCard.data && !seoCard.data.neverRun">
+              <template #title>体检于 {{ formatDateTime(seoCard.data.measuredAt) }}；六项判据明细在体检页</template>
+              <span class="st-note" @click.stop><InfoCircleOutlined /></span>
+            </a-tooltip>
+          </div>
+          <div v-if="seoCard.loading && !seoCard.data" class="st-state">加载中…</div>
+          <div v-else-if="seoCard.error" class="st-state st-state--error">读取失败</div>
+          <template v-else-if="seoCard.data">
+            <div v-if="seoCard.data.neverRun" class="st-value">
+              <span class="st-plain">没跑过体检</span>
+            </div>
+            <template v-else>
+              <div class="st-value">
+                <span class="st-num">{{ seoPass }}</span>
+                <span class="st-unit">/ {{ seoCard.data.items.length }} 项通过</span>
+              </div>
+              <div class="seo-dots">
+                <i
+                  v-for="item in seoCard.data.items"
+                  :key="item.checkKey"
+                  class="seo-dot"
+                  :class="`seo-dot--${(item.verdict || 'NOT_MEASURED').toLowerCase()}`"
+                  :title="`${item.label || item.checkKey}：${item.verdictLabel || item.verdict}`"
+                ></i>
+              </div>
+            </template>
+          </template>
+        </div>
+      </section>
+
+      <!-- 生产量一行 + 待办 -->
+      <section class="bottom-row">
+        <div class="prod-bar">
+          <button class="pb-seg" @click="goto('workspace-keywords')">
+            <span class="pb-num">{{ kwCard.data ? formatMoney(kwCard.data.total) : '—' }}</span>
+            <span class="pb-label">关键词库</span>
+            <span class="pb-sub" v-if="kwCard.data">已成文 {{ kwCard.data.stage_articled }}</span>
+          </button>
+          <button class="pb-seg" @click="goto('workspace-articles')">
+            <span class="pb-num">{{ statsCard.data ? formatMoney(statsCard.data.totalArticles) : '—' }}</span>
+            <span class="pb-label">篇文章</span>
+            <span class="pb-sub" v-if="statsCard.data">今日 {{ statsCard.data.todayCount }} · 本月 {{ statsCard.data.monthCount }}</span>
+          </button>
+          <button class="pb-seg" @click="goto('workspace-publish')">
+            <span class="pb-num">
+              <span class="ok">{{ publishCard.data ? formatMoney(publishCard.data.successCount) : '—' }}</span>
+              <span class="pb-unit">成</span>
+              <span class="bad">{{ publishCard.data ? formatMoney(publishCard.data.failedCount) : '' }}</span>
+              <span v-if="publishCard.data" class="pb-unit">败</span>
+            </span>
+            <span class="pb-label">平台发布</span>
+            <span class="pb-sub" v-if="publishCard.data">按发布任务计数 · 累计 {{ publishCard.data.total }}</span>
+          </button>
+        </div>
+        <div class="todo-bar">
+          <span class="tb-num">{{ statsCard.data ? formatMoney(statsCard.data.pendingReview) : '—' }}</span>
+          <span class="tb-label">
+            <ClockCircleOutlined /> 待审核
+          </span>
+          <a-button type="primary" size="small" class="tb-btn" @click="goto('workspace-review')">
+            去审核
+          </a-button>
+          <span class="tb-links">
+            <button class="tb-link" @click="goto('workspace-portal-citations')">引用探测</button>
+            <button class="tb-link" @click="goto('workspace-geo-diagnostic', { tab: 'campaign' })">GEO 战役</button>
+            <button class="tb-link" @click="goto('workspace-publish')">发布记录</button>
+          </span>
+        </div>
+      </section>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
-import { 
-  FileTextOutlined, 
-  TagsOutlined, 
-  EyeOutlined, 
+import {
+  RobotOutlined,
+  GlobalOutlined,
+  EyeOutlined,
+  ThunderboltOutlined,
+  SafetyCertificateOutlined,
+  RiseOutlined,
+  InfoCircleOutlined,
   ClockCircleOutlined,
-  DownloadOutlined,
-  ClusterOutlined,
-  EditOutlined,
-  CheckCircleOutlined,
-  ArrowRightOutlined,
   ReloadOutlined,
   UserOutlined,
-  LineChartOutlined,
-  PieChartOutlined,
-  ThunderboltOutlined
 } from '@ant-design/icons-vue'
-import { dashboardApi } from '../../api'
+import { dashboardApi, keywordApi, publishApi } from '../../api'
+import { citationApi, type CitationLatestSummary } from '../../api/citation'
+import { analyticsApi, type AnalyticsBotSummary, type AnalyticsOverview, type AnalyticsTrendResult } from '../../api/analytics'
+import { geoCrawlabilityApi, type CrawlabilitySnapshot } from '../../api/geoCrawlability'
+import { geoCampaignApi, type GeoLatestReport } from '../../api/geoCampaign'
 import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
-import type { DashboardStats, DashboardCharts } from '../../types/workspace'
-import type { Article } from '../../types'
-import { formatTime } from '@/utils/format'
-import { articleStatusMeta as statusMeta } from '@/utils/contentStatus'
+import type { DashboardStats } from '../../types/workspace'
+import { formatDateTime, formatMoney } from '@/utils/format'
 import { logError } from '../../utils/errorLog'
 
 const router = useRouter()
 const auth = useAuthStore()
-const loading = ref(false)
-const chartLoading = ref(false)
-const chartData = ref<DashboardCharts | null>(null)
-const stats = ref<DashboardStats>()
-const recentArticles = ref<Article[]>([])
-const trendChartRef = ref<HTMLElement>()
-const categoryChartRef = ref<HTMLElement>()
-const trendDays = ref(7)
-let trendChart: echarts.ECharts | null = null
-let categoryChart: echarts.ECharts | null = null
+
+interface Card<T> { loading: boolean; error: string | null; data: T | null }
+const newCard = <T>(): Card<T> => reactive({ loading: false, error: null, data: null })
+
+async function loadCard<T>(card: Card<T>, fn: () => Promise<T>) {
+  card.loading = true
+  card.error = null
+  try {
+    card.data = await fn()
+  } catch (error) {
+    logError('workspace/dashboard-view', '卡片数据加载失败:', error)
+    card.error = describeHttpError(error)
+    card.data = null
+  } finally {
+    card.loading = false
+  }
+}
+
+const citation = newCard<CitationLatestSummary>()
+const botCard = newCard<AnalyticsBotSummary>()
+const todayCard = newCard<AnalyticsOverview>()
+const seoCard = newCard<CrawlabilitySnapshot>()
+const geoCard = newCard<GeoLatestReport>()
+const kwCard = newCard<{ total: number; stage_new: number; stage_suggested: number; stage_articled: number }>()
+const statsCard = newCard<DashboardStats>()
+const publishCard = newCard<{ total: number; successCount: number; failedCount: number }>()
+const trendCard = newCard<AnalyticsTrendResult>()
+
+/** 平台档 = 超管且没选租户：/portal、/analytics、/geoseo 口在这一档全部调不动（Spec-I Q2a） */
+const isPlatformMode = computed(() => auth.isSuperAdmin && auth.selectedTenantId === null)
+
+function currentTenantId(): number | undefined {
+  return auth.selectedTenantId ?? undefined
+}
+
+function toDayParam(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function windowDays(days: number): { from: string; to: string } {
+  const to = new Date()
+  const from = new Date(to.getTime() - (days - 1) * 86400000)
+  return { from: toDayParam(from), to: toDayParam(to) }
+}
 
 const currentDate = computed(() => {
   const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  const day = now.getDate()
   const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  return `${year}年${month}月${day}日 ${weekDays[now.getDay()]}`
+  return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`
 })
 
 const greetingText = computed(() => {
@@ -318,385 +378,201 @@ const greetingText = computed(() => {
   return '晚上好'
 })
 
-const statItems = computed(() => [
-  { 
-    key: 'articles', 
-    icon: FileTextOutlined, 
-    value: stats.value?.totalArticles || 0, 
-    label: '文章总数', 
-    weekly: stats.value?.articlesWeek || 0,
-    color: 'blue',
-    unit: '篇',
-    path: 'articles'
-  },
-  { 
-    key: 'keywords', 
-    icon: TagsOutlined, 
-    value: stats.value?.totalKeywords || 0, 
-    label: '关键词数量', 
-    weekly: stats.value?.keywordsWeek || 0,
-    color: 'purple',
-    unit: '个',
-    path: 'keywords'
-  },
-  { 
-    key: 'views', 
-    icon: EyeOutlined, 
-    value: stats.value?.totalViews || 0, 
-    label: '总浏览量', 
-    weekly: stats.value?.viewsWeek || 0,
-    color: 'green',
-    unit: '次',
-    path: 'articles'
-  },
-  { 
-    key: 'pending', 
-    icon: ClockCircleOutlined, 
-    value: stats.value?.pendingReview || 0, 
-    label: '待审核', 
-    weekly: stats.value?.pendingWeek || 0,
-    color: 'orange',
-    unit: '篇',
-    path: 'review'
-  },
-])
-
-const pendingTasks = computed(() => stats.value?.pendingReview || 0)
-const todayNew = computed(() => stats.value?.todayCount || 0)
-const monthTotal = computed(() => stats.value?.monthCount || 0)
-
-function getTenantId(): number {
-  return auth.selectedTenantId || auth.tenantId || 1
-}
-
-const loadChartData = async () => {
-  chartLoading.value = true
-  try {
-    const data = await dashboardApi.getCharts(getTenantId(), trendDays.value)
-    chartData.value = data
-    return true
-  } catch (error) {
-    logError('workspace/dashboard-view', '获取图表数据失败:', error)
-    chartData.value = null
-    return false
-  } finally {
-    chartLoading.value = false
-  }
-}
-
-const trend = computed(() => chartData.value?.articleTrend ?? null)
-
-const trendIsEmpty = computed(() => {
-  const t = trend.value
-  if (!t) return true
-  const sum = (arr: number[]) => arr.reduce((acc, n) => acc + n, 0)
-  return sum(t.articles) + sum(t.keywords) + sum(t.views) === 0
+const searchEngineHits = computed(() => {
+  const slice = botCard.data?.slices?.find(s => s.botCategory === 'search-engine')
+  return slice ? slice.hits : 0
 })
 
-const renderTrendChart = () => {
-  const data = trend.value
-  if (!trendChartRef.value || !data) return
+const seoPass = computed(() =>
+  (seoCard.data?.items || []).filter(i => i.verdict === 'PASS').length
+)
 
+function fmt(v: number | null): string {
+  return v === null ? '—' : formatMoney(v)
+}
+
+const pvToday = computed(() =>
+  todayCard.data && !todayCard.data.empty ? todayCard.data.pageviews : null
+)
+
+function trendSum(key: 'pageviews' | 'uniqueVisitors' | 'botHits' | 'aiCrawlerHits'): number | null {
+  const points = trendCard.data?.points
+  if (!points) return null
+  return points.reduce((acc, p) => acc + (p[key] || 0), 0)
+}
+const pvWindow = computed(() => trendSum('pageviews'))
+const botWindow = computed(() => trendSum('botHits'))
+const aiWindow = computed(() => trendSum('aiCrawlerHits'))
+
+const headerLoading = computed(() =>
+  !isPlatformMode.value && (citation.loading || botCard.loading || todayCard.loading || seoCard.loading || geoCard.loading)
+)
+
+const loadCitation = () => loadCard(citation, () => citationApi.summaryLatest())
+const loadBot = () => loadCard(botCard, () => analyticsApi.bot({ tenantId: currentTenantId(), ...windowDays(30) }))
+const loadToday = () => {
+  const day = toDayParam(new Date())
+  return loadCard(todayCard, () => analyticsApi.overview({ tenantId: currentTenantId(), from: day, to: day }))
+}
+const loadSeo = () => loadCard(seoCard, () => geoCrawlabilityApi.latest())
+const loadGeo = () => loadCard(geoCard, () => geoCampaignApi.latestReport())
+const loadKeywords = () => loadCard(kwCard, () => keywordApi.getLibraryStats(currentTenantId()))
+const loadStats = () => loadCard(statsCard, () => dashboardApi.getStats(currentTenantId()))
+const loadPublish = () => loadCard(publishCard, () => publishApi.recordStats({ tenantId: currentTenantId() }))
+const loadTrend = () => loadCard(trendCard, () => analyticsApi.trend({ tenantId: currentTenantId(), ...windowDays(trendDays.value) }))
+
+const trendDays = ref(7)
+const trendChartRef = ref<HTMLElement>()
+let trendChart: echarts.ECharts | null = null
+
+function renderTrendChart() {
+  const result = trendCard.data
+  if (!trendChartRef.value || !result) return
   if (!trendChart) {
     trendChart = echarts.init(trendChartRef.value)
   }
-
+  const points = result.points || []
+  const dates = points.map(p => p.date.slice(5))
+  const area = (top: string, bottom: string) => new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+    { offset: 0, color: top },
+    { offset: 1, color: bottom },
+  ])
   const option: echarts.EChartsOption = {
+    animationDuration: 700,
     tooltip: {
       trigger: 'axis',
-      backgroundColor: 'rgba(255, 255, 255, 0.98)',
-      borderColor: '#e8ecf4',
-      borderWidth: 1,
-      textStyle: { color: '#1a1f36', fontSize: 12 },
-      padding: [12, 16],
-      axisPointer: {
-        type: 'line',
-        lineStyle: { color: '#6366f1', type: 'dashed', width: 1 }
-      }
+      backgroundColor: 'rgba(15, 23, 42, 0.92)',
+      borderColor: 'rgba(148, 163, 184, 0.3)',
+      textStyle: { color: '#e2e8f0', fontSize: 12 },
+      padding: [10, 14],
     },
     legend: {
-      data: ['文章数', '关键词', '浏览量'],
+      data: ['浏览量', '独立访客', 'bot 抓取', 'AI 抓取'],
       right: 0,
       top: 0,
       icon: 'circle',
       itemWidth: 8,
       itemHeight: 8,
-      itemGap: 20,
-      textStyle: { color: '#64748b', fontSize: 12 }
+      itemGap: 16,
+      textStyle: { color: 'rgba(203, 213, 225, 0.85)', fontSize: 12 },
     },
-    grid: {
-      left: 0,
-      right: 0,
-      top: 48,
-      bottom: 0,
-      containLabel: true
-    },
+    grid: { left: 0, right: 0, top: 36, bottom: 0, containLabel: true },
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: data.dates,
+      data: dates,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#94a3b8', fontSize: 11 }
+      axisLabel: { color: 'rgba(203, 213, 225, 0.55)', fontSize: 11 },
     },
     yAxis: {
       type: 'value',
-      splitLine: { 
-        lineStyle: { color: '#f1f5f9', type: 'dashed' }
-      },
+      splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.16)', type: 'dashed' } },
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#94a3b8', fontSize: 11 }
+      axisLabel: { color: 'rgba(203, 213, 225, 0.55)', fontSize: 11 },
     },
     series: [
       {
-        name: '文章数',
-        type: 'line',
-        smooth: 0.4,
-        data: data.articles,
-        lineStyle: { color: '#6366f1', width: 2.5 },
-        itemStyle: { color: '#6366f1' },
-        symbol: 'circle',
-        symbolSize: 6,
-        showSymbol: false,
-        emphasis: {
-          itemStyle: { borderColor: '#fff', borderWidth: 2, shadowBlur: 10, shadowColor: 'rgba(99, 102, 241, 0.4)' }
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(99, 102, 241, 0.18)' },
-            { offset: 1, color: 'rgba(99, 102, 241, 0.02)' }
-          ])
-        }
+        name: '浏览量', type: 'line', smooth: 0.4, data: points.map(p => p.pageviews),
+        lineStyle: { color: '#818cf8', width: 2.5 }, itemStyle: { color: '#818cf8' },
+        showSymbol: false, areaStyle: { color: area('rgba(129, 140, 248, 0.32)', 'rgba(129, 140, 248, 0)') },
       },
       {
-        name: '关键词',
-        type: 'line',
-        smooth: 0.4,
-        data: data.keywords,
-        lineStyle: { color: '#8b5cf6', width: 2.5 },
-        itemStyle: { color: '#8b5cf6' },
-        symbol: 'circle',
-        symbolSize: 6,
-        showSymbol: false,
-        emphasis: {
-          itemStyle: { borderColor: '#fff', borderWidth: 2, shadowBlur: 10, shadowColor: 'rgba(139, 92, 246, 0.4)' }
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(139, 92, 246, 0.12)' },
-            { offset: 1, color: 'rgba(139, 92, 246, 0.02)' }
-          ])
-        }
+        name: '独立访客', type: 'line', smooth: 0.4, data: points.map(p => p.uniqueVisitors),
+        lineStyle: { color: '#34d399', width: 2.5 }, itemStyle: { color: '#34d399' },
+        showSymbol: false, areaStyle: { color: area('rgba(52, 211, 153, 0.2)', 'rgba(52, 211, 153, 0)') },
       },
       {
-        name: '浏览量',
-        type: 'line',
-        smooth: 0.4,
-        data: data.views,
-        lineStyle: { color: '#10b981', width: 2.5 },
-        itemStyle: { color: '#10b981' },
-        symbol: 'circle',
-        symbolSize: 6,
+        name: 'bot 抓取', type: 'line', smooth: 0.4, data: points.map(p => p.botHits),
+        lineStyle: { color: '#fbbf24', width: 2, type: 'dashed' }, itemStyle: { color: '#fbbf24' },
         showSymbol: false,
-        emphasis: {
-          itemStyle: { borderColor: '#fff', borderWidth: 2, shadowBlur: 10, shadowColor: 'rgba(16, 185, 129, 0.4)' }
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(16, 185, 129, 0.12)' },
-            { offset: 1, color: 'rgba(16, 185, 129, 0.02)' }
-          ])
-        }
-      }
-    ]
+      },
+      {
+        name: 'AI 抓取', type: 'line', smooth: 0.4, data: points.map(p => p.aiCrawlerHits),
+        lineStyle: { color: '#c084fc', width: 2.5 }, itemStyle: { color: '#c084fc' },
+        showSymbol: false, areaStyle: { color: area('rgba(192, 132, 252, 0.24)', 'rgba(192, 132, 252, 0)') },
+      },
+    ],
   }
-  
   trendChart.setOption(option, { notMerge: true })
 }
 
-const categoryData = computed(() => chartData.value?.categoryDistribution ?? [])
-
-const renderCategoryChart = () => {
-  if (!categoryChartRef.value) return
-
-  if (!categoryChart) {
-    categoryChart = echarts.init(categoryChartRef.value)
-  }
-
-  const colors = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']
-  
-  const option: echarts.EChartsOption = {
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: {c} ({d}%)',
-      backgroundColor: 'rgba(255, 255, 255, 0.98)',
-      borderColor: '#e8ecf4',
-      borderWidth: 1,
-      textStyle: { color: '#1a1f36', fontSize: 12 },
-      padding: [12, 16],
-    },
-    legend: {
-      orient: 'vertical',
-      right: 0,
-      top: 'center',
-      icon: 'circle',
-      itemWidth: 8,
-      itemHeight: 8,
-      textStyle: { color: '#64748b', fontSize: 12 },
-      itemGap: 14
-    },
-    series: [
-      {
-        type: 'pie',
-        radius: ['55%', '78%'],
-        center: ['32%', '50%'],
-        avoidLabelOverlap: false,
-        itemStyle: {
-          borderRadius: 6,
-          borderColor: '#fff',
-          borderWidth: 3
-        },
-        label: {
-          show: false
-        },
-        emphasis: {
-          scale: true,
-          scaleSize: 6,
-          label: {
-            show: true,
-            fontSize: 14,
-            fontWeight: 600,
-            color: '#1a1f36'
-          },
-          itemStyle: {
-            shadowBlur: 20,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.15)'
-          }
-        },
-        labelLine: {
-          show: false
-        },
-        data: categoryData.value.map((item, index) => ({
-          ...item,
-          itemStyle: {
-            color: colors[index % colors.length]
-          }
-        }))
-      }
-    ]
-  }
-
-  categoryChart.setOption(option, { notMerge: true })
-}
-
-const handleResize = () => {
-  trendChart?.resize()
-  categoryChart?.resize()
-}
-
-const fetchDashboardData = async (): Promise<boolean> => {
-  loading.value = true
-  try {
-    const [statsData, articlesData, chartsOk] = await Promise.all([
-      dashboardApi.getStats(getTenantId()),
-      dashboardApi.getRecentArticles(),
-      loadChartData()
-    ])
-    stats.value = statsData
-    recentArticles.value = (articlesData?.records || []).slice(0, 5)
-    if (!chartsOk) {
-      message.error('趋势图表加载失败，其余数据不受影响')
-    }
-    return true
-  } catch (error) {
-    logError('workspace/dashboard-view', '获取仪表盘数据失败:', error)
-    stats.value = undefined
-    recentArticles.value = []
-    chartData.value = null
-    message.error(`数据加载失败：${describeHttpError(error)}`)
-    return false
-  } finally {
-    loading.value = false
-    nextTick(() => {
-      setTimeout(() => {
-        renderTrendChart()
-        renderCategoryChart()
-      }, 100)
-    })
-  }
-}
-
-watch(
-  () => auth.selectedTenantId,
-  () => {
-    fetchDashboardData()
-  }
-)
-
-// 切换时间窗口只重新拉取趋势数据，不影响统计卡片
 watch(trendDays, async () => {
-  const ok = await loadChartData()
-  if (ok) {
-    nextTick(() => renderTrendChart())
-  } else {
-    message.error('趋势图表加载失败')
-  }
+  await loadTrend()
+  nextTick(renderTrendChart)
 })
 
-const refreshData = async () => {
-  if (await fetchDashboardData()) {
-    message.success('数据已刷新')
+const handleResize = () => trendChart?.resize()
+
+function goto(name: string, params?: Record<string, string>) {
+  if (name === 'workspace-geo-campaign-report' && params?.runId) {
+    router.push({ name, params: { runId: params.runId } })
+    return
+  }
+  router.push({ name, query: params })
+}
+
+// AC-4：轮询只打「今日访问」这一个口；平台档与离页即停
+let pollTimer: ReturnType<typeof setInterval> | null = null
+function startPolling() {
+  stopPolling()
+  if (isPlatformMode.value) return
+  pollTimer = setInterval(() => {
+    loadToday()
+  }, 60_000)
+}
+function stopPolling() {
+  if (pollTimer !== null) {
+    clearInterval(pollTimer)
+    pollTimer = null
   }
 }
 
-const navigateTo = (path: string) => {
-  router.push(`/workspace/${path}`)
+async function refreshAll() {
+  stopPolling()
+  if (isPlatformMode.value) return
+  await Promise.all([
+    loadCitation(),
+    loadBot(),
+    loadToday(),
+    loadSeo(),
+    loadGeo(),
+    loadKeywords(),
+    loadStats(),
+    loadPublish(),
+    loadTrend(),
+  ])
+  nextTick(renderTrendChart)
+  startPolling()
 }
 
+watch(() => auth.selectedTenantId, refreshAll)
+
 onMounted(() => {
-  fetchDashboardData()
+  refreshAll()
   window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
+  stopPolling()
   window.removeEventListener('resize', handleResize)
   trendChart?.dispose()
-  categoryChart?.dispose()
+  trendChart = null
 })
 </script>
 
 <style lang="less" scoped>
-@blue-50: #eff6ff;
-@blue-100: #dbeafe;
-@blue-500: #3b82f6;
-@blue-600: #2563eb;
-@indigo-50: #eef2ff;
-@indigo-100: #e0e7ff;
-@indigo-500: #6366f1;
-@indigo-600: #4f46e5;
-@purple-50: #faf5ff;
-@purple-100: #f3e8ff;
-@purple-500: #a855f7;
-@purple-600: #9333ea;
-@green-50: #f0fdf4;
-@green-100: #dcfce7;
-@green-500: #22c55e;
+@blue: #6366f1;
+@indigo: #4f46e5;
+@purple: #8b5cf6;
+@green: #10b981;
 @green-600: #16a34a;
-@orange-50: #fff7ed;
-@orange-100: #ffedd5;
-@orange-500: #f97316;
-@orange-600: #ea580c;
-@slate-50: #f8fafc;
-@slate-100: #f1f5f9;
-@slate-200: #e2e8f0;
-@slate-300: #cbd5e1;
-@slate-400: #94a3b8;
-@slate-500: #64748b;
-@slate-600: #475569;
-@slate-700: #334155;
-@slate-900: #0f172a;
+@cyan: #0ea5e9;
+@orange: #f59e0b;
+@red: #ef4444;
+@slate: #64748b;
+@ink: #1a1f36;
 
 .dashboard {
   width: 100%;
@@ -708,9 +584,9 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
   padding: 8px;
-  animation: fadeInDown 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation: fadeInDown 0.5s ease both;
 }
 
 .header-content {
@@ -720,746 +596,494 @@ onUnmounted(() => {
 }
 
 .header-avatar {
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   border-radius: 14px;
-  background: linear-gradient(135deg, @indigo-500 0%, @purple-500 100%);
+  background: linear-gradient(135deg, @blue 0%, @purple 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 22px;
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+  font-size: 19px;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
 }
 
 .header-info .greeting {
-  margin: 0 0 6px 0;
-  font-size: 24px;
+  margin: 0 0 4px 0;
+  font-size: 21px;
   font-weight: 700;
-  color: @slate-900;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  color: @ink;
 }
 
 .header-info .subtitle {
   margin: 0;
   font-size: 13px;
-  color: @slate-500;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.date-text {
-  color: @slate-500;
-}
-
-.header-divider {
-  width: 1px;
-  height: 12px;
-  background: @slate-200;
-}
-
-.header-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: @green-600;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: @green-500;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  color: @slate;
 }
 
 .refresh-btn {
-  height: 38px;
+  height: 34px;
   border-radius: 10px;
   font-weight: 500;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.stat-cards {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 18px;
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  position: relative;
-  background: #ffffff;
+.platform-guide {
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: 16px;
-  padding: 22px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
-              box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04), 0 1px 2px rgba(16, 24, 40, 0.03);
-  animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
-  border: 1px solid rgba(226, 232, 240, 0.6);
+  padding: 64px 24px;
+  text-align: center;
+  color: @slate;
+
+  .guide-icon {
+    font-size: 38px;
+    color: #cbd5e1;
+    margin-bottom: 14px;
+  }
+
+  h3 {
+    margin: 0 0 10px;
+    color: @ink;
+    font-size: 17px;
+  }
+
+  p {
+    margin: 4px 0;
+    font-size: 13px;
+  }
+
+  .guide-hint {
+    color: @indigo;
+    font-weight: 500;
+  }
 }
 
-.stat-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 20px 40px -12px rgba(16, 24, 40, 0.15);
-  border-color: transparent;
-}
+/* ---------- 主视觉：访问趋势 ---------- */
 
-.stat-card:active {
-  transform: translateY(-3px);
-}
-
-.stat-card:focus-visible {
-  outline: 2px solid @indigo-500;
-  outline-offset: 2px;
-}
-
-.stat-card__glow {
-  position: absolute;
-  top: -50%;
-  right: -20%;
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  opacity: 0;
-  filter: blur(40px);
-  transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-
-.stat-card--blue .stat-card__glow { background: @indigo-500; }
-.stat-card--purple .stat-card__glow { background: @purple-500; }
-.stat-card--green .stat-card__glow { background: @green-500; }
-.stat-card--orange .stat-card__glow { background: @orange-500; }
-
-.stat-card:hover .stat-card__glow {
-  opacity: 0.12;
-}
-
-.stat-card__pattern {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 148px;
-  height: 148px;
-  opacity: 0.25;
-  pointer-events: none;
-  transition: all 0.4s ease;
-}
-
-.stat-card--blue .stat-card__pattern { color: @indigo-500; }
-.stat-card--purple .stat-card__pattern { color: @purple-500; }
-.stat-card--green .stat-card__pattern { color: @green-500; }
-.stat-card--orange .stat-card__pattern { color: @orange-500; }
-
-.stat-card:hover .stat-card__pattern {
-  opacity: 0.6;
-}
-
-.stat-card__content {
+.hero-card {
   position: relative;
-  z-index: 1;
-}
-
-.stat-card__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 20px 24px 12px;
   margin-bottom: 18px;
+  background:
+    radial-gradient(900px 300px at 85% -40%, rgba(139, 92, 246, 0.35), transparent 60%),
+    radial-gradient(700px 260px at 10% 120%, rgba(14, 165, 233, 0.25), transparent 60%),
+    linear-gradient(120deg, #131a33 0%, #1c2450 55%, #2a2560 100%);
+  box-shadow: 0 18px 40px rgba(19, 26, 51, 0.35);
+  animation: fadeInUp 0.55s ease both;
 }
 
-.stat-card__icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+.hero-head {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.hero-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .hero-badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    color: #fff;
+    background: linear-gradient(135deg, @blue 0%, @purple 100%);
+    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.45);
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #f1f5f9;
+  }
+
+  .hero-range {
+    margin: 2px 0 0;
+    font-size: 11px;
+    color: rgba(203, 213, 225, 0.6);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.hero-metrics {
+  display: flex;
+  gap: 26px;
+  margin-left: auto;
+
+  .hm {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    b {
+      font-size: 26px;
+      line-height: 1.1;
+      font-weight: 700;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    span {
+      font-size: 11px;
+      color: rgba(203, 213, 225, 0.65);
+    }
+
+    &--amber b { color: #fcd34d; }
+    &--violet b { color: #d8b4fe; }
+  }
+}
+
+.hero-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .note-dot {
+    color: rgba(203, 213, 225, 0.6);
+    cursor: help;
+
+    &:hover { color: #fff; }
+  }
+}
+
+.hero-body {
+  position: relative;
+  margin-top: 8px;
+}
+
+.hero-chart {
+  height: 300px;
+  width: 100%;
+}
+
+.hero-state {
+  height: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  color: #fff;
-  transition: transform 0.3s ease;
-}
-
-.stat-card:hover .stat-card__icon {
-  transform: scale(1.08) rotate(-5deg);
-}
-
-.stat-card--blue .stat-card__icon {
-  background: linear-gradient(135deg, @indigo-500 0%, @indigo-600 100%);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
-}
-
-.stat-card--purple .stat-card__icon {
-  background: linear-gradient(135deg, @purple-500 0%, @purple-600 100%);
-  box-shadow: 0 6px 16px rgba(168, 85, 247, 0.35);
-}
-
-.stat-card--green .stat-card__icon {
-  background: linear-gradient(135deg, @green-500 0%, @green-600 100%);
-  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35);
-}
-
-.stat-card--orange .stat-card__icon {
-  background: linear-gradient(135deg, @orange-500 0%, @orange-600 100%);
-  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.35);
-}
-
-.stat-card__trend {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 20px;
-}
-
-.trend-up {
-  color: @green-600;
-  background: @green-50;
-}
-
-.trend-flat {
-  color: @slate-500;
-  background: @slate-50;
-}
-
-.trend-arrow {
-  font-size: 14px;
-  line-height: 1;
-}
-
-.trend-value {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-card__value {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-
-.value-number {
-  font-size: 32px;
-  font-weight: 700;
-  color: @slate-900;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-
-.value-unit {
-  font-size: 14px;
-  color: @slate-400;
-  font-weight: 500;
-}
-
-.stat-card__bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.stat-card__label {
+  color: rgba(203, 213, 225, 0.65);
   font-size: 13px;
-  color: @slate-500;
-  font-weight: 500;
+
+  &--error { color: #fca5a5; }
 }
 
-.chart-body {
-  position: relative;
-}
-
-.chart-empty {
+.hero-empty {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: rgba(203, 213, 225, 0.55);
   font-size: 13px;
-  color: @slate-400;
-  pointer-events: none;
 }
 
-.content-grid {
+:deep(.chart-toggle) {
+  .ant-radio-button-wrapper {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.16);
+    color: rgba(226, 232, 240, 0.75);
+    font-size: 12px;
+
+    &:not(.ant-radio-button-wrapper-checked):hover { color: #fff; }
+  }
+
+  .ant-radio-button-wrapper-checked {
+    background: @blue;
+    border-color: @blue;
+    color: #fff;
+  }
+
+  .ant-radio-button-wrapper:first-child { border-radius: 8px 0 0 8px; }
+  .ant-radio-button-wrapper:last-child { border-radius: 0 8px 8px 0; }
+}
+
+/* ---------- 效果五块 ---------- */
+
+.stat-row {
   display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 18px;
-  margin-bottom: 20px;
-}
-
-.chart-card,
-.list-card,
-.action-card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 22px;
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04), 0 1px 2px rgba(16, 24, 40, 0.03);
-  transition: box-shadow 0.3s ease;
-  border: 1px solid rgba(226, 232, 240, 0.6);
-  animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-
-.chart-card:hover,
-.list-card:hover,
-.action-card:hover {
-  box-shadow: 0 8px 24px -8px rgba(16, 24, 40, 0.12);
-}
-
-.chart-card:focus-visible,
-.list-card:focus-visible,
-.action-card:focus-visible {
-  outline: 2px solid @indigo-500;
-  outline-offset: 2px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.card-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.card-title__icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: #fff;
-}
-
-.card-title__icon--blue {
-  background: linear-gradient(135deg, @indigo-500 0%, @indigo-600 100%);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.card-title__icon--purple {
-  background: linear-gradient(135deg, @purple-500 0%, @purple-600 100%);
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
-}
-
-.card-title__icon--green {
-  background: linear-gradient(135deg, @green-500 0%, @green-600 100%);
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-}
-
-.card-title__icon--orange {
-  background: linear-gradient(135deg, @orange-500 0%, @orange-600 100%);
-  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
-}
-
-.card-title__text h3 {
-  margin: 0 0 2px 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: @slate-900;
-  line-height: 1.3;
-}
-
-.card-title__text p {
-  margin: 0;
-  font-size: 12px;
-  color: @slate-400;
-  line-height: 1.4;
-}
-
-.chart-toggle {
-  font-size: 12px;
-}
-
-.chart-container {
-  height: 280px;
-  width: 100%;
-}
-
-.chart-container--pie {
-  height: 260px;
-}
-
-.article-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.article-item {
-  display: flex;
-  align-items: center;
+  grid-template-columns: repeat(5, 1fr);
   gap: 14px;
-  padding: 14px 12px;
-  border-radius: 10px;
-  transition: background-color 0.25s ease;
-  cursor: pointer;
-  animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+  margin-bottom: 18px;
 }
 
-.article-item:hover {
-  background: @slate-50;
-}
-
-.article-item:focus-visible {
-  outline: 2px solid @indigo-500;
-  outline-offset: 2px;
-}
-
-.article-item:hover .article-index {
-  background: linear-gradient(135deg, @indigo-500 0%, @purple-500 100%);
-  color: #fff;
-}
-
-.article-index {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: @slate-100;
-  color: @slate-500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-  transition: all 0.25s ease;
-}
-
-.article-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, @indigo-50 0%, @purple-50 100%);
-  color: @indigo-600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
-  transition: all 0.25s ease;
-}
-
-.article-item:hover .article-icon {
-  background: linear-gradient(135deg, @indigo-100 0%, @purple-100 100%);
-  transform: scale(1.05);
-}
-
-.article-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.article-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: @slate-700;
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color 0.2s ease;
-}
-
-.article-item:hover .article-title {
-  color: @indigo-600;
-}
-
-.article-meta {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  font-size: 12px;
-  color: @slate-400;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.article-status {
-  flex-shrink: 0;
-  transform: scale(0.92);
-  transform-origin: right center;
-}
-
-.list-empty {
-  text-align: center;
-  padding: 60px 0;
-  color: @slate-400;
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.empty-icon {
-  font-size: 48px;
-  opacity: 0.3;
-}
-
-.list-empty p {
-  margin: 0;
-}
-
-.view-all {
-  font-size: 12px;
-  color: @indigo-600;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 500;
-}
-
-.view-all:hover {
-  color: @indigo-500;
-  transform: translateX(2px);
-}
-
-.action-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 22px;
-}
-
-.action-btn {
+.stat-tile {
+  --tile-color: @slate;
+  --tile-soft: rgba(100, 116, 139, 0.1);
   position: relative;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  overflow: hidden;
+  animation: fadeInUp 0.5s ease both;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--tile-color);
+    opacity: 0.85;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+  }
+
+  &:hover {
+    transform: translateY(-3px);
+    border-color: var(--tile-color);
+    box-shadow: 0 12px 28px var(--tile-soft);
+
+    &::before { transform: scaleX(1); }
+  }
+
+  .st-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .st-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--tile-color);
+      background: var(--tile-soft);
+    }
+
+    .st-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #475069;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .st-note {
+      color: #b6bfcd;
+      font-size: 12px;
+      cursor: help;
+
+      &:hover { color: var(--tile-color); }
+    }
+  }
+
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: @green;
+    animation: livePulse 1.8s ease-in-out infinite;
+  }
+
+  .st-value {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+
+    .st-num {
+      font-size: 28px;
+      font-weight: 700;
+      color: @ink;
+      line-height: 1.15;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .st-unit {
+      font-size: 11px;
+      color: @slate;
+    }
+
+    .st-plain {
+      font-size: 14px;
+      font-weight: 600;
+      color: #475069;
+      line-height: 1.4;
+    }
+  }
+
+  .st-sub {
+    font-size: 11px;
+    color: @slate;
+
+    .inline-link {
+      color: var(--tile-color);
+      font-weight: 600;
+      cursor: pointer;
+      margin-left: 4px;
+      white-space: nowrap;
+    }
+  }
+
+  .st-state {
+    font-size: 13px;
+    color: #94a3b8;
+    padding: 12px 0;
+
+    &--error { color: @red; }
+  }
+
+  .seo-dots {
+    display: flex;
+    gap: 6px;
+
+    .seo-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #94a3b8;
+      transition: transform 0.2s ease;
+      cursor: help;
+
+      &:hover { transform: scale(1.35); }
+
+      &--pass { background: @green; }
+      &--warn { background: @orange; }
+      &--fail { background: @red; }
+    }
+  }
+}
+
+/* ---------- 生产一行 + 待办 ---------- */
+
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 14px;
+}
+
+.prod-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  overflow: hidden;
+  animation: fadeInUp 0.5s ease 0.1s both;
+
+  .pb-seg {
+    border: none;
+    background: transparent;
+    padding: 14px 16px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-family: inherit;
+    transition: background 0.2s ease;
+
+    & + .pb-seg { border-left: 1px solid #f1f5f9; }
+
+    &:hover { background: #f8fafc; }
+
+    .pb-num {
+      font-size: 20px;
+      font-weight: 700;
+      color: @ink;
+      font-variant-numeric: tabular-nums;
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+
+      .pb-unit {
+        font-size: 11px;
+        font-weight: 400;
+        color: @slate;
+      }
+
+      .pb-unit + .bad { margin-left: 8px; }
+
+      .ok { color: @green-600; }
+      .bad { color: @red; }
+    }
+
+    .pb-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #475069;
+    }
+
+    .pb-sub {
+      font-size: 11px;
+      color: #98a1b3;
+    }
+  }
+}
+
+.todo-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px 14px;
-  border: 1px solid @slate-200;
-  border-radius: 12px;
+  flex-wrap: wrap;
   background: #fff;
-  cursor: pointer;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  text-align: left;
-  font-family: inherit;
-  overflow: hidden;
-}
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  padding: 14px 16px;
+  animation: fadeInUp 0.5s ease 0.16s both;
 
-.action-btn:hover {
-  border-color: transparent;
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px -8px rgba(99, 102, 241, 0.25);
-}
+  .tb-num {
+    font-size: 24px;
+    font-weight: 700;
+    color: @orange;
+    font-variant-numeric: tabular-nums;
+  }
 
-.action-btn:active {
-  transform: translateY(0);
-}
+  .tb-label {
+    font-size: 12px;
+    color: @slate;
+    margin-right: auto;
+  }
 
-.action-btn:focus-visible {
-  outline: 2px solid @indigo-500;
-  outline-offset: 2px;
-}
+  .tb-links {
+    display: flex;
+    gap: 6px;
+    flex-basis: 100%;
 
-.action-btn--primary {
-  grid-column: 1 / -1;
-  background: linear-gradient(135deg, @indigo-500 0%, @purple-500 100%);
-  border-color: transparent;
-  padding: 20px 18px;
-}
+    .tb-link {
+      flex: 1;
+      border: 1px solid #e8ecf4;
+      background: #f8fafc;
+      border-radius: 9px;
+      padding: 5px 4px;
+      font-size: 11px;
+      color: #475069;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
 
-.action-btn--primary:hover {
-  box-shadow: 0 16px 32px -8px rgba(99, 102, 241, 0.45);
-  background: linear-gradient(135deg, @indigo-600 0%, @purple-600 100%);
-}
-
-.action-btn__bg {
-  position: absolute;
-  top: -50%;
-  right: -30%;
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  pointer-events: none;
-  transition: all 0.5s ease;
-}
-
-.action-btn--primary:hover .action-btn__bg {
-  transform: scale(1.5);
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.action-btn__content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-
-.action-btn__icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, @orange-50 0%, @orange-100 100%);
-  color: @orange-600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
-  transition: all 0.3s ease;
-}
-
-.action-btn:hover .action-btn__icon {
-  transform: scale(1.08) rotate(-5deg);
-}
-
-.action-btn--primary .action-btn__icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  width: 50px;
-  height: 50px;
-  border-radius: 14px;
-  font-size: 22px;
-}
-
-.action-btn--blue .action-btn__icon {
-  background: linear-gradient(135deg, @blue-50 0%, @blue-100 100%);
-  color: @blue-600;
-}
-
-.action-btn--green .action-btn__icon {
-  background: linear-gradient(135deg, @green-50 0%, @green-100 100%);
-  color: @green-600;
-}
-
-.action-btn--purple .action-btn__icon {
-  background: linear-gradient(135deg, @purple-50 0%, @purple-100 100%);
-  color: @purple-600;
-}
-
-.action-btn__text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.action-btn__title {
-  font-size: 14px;
-  font-weight: 600;
-  color: @slate-700;
-  line-height: 1.3;
-}
-
-.action-btn--primary .action-btn__title {
-  color: #fff;
-  font-size: 16px;
-}
-
-.action-btn__desc {
-  font-size: 12px;
-  color: @slate-400;
-}
-
-.action-btn--primary .action-btn__desc {
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.action-btn__arrow {
-  font-size: 14px;
-  color: @slate-300;
-  transition: all 0.3s ease;
-  flex-shrink: 0;
-  opacity: 0;
-  transform: translateX(-4px);
-}
-
-.action-btn:hover .action-btn__arrow {
-  opacity: 1;
-  transform: translateX(0);
-  color: @indigo-500;
-}
-
-.action-btn--primary .action-btn__arrow {
-  color: rgba(255, 255, 255, 0.6);
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.action-btn--primary:hover .action-btn__arrow {
-  color: #fff;
-  transform: translateX(4px);
-}
-
-.quick-stats {
-  display: flex;
-  align-items: center;
-  padding: 18px 12px;
-  background: linear-gradient(135deg, @slate-50 0%, #fcfcfd 100%);
-  border-radius: 12px;
-  border: 1px solid @slate-100;
-}
-
-.quick-stat {
-  flex: 1;
-  text-align: center;
-}
-
-.quick-stat__value {
-  font-size: 22px;
-  font-weight: 700;
-  color: @slate-900;
-  letter-spacing: -0.02em;
-  margin-bottom: 4px;
-  font-variant-numeric: tabular-nums;
-  background: linear-gradient(135deg, @indigo-600 0%, @purple-600 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.quick-stat__label {
-  font-size: 12px;
-  color: @slate-500;
-  font-weight: 500;
-}
-
-.quick-stat-divider {
-  width: 1px;
-  height: 36px;
-  background: @slate-200;
-  margin: 0 8px;
+      &:hover {
+        border-color: @indigo;
+        color: @indigo;
+        background: rgba(99, 102, 241, 0.06);
+      }
+    }
+  }
 }
 
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -1470,7 +1094,7 @@ onUnmounted(() => {
 @keyframes fadeInDown {
   from {
     opacity: 0;
-    transform: translateY(-12px);
+    transform: translateY(-10px);
   }
   to {
     opacity: 1;
@@ -1478,29 +1102,39 @@ onUnmounted(() => {
   }
 }
 
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+  55% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+
 @media (max-width: 1200px) {
-  .stat-cards {
-    grid-template-columns: repeat(2, 1fr);
+  .stat-row {
+    grid-template-columns: repeat(3, 1fr);
   }
-  
-  .content-grid {
+
+  .bottom-row {
     grid-template-columns: 1fr;
+  }
+
+  .hero-metrics {
+    margin-left: 0;
   }
 }
 
 @media (max-width: 768px) {
-  .stat-cards {
+  .stat-row {
     grid-template-columns: 1fr;
   }
-  
-  .action-grid {
+
+  .prod-bar {
     grid-template-columns: 1fr;
+
+    .pb-seg + .pb-seg {
+      border-left: none;
+      border-top: 1px solid #f1f5f9;
+    }
   }
-  
-  .action-btn--primary {
-    grid-column: 1;
-  }
-  
+
   .page-header {
     flex-direction: column;
     align-items: flex-start;

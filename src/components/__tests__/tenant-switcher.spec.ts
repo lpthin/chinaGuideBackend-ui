@@ -29,6 +29,13 @@ const SELECT_STUB = {
   template: '<div class="select-stub">{{ value }}</div>'
 }
 
+const SEGMENTED_STUB = {
+  name: 'ASegmented',
+  props: ['value', 'options', 'size'],
+  emits: ['change'],
+  template: '<div class="segmented-stub">{{ options.map(o => o.label).join("/") }}</div>'
+}
+
 const TENANT_15 = { id: 15, name: '纳欣口腔', code: 'dental' }
 
 function mountSwitcher() {
@@ -36,7 +43,7 @@ function mountSwitcher() {
     global: {
       // setup.ts 把 a-button 全局 stub 掉了；这里要用真实按钮，否则「点出路」那一条测的是 stub
       components: { 'a-button': Button },
-      stubs: { 'a-select': SELECT_STUB, 'a-button': false }
+      stubs: { 'a-select': SELECT_STUB, 'a-segmented': SEGMENTED_STUB, 'a-button': false }
     }
   })
 }
@@ -100,7 +107,7 @@ describe('TenantSwitcher 的「认不出租户」提示', () => {
     expect(wrapper.find('[data-test="tenant-unresolved"]').exists()).toBe(false)
   })
 
-  it('出路那条按钮真的清掉选择（含 localStorage），不是只把选择藏起来', async () => {
+  it('出路那条按钮切换到第一个租户（含 localStorage），不是只把选择藏起来', async () => {
     list.mockResolvedValue([TENANT_15])
     auth.switchTenant(99001, null)
     auth.markTenantUnresolved('99001')
@@ -120,8 +127,9 @@ describe('TenantSwitcher 的「认不出租户」提示', () => {
     ;(clear.element as HTMLElement).click()
     await nextTick()
 
-    expect(auth.selectedTenantId).toBeNull()
-    expect(localStorage.getItem('selected_tenant_id')).toBeNull()
+    // 现在出路是切换到第一个租户，不是清空选择
+    expect(auth.selectedTenantId).toBe(15)
+    expect(localStorage.getItem('selected_tenant_id')).toBe('15')
     expect(auth.tenantUnresolvedDeclaration).toBeNull()
     expect(reload).toHaveBeenCalled()
   })
@@ -157,7 +165,10 @@ describe('TenantSwitcher 顶栏那一格念得出名字', () => {
     const wrapper = mountSwitcher()
     await flushPromises()
 
-    expect(currentOptions(wrapper)).toEqual([{ label: '纳欣口腔', value: 15 }])
+    // 下拉里只有租户，「平台」已经挪到框外与它平级
+    expect(currentOptions(wrapper)).toEqual([
+      { label: '纳欣口腔', value: 15 }
+    ])
   })
 
   it('列表读回来了却没这一位：兜底 label 说清「不在列表里」，值仍是那一位', async () => {
@@ -195,5 +206,64 @@ describe('TenantSwitcher 顶栏那一格念得出名字', () => {
 
     const opts = currentOptions(wrapper)
     expect(opts[0].label).toBe('租户 15')
+  })
+})
+
+/**
+ * 「平台」与「租户」是两种查看范围，平级放在下拉框外面：
+ * 平台档时下拉根本不出现；切回租户档默认落在列表第一家。
+ */
+describe('TenantSwitcher 的平台/租户平级切换', () => {
+  const auth = useAuthStore()
+
+  beforeEach(() => {
+    list.mockReset()
+    auth.markTenantUnresolved(null)
+    auth.switchTenant(null)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    Object.defineProperty(window, 'location', {
+      value: { ...(window as any).location, pathname: '/workspace', reload: vi.fn() },
+      writable: true,
+      configurable: true
+    })
+  })
+
+  it('平台档（未选租户）时只有切换器，没有租户下拉', async () => {
+    list.mockResolvedValue([TENANT_15])
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'ASegmented' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'ASelect' }).exists()).toBe(false)
+  })
+
+  it('从平台切到租户：落在列表第一家并 reload，选择真写进 store 和 localStorage', async () => {
+    list.mockResolvedValue([TENANT_15])
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'ASegmented' }).vm.$emit('change', 'tenant')
+    await nextTick()
+
+    expect(auth.selectedTenantId).toBe(15)
+    expect(localStorage.getItem('selected_tenant_id')).toBe('15')
+    expect((window as any).location.reload).toHaveBeenCalled()
+  })
+
+  it('从租户切回平台：清掉租户选择（含 localStorage）并 reload', async () => {
+    list.mockResolvedValue([TENANT_15])
+    auth.switchTenant(15, 'dental')
+
+    const wrapper = mountSwitcher()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'ASegmented' }).vm.$emit('change', 'platform')
+    await nextTick()
+
+    expect(auth.selectedTenantId).toBeNull()
+    expect(localStorage.getItem('selected_tenant_id')).toBeNull()
+    expect((window as any).location.reload).toHaveBeenCalled()
   })
 })
