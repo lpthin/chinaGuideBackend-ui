@@ -363,7 +363,8 @@ export const routes: RouteRecordRaw[] = [
         // 它读的是 /api/media 那一族，素材的使用次数/标签/改动时间现在是真数据（V103 起）。
         // 权限码用库里既有且已授角色的 media:manage——后端的 /api/media 本身只吃 JWT + 租户归属，
         // 这里挂码只是不让没有码的角色看到一个点了必报错的入口。
-        meta: { title: '图片库', icon: 'image', requiredPermission: 'media:manage' }
+        // Spec-J J3：改名「素材库」——它管的是发布侧素材（media），与知识库的语料文档不是一回事。
+        meta: { title: '素材库', icon: 'image', requiredPermission: 'media:manage' }
       },
 
       // ===== 📚 知识库 =====

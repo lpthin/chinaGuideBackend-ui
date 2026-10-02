@@ -92,7 +92,7 @@ export interface MenuGroupDef {
 export const MENU_GROUPS: MenuGroupDef[] = [
   // ===== 租户日常（5 组 39 项）=====
   { key: 'content', label: 'AI 写稿', domain: 'tenant', icon: 'funnel', hint: '从热词到发布的一条流水线' },
-  { key: 'article', label: '文章与案例', domain: 'tenant', icon: 'file-text', hint: '文章、分类、模板、图片素材与案例' },
+  { key: 'article', label: '文章与案例', domain: 'tenant', icon: 'file-text', hint: '文章、分类、模板、素材库与案例' },
   { key: 'knowledge', label: '知识库', domain: 'tenant', icon: 'book', hint: 'AI 写作与答疑的资料来源' },
   { key: 'site-content', label: '网站内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看到的东西，含企业信息与站点设置' },
   { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', hint: '流量、引用、GEO 体检与客户经营' },

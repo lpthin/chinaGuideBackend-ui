@@ -9,7 +9,7 @@ import MediaImagePicker from '../MediaImagePicker.vue'
  * 图片字段的取值入口（Spec §12 D3）。
  *
  * 钉住三条纪律：
- * 1. 列媒体库**必须**带 tenantId——不带就是让超管在所有客户的素材里挑，给客户搭站挑到别人的 logo；
+ * 1. 列素材库**必须**带 tenantId——不带就是让超管在所有客户的素材里挑，给客户搭站挑到别人的 logo；
  * 2. 读失败要说读失败，不能显示成「这个客户还没图」；
  * 3. 手填地址这条路不能被选择器堵死（外链与临时图还要用）。
  */
@@ -70,7 +70,7 @@ async function mountModal() {
   return wrapper
 }
 
-describe('媒体库挑图弹窗', () => {
+describe('素材库挑图弹窗', () => {
   beforeEach(() => {
     http.get.mockReset()
     http.post.mockReset()
@@ -148,11 +148,11 @@ describe('字段级图片选择器', () => {
     expect(mountPicker('').text()).toContain('一块空白')
   })
 
-  it('点「从媒体库选」才挂载挑图弹窗，挑中即写入字段', async () => {
+  it('点「从素材库选」才挂载挑图弹窗，挑中即写入字段', async () => {
     const wrapper = mountPicker('')
     expect(wrapper.findComponent(MODAL_STUB).exists()).toBe(false)
-    const openButton = wrapper.findAll('button').find(b => b.text().includes('从媒体库选'))
-    expect(openButton, '「从媒体库选」按钮得是真控件').toBeTruthy()
+    const openButton = wrapper.findAll('button').find(b => b.text().includes('从素材库选'))
+    expect(openButton, '「从素材库选」按钮得是真控件').toBeTruthy()
     await openButton!.trigger('click')
     await nextTick()
     const modal = wrapper.findComponent(MODAL_STUB)

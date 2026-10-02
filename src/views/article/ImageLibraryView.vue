@@ -48,7 +48,7 @@
                 <FolderOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.categories }}</div>
+                <div class="stat-value">{{ categoryCount }}</div>
                 <div class="stat-title">分类数</div>
               </div>
             </div>
@@ -57,55 +57,53 @@
       </a-row>
 
       <a-card :bordered="false">
-        <template #title>
-          <a-space>
-            <a-select
-              v-model:value="queryParams.category"
-              style="width: 150px"
-              placeholder="选择分类"
-              allowClear
-              @change="handleQueryChange"
-            >
-              <a-select-option v-for="cat in categories" :key="cat" :value="cat">
-                {{ cat }}
-              </a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="queryParams.fileType"
-              style="width: 120px"
-              placeholder="文件类型"
-              allowClear
-              @change="handleQueryChange"
-            >
-              <a-select-option value="image">图片</a-select-option>
-              <a-select-option value="video">视频</a-select-option>
-              <a-select-option value="document">文档</a-select-option>
-            </a-select>
-            <a-input-search
-              v-model:value="queryParams.keyword"
-              placeholder="搜索文件名/标签"
-              style="width: 250px"
-              enter-button
-              @search="handleQueryChange"
-            />
-            <a-button type="primary" @click="showUploadModal = true">
-              <template #icon><UploadOutlined /></template>
-              上传文件
-            </a-button>
-          </a-space>
-        </template>
-
-        <template #extra>
-          <a-space>
-            <a-radio-group v-model:value="viewMode" button-style="solid">
-              <a-radio-button value="grid">网格视图</a-radio-button>
-              <a-radio-button value="list">列表视图</a-radio-button>
-            </a-radio-group>
-            <a-button v-if="selectedKeys.length" type="link" danger @click="batchDelete">
-              批量删除 ({{ selectedKeys.length }})
-            </a-button>
-          </a-space>
-        </template>
+        <!-- 卡头 #title/#extra 两处控件并到一行 FilterBar：#title 槽 overflow:hidden，窄容器下会被裁 -->
+        <filter-bar>
+          <a-select
+            v-model:value="queryParams.category"
+            style="width: 150px"
+            placeholder="选择分类"
+            allowClear
+            @change="handleQueryChange"
+          >
+            <a-select-option v-for="cat in categories" :key="cat.category" :value="cat.category">
+              {{ cat.category }}（{{ cat.count }}）
+            </a-select-option>
+          </a-select>
+          <a-select
+            v-model:value="queryParams.fileType"
+            style="width: 120px"
+            placeholder="文件类型"
+            allowClear
+            @change="handleQueryChange"
+          >
+            <a-select-option value="image">图片</a-select-option>
+            <a-select-option value="video">视频</a-select-option>
+            <a-select-option value="document">文档</a-select-option>
+          </a-select>
+          <a-input-search
+            v-model:value="queryParams.keyword"
+            placeholder="搜索文件名/标签"
+            style="width: 250px"
+            enter-button
+            @search="handleQueryChange"
+          />
+          <a-radio-group v-model:value="viewMode" button-style="solid">
+            <a-radio-button value="grid">网格视图</a-radio-button>
+            <a-radio-button value="list">列表视图</a-radio-button>
+          </a-radio-group>
+          <template #actions>
+            <a-space>
+              <a-button v-if="selectedKeys.length" type="link" danger @click="batchDelete">
+                批量删除 ({{ selectedKeys.length }})
+              </a-button>
+              <a-button type="primary" @click="showUploadModal = true">
+                <template #icon><UploadOutlined /></template>
+                上传文件
+              </a-button>
+            </a-space>
+          </template>
+        </filter-bar>
 
         <!-- 网格视图 -->
         <div v-if="viewMode === 'grid'" class="grid-view">
@@ -248,9 +246,11 @@
               style="width: 100%"
               placeholder="选择分类"
               allowClear
+              show-search
+              :filter-option="filterCategoryOption"
             >
-              <a-select-option v-for="cat in categories" :key="cat" :value="cat">
-                {{ cat }}
+              <a-select-option v-for="cat in categories" :key="cat.category" :value="cat.category">
+                {{ cat.category }}
               </a-select-option>
             </a-select>
           </a-form-item>
@@ -303,6 +303,7 @@ import { formatDateTime, formatFileSize } from '../../utils/format'
 import type { ImageLibrary } from '../../types/article'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
@@ -319,7 +320,6 @@ const stats = reactive({
   total: 0,
   totalSize: '0 KB',
   totalUsed: 0,
-  categories: 0,
 })
 
 const queryParams = reactive({
@@ -339,7 +339,20 @@ const viewMode = ref<'grid' | 'list'>('grid')
 const selectedKeys = ref<number[]>([])
 const imageList = ref<ImageLibrary[]>([])
 
-const categories = ['产品图片', '文章配图', '用户头像', '活动海报', '公司相册', '其他']
+// Spec-J：筛选项读 /media/categories 真数据。旧版这里硬编码六个假类别，
+// 与库里的真实类别一个都对不上——选任何一项都筛不出东西。
+const categories = ref<{ category: string; count: number }[]>([])
+
+async function loadCategories() {
+  try {
+    categories.value = await imageLibraryApi.categories()
+  } catch (error) {
+    logError('article/image-library-view', '类别列表加载失败:', error)
+    categories.value = []
+  }
+}
+
+const categoryCount = computed(() => categories.value.length)
 
 const listColumns = [
   { title: '预览', key: 'preview', width: 80 },
@@ -507,12 +520,15 @@ function updateStats() {
   const totalBytes = imageList.value.reduce((sum, item) => sum + (item.fileSize || 0), 0)
   stats.totalSize = formatFileSize(totalBytes)
   stats.totalUsed = imageList.value.reduce((sum, item) => sum + (item.useCount || 0), 0)
-  const uniqueCategories = new Set(imageList.value.map(item => item.category).filter(Boolean))
-  stats.categories = uniqueCategories.size
+}
+
+function filterCategoryOption(input: string, option: any) {
+  return String(option.value).toLowerCase().includes(input.toLowerCase())
 }
 
 onMounted(() => {
   loadData()
+  loadCategories()
 })
 </script>
 

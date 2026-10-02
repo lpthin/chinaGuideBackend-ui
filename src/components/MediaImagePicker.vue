@@ -4,7 +4,7 @@ import MediaImageLibraryModal from './MediaImageLibraryModal.vue'
 
 /**
  * 图片字段的统一入口：手填地址仍然可以（外链与刚上传还没入库的图要用），
- * 但多给两条真路——从媒体库挑一张，或在挑图弹窗里就地上传。
+ * 但多给两条真路——从素材库挑一张，或在挑图弹窗里就地上传。
  *
  * <p>为什么必须有「挑」这条路：区块/Banner/案例封面的图槽此前只有一个 URL 输入框，
  * 运营要么手抄地址（抄错就是一张碎图），要么先跑去别的页面上传再回来粘。</p>
@@ -17,7 +17,7 @@ const props = withDefaults(defineProps<{
   size?: 'small' | 'middle'
 }>(), {
   modelValue: '',
-  placeholder: '图片地址，可从媒体库挑或就地上传',
+  placeholder: '图片地址，可从素材库挑或就地上传',
   tenantId: null,
   size: 'middle'
 })
@@ -40,7 +40,7 @@ function clear() {
   <div class="media-field">
     <a-input :value="modelValue" :size="size" :placeholder="placeholder" @update:value="write($event)">
       <template #addonAfter>
-        <a-button type="link" size="small" @click="visible = true">从媒体库选</a-button>
+        <a-button type="link" size="small" @click="visible = true">从素材库选</a-button>
       </template>
     </a-input>
     <div v-if="preview" class="media-field__preview">
@@ -52,7 +52,7 @@ function clear() {
     </div>
     <p v-else class="media-field__empty">还没配图：没图的图位在访客那里就是一块空白。</p>
 
-    <!-- v-if：不打开就不挂载——挑图弹窗一挂载就会去列媒体库 -->
+    <!-- v-if：不打开就不挂载——挑图弹窗一挂载就会去列素材库 -->
     <MediaImageLibraryModal
       v-if="visible"
       v-model:open="visible"

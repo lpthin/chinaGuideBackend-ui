@@ -81,7 +81,7 @@ export const articleManageApi = {
     http.post<ArticleUnpublishResult>(`/articles/${id}/unpublish`, {})
 }
 
-// 图片库 API
+// 素材库 API（Spec-J J3：原「图片库」）
 export const imageLibraryApi = {
   // 获取图片列表
   list: (params: ImageLibraryQuery) =>
@@ -94,6 +94,10 @@ export const imageLibraryApi = {
   // 获取图片详情
   get: (id: number) =>
     http.get<ImageLibrary>(`/media/${id}`),
+
+  // 真实类别列表（Spec-J：筛选项不再硬编码。系统素材组由服务端排除，这里不抄名单）
+  categories: (tenantId?: number) =>
+    http.get<{ category: string; count: number }[]>('/media/categories', { params: { tenantId } }),
 
   // 上传图片
   upload: (formData: FormData, onProgress?: (progress: number) => void) =>

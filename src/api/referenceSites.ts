@@ -386,7 +386,8 @@ export const portalReferenceApi = {
    */
   shotMedia: () =>
     http.get<{ records?: Array<{ id: number; url: string }> }>('/media', {
-      params: { category: REFERENCE_SHOT_CATEGORY, page: 1, size: 200 }
+      // Spec-J：取证截图属系统素材组，/media 默认不列它——平台侧要显式 group=system 才拿得到
+      params: { category: REFERENCE_SHOT_CATEGORY, group: 'system', page: 1, size: 200 }
     }),
 
   /** 只估算不烧钱：两步提示词都渲染，但一次模型都不调（决策 D4） */

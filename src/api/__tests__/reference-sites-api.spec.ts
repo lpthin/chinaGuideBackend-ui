@@ -212,11 +212,11 @@ describe('portalReferenceApi', () => {
     })
   })
 
-  it('截图素材地址按分类查一次，且没有 DELETE 撤销任务（任务只增不删，留痕）', async () => {
+  it('截图素材地址按分类查一次，并显式点名系统素材组（Spec-J：/media 默认不列它），且没有 DELETE 撤销任务（任务只增不删，留痕）', async () => {
     const http = await httpMock()
     await portalReferenceApi.shotMedia()
     expect(http.get).toHaveBeenLastCalledWith('/media', {
-      params: { category: REFERENCE_SHOT_CATEGORY, page: 1, size: 200 }
+      params: { category: REFERENCE_SHOT_CATEGORY, group: 'system', page: 1, size: 200 }
     })
     expect(http.delete).not.toHaveBeenCalled()
   })

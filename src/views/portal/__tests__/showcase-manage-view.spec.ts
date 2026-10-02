@@ -309,7 +309,7 @@ describe('ShowcaseManageView 的表单与后端报错', () => {
     await inputByPlaceholder(wrapper, '这条展示内容叫什么').setValue('某成员')
     // 团队成员的必填槽是头像：先走图位把槽补齐，让请求真发出去
     vi.mocked(resolveMediaIdByUrl).mockResolvedValue(77)
-    buttonByText(wrapper, '从媒体库选图').trigger('click')
+    buttonByText(wrapper, '从素材库选图').trigger('click')
     await flushPromises()
     wrapper.findComponent(MEDIA_MODAL_STUB).vm.$emit('pick', 'https://cdn.test/logo.png', 'logo.png')
     await flushPromises()
@@ -321,14 +321,14 @@ describe('ShowcaseManageView 的表单与后端报错', () => {
     expect(modalError.join('|')).toContain(rejection)
   })
 
-  it('图位只认媒体库：挑中的图按地址回查成 mediaId 再随表单交回', async () => {
+  it('图位只认素材库：挑中的图按地址回查成 mediaId 再随表单交回', async () => {
     vi.mocked(resolveMediaIdByUrl).mockResolvedValue(77)
     vi.mocked(portalShowcaseApi.create).mockResolvedValue(item(11, 'team') as any)
     const wrapper = await mountView()
     buttonByText(wrapper, '新增条目').trigger('click')
     await flushPromises()
     await inputByPlaceholder(wrapper, '这条展示内容叫什么').setValue('王芳')
-    buttonByText(wrapper, '从媒体库选图').trigger('click')
+    buttonByText(wrapper, '从素材库选图').trigger('click')
     await flushPromises()
     expect(wrapper.find('.media-modal-stub').exists()).toBe(true)
     wrapper.findComponent(MEDIA_MODAL_STUB).vm.$emit('pick', 'https://cdn.test/logo.png', 'logo.png')

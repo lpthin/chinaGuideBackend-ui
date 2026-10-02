@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import type { PageResult } from '@/types/article'
 
 /**
- * 媒体库挑图弹窗：「从已入库的图里挑一张」这件事的唯一实现。
+ * 素材库挑图弹窗：「从已入库的图里挑一张」这件事的唯一实现。
  *
  * <p>为什么单独一个组件而不是把弹窗写在调用方里：挑图这件事有两个入口——字段级的
  * {@link MediaImagePicker}（Banner 图、案例封面、Logo 这类 URL 字段）和文章正文的
@@ -30,7 +30,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   open: false,
   tenantId: null,
-  title: '从媒体库挑一张图'
+  title: '从素材库挑一张图'
 })
 
 const emit = defineEmits<{
@@ -81,8 +81,8 @@ async function load() {
     rows.value = data.records ?? []
     total.value = data.total ?? 0
   } catch (error: any) {
-    // 空库与「读不到」是两件事：静默吞掉失败会让界面看起来像「媒体库是空的」
-    message.error(error?.message || '媒体库读取失败')
+    // 空库与「读不到」是两件事：静默吞掉失败会让界面看起来像「素材库是空的」
+    message.error(error?.message || '素材库读取失败')
     rows.value = []
     total.value = 0
     loadFailed.value = true
@@ -106,7 +106,7 @@ async function handleUpload(options: any) {
     })
     const url = result?.url ?? result?.data?.url
     if (!url) {
-      message.error('上传成功了但返回里没有地址，先刷新媒体库看看这张在不在')
+      message.error('上传成功了但返回里没有地址，先刷新素材库看看这张在不在')
       return
     }
     emit('pick', String(url), result?.name ?? options.file?.name)
@@ -165,10 +165,10 @@ watch(() => props.open, (opened) => {
     </div>
     <a-spin :spinning="loading">
       <!-- 读失败与真的空库是两件事：把失败说成「还没有图片」，运营就会去传一个本来就在库里的图 -->
-      <a-empty v-if="loadFailed" description="媒体库没读到，点刷新再试一次；一直失败就把这条报错发给平台">
+      <a-empty v-if="loadFailed" description="素材库没读到，点刷新再试一次；一直失败就把这条报错发给平台">
         <a-button @click="load">刷新</a-button>
       </a-empty>
-      <a-empty v-else-if="!rows.length && !loading" description="这个客户的媒体库里还没有图片，先传一张">
+      <a-empty v-else-if="!rows.length && !loading" description="这个客户的素材库里还没有图片，先传一张">
         <a-upload :show-upload-list="false" accept="image/*" :custom-request="handleUpload">
           <a-button type="primary" :loading="uploading">上传第一张</a-button>
         </a-upload>
