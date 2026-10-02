@@ -79,13 +79,13 @@ function alertTexts() {
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
-  // 这份返回值是后端 `MessageService.getStats` 的原样形状（total/unread/inbox/outbox），
-  // 不是界面以前抄的那套 totalMessages/readCount/unreadCount/totalRecipients —— 那套键一个都对不上
+  // 这份返回值是后端 `MessageService.getStats(tenantId, userId)` 的原样形状（inbox/unread/outbox），
+  // 三个数各按「我」算；它前面两版分别抄过 totalMessages/readCount/unreadCount/totalRecipients（键全错）
+  // 和 total/inbox/outbox（后端那三句 SQL 一字不差，恒等）
   vi.mocked(portalMessageApi.stats).mockResolvedValue({
-    total: 7,
-    unread: 2,
     inbox: 7,
-    outbox: 7
+    unread: 2,
+    outbox: 3
   } as any)
   vi.mocked(portalMessageApi.list).mockResolvedValue({
     records: [{ id: 1, title: '站点已通过审核', isRead: false }],
@@ -112,21 +112,27 @@ describe('站内信入口按职能收', () => {
 })
 
 /**
- * 统计那一口的两条命（拍板 1a + 现场挖出的键名错配）。
+ * 统计那一口的三条数（拍板 A：按登录用户算）。
  *
- * 一：读不到的时候不许说成 0。后端 `GET /messages/stats` 按「当前选中的租户」算，
- * 超管停在平台档时请求不带租户头，回的是 `TENANT_REQUIRED / 请先选择租户`；
+ * 一：读不到的时候不许说成 0。超管停在平台档时请求不带租户头，后端回 `TENANT_REQUIRED / 请先选择租户`；
  * 以前这条失败只进控制台，卡片照显示 0 —— 把「没读到」说成「真的没有」。
  *
- * 二：键名要照后端原样。这一页原本抄的是 `totalMessages / readCount / unreadCount / totalRecipients`，
- * 后端回的是 `total / unread / inbox / outbox`，`Object.assign` 一个都拷不进去 ⇒ 卡片恒为 0，
- * 而那家租户其实有 7 条（现场 `GET /api/messages/stats` 带 `X-Tenant-Id: 1` 亲测）。
+ * 二：这一口原本回四个键、背后只有两句 SQL（total/inbox/outbox 都是 `tenant_id + is_deleted`），
+ * 而下面的表按 `receiver_id` / `sender_id` 筛。现场实测租户 1：stats 报 outbox=7，`/outbox` 只有 2 行。
+ * 现在三个键各按「我」算，卡片的名字就得是「我的收件箱 / 我的发件箱」，不能再叫「消息总数 / 已读」。
  */
-describe('站内信统计：键名照后端原样、读不到时不谎报成 0', () => {
-  it('后端真回的 total/unread 要落到卡上，已读由总数减未读得到', async () => {
+describe('站内信统计：按我算、读不到时不谎报成 0', () => {
+  function statTitles() {
+    return [...document.querySelectorAll('.stat-title')].map(node => (node.textContent || '').trim())
+  }
+
+  it('三个数照后端原样落到卡上，标签认得出那是「我的」', async () => {
     const wrapper = await mountAs(['CONTENT_EDITOR'], ['portal:siteinfo:manage'])
     expect(alertTexts()).toHaveLength(0)
-    expect(statValues()).toEqual(['7', '5', '2'])
+    expect(statValues()).toEqual(['7', '2', '3'])
+    expect(statTitles()).toEqual(['我的收件箱', '未读', '我的发件箱'])
+    // 「已读 = 总数 − 未读」那一格的前提是总数与未读同一个集合，按人算之后这个前提没了
+    expect(statTitles().join(' ')).not.toContain('已读')
     wrapper.unmount()
   })
 
@@ -144,6 +150,13 @@ describe('站内信统计：键名照后端原样、读不到时不谎报成 0',
     const wrapper = await mountAs(['CONTENT_EDITOR'], ['portal:siteinfo:manage'])
     expect(alertTexts().join(' ')).toContain('统计数据读取失败：数据库连接超时')
     expect(statValues()).toEqual(['—', '—', '—'])
+    wrapper.unmount()
+  })
+
+  it('后端只回三个键，界面不去读那个已经不存在的 total', async () => {
+    vi.mocked(portalMessageApi.stats).mockResolvedValue({ inbox: 4, unread: 1, outbox: 9 } as any)
+    const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'])
+    expect(statValues()).toEqual(['4', '1', '9'])
     wrapper.unmount()
   })
 })

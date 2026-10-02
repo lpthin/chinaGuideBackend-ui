@@ -72,15 +72,17 @@ export interface PortalMessage {
 
 // 消息统计
 /**
- * `GET /messages/stats` 真回的四个数（后端 `MessageService.getStats`）。
- * 界面以前抄的是 `totalMessages / readCount / unreadCount / totalRecipients` —— 一个都对不上，
- * `Object.assign` 什么都拷不到，四格永远显示 0；这里按后端原样写死，免得再猜。
- * 其中 `inbox` 与 `outbox` 用的是和 `total` 完全相同的条件（后端没分收发件人），所以界面不引这两个。
+ * `GET /messages/stats` 真回的三个数（后端 `MessageService.getStats`，拍板：按当前登录用户算）。
+ * 每一项的谓词与它下面那张表用的同一条（收件箱 = `receiver_id = 我`，发件箱 = `sender_id = 我`），
+ * 所以卡片与表格天然对得上，不是「各算一份再指望它们同步」。
+ *
+ * 这一口从前回四个键、背后只有两句 SQL：`total/inbox/outbox` 都是 `tenant_id + is_deleted`，
+ * 恒等且不分收发件人，现场实测租户 1 报 outbox=7 而真发件箱只有 2 行。更早一版界面抄的是
+ * `totalMessages / readCount / unreadCount / totalRecipients`，一个都对不上，四格永远 0。
  */
 export interface PortalMessageStats {
-  total: number
-  unread: number
   inbox: number
+  unread: number
   outbox: number
 }
 
