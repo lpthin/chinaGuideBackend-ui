@@ -71,11 +71,17 @@ export interface PortalMessage {
 }
 
 // 消息统计
+/**
+ * `GET /messages/stats` 真回的四个数（后端 `MessageService.getStats`）。
+ * 界面以前抄的是 `totalMessages / readCount / unreadCount / totalRecipients` —— 一个都对不上，
+ * `Object.assign` 什么都拷不到，四格永远显示 0；这里按后端原样写死，免得再猜。
+ * 其中 `inbox` 与 `outbox` 用的是和 `total` 完全相同的条件（后端没分收发件人），所以界面不引这两个。
+ */
 export interface PortalMessageStats {
-  totalMessages: number
-  readCount: number
-  unreadCount: number
-  totalRecipients: number
+  total: number
+  unread: number
+  inbox: number
+  outbox: number
 }
 
 // 广播消息发送

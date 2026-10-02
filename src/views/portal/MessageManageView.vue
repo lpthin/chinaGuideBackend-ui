@@ -2,55 +2,47 @@
   <div class="message-manage-page">
     <a-spin :spinning="loading">
       <div class="content-wrapper">
+        <!-- 后端这一口按「当前选中的租户」算，超管没选租户时它直接拒（`TENANT_REQUIRED`）。以前这条失败只进控制台，
+             四格照显示 0 ——等于把「没读到」说成「真的没有」。现在读不到就露「—」并把去哪儿选写在明处。 -->
+        <a-alert v-if="statsNote" type="info" show-icon class="message-manage-page__notice">
+          <template #message>{{ statsNote }}</template>
+        </a-alert>
         <a-row :gutter="16" style="margin-bottom: 16px">
-          <a-col :span="6">
+          <a-col :span="8">
             <a-card class="stat-card" hoverable>
               <div class="stat-content">
                 <div class="stat-icon" style="background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)">
                   <MailOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.totalMessages }}</div>
+                  <div class="stat-value">{{ statsNote ? '—' : stats.total }}</div>
                   <div class="stat-title">消息总数</div>
                 </div>
               </div>
             </a-card>
           </a-col>
-          <a-col :span="6">
+          <a-col :span="8">
             <a-card class="stat-card" hoverable>
               <div class="stat-content">
                 <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
                   <CheckCircleOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.readCount }}</div>
+                  <div class="stat-value">{{ statsNote ? '—' : readCount }}</div>
                   <div class="stat-title">已读</div>
                 </div>
               </div>
             </a-card>
           </a-col>
-          <a-col :span="6">
+          <a-col :span="8">
             <a-card class="stat-card" hoverable>
               <div class="stat-content">
                 <div class="stat-icon" style="background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%)">
                   <ClockCircleOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.unreadCount }}</div>
+                  <div class="stat-value">{{ statsNote ? '—' : stats.unread }}</div>
                   <div class="stat-title">未读</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #eb2f96 0%, #ff85c0 100%)">
-                  <UserOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ stats.totalRecipients }}</div>
-                  <div class="stat-title">接收用户</div>
                 </div>
               </div>
             </a-card>
@@ -197,7 +189,6 @@ import {
   MailOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  UserOutlined,
   SendOutlined,
 } from '@ant-design/icons-vue'
 import { portalMessageApi } from '../../api/portal'
@@ -217,11 +208,17 @@ const detailVisible = ref(false)
 const currentMessage = ref<PortalMessage | null>(null)
 
 const stats = reactive<PortalMessageStats>({
-  totalMessages: 0,
-  readCount: 0,
-  unreadCount: 0,
-  totalRecipients: 0,
+  total: 0,
+  unread: 0,
+  inbox: 0,
+  outbox: 0,
 })
+
+/** 后端没给「已读」这一项，只能由总数减未读得到 */
+const readCount = computed(() => Math.max(stats.total - stats.unread, 0))
+
+/** 统计那一发读不到时写在明处的一句话；有值就代表这四个数是「没读到」，不是「真的为 0」 */
+const statsNote = ref('')
 
 const queryParams = reactive({
   type: 'inbox' as 'inbox' | 'outbox',
@@ -285,10 +282,18 @@ function getTypeName(type?: string): string {
 }
 
 async function loadStats() {
+
+  statsNote.value = ''
   try {
     const result = await portalMessageApi.stats()
     Object.assign(stats, result as any)
-  } catch (error) {
+  } catch (error: any) {
+    const reason = String(error?.message || '')
+    // 「没选租户」是这一口最常见的失败原因（超管停在平台档时请求根本不带租户头），
+    // 它要说的是去哪儿选，而不是笼统一句读失败；控件名照顶栏那颗分段开关的原话写
+    statsNote.value = reason.includes('请先选择租户')
+      ? '这四个数按租户算：请先在右上角切到「租户」并选一家，再回来看这一屏'
+      : `统计数据读取失败：${reason || '未知原因'}`
     logError('portal/message-manage-view', '加载统计数据失败:', error)
   }
 }
@@ -346,8 +351,8 @@ async function viewDetail(record: PortalMessage) {
     try {
       await portalMessageApi.markRead(record.id)
       record.isRead = true
-      stats.unreadCount -= 1
-      stats.readCount += 1
+      // 四个数没读到时不去动它们：0 减一就成了 -1，那比 0 更像坏掉了
+      if (!statsNote.value && stats.unread > 0) stats.unread -= 1
     } catch (error) {
       logError('portal/message-manage-view', '标记已读失败:', error)
     }
