@@ -24,8 +24,8 @@
         <template #extra><a-tag :color="siteState.color">{{ siteState.text }}</a-tag></template>
         <a-descriptions :column="1" size="small" bordered>
           <a-descriptions-item label="站点">{{ siteText }}</a-descriptions-item>
-          <a-descriptions-item label="站点编码（?site= 用的就是它）">{{ site?.code || '—' }}</a-descriptions-item>
-          <a-descriptions-item label="访问域名">{{ site?.domain || '未绑定' }}</a-descriptions-item>
+          <a-descriptions-item label="站点编码（?site= 用的就是它）">{{ siteField(site?.code, '—') }}</a-descriptions-item>
+          <a-descriptions-item label="访问域名">{{ siteField(site?.domain, '未绑定') }}</a-descriptions-item>
         </a-descriptions>
         <p class="hint">
           域名由平台管理员在「系统管理 → 站点管理」绑定。没绑域名时门户仍然可以按站点编码预览，
@@ -157,10 +157,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '../../stores/auth'
-import { companyInfoApi, siteApi } from '../../api'
+import { companyInfoApi } from '../../api'
+import { portalSitesApi } from '../../api/portalSites'
 import { backendFileUrl, demoSiteApi, portalVisibilityApi } from '../../api/onboarding'
 import type { DemoMode, DemoStatusResult } from '../../api/onboarding'
-import type { CompanyInfo, Site } from '../../types'
+import type { CompanyInfo } from '../../types'
+import type { MySite } from '../../api/portalSites'
 
 interface SiteBrief {
   id?: number
@@ -194,6 +196,8 @@ const bootstrapMode = ref<DemoMode>('skip')
 const actionResult = ref('')
 
 const site = ref<SiteBrief | null>(null)
+/** 站点这一格为什么没数：denied = 这个账号本来就读不到，failed = 读了但失败。两种都不是「没有站点」 */
+const siteIssue = ref<'denied' | 'failed' | null>(null)
 const company = ref<CompanyInfo | null>(null)
 const demo = ref<DemoStatusResult | null>(null)
 const demoConflicts = ref<string[]>([])
@@ -203,14 +207,27 @@ const errors = ref<Record<string, string>>({})
 const missingTenant = computed(() => authStore.isSuperAdmin && authStore.selectedTenantId === null)
 
 const siteText = computed(() => {
+  if (missingTenant.value) {
+    // 还没选租户，这一格根本没去问过——写「该租户还没有站点」就是凭空报一个缺
+    return '未选租户，未取数'
+  }
+  if (siteIssue.value === 'denied') {
+    return '没有站点信息的查看权限，这一项请平台侧确认'
+  }
   if (!site.value) {
-    return errors.value.site ? '未取到' : '该租户还没有站点'
+    return siteIssue.value ? '未取到' : '该租户还没有站点'
   }
   return `${site.value.name}${site.value.id ? `（ID ${site.value.id}）` : ''}`
 })
 
 const siteState = computed<StateTag>(() => {
-  if (errors.value.site) {
+  if (missingTenant.value) {
+    return { color: 'default', text: '未取数' }
+  }
+  if (siteIssue.value === 'denied') {
+    return { color: 'default', text: '无查看权限' }
+  }
+  if (siteIssue.value === 'failed') {
     return { color: 'red', text: '读取失败' }
   }
   if (!site.value) {
@@ -218,6 +235,17 @@ const siteState = computed<StateTag>(() => {
   }
   return site.value.domain ? { color: 'green', text: '已绑定域名' } : { color: 'orange', text: '未绑定域名' }
 })
+
+/** 没读到就是没读到，不许把「读不到」演成「未绑定」——那会让租户去找一个根本不存在的域名问题 */
+function siteField(value: string | null | undefined, blankText: string): string {
+  if (value) {
+    return value
+  }
+  if (missingTenant.value) {
+    return '—'
+  }
+  return siteIssue.value ? '未取到' : blankText
+}
 
 const contactText = computed(() => {
   const values = [company.value?.phone, company.value?.email, company.value?.serviceHotline]
@@ -285,16 +313,30 @@ function fileUrl(path: string): string | undefined {
 function reset(): void {
   errors.value = {}
   actionResult.value = ''
+  siteIssue.value = null
 }
 
 async function loadOwnSite(): Promise<void> {
-  const rows = await siteApi.list()
-  const first = Array.isArray(rows) ? rows[0] : undefined
-  site.value = first ? toBrief(first) : null
+  siteIssue.value = null
+  if (!authStore.hasPermission('portal:siteinfo:manage')) {
+    // 不发这个请求：403 会在控制台留一条红字，而这一格要说的是「这个账号读不到」，不是「读取失败」
+    site.value = null
+    siteIssue.value = 'denied'
+    return
+  }
+  try {
+    const rows = await portalSitesApi.listMine()
+    const first = Array.isArray(rows) ? rows[0] : undefined
+    site.value = first ? toBrief(first) : null
+  } catch (error) {
+    site.value = null
+    siteIssue.value = 'failed'
+    errors.value.site = describe(error)
+  }
 }
 
-function toBrief(row: Site): SiteBrief {
-  return { id: row.id, code: row.code, name: row.name, domain: row.domain }
+function toBrief(row: MySite): SiteBrief {
+  return { id: row.id, code: row.code, name: row.name, domain: row.domain || '' }
 }
 
 async function loadAll(): Promise<void> {
@@ -307,15 +349,22 @@ async function loadAll(): Promise<void> {
     return
   }
   loading.value = true
-  const tasks: Promise<void>[] = [
-    loadCompany(),
-    authStore.isSuperAdmin ? loadDemoStatus() : loadOwnSite(),
-  ]
-  await Promise.all(tasks)
-  if (site.value?.code) {
-    await loadVisibility(site.value.code)
+  try {
+    // 站点这一格两种身份都读 /api/portal/sites：超管带的 X-Tenant-Id 就是右上角选中的那个租户。
+    // 以前超管走 demo-status 里的 siteCode，而那个字段在「一个租户多套站点」（Spec-C 交付后必然如此）
+    // 时恒为 null——现场同一份返回里 siteCount=16，界面却报「该租户还没有站点」。
+    const tasks: Promise<void>[] = [loadCompany(), loadOwnSite()]
+    if (authStore.isSuperAdmin) {
+      tasks.push(loadDemoStatus())
+    }
+    // 每个 load* 自己收尾（站点这一格就写「未取到」），一个口失败不许把整页钉在转圈上
+    await Promise.all(tasks)
+    if (site.value?.code) {
+      await loadVisibility(site.value.code)
+    }
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 async function loadCompany(): Promise<void> {
@@ -329,17 +378,12 @@ async function loadCompany(): Promise<void> {
 
 async function loadDemoStatus(): Promise<void> {
   try {
-    const status = await demoSiteApi.status(requireSelectedTenantId())
-    demo.value = status
-    // 超管视角下站点信息就在 status 返回里，不必再调一次站点列表
-    site.value = status.siteCode
-      ? { id: status.siteId ?? undefined, code: status.siteCode, name: status.siteName || '', domain: status.domain || '' }
-      : null
+    demo.value = await demoSiteApi.status(requireSelectedTenantId())
+    // 这里不再拼站点那一格：siteId/siteCode 是「演示包挂在哪套站上」的那一个指针，
+    // 一个租户多套站点时它是 null，而 null 不等于「没有站点」（见 loadAll 那段）
   } catch (error) {
     demo.value = null
-    site.value = null
     errors.value.demo = describe(error)
-    errors.value.site = describe(error)
   }
 }
 
