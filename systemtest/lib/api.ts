@@ -21,6 +21,14 @@ export interface Principal {
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
+/** 爬虫面那四份文件（robots.txt / llms.txt / sitemap.xml / llms-full.txt）回的是原文而不是 JSON */
+export interface RawBody {
+  status: number;
+  contentType: string;
+  body: string;
+  ms: number;
+}
+
 /** 证据文件里不许出现口令：登录请求体和建号/建租户请求体都带 password 字段 */
 function redact(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redact);
@@ -117,6 +125,25 @@ export class Api {
       data: redact(env.data),
     });
     return env;
+  }
+
+  /**
+   * 取原文，不按 JSON 解析：`Api.call` 会把非 JSON 体判成 HTTP_xxx_NON_JSON 并把正文截到 4000 字，
+   * 而 llms-full.txt 单篇正文就有 3000 字的截断档，整份轻松过万 —— 按那条通道取就等于拿一份被裁过的文本做断言。
+   */
+  async rawText(path: string, extraHeaders: Record<string, string> = {}): Promise<RawBody> {
+    const headers: Record<string, string> = { ...extraHeaders, ...this.tenantHeaders };
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    const started = Date.now();
+    const resp = await fetch(this.base + path, { method: 'GET', headers });
+    const body = await resp.text();
+    const ms = Date.now() - started;
+    const contentType = resp.headers.get('content-type') ?? '';
+    this.journal.record('http-raw', `GET ${path}`, {
+      reqHeaders: redact(headers), status: resp.status, contentType, chars: body.length,
+      body: body.length > 24_000 ? `${body.slice(0, 24_000)}…<证据截断>` : body,
+    });
+    return { status: resp.status, contentType, body, ms };
   }
 
   get(path: string) { return this.call('GET', path); }
