@@ -21,6 +21,12 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     video: 'off',
     screenshot: 'only-on-failure',
+    // 定位不到要当场失败，不许拿整条用例的预算等一个永远不出现的控件
+    // （10-03 那一轮 10 分钟全烧在一个已改名的顶栏下拉上）。
+    // 这两个必须写在 use 里：它们是 per-test 选项，放顶层 Playwright 认不出来、
+    // 也不报错，直接当没配 —— 第一次把它放顶层时整条用例照样跑完，配置却是空的。
+    actionTimeout: 20_000,
+    navigationTimeout: 30_000,
   },
   projects: [
     { name: 'api', testMatch: /journey-.*\.spec\.ts/ },
