@@ -439,6 +439,13 @@ function getTypeName(type?: string): string {
 
 async function loadStats() {
   statsNote.value = ''
+  // 平台档没有「这一家」，这一枪发出去必吃 TENANT_REQUIRED —— 和 loadMessageList 一样先拦下来。
+  // 10-03 系统测试现场：从站内信切回平台档会整页重挂这一屏，那句必败的请求每次都在控制台上
+  // 留一条 error，而界面本来就已经把话说全了（下面那条 note 同一段字），噪声不该让人承担。
+  if (isPlatformMode.value) {
+    statsNote.value = '这三个数按「你在这家租户里的信」算：请先在右上角切到「租户」并选一家，再回来看这一屏'
+    return
+  }
   try {
     const result = await portalMessageApi.stats()
     Object.assign(stats, result as any)

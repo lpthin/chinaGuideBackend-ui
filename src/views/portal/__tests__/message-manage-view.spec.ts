@@ -287,6 +287,8 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
     expect(alertTexts().join(' ')).toContain('请先在右上角切到「租户」')
     expect(statValues()).toEqual(['—', '—', '—'])
     expect(document.body.textContent).not.toContain('统计数据读取失败')
+    // 平台档这一枪根本不该发出去（必败的请求每次都在控制台留一条 error）
+    expect(portalMessageApi.stats).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -300,7 +302,8 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
 
   it('后端只回三个键，界面不去读那个已经不存在的 total', async () => {
     vi.mocked(portalMessageApi.stats).mockResolvedValue({ inbox: 4, unread: 1, outbox: 9 } as any)
-    const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'])
+    // 得站在一家租户里：平台档现在根本不发这一枪（见上面那条「not.toHaveBeenCalled」）
+    const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'], { selectedTenantId: 15 })
     expect(statValues()).toEqual(['4', '1', '9'])
     wrapper.unmount()
   })
