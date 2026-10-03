@@ -32,6 +32,12 @@ npx playwright test specs/journey-j01-provision.spec.ts   # 或一把跑：npx p
 | `lib/seed.ts` | 探针租户/探针账号按业务接口开通与下线；角色 id 现场按 code 查，不写死 |
 | `specs/journey-j01-provision.spec.ts` | SYS-J01 开通一家企业并跑到可交付（G-02、G-13） |
 | `specs/journey-j12-isolation.spec.ts` | SYS-J12 隔离/鉴权/留痕 12 个高危口矩阵 |
+| `specs/journey-j02-content-loop.spec.ts` | SYS-J02 内容生产闭环：关键词→蒸馏→AI 候选→人改→审核→门户读得到（G-03） |
+| `specs/journey-j03-daily-output.spec.ts` | SYS-J03 每日产出：一次点 5 篇能不能都成 + 完全不动它会不会自己长出稿子（G-04） |
+| `specs/journey-j04-review-i18n.spec.ts` | SYS-J04 两级审核与多语言：AI 预审不越权推状态、翻译按参数出稿、门户那一篇是谁（G-05、G-06） |
+| `specs/journey-j10-ai-trace.spec.ts` | SYS-J10 AI 留痕与失败面：四要素、坏模型不吞错、生成那一跳的留痕缺口（G-12） |
+| `specs/journey-j11-modules.spec.ts` | SYS-J11 官网六模块通用能力：后台写一行→自己的读口点得到→删了就读不到（G-13） |
+| `specs/screen-j13-screens.spec.ts` | SYS-J13 后台六屏浏览器重放：真实控件点到底、控制台不许报错（N-04、N-05） |
 
 ## 数据纪律（spec §7）
 
