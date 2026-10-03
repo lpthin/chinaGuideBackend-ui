@@ -12,8 +12,9 @@ import { useAuthStore } from '../../../stores/auth'
  * 1. 租户档仍然看得见自己的站内信——收件箱那一条请求照发；
  * 2. 「发送消息」不摆给没有超管身份的人：弹窗里那个租户下拉读的是 /api/admin/tenants，
  *    后端每个方法第一行 checkSuperAdmin()，摆出来只会让人点开一个空下拉框；
- * 3. 「删除」只摆给这一家的管理员（拍板 1a）：后端 `MessageController.requireTenantAdminOf`
- *    判的是「角色有 SITE_ADMIN」+「人站在自己归属的那一家」，界面按同一条摆。
+ * 3. 「删除」摆不摆跟后端同一条（拍板 1a + 1a 复核 2026-10-03）：`MessageController.deleteMessage`
+ *    先问「这条的 receiver_id 是不是登录者」——是自己那一格就本人删，不看角色；
+ *    不是自己的那一格（发件箱里那条 = 对方收件箱里的那一份）才要「角色有 SITE_ADMIN」+「人站在自己归属的那一家」。
  *    隐藏只是不让人撞墙，真正的拒绝在后端；反过来摆一颗后端会拒的按钮才是问题。
  */
 
@@ -305,7 +306,7 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
   })
 })
 
-describe('删除入口：只有这一家的管理员摆（拍板 1a），删的语义写在确认里（拍板 2a）', () => {
+describe('删除入口：自己那一格本人删，别人那一格要这一家的管理员（拍板 1a + 1a 复核），语义写在确认里（拍板 2a）', () => {
   function hasDeleteButton() {
     return buttonTexts().some(text => text.includes('删除'))
   }
@@ -315,9 +316,24 @@ describe('删除入口：只有这一家的管理员摆（拍板 1a），删的�
     return node?.dataset.title ?? ''
   }
 
-  it('SITE_ADMIN（站在自己那一家）：摆，且确认里说的是「删的是这一对当事人的那一条」', async () => {
-    const wrapper = await mountAs(['SITE_ADMIN'], ['portal:siteinfo:manage'])
+  /**
+   * 发件箱只留「我发给别人」的那一行（receiverId 9 ≠ 登录者 1）。
+   * 不这样切的话，默认那份数据里夹着一条自己发给自己的（库里 id 1、2 就是这种形状），
+   * 「管理员才摆」这一条会被收件人判据蒙过去，测了等于没测。
+   */
+  function onlyForeignOutboxRow() {
+    vi.mocked(portalMessageApi.outbox).mockResolvedValue({ records: [outboxRecords()[0]], total: 1 } as any)
+  }
+
+  async function switchToOutbox() {
+    ;(document.querySelector('.tab-outbox') as HTMLElement).click()
+    await flushPromises()
+  }
+
+  it('收件箱：那一条就是登录者自己眼前那一格，CONTENT_EDITOR 也摆', async () => {
+    const wrapper = await mountAs(['CONTENT_EDITOR'], ['portal:siteinfo:manage'])
     expect(hasDeleteButton()).toBe(true)
+    expect(buttonTexts().some(text => text.includes('查看'))).toBe(true)
     // 库里一行只挂一个 receiver_id（群发在发送时就摊成 N 行），
     // 所以不许再写「这家租户所有人都看不到」那种夸大的话——上一版就是错的
     expect(deleteConfirmTitle()).toContain('你的收件箱')
@@ -325,22 +341,38 @@ describe('删除入口：只有这一家的管理员摆（拍板 1a），删的�
     wrapper.unmount()
   })
 
-  it('CONTENT_EDITOR：不摆删除，但「查看」照摆', async () => {
+  it('发件箱：那一条代表的是对方收件箱里的那一份，CONTENT_EDITOR 不摆', async () => {
+    onlyForeignOutboxRow()
     const wrapper = await mountAs(['CONTENT_EDITOR'], ['portal:siteinfo:manage'])
-    expect(hasDeleteButton()).toBe(false)
-    expect(buttonTexts().some(text => text.includes('查看'))).toBe(true)
-    wrapper.unmount()
-  })
-
-  it('超管切到别家：角色里挂着 SITE_ADMIN 也不摆（他自己那一家才是他的管辖范围）', async () => {
-    const wrapper = await mountAs(['SUPER_ADMIN', 'SITE_ADMIN'], ['portal:admin:tenant'], { selectedTenantId: 9 })
+    await switchToOutbox()
     expect(hasDeleteButton()).toBe(false)
     wrapper.unmount()
   })
 
-  it('超管站在自己归属的那一家（15）：摆，与后端比 admin_user.tenant_id 同一条', async () => {
-    const wrapper = await mountAs(['SUPER_ADMIN', 'SITE_ADMIN'], ['portal:admin:tenant'], { selectedTenantId: 15 })
+  it('发件箱：SITE_ADMIN 站在自己归属的那一家（15）才摆', async () => {
+    onlyForeignOutboxRow()
+    const wrapper = await mountAs(['SITE_ADMIN'], ['portal:siteinfo:manage'], { selectedTenantId: 15 })
+    await switchToOutbox()
     expect(hasDeleteButton()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('发件箱：超管切到别家，角色里挂着 SITE_ADMIN 也不摆（管辖范围按 admin_user.tenant_id 比）', async () => {
+    onlyForeignOutboxRow()
+    const wrapper = await mountAs(['SUPER_ADMIN', 'SITE_ADMIN'], ['portal:admin:tenant'], { selectedTenantId: 9 })
+    await switchToOutbox()
+    expect(hasDeleteButton()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('超管停在平台档（没选租户）：那一枪根本不发，也不摆一张注定空着的表', async () => {
+    const wrapper = await mountAs(['SUPER_ADMIN', 'SITE_ADMIN'], ['portal:admin:tenant'])
+    // 后端 resolveTenantId 没租户就回 TENANT_REQUIRED（现场实测），发出去只换来一句红 toast
+    expect(portalMessageApi.list).not.toHaveBeenCalled()
+    expect(hasDeleteButton()).toBe(false)
+    expect(alertTexts().join(' ')).toContain('请在右上角切到「租户」')
+    // 但「发送消息」不能跟着一起消失 —— 平台档的正活儿就是群发，那颗按钮在同一张卡的 #actions 里
+    expect(buttonTexts().some(text => text.includes('发送消息'))).toBe(true)
     wrapper.unmount()
   })
 

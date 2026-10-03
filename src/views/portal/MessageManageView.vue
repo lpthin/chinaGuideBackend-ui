@@ -175,11 +175,12 @@
               <template v-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="viewDetail(record)">查看</a-button>
-                  <!-- 拍板 1a：只有这一家的管理员能删，后端 requireTenantAdminOf 是这么判的，界面按同一条摆。
+                  <!-- 拍板 1a + 1a 复核：收件人删自己收件箱里那一格不需要管理员角色，其余的行要这一家的管理员，
+                       后端 deleteMessage 判的就是这一条，界面按同一条摆。
                        确认文案按实测语义写（上一版「这家租户所有人都看不到」是错的）：一行只装一个收件人
                        （群发在发送时就摊成 N 行），删掉的是这一对当事人看到的这一条。 -->
                   <a-popconfirm
-                    v-if="canDelete"
+                    v-if="canDeleteRow(record)"
                     :title="deleteConfirmTitle(record)"
                     @confirm="handleDelete(record.id)"
                   >
@@ -301,11 +302,18 @@ const SITE_ADMIN_ROLE = 'SITE_ADMIN'
 const actingTenantId = computed(() => (auth.isSuperAdmin ? auth.selectedTenantId : auth.tenantId))
 
 /**
- * 与后端 `MessageController.requireTenantAdminOf` 同一条判据（拍板 1a）：
- * 角色要有 SITE_ADMIN，而且人得站在自己归属的那一家 —— 超管切到别家也删不了别人家的信。
+ * 与后端 `MessageController.deleteMessage` 同一条判据（拍板 1a + 1a 复核 2026-10-03）：
+ * 收件人本人删自己收件箱里的那一格不需要管理员角色 —— 一行只代表一个收件人，那是他自己眼前的一条；
+ * 其余的行（发件箱那一条 = 对方收件箱里的那一份、别人收件箱里的那一条）都会消掉对方的视野，
+ * 仍要「这一家的管理员」：角色有 SITE_ADMIN，而且人得站在自己归属的那一家，超管切到别家也不算。
  * 摆不出动作的按钮不摆；真正的拒绝仍然由后端来做，这里只是不让人撞墙。
  */
-const canDelete = computed(() => auth.hasRole(SITE_ADMIN_ROLE) && actingTenantId.value === auth.tenantId)
+function canDeleteRow(record: PortalMessage): boolean {
+  if (record.receiverId != null && record.receiverId === auth.user?.id) {
+    return true
+  }
+  return auth.hasRole(SITE_ADMIN_ROLE) && actingTenantId.value === auth.tenantId
+}
 
 /**
  * 平台档 = 超管且右上角没选租户。这一档下按人算的那三个数读不到（后端 `TENANT_REQUIRED`），
