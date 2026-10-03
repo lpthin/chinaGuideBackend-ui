@@ -97,7 +97,7 @@ describe('siteInfoFieldRows：字段顺序 = 后端词表顺序，未知字段�
       // 故意乱序塞进对象，验证排序靠词表不靠 Object.keys 顺序
       llms_txt_template: { key: 'llms_txt_template', label: 't', editable: false, changeSource: null, changeSourceLabel: '未记录', text: null },
       llms_summary: { key: 'llms_summary', label: 's', editable: true, changeSource: 'ai_brief_seo', changeSourceLabel: 'AI 生成', text: 'x' },
-      robots: { key: 'robots', label: 'r', editable: true, changeSource: 'tenant_edit', changeSourceLabel: '人工修改', text: 'y', structured: { mode: ROBOTS_MODE_STRUCTURED, crawlers: [], overrideText: null, exportedText: 'y' } },
+      robots: { key: 'robots', label: 'r', editable: true, changeSource: 'tenant_edit', changeSourceLabel: '人工修改', text: 'y', structured: { mode: ROBOTS_MODE_STRUCTURED, crawlers: [], overrideText: null, exportedText: 'y', warnings: [] } },
       geo_citation_summary: { key: 'geo_citation_summary', label: 'g', editable: true, changeSource: null, changeSourceLabel: '未记录', text: 'z' },
       brand_new_field: { key: 'brand_new_field', label: 'n', editable: false, changeSource: null, changeSourceLabel: '未记录', text: 'w' }
     }

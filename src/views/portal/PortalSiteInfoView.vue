@@ -32,6 +32,21 @@
                 style="margin-bottom: 12px"
               />
 
+              <!-- 缺口提示：只点名不拦人（客户有权屏蔽某一家），但必须看得见，否则「贴了原文却没人告诉我省了哪段」 -->
+              <a-alert
+                v-if="robotsWarnings.length"
+                type="info"
+                show-icon
+                :message="`这份覆写原文里有 ${robotsWarnings.length} 处要留意的地方（不影响保存）`"
+                style="margin-bottom: 12px"
+              >
+                <template #description>
+                  <ul class="robots-warnings">
+                    <li v-for="(warning, index) in robotsWarnings" :key="index">{{ warning }}</li>
+                  </ul>
+                </template>
+              </a-alert>
+
               <div class="robots-checks">
                 <div v-for="c in robotsCrawlers" :key="c.id" class="crawler-row">
                   <a-checkbox v-model:checked="crawlerChecked[c.id]">
@@ -62,7 +77,7 @@
                 <a-textarea
                   v-model:value="overrideDraft"
                   :rows="10"
-                  placeholder="逐字对外生效的 robots.txt 原文（可用 {sitemap} 占位）"
+                  placeholder="逐字对外生效的 robots.txt 原文。Sitemap 那行请写 https:// 开头的完整地址，或写 {sitemap} 由系统换成本站的地址；相对地址（如 /sitemap.xml）搜索引擎收不到，保存会被拒。"
                   style="font-family: 'Courier New', monospace"
                 />
                 <div class="toolbar-actions" style="margin-top: 8px">
@@ -163,6 +178,7 @@ const robotsStructured = computed(() => {
 const robotsMode = computed(() => robotsStructured.value?.mode ?? '');
 const robotsCrawlers = computed(() => robotsStructured.value?.crawlers ?? []);
 const robotsExportedText = computed(() => robotsStructured.value?.exportedText ?? '');
+const robotsWarnings = computed(() => robotsStructured.value?.warnings ?? []);
 
 // 勾选袋：id -> checked，初值来自后端 structured.crawlers[].allowed（真相不猜）
 const crawlerChecked = reactive<Record<string, boolean>>({});
@@ -324,6 +340,15 @@ onMounted(() => {
     color: #8c8c8c;
     font-size: 12px;
     margin-top: 4px;
+  }
+
+  .robots-warnings {
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  .robots-warnings li {
+    margin-bottom: 4px;
   }
 
   .toolbar-actions {

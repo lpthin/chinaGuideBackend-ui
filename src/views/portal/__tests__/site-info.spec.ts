@@ -100,3 +100,21 @@ describe('形态：AI 先填好、租户只在不同意时改，robots 是勾选
     expect(view).toMatch(/写入这一层的口在超管侧/);
   });
 });
+
+describe('Q-P4c：覆写原文的缺口提示要在屏上，不能只留在库里（缺陷 E）', () => {
+  it('提示清单只认后端 structured.warnings，前端不自己列该点名的爬虫', () => {
+    expect(adapter).toMatch(/warnings:\s*string\[\]/);
+    expect(view).toMatch(/robotsStructured\.value\?\.warnings \?\? \[\]/);
+    expect(view).toMatch(/v-for="\(warning, index\) in robotsWarnings"/);
+  });
+
+  it('缺口提示是非阻断的（明写「不影响保存」），也不许因此变成保存失败的谎报', () => {
+    expect(view).toMatch(/不影响保存/);
+    expect(view).toMatch(/v-if="robotsWarnings\.length"/);
+  });
+
+  it('覆写框一开始就把「Sitemap 要写完整地址」说在前面——相对地址会被后端拒，不能等报错才知道', () => {
+    expect(view).toMatch(/Sitemap 那行请写 https:\/\/ 开头的完整地址/);
+    expect(view).toMatch(/\{sitemap\}/);
+  });
+});
