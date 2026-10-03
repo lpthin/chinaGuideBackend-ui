@@ -24,11 +24,13 @@
     "vue-router": "latest"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@vitejs/plugin-vue": "latest",
     "@vitest/ui": "^4.1.9",
     "@vue/test-utils": "^2.4.11",
     "happy-dom": "^20.10.6",
     "less": "^4.6.7",
+    "mysql2": "^3.24.5",
     "typescript": "latest",
     "vite": "latest",
     "vitest": "^4.1.9",
