@@ -397,6 +397,10 @@
             <template v-else-if="column.key === 'status'">
               <a-tag :color="taskStatusMeta(record.status).color">{{ taskStatusMeta(record.status).label }}</a-tag>
               <div v-if="record.errorMessage" class="task-error">{{ record.errorMessage }}</div>
+              <!-- 降级放行：稿子已存为草稿，缺口要点名到行，不能只写在后端日志里 -->
+              <div v-for="(note, noteIndex) in record.qualityNotes || []" :key="noteIndex" class="task-note">
+                {{ note }}
+              </div>
             </template>
             <template v-else-if="column.key === 'progress'">
               <a-progress :percent="Math.floor(record.progress || 0)" size="small" :show-info="false"
@@ -616,6 +620,8 @@ type GenerationTask = {
   title?: string
   wordCount?: number
   errorMessage?: string
+  /** 质检降级放行时后端点名的缺口（QualityCheckStep → resultJson.qualityNotes） */
+  qualityNotes?: string[]
   articleStatus?: ArticleStatus
 }
 
@@ -806,7 +812,7 @@ function addTask(taskId: number, driver: string, topic: string) {
 }
 
 type TaskUpdate = Partial<Pick<GenerationTask,
-  'status' | 'progress' | 'stage' | 'articleId' | 'title' | 'wordCount' | 'errorMessage'
+  'status' | 'progress' | 'stage' | 'articleId' | 'title' | 'wordCount' | 'errorMessage' | 'qualityNotes'
 >>
 
 function applyTaskUpdate(taskId: number, patch: TaskUpdate) {
@@ -819,6 +825,7 @@ function applyTaskUpdate(taskId: number, patch: TaskUpdate) {
   if (patch.title !== undefined) task.title = patch.title
   if (patch.wordCount !== undefined) task.wordCount = patch.wordCount
   if (patch.errorMessage !== undefined) task.errorMessage = patch.errorMessage
+  if (patch.qualityNotes !== undefined) task.qualityNotes = patch.qualityNotes
 }
 
 function findTask(taskId: number) {
@@ -902,8 +909,14 @@ async function handleTaskComplete(taskId: number, res: TaskUpdate) {
   resetGenerationState()
   const status = (res.status || '').toUpperCase()
   if (status === 'COMPLETED') {
-    message.success('文章生成成功')
     const task = findTask(taskId)
+    const notes = task?.qualityNotes ?? []
+    if (notes.length > 0) {
+      // 不许在这里只报「成功」：质检放行是有缺口的，人要知道缺的是哪一项、去哪儿补
+      message.warning(`文章已生成为草稿，但质检有 ${notes.length} 处缺口：${notes[0]}`, 8)
+    } else {
+      message.success('文章生成成功')
+    }
     if (task) await refreshArticleStatus(task)
     await loadStats()
   } else if (status === 'FAILED') {
@@ -1534,6 +1547,12 @@ onUnmounted(() => {
 .task-error {
   font-size: 12px;
   color: #ff4d4f;
+  margin-top: 2px;
+}
+
+.task-note {
+  font-size: 12px;
+  color: #d48806;
   margin-top: 2px;
 }
 
