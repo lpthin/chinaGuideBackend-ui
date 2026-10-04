@@ -226,6 +226,21 @@ describe('接口没回的那几项，界面上不许出现假 0', () => {
     expect(text).toContain('未统计')
   })
 
+  /**
+   * Q-P7-6a：「总费用 ¥0.00」以前一直在报一本不存在的账——`ai_call_log.cost_estimate`
+   * 没有任何写入点，SQL 里那层 COALESCE 把「没统计过」兜成了「0 元」。
+   * 后端现在在全 NULL 时回 null，这一条钉的就是界面那一半：念「未统计」，并且把真账指回
+   * 下面那块按 token 记的额度与扣费流水，而不是留一个看起来像读数的 0。
+   */
+  it('费用那一列后端回 null：念「未统计」并指回额度，不念 ¥0.00', async () => {
+    const wrapper = await mountView({ ...STATS, totalCost: null })
+    const text = wrapper.text()
+    expect(text).toContain('未统计')
+    expect(wrapper.find('.stat-value--none').exists()).toBe(true)
+    expect(text).not.toContain('¥0.00')
+    expect(wrapper.find('.stat-note').text()).toContain('扣费流水')
+  })
+
   it('读回来真是 0 也照样念：不许把「这个月一次没调用」藏成「未统计」', async () => {
     const wrapper = await mountView({
       ...STATS, totalCalls: 0, totalTokens: 0, totalCost: 0, successRate: 0,

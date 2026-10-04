@@ -78,11 +78,23 @@
                 <DollarOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ totalCost.toFixed(2) }}</div>
+                <!--
+                  Q-P7-6a：这一格以前恒念「¥0.00」，而同一时刻旁边的 token 在涨。根因不在界面：
+                  `ai_call_log.cost_estimate` 没有任何写入点，SQL 里那层 COALESCE 把「没统计过」兜成了
+                  「0 元」。现在后端在全 NULL 时回 null，界面就念「未统计」，并把真账指回下面那块额度
+                  与扣费流水——0 是一个数，而真相是「没有这个数」，两者不许互换（§9.6 同一条纪律）。
+                -->
+                <div class="stat-value" :class="{ 'stat-value--none': !hasStat('totalCost') }">
+                  {{ hasStat('totalCost') ? `¥${totalCost.toFixed(2)}` : '未统计' }}
+                </div>
                 <div class="stat-title">{{ rangeLabel }}总费用</div>
                 <div v-if="hasStat('costGrowth')" class="stat-trend up">
                   <ArrowUpOutlined /> {{ costGrowth }}% 较上月
                 </div>
+                <p v-if="!hasStat('totalCost')" class="stat-note">
+                  这一列没有来源（模型的单价没处取），所以不念 ¥0。真账在下方「本月额度」那块：
+                  它按 token 记水位与扣费流水，要在右上角选定租户才读得到。
+                </p>
               </div>
             </div>
           </a-card>
@@ -1149,6 +1161,19 @@ onMounted(() => {
     font-weight: 600;
     color: #1f2937;
     line-height: 1.2;
+  }
+
+  // 「未统计」不是一个数，不许长得像读数：褪成灰、不加重，免得这一眼扫过去仍当成 ¥ 的额度
+  .stat-value--none {
+    color: #8c8c8c;
+    font-weight: 400;
+  }
+
+  .stat-note {
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #8c8c8c;
   }
 
   .stat-title {
