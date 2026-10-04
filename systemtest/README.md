@@ -37,6 +37,10 @@ npx playwright test specs/journey-j01-provision.spec.ts   # 或一把跑：npx p
 | `specs/journey-j04-review-i18n.spec.ts` | SYS-J04 两级审核与多语言：AI 预审不越权推状态、翻译按参数出稿、门户那一篇是谁（G-05、G-06） |
 | `specs/journey-j10-ai-trace.spec.ts` | SYS-J10 AI 留痕与失败面：四要素、坏模型不吞错、生成那一跳的留痕缺口（G-12） |
 | `specs/journey-j11-modules.spec.ts` | SYS-J11 官网六模块通用能力：后台写一行→自己的读口点得到→删了就读不到（G-13） |
+| `specs/journey-j09-billing-reconcile.spec.ts` | SYS-J09 计费对账：一笔真扣费三方同源 + 四条现账普查（G-02「能计费」） |
+| `specs/journey-j09b-quota-gate.spec.ts` | SYS-J09b 水位闸与两池分账：429 零留痕、GEO 池与通用池同屏并存（N-02） |
+| `specs/journey-j05-site-build-delivery.spec.ts` | SYS-J05 建站交付链：前采→三套候选→预览令牌→客户选定→转正交棒→交付后运营与计费（G-02「能交付」、N-03） |
+| `specs/journey-j05b-geo-loop.spec.ts` | SYS-J05b GEO 诊断闭环：品牌档案→计划→轮次→判定→机会→四动作各真落一次→发布后机会自己变已发布→SOV 翻得动（N-01） |
 | `specs/screen-j13-screens.spec.ts` | SYS-J13 后台六屏浏览器重放：真实控件点到底、控制台不许报错（N-04、N-05） |
 
 ## 数据纪律（spec §7）

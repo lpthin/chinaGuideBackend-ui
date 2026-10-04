@@ -11,6 +11,8 @@ export interface CaseCard {
   期望: string[];
   反例: string[];
   收尾: string;
+  /** 这一格的口径出处（阈值/顺序这类「为什么这样判」的话），报告里要跟用例卡一起抄 */
+  口径?: string;
 }
 
 export class Journal {
