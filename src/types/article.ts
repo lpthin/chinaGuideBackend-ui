@@ -77,6 +77,32 @@ export interface Article {
   updatedAt?: string
 }
 
+/**
+ * 一档语言（article_version 的一行）。源语言与译稿是同一张表里的不同行，
+ * 靠 locale 分家；Q-P3 定稿 (a) 让租户在后台看得见并改得动译稿那一档。
+ */
+export interface ArticleLocaleVersion {
+  id: number
+  tenantId: number
+  articleId: number
+  locale: string
+  title?: string
+  summary?: string
+  contentMd?: string
+  /** source（源语言）/ translated（机器译过）/ 空 */
+  translationStatus?: string
+  aiModel?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** 改一档语言时提交体里出现的字段——键名沿用 ArticleVersionFields 那一份 */
+export interface ArticleLocaleEdit {
+  title?: string
+  summary?: string
+  contentMd?: string
+}
+
 // 图片库
 export interface ImageLibrary {
   id: number

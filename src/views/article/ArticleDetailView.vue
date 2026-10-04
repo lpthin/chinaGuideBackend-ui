@@ -49,6 +49,56 @@
           <a-card v-else :bordered="false">
             <a-empty description="文章不存在或已被删除" />
           </a-card>
+
+          <!-- Spec-K Q-P3 定稿 (a)：译稿在后台看得见、改得动（改造前只有 /versions 那条口读得到，界面上一个字都没有） -->
+          <a-card
+            v-if="localeVersions.length"
+            title="语言档（译文）"
+            :bordered="false"
+            style="margin-top: 16px"
+          >
+            <a-alert
+              type="info"
+              show-icon
+              message="这里改的是那一档语言的稿子本身"
+              description="上面正文摆的是源语言那一版；发布仍然按整篇走（校验的是源语言版），门户与爬虫口目前也只出源语言。要让译稿对外可见属于「多语言 URL」那一档，得连 sitemap / canonical / hreflang 一起开。"
+              style="margin-bottom: 12px"
+            />
+
+            <div v-for="v in localeVersions" :key="v.id" class="locale-block">
+              <div class="locale-head">
+                <a-tag color="geekblue">{{ v.locale }}</a-tag>
+                <a-tag v-if="v.translationStatus === 'translated'" color="green">机器已译</a-tag>
+                <span class="locale-meta">{{ v.aiModel || '模型未记录' }} · 更新于 {{ formatTime(v.updatedAt) }}</span>
+                <a-button v-if="editingLocaleId !== v.id" size="small" @click="startEditLocale(v)">改</a-button>
+              </div>
+
+              <template v-if="editingLocaleId !== v.id">
+                <div class="locale-title">{{ v.title }}</div>
+                <div class="locale-summary">{{ v.summary }}</div>
+                <pre class="locale-body">{{ v.contentMd }}</pre>
+              </template>
+              <template v-else>
+                <a-input v-model:value="localeDraft.title" placeholder="这一档的标题" style="margin-bottom: 8px" />
+                <a-textarea
+                  v-model:value="localeDraft.summary"
+                  :rows="2"
+                  placeholder="这一档的摘要"
+                  style="margin-bottom: 8px"
+                />
+                <a-textarea
+                  v-model:value="localeDraft.contentMd"
+                  :rows="12"
+                  placeholder="这一档的正文（Markdown）"
+                  style="margin-bottom: 8px"
+                />
+                <a-space>
+                  <a-button type="primary" :loading="savingLocale" @click="saveLocale(v)">保存这一档</a-button>
+                  <a-button @click="cancelEditLocale">取消</a-button>
+                </a-space>
+              </template>
+            </div>
+          </a-card>
         </a-col>
 
         <a-col :span="6">
@@ -101,13 +151,26 @@ import {
 import { articleManageApi } from '../../api/article'
 import { describeHttpError } from '../../api/http'
 import { formatTime } from '../../utils/format'
-import type { Article } from '../../types/article'
+import type { Article, ArticleLocaleEdit, ArticleLocaleVersion } from '../../types/article'
 import { marked } from 'marked'
 
 const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
 const article = ref<Article | null>(null)
+const versions = ref<ArticleLocaleVersion[]>([])
+
+/**
+ * 源语言那一档：后端写库时把它的 translation_status 记成 source，上面的正文卡摆的也是它。
+ * 认不出来时退回「非 source 的都算译稿」，宁可少摆一档也不把源语言当译稿再摆一遍。
+ */
+const sourceVersion = computed(() => versions.value.find(v => v.translationStatus === 'source') ?? null)
+const localeVersions = computed(() =>
+  versions.value.filter(v => (sourceVersion.value ? v.id !== sourceVersion.value.id : v.translationStatus !== 'source'))
+)
+const editingLocaleId = ref<number | null>(null)
+const localeDraft = ref<ArticleLocaleEdit>({})
+const savingLocale = ref(false)
 
 /** 后端详情接口会带 categoryName；没有就是真的没分类，不能写成「未分类」冒充 */
 const categoryName = computed(() => article.value?.categoryName || '')
@@ -179,6 +242,48 @@ async function handleDelete() {
   }
 }
 
+async function loadVersions(id: number) {
+  try {
+    const data = await articleManageApi.versions(id)
+    versions.value = Array.isArray(data) ? (data as ArticleLocaleVersion[]) : []
+  } catch (error) {
+    // 读不到就整块不摆，也不拿源语言那一版冒充「有译文」——但必须说人话，不能静默
+    versions.value = []
+    message.warning(`语言档读取失败：${describeHttpError(error)}`)
+  }
+}
+
+function startEditLocale(version: ArticleLocaleVersion) {
+  editingLocaleId.value = version.id
+  localeDraft.value = {
+    title: version.title ?? '',
+    summary: version.summary ?? '',
+    contentMd: version.contentMd ?? '',
+  }
+}
+
+function cancelEditLocale() {
+  editingLocaleId.value = null
+  localeDraft.value = {}
+}
+
+async function saveLocale(version: ArticleLocaleVersion) {
+  if (!article.value) return
+  savingLocale.value = true
+  try {
+    const saved = await articleManageApi.updateVersion(article.value.id, version.id, localeDraft.value)
+    const merged = { ...version, ...(saved as ArticleLocaleVersion) }
+    versions.value = versions.value.map(item => (item.id === version.id ? merged : item))
+    editingLocaleId.value = null
+    localeDraft.value = {}
+    message.success(`${version.locale} 这一档已保存`)
+  } catch (error) {
+    message.error(`保存失败：${describeHttpError(error)}`)
+  } finally {
+    savingLocale.value = false
+  }
+}
+
 async function loadArticle() {
   const id = route.params.id
   if (!id) {
@@ -191,6 +296,7 @@ async function loadArticle() {
     const data = await articleManageApi.get(Number(id))
     article.value = data as Article
     loadRelated(data as Article)
+    loadVersions(Number(id))
   } catch (error) {
     message.error(`加载文章详情失败：${describeHttpError(error)}`)
   } finally {
@@ -206,6 +312,52 @@ onMounted(() => {
 <style scoped lang="less">
 .article-detail-page {
   width: 100%;
+}
+
+.locale-block {
+  padding: 12px 0;
+  border-top: 1px solid #f0f0f0;
+
+  &:first-of-type {
+    border-top: none;
+  }
+
+  .locale-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    .locale-meta {
+      flex: 1;
+      font-size: 12px;
+      color: #8c8c8c;
+    }
+  }
+
+  .locale-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 6px;
+  }
+
+  .locale-summary {
+    font-size: 13px;
+    color: #595959;
+    margin-bottom: 8px;
+  }
+
+  .locale-body {
+    max-height: 260px;
+    overflow-y: auto;
+    background: #fafafa;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    color: #434343;
+  }
 }
 
 .article-meta {

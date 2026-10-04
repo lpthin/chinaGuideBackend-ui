@@ -12,6 +12,7 @@ import type {
   ArticleForm,
   ArticlePublish,
   ArticleUnpublishResult,
+  ArticleLocaleVersion,
   PageResult
 } from '../types/article'
 
@@ -78,7 +79,21 @@ export const articleManageApi = {
 
   // 撤回发布：内容从门户下架并在发布记录上留下撤回时间
   unpublish: (id: number) =>
-    http.post<ArticleUnpublishResult>(`/articles/${id}/unpublish`, {})
+    http.post<ArticleUnpublishResult>(`/articles/${id}/unpublish`, {}),
+
+  /**
+   * 这一篇有哪几档语言（article_version 一行一档）。
+   * 详情页正文摆的是源语言那一版，其余档以前只有这条口读得到、界面上看不见。
+   */
+  versions: (id: number) =>
+    http.get<ArticleLocaleVersion[]>(`/articles/${id}/versions`),
+
+  /**
+   * 改某一档语言的标题/摘要/正文（Q-P3 定稿 a）。
+   * 写的是点名的那一行，不动整篇状态位——发布仍然按整篇走、公开口仍只出源语言。
+   */
+  updateVersion: (id: number, versionId: number, data: { title?: string; summary?: string; contentMd?: string }) =>
+    http.put<ArticleLocaleVersion>(`/articles/${id}/versions/${versionId}`, data)
 }
 
 // 素材库 API（Spec-J J3：原「图片库」）
