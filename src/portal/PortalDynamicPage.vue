@@ -3,6 +3,13 @@
     <p v-if="loading" class="portal-dynamic-page__state">页面加载中…</p>
     <p v-else-if="error" class="portal-dynamic-page__state">{{ error }}</p>
     <template v-else-if="page">
+      <!-- Q-P7-1(a)：令牌排在 `?site=` 前面是有意的设计（候选站不绑域名；SPA 会把 `?site=` 缓在
+           sessionStorage，让缓存赢就是「内容对了、壳错了」），这条不改。改的是可见性：
+           这里报的是**这次真的渲染出来的那一站**（壳数据也走同一条令牌，所以名字跟着内容一起变），
+           客户指错套时一眼看得出错在哪。站名在建站那一步就带着「候选方案 N」，所以这一句同时答了「第几套」。 -->
+      <p v-if="reviewActive && previewIdentity" class="portal-dynamic-page__identity">
+        {{ previewIdentity }}
+      </p>
       <!-- skippedBlocks 按后端契约是管理端线索（区块已下线这类），不该在访客页面上冒出来；
            只在预览链接里说，因为看到它的正是需要去把它换掉的人。 -->
       <p v-if="reviewActive && page.skippedBlocks?.length" class="portal-dynamic-page__state">
@@ -52,6 +59,7 @@ import { SITE_PREVIEW_NOTICE, reviewTokenOf, useReviewMode } from './useReviewMo
  * 逐页令牌只能开它绑的那一页（/review/{token}/page），整站令牌开的是这一整套站，
  * 每一页都走公开取数口（后端已让令牌优先于域名，无域名的候选站也认得出自己）。
  * 工具条则跟着「能不能提工单」出现，候选站那条没有写口，摆出来就是演给客户看。
+ * 而「这条链接开的是哪一套」不管能不能提工单都要说出来——见模板里 `__identity` 那一行。
  */
 const props = defineProps<{ slug: string }>()
 
@@ -81,6 +89,22 @@ const readonlyNotice = computed(() => {
     return SITE_PREVIEW_NOTICE
   }
   return '这条预览链接是只读的：页面上能翻，但修改意见不能在这里提交。'
+})
+
+/**
+ * 这一条预览链接真正打开的是哪一站（Q-P7-1a）。
+ *
+ * <p>只念后端壳数据里真有的两格：`siteName` 在建站那一步就写成「{主体} 候选方案 {N}」，
+ * 所以站名本身带第几套；`siteCode` 给的是「地址栏那个 `?site=` 到底落到了哪一站」的对账线索。
+ * 两格都没有就不摆这一行——留一句「你现在看的是：（空）」比没有这句更容易让人以为页面坏了。</p>
+ */
+const previewIdentity = computed(() => {
+  const name = shell.value?.siteName || shell.value?.company?.name || ''
+  const code = shell.value?.siteCode || ''
+  if (!name && !code) {
+    return ''
+  }
+  return `你现在看的是：${name || '（这一站没有站点名）'}${code ? ` · 站码 ${code}` : ''}`
 })
 
 // 主题变量落在页面根上：整页背景要跟着换肤，写满视口，不能只有内容那么高
@@ -151,6 +175,20 @@ watch([() => props.slug, reviewToken], load, { immediate: true })
     padding: 120px 24px;
     text-align: center;
     color: var(--portal-color-muted);
+  }
+
+  // 预览身份那一行：贴在正文最上面，滚动时也留在视口顶部——客户翻到第三屏才发现「看错了套」就没意义了
+  &__identity {
+    position: sticky;
+    top: 0;
+    z-index: 80;
+    margin: 0;
+    padding: 8px 24px;
+    background: rgba(22, 119, 255, 0.08);
+    border-bottom: 1px solid rgba(22, 119, 255, 0.25);
+    color: #0958d9;
+    font-size: 13px;
+    font-weight: 600;
   }
 
   // 只读预览那句实话要挂在页底显眼处，但不许长得像工具条：客户会以为那里能提意见

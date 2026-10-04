@@ -254,6 +254,38 @@ describe('PortalDynamicPage 区块渲染', () => {
     expect(wrapper.find('.review-toolbar').exists()).toBe(false)
   })
 
+  /**
+   * Q-P7-1(a)：令牌排在 `?site=` 前面是设计，不是漏洞（候选站不绑域名），但「读回来的其实是哪一套」
+   * 以前没人说。这一例钉的是：预览链接上必须报名字，而且报的是**壳接口真回的那一站**——
+   * 站名与站码都取自回包，前端不许拿地址栏那个 `?site=` 自己拼第二份真相。
+   */
+  it('预览链接报出「现在看的是哪一套」，名字取自壳接口回的那一站', async () => {
+    api.context.mockResolvedValue({ scope: 'site', ticketWritable: false, label: '候选站 A 方案', expiresAt: null })
+    api.shell.mockResolvedValue({ ...SHELL, siteName: '示例公司 候选方案 2', siteCode: 'cand-2' })
+    const wrapper = await mountPage('真实主标题')
+    await gotoWithToken(wrapper, 'tok-site')
+
+    const identity = wrapper.find('.portal-dynamic-page__identity')
+    expect(identity.exists(), '整站预览没有报出在看哪一套（J05-1 那条就是栽在这句不摆出来）').toBe(true)
+    expect(identity.text()).toContain('示例公司 候选方案 2')
+    expect(identity.text()).toContain('站码 cand-2')
+  })
+
+  it('正常访客（没有令牌）不摆这一行：预览身份是给拿链接的人看的', async () => {
+    const wrapper = await mountPage('真实主标题')
+    expect(wrapper.find('.portal-dynamic-page__identity').exists()).toBe(false)
+  })
+
+  it('壳取不到时这一行整行不留，不摆一句「你现在看的是：」空话', async () => {
+    api.context.mockResolvedValue({ scope: 'site', ticketWritable: false, label: null, expiresAt: null })
+    api.shell.mockResolvedValue({ ...SHELL, siteName: null, siteCode: null, company: { ...SHELL.company, name: null } })
+    const wrapper = await mountPage('真实主标题')
+    await gotoWithToken(wrapper, 'tok-site')
+    await flushPromises()
+
+    expect(wrapper.find('.portal-dynamic-page__identity').exists()).toBe(false)
+  })
+
   it('作用域问不到时按只读处理：不摆提交框，也不硬猜一条取数口', async () => {
     api.context.mockRejectedValue(new Error('预览链接无效或已过期'))
     const wrapper = await mountPage('真实主标题')
