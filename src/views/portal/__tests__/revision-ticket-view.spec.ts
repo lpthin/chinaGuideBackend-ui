@@ -9,7 +9,7 @@ import { useAuthStore } from '../../../stores/auth'
 /**
  * 改版工单审阅页的「按码取底数据」（问卷 3a）。
  *
- * 这一页的路由门是 portal:build:review，但页面清单走的是 portal:build:manage 的口：
+ * 这一页的路由门是 portal:build:review，但页面清单走的是 portal:page:manage 的口（Q-P7-3 拆档后）：
  * 只有审阅码的账号发那一条请求，只会得到一条「页面列表加载失败」的红字——那是谎报，
  * 缺的是码，不是接口坏了。所以缺码就不发，并把空下拉的原因写在明处。
  */
@@ -83,7 +83,7 @@ describe('改版工单：底数据按码取', () => {
     expect(portalPagesApi.list).not.toHaveBeenCalled()
     expect(portalTicketsApi.list).toHaveBeenCalledTimes(1)
     const text = wrapper.text()
-    expect(text).toContain('这个账号没有 portal:build:manage')
+    expect(text).toContain('这个账号没有 portal:page:manage')
     // 缺的是码，不是接口坏了：那条「页面列表加载失败」的红字不许在这里出现
     expect(message.error).not.toHaveBeenCalled()
     expect(text).not.toContain('页面列表加载失败')
@@ -91,9 +91,9 @@ describe('改版工单：底数据按码取', () => {
   })
 
   it('给了 manage 码就照旧去取页面清单，那句话收回去', async () => {
-    const wrapper = await mountView(['portal:build:review', 'portal:build:manage'])
+    const wrapper = await mountView(['portal:build:review', 'portal:page:manage'])
     expect(portalPagesApi.list).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).not.toContain('这个账号没有 portal:build:manage')
+    expect(wrapper.text()).not.toContain('这个账号没有 portal:page:manage')
     wrapper.unmount()
   })
 })

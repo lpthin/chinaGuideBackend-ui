@@ -332,7 +332,7 @@ describe('PortalHealthView', () => {
       { ...finding(1, 'seo_missing'), suggestionJson: SEO_SUGGESTION }
     ] as any)
     vi.mocked(portalHealthApi.applySuggestion).mockResolvedValue({} as any)
-    const wrapper = await mountView(['portal:build:health', 'portal:build:manage'])
+    const wrapper = await mountView(['portal:build:health', 'portal:build:manage', 'portal:page:manage'])
 
     const row = await expandRow()
     // 按钮就在 popconfirm 里，但直接点它不算确认
@@ -354,7 +354,7 @@ describe('PortalHealthView', () => {
       { ...finding(1, 'seo_missing'), suggestionJson: APPLIED_SUGGESTION }
     ] as any)
     vi.mocked(portalHealthApi.undoApply).mockResolvedValue({} as any)
-    const wrapper = await mountView(['portal:build:health', 'portal:build:manage'])
+    const wrapper = await mountView(['portal:build:health', 'portal:build:manage', 'portal:page:manage'])
 
     const row = await expandRow()
     const text = row.textContent || ''
@@ -390,10 +390,24 @@ it('只有 health 码时那两个口一次都不发，缺码那句写在明处�
   expect(portalPagesApi.list).not.toHaveBeenCalled()
   expect(siteApi.list).not.toHaveBeenCalled()
   const text = wrapper.text()
-  expect(text).toContain('这个账号没有 portal:build:manage')
+  // 两个下拉分属两码（Q-P7-3：读页 portal:page:manage，站点清单仍 portal:build:manage），
+  // 所以那句话要把两个码都点名，而不是笼统说「没有建设码」
+  expect(text).toContain('这个账号缺')
+  expect(text).toContain('portal:page:manage（读不到页面清单）')
+  expect(text).toContain('portal:build:manage（读不到站点清单）')
   // 读不到页面清单 ≠ 巡检词表读不到：那一句红字不许出现在这里
   expect(text).not.toContain('巡检词表加载失败')
   expect(byText('忽略').length).toBe(3)
+  wrapper.unmount()
+})
+
+it('只有 page:manage 时页面下拉照发，站点口与写入按钮都不出现（Q-P7-3 那把闸拆开的形状）', async () => {
+  const wrapper = await mountView(['portal:build:health', 'portal:page:manage'])
+  expect(portalPagesApi.list).toHaveBeenCalledTimes(1)
+  expect(siteApi.list).not.toHaveBeenCalled()
+  const text = wrapper.text()
+  expect(text).not.toContain('portal:page:manage（读不到页面清单）')
+  expect(byText('应用到页面').length).toBe(0)
   wrapper.unmount()
 })
 

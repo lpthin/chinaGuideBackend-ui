@@ -24,13 +24,22 @@
       <a-form-item class="toolbar-actions">
         <a-space>
           <a-button @click="loadPages">刷新</a-button>
-          <a-button type="primary" @click="openCreatePage">新建页面</a-button>
+          <a-button v-if="canBuild" type="primary" @click="openCreatePage">新建页面</a-button>
         </a-space>
       </a-form-item>
     </a-form>
 
+    <a-alert
+      v-if="!canBuild"
+      class="page-builder__notice"
+      type="info"
+      show-icon
+      message="这一页对你只到「读页面、改页面信息、发布与下线」"
+      description="新建页面、加区块、改区块内容与样式、结构检查、保存布局、回滚版本都要 portal:build:manage（建站那半）。缺这一码时上面几个入口一律不出现，下面几项照常能用。"
+    />
+
     <a-spin :spinning="loadingPages">
-      <a-empty v-if="!pages.length" description="这个站点还没有页面模型，先新建一个页面">
+      <a-empty v-if="!pages.length" :description="canBuild ? '这个站点还没有页面模型，先新建一个页面' : '这个站点还没有页面：新建页面要 portal:build:manage，当前账号在这一页只能读与发布已有的页面'">
         <template #image><span /></template>
       </a-empty>
       <a-row v-else :gutter="12">
@@ -61,7 +70,7 @@
         <a-col :xs="24" :lg="6">
           <a-card size="small" title="区块序列" :body-style="{ padding: '8px' }">
             <template #extra>
-              <a-dropdown :trigger="['click']">
+              <a-dropdown v-if="canBuild" :trigger="['click']">
                 <a-button size="small" type="link">添加区块</a-button>
                 <template #overlay>
                   <a-menu @click="addBlock">
@@ -83,7 +92,9 @@
               </a-dropdown>
             </template>
 
-            <p v-if="!layoutBlocks.length" class="page-builder__muted">还没有区块，先添加一个</p>
+            <p v-if="!layoutBlocks.length" class="page-builder__muted">
+              {{ canBuild ? '还没有区块，先添加一个' : '这一页还没有区块内容' }}
+            </p>
             <div
               v-for="(block, index) in layoutBlocks"
               :key="block.instanceId"
@@ -93,7 +104,7 @@
             >
               <span class="page-builder__block-name">{{ nameOf(block.blockKey) }}</span>
               <span class="page-builder__muted">{{ block.instanceId }}</span>
-              <a-space size="2" class="page-builder__block-ops">
+              <a-space v-if="canBuild" size="2" class="page-builder__block-ops">
                 <a-button size="small" type="text" :disabled="index === 0" @click.stop="move(index, -1)">↑</a-button>
                 <a-button
                   size="small"
@@ -105,7 +116,7 @@
               </a-space>
             </div>
             <a-alert
-              v-if="maxInstancesReached"
+              v-if="canBuild && maxInstancesReached"
               type="warning"
               show-icon
               message="已达到区块数量上限，添加按钮会一直禁用（单页最多 30 个区块）"
@@ -118,40 +129,45 @@
             <template #extra>
               <a-button size="small" type="link" @click="openMeta">页面信息</a-button>
             </template>
-            <p v-if="!activeBlock" class="page-builder__muted">左边选一个区块来编辑它的内容</p>
-            <BlockPropsForm
-              v-else
-              :schema="schemaOf(activeBlock.blockKey)"
-              :allowed-sources="allowedSourcesOf(activeBlock.blockKey)"
-              :model="(activeBlock.props as Record<string, unknown>) || {}"
-              @update:model="props => writeProps(activeIndex, props)"
-            />
+            <p v-if="!canBuild" class="page-builder__muted">
+              区块内容与样式变量是建站动作（portal:build:manage）：这里只列当前已保存的那份序列，不给编辑。
+            </p>
+            <template v-else>
+              <p v-if="!activeBlock" class="page-builder__muted">左边选一个区块来编辑它的内容</p>
+              <BlockPropsForm
+                v-else
+                :schema="schemaOf(activeBlock.blockKey)"
+                :allowed-sources="allowedSourcesOf(activeBlock.blockKey)"
+                :model="(activeBlock.props as Record<string, unknown>) || {}"
+                @update:model="props => writeProps(activeIndex, props)"
+              />
 
-            <a-divider style="margin: 12px 0" />
-            <div class="page-builder__theme">
-              <span class="page-builder__muted">主题（design token，白名单由服务端给，当前 {{ tokenFields.length }} 个旋钮）</span>
-              <p v-if="!tokenFields.length" class="page-builder__muted">样式变量清单还没取到：这里不留第二份清单，刷新页面重试。</p>
-              <div v-for="token in tokenFields" :key="token.key" class="page-builder__theme-row">
-                <label>{{ designTokenLabel(token.key) }}</label>
-                <a-input-number
-                  v-if="token.kind === 'SCALE'"
-                  size="small"
-                  :value="(themeJson as Record<string, string | number>)[token.key] as number"
-                  :min="token.min"
-                  :max="token.max"
-                  step="0.05"
-                  @update:value="writeTheme(token.key, $event)"
-                />
-                <a-input
-                  v-else
-                  size="small"
-                  :value="(themeJson as Record<string, string | number>)[token.key] ?? ''"
-                  :placeholder="designTokenPlaceholder(token.key)"
-                  @update:value="writeTheme(token.key, $event)"
-                />
-                <a-button size="small" type="text" @click="clearTheme(token.key)">清</a-button>
+              <a-divider style="margin: 12px 0" />
+              <div class="page-builder__theme">
+                <span class="page-builder__muted">主题（design token，白名单由服务端给，当前 {{ tokenFields.length }} 个旋钮）</span>
+                <p v-if="!tokenFields.length" class="page-builder__muted">样式变量清单还没取到：这里不留第二份清单，刷新页面重试。</p>
+                <div v-for="token in tokenFields" :key="token.key" class="page-builder__theme-row">
+                  <label>{{ designTokenLabel(token.key) }}</label>
+                  <a-input-number
+                    v-if="token.kind === 'SCALE'"
+                    size="small"
+                    :value="(themeJson as Record<string, string | number>)[token.key] as number"
+                    :min="token.min"
+                    :max="token.max"
+                    step="0.05"
+                    @update:value="writeTheme(token.key, $event)"
+                  />
+                  <a-input
+                    v-else
+                    size="small"
+                    :value="(themeJson as Record<string, string | number>)[token.key] ?? ''"
+                    :placeholder="designTokenPlaceholder(token.key)"
+                    @update:value="writeTheme(token.key, $event)"
+                  />
+                  <a-button size="small" type="text" @click="clearTheme(token.key)">清</a-button>
+                </div>
               </div>
-            </div>
+            </template>
           </a-card>
         </a-col>
 
@@ -185,8 +201,8 @@
 
     <div class="page-builder__footer">
       <a-space>
-        <a-button :disabled="!pageId" @click="check">检查结构</a-button>
-        <a-button :disabled="!pageId" :loading="saving" type="primary" @click="save">保存</a-button>
+        <a-button :disabled="!pageId || !canBuild" @click="check">检查结构</a-button>
+        <a-button :disabled="!pageId || !canBuild" :loading="saving" type="primary" @click="save">保存</a-button>
         <a-button :disabled="!pageId" @click="publish">发布</a-button>
         <a-button :disabled="!pageId" @click="offline">下线</a-button>
         <a-button :disabled="!pageId" @click="openVersions">版本历史</a-button>
@@ -266,6 +282,7 @@
                 与 {{ diffFrom }} 对比
               </a-button>
               <a-popconfirm
+                v-if="canBuild"
                 title="回滚会把这一版内容原样写回，并新增一条回滚记录，确定吗？"
                 @confirm="rollback(record.versionNo)"
               >
@@ -291,8 +308,9 @@ import {
   type PortalPageVersion,
   type PreviewPage
 } from '../../api/portalPages'
-import { siteApi } from '../../api/workspace'
+import { portalSitesApi } from '../../api/portalSites'
 import { themePresetsApi, type ThemeTokenField } from '../../api/themePresets'
+import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { designTokenLabel, designTokenPlaceholder } from '../../portal/designTokens'
 import BlockPropsForm from './builder/BlockPropsForm.vue'
@@ -307,6 +325,11 @@ import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue
  * 2. 保存必须带 baseVersion，冲突由后端回中文错（409），这里绝不静默覆盖别人；
  * 3. 发布/下线是动作按钮，不提供「把 status 改一下再保存」的路径——published 只能由发布动作产生。
  *
+ * 第四件事（Q-P7-3）：这一页跨两档权限，按钮按档出现。
+ * 读页面、改页面信息、发布、下线、看版本 = portal:page:manage（租户管理员有），
+ * 新建页面、区块装配、结构检查、保存布局、回滚 = portal:build:manage（V93 的 N2：租户不做建站）。
+ * 后端逐方法判权，界面不许替它演：缺建设码时那些入口一律不出现，而不是点了收一串 403。
+ *
  * 排序用上下按钮而不是拖拽库：区块数量上限 30，按钮够用还免去一个前端依赖，
  * 拖拽要在 iframe/滚动容器里处理命中测试，收益不抵成本。
  */
@@ -315,6 +338,10 @@ interface LayoutBlock {
   blockKey: string
   props?: Record<string, unknown>
 }
+
+const auth = useAuthStore()
+/** 建站那半（新建页 / 区块装配 / 结构检查 / 保存布局 / 回滚）：缺这一码时这些入口一律不出现，而不是点了吃 403 */
+const canBuild = computed(() => auth.hasPermission('portal:build:manage'))
 
 const statusLabels = ref<Record<string, string>>({})
 const changeSourceLabels = ref<Record<string, string>>({})
@@ -673,27 +700,40 @@ async function rollback(versionNo: number) {
 }
 
 onMounted(async () => {
+  // 三档读口分开发：整页不该因为「建站那半读不到」而一片空白（Q-P7-3 之后租户也进得来这一页）。
   try {
-    const [blockMeta, labels, sourceLabels, siteList, tokenList] = await Promise.all([
-      portalPagesApi.blocks(),
+    const [siteList, labels, sourceLabels] = await Promise.all([
+      // 站点下拉走租户侧那个口（portal:siteinfo:manage）。以前用 /api/admin/sites，整棵挂
+      // portal:build:manage（V93），在租户这一路它必然 403；后端按登录态过滤，超管照样看到全部。
+      portalSitesApi.listMine(),
       portalPagesApi.statusLabels(),
-      portalPagesApi.changeSourceLabels(),
-      // 站点列表由后端按登录态过滤（TenantGuard）：超管看到全部，租户只看到自己的
-      siteApi.list(),
-      // 样式变量的白名单也来自服务端：留一份前端常量的话，服务端加旋钮时这里会安静地少一个输入框
-      themePresetsApi.tokens()
+      portalPagesApi.changeSourceLabels()
     ])
-    blocks.value = blockMeta
+    sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
     statusLabels.value = labels || {}
     changeSourceLabels.value = sourceLabels || {}
-    tokenFields.value = tokenList || []
-    sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
     if (sites.value.length === 1) {
       siteId.value = sites.value[0].id
     }
   } catch (error) {
-    message.error((error as Error).message || '区块元数据加载失败')
+    message.error((error as Error).message || '筛选项与词表加载失败')
+  }
+  // 区块白名单（/api/portal/blocks）与样式变量（/portal/theme-presets/tokens）都是建设域的口：
+  // 缺码就不发——发了只会得到一条租户看不懂的 403，而界面上那两处入口本来就已经按码藏好。
+  if (!canBuild.value) {
+    loadPages()
     return
+  }
+  try {
+    const [blockMeta, tokenList] = await Promise.all([
+      portalPagesApi.blocks(),
+      // 样式变量的白名单也来自服务端：留一份前端常量的话，服务端加旋钮时这里会安静地少一个输入框
+      themePresetsApi.tokens()
+    ])
+    blocks.value = blockMeta
+    tokenFields.value = tokenList || []
+  } catch (error) {
+    message.error((error as Error).message || '区块元数据加载失败')
   }
   loadPages()
 })
@@ -704,6 +744,10 @@ onMounted(async () => {
   padding: 16px;
 
   &__filter {
+    margin-bottom: 12px;
+  }
+
+  &__notice {
     margin-bottom: 12px;
   }
 

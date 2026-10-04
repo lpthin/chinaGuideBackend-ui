@@ -687,15 +687,20 @@ export const routes: RouteRecordRaw[] = [
         }
       },
       {
+        // 菜单显隐与这里的判断用同一个权限码（后端 @RequirePermission 也是它）：
+        // 只藏菜单不挡路由，等于「看不见但敲地址就能进」，那样权限只是装饰。
+        // Q-P7-3：这一闸从 `portal:build:manage` 换成 `portal:page:manage`。后端把这条控制器拆成两档
+        // （读页/改信息/发布/下线 = page:manage；新建页/区块装配/检查结构/回滚/删除 = build:manage），
+        // 路由若还挂建设码，租户连「发布自己家那一页」的界面都进不来。
+        // 建站那半在视图里按码守卫（`PageBuilderView` 的 `canBuild`），所以这一页对租户是
+        // 「能读能发、动不了骨架」，而不是进来吃一串 403。
         path: 'portal/pages',
         name: 'workspace-portal-pages',
         component: PageBuilderView,
-        // 菜单显隐与这里的判断用同一个权限码（后端 @RequirePermission 也是它）：
-        // 只藏菜单不挡路由，等于「看不见但敲地址就能进」，那样权限只是装饰。
         meta: {
           title: '页面搭建',
           icon: 'template',
-          requiredPermission: 'portal:build:manage'
+          requiredPermission: 'portal:page:manage'
         }
       },
       {

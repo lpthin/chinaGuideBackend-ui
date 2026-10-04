@@ -94,7 +94,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 /** 读状态词表要的那一码：与这一页路由的 `portal:siteinfo:manage` 不是同一条线 */
-const STATUS_LABELS_PERMISSION = 'portal:build:manage'
+const STATUS_LABELS_PERMISSION = 'portal:page:manage'
 
 interface Card {
   state: SectionState;
@@ -134,9 +134,9 @@ async function load() {
 }
 
 /**
- * `/portal/pages/statuses` 挂的是建设域那一码（`portal:build:manage`，V93：租户不做建站），
- * 而这一页的路由只要 `portal:siteinfo:manage`——两个码不是同一条线，租户档进来必吃 403。
- * 所以先按码决定发不发：不发就没有控制台那条红字，界面上「栏目页」那一行退化成露状态原码
+ * `/portal/pages/statuses` 挂 `portal:page:manage`（Q-P7-3 把这条控制器的读口从建设码拆出来那一刀），
+ * 而这一页的路由只要 `portal:siteinfo:manage`——两个码不是同一条线，只有编辑码的账号（CONTENT_EDITOR）
+ * 进来必吃 403。所以先按码决定发不发：不发就没有控制台那条红字，界面上「栏目页」那一行退化成露状态原码
  * （`landingText` 本来就按「词表缺项」设计），而不是整页报「缺少权限」。
  */
 async function loadStatusLabels() {

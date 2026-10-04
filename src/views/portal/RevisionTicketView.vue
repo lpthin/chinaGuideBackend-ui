@@ -274,7 +274,7 @@ import { useAuthStore } from '../../stores/auth'
  */
 
 const auth = useAuthStore()
-const canManage = computed(() => auth.hasPermission('portal:build:manage'))
+const canReadPages = computed(() => auth.hasPermission('portal:page:manage'))
 
 const EMPTY_OPTIONS: TicketOptions = { statuses: {}, viewports: {}, intents: {} }
 
@@ -387,11 +387,11 @@ async function reload() {
 }
 
 async function loadPages() {
-  // 页面列表是 portal:build:manage 的口，这一页按 portal:build:review 放行：
-  // 只有审阅码的账号不发这个请求，发了只会得到一条「页面列表加载失败」的红字，那是谎报。
-  if (!canManage.value) {
+  // 页面列表是 portal:page:manage 的口（Q-P7-3 拆档后读页不再要建设码），这一页按 portal:build:review 放行：
+  // 两个码都不在名单里的账号不发这个请求，发了只会得到一条「页面列表加载失败」的红字，那是谎报。
+  if (!canReadPages.value) {
     pages.value = []
-    pagesNote.value = '这个账号没有 portal:build:manage，读不到页面清单：按页面筛选和生成预览链接用不了，工单本身照常能审'
+    pagesNote.value = '这个账号没有 portal:page:manage，读不到页面清单：按页面筛选和生成预览链接用不了，工单本身照常能审'
     return
   }
   try {

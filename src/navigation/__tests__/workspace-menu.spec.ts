@@ -51,8 +51,11 @@ const SUPER = {
  * 这里不抄库里那份权限表（抄了就是第二份真相，库里加一个建设码这里还得改），
  * 只列「租户确实有的那几码」——建设/站点/系统/AI 的码一律不在名单里，
  * 用例判的正是「缺码的人看不见、也进不去」这条边界。
+ *
+ * `portal:page:manage` 在这一串里：V93 曾把它连同另外三码从 SITE_ADMIN 收回，
+ * Q-P7-3 拆完权限码后由 V161 只恢复这一码（读页/改信息/发布/下线），实测现网 SITE_ADMIN 确实持它。
  */
-const TENANT_CODES = ['portal:siteinfo:manage', 'media:manage', 'analytics:view', 'portal:ticket:submit', 'case:manage']
+const TENANT_CODES = ['portal:siteinfo:manage', 'portal:page:manage', 'media:manage', 'analytics:view', 'portal:ticket:submit', 'case:manage']
 const TENANT = {
   isSuperAdmin: false,
   hasPermission: (code: string) => TENANT_CODES.includes(code),
@@ -154,12 +157,32 @@ describe('平台段与租户段分家', () => {
     expect(visibleNames).not.toContain('前采需求单')
     expect(visibleNames).not.toContain('栏目开通')
     expect(visibleNames).not.toContain('站点管理')
-    expect(visibleNames).not.toContain('页面搭建')
+    // Q-P7-3：「页面搭建」这一项不再属于建设段——它的闸是 portal:page:manage，
+    // 租户管理员确实能读页、改页面信息、发布与下线（视图里建站那半按码藏着）
+    expect(visibleNames).toContain('页面搭建')
     const buildLeaves = grouped.filter(leaf => leaf.permission?.startsWith('portal:build:'))
     expect(buildLeaves.length).toBeGreaterThan(0)
     buildLeaves.forEach(leaf => {
       expect(visibleNames, `建设项「${leaf.label}」漏给租户`).not.toContain(leaf.label)
     })
+  })
+
+  /**
+   * Q-P7-3 那一刀的菜单侧形状：一条路由、两档能力。
+   *
+   * 页面搭建的闸是 portal:page:manage（读页/改信息/发布/下线），组是租户可见的「网站内容」；
+   * 建站那半（新建页、区块装配、检查结构、保存布局、回滚）由视图按 portal:build:manage 守卫。
+   * 这里钉的是「租户进得来这一页」，同时「只有建设码、没有读页码」的账号不能从菜单进——
+   * 那条组合在库里不存在，但它正是「菜单与后端两档各挂一头」会长出假入口的地方。
+   */
+  it('页面搭建挂在读页码上，归租户可见的「网站内容」组', () => {
+    const pages = grouped.find(leaf => leaf.routeName === 'workspace-portal-pages')
+    expect(pages, '「页面搭建」必须还在菜单里').toBeTruthy()
+    expect(pages?.permission).toBe('portal:page:manage')
+    expect(pages?.group).toBe('site-content')
+    expect(leafVisible(pages!, TENANT)).toBe(true)
+    const buildOnly = { isSuperAdmin: false, hasPermission: (code: string) => code === 'portal:build:manage', openContentEntries: ALL_OPEN }
+    expect(leafVisible(pages!, buildOnly)).toBe(false)
   })
 
   it('前采需求单是平台项：进「建站」组，与邻页同一条闸，租户既看不见也进不去', () => {
@@ -380,13 +403,14 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     expect(domains.slice(5).every(d => d === 'platform')).toBe(true)
   })
 
-  it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) = 68（租户 37 + 平台 31）', () => {
+  it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) = 68（租户 38 + 平台 30）', () => {
     // 16 组时是 39 + 34 = 73 项（再加固定两项 = 75）。P0 归组一个页面都没动；
     // P3 往下每摘一颗都要在这里减一个数，并且 `MENU_EXCLUDED` 里要多一行理由——
     // 以后谁借着「合并栏目」把页面从菜单里摘掉却不留地址、不留理由，这条会直接问他要。
+    // Q-P7-3a 把「页面搭建」从建站组挪进内容与维护组：总数不变，只是同一颗换了桶（37/31 → 38/30）。
     expect(grouped).toHaveLength(68)
-    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(37)
-    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(31)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(38)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(30)
   })
 
   it('项名 ≤6 个字：超一个字就是导航在替页面写说明书（Q4-a）', () => {

@@ -495,7 +495,10 @@ async function reopen(id: number) {
 // ---------------- 把建议写进页面（Q5：零复制粘贴） ----------------
 
 const applying = ref<number | null>(null)
+/** 「应用到页面」真的改 portal_page 的结构与 meta，后端那一发挂的还是建设码 */
 const canManagePages = computed(() => auth.hasPermission('portal:build:manage'))
+/** 页面下拉只是读清单：Q-P7-3 之后读页挂 portal:page:manage，不再是建设码 */
+const canReadPages = computed(() => auth.hasPermission('portal:page:manage'))
 
 function appliedOf(finding: HealthFinding) {
   return suggestionAppliedOf(finding)
@@ -596,23 +599,34 @@ onMounted(async () => {
   } catch (error) {
     message.error((error as Error).message || '巡检词表加载失败')
   }
-  if (canManagePages.value) {
+  // 页面下拉走 portal:page:manage（Q-P7-3：读页不再是建设码），站点下拉走 /api/admin/sites 那棵 portal:build:manage。
+  // 这一页按 portal:build:health 放行，两码都可能缺，所以分开判、分开说：
+  // 缺的东西如实写在这一格里，而不是报成「巡检词表加载失败」。
+  if (canReadPages.value) {
     try {
       const pageList = await portalPagesApi.list()
       pages.value = (pageList || []).map(page => ({ id: page.id, title: page.title, slug: page.slug }))
     } catch (error) {
       message.error((error as Error).message || '页面列表加载失败')
     }
+  }
+  if (canManagePages.value) {
     try {
       const siteList = await siteApi.list()
       sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
     } catch {
       // 站点下拉只是给超管筛选用，拿不到就把这一格留空，不让它把整页变成错误态
     }
-  } else {
-    // 页面与站点两个下拉都走 portal:build:manage，而这一页按 portal:build:health 放行：
-    // 只有巡检码的账号不发这两个请求，缺的东西如实写在这里，而不是报成「巡检词表加载失败」。
-    pagesNote.value = '这个账号没有 portal:build:manage，读不到页面与站点清单：按页面/站点筛选用不了，巡检结果与 AI 处理照常'
+  }
+  const missing: string[] = []
+  if (!canReadPages.value) {
+    missing.push('portal:page:manage（读不到页面清单）')
+  }
+  if (!canManagePages.value) {
+    missing.push('portal:build:manage（读不到站点清单）')
+  }
+  if (missing.length) {
+    pagesNote.value = `这个账号缺 ${missing.join('、')}：按页面/站点筛选用不了，巡检结果与 AI 处理照常`
   }
   await load()
 })

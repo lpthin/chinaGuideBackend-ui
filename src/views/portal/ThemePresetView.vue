@@ -261,6 +261,8 @@ const auth = useAuthStore()
 const canManage = computed(() => auth.hasPermission('portal:build:preset'))
 const canPromote = computed(() => auth.hasPermission('portal:template:promote'))
 const canBuild = computed(() => auth.hasPermission('portal:build:manage'))
+/** 页面下拉只是读清单：Q-P7-3 之后读页挂 portal:page:manage，与 build:manage（站点清单那棵）分家 */
+const canReadPages = computed(() => auth.hasPermission('portal:page:manage'))
 
 const presets = ref<ThemePreset[]>([])
 const pages = ref<PortalPage[]>([])
@@ -344,13 +346,13 @@ async function load() {
 }
 
 /**
- * 页面清单走的是 portal:build:manage 的口，而这一页按 preset 码放行。
+ * 页面清单走 portal:page:manage 的口（Q-P7-3 拆档后读页不再是建设码），而这一页按 preset 码放行。
  * 缺这个码就不发请求：三个「选页面」的下拉如实为空，而不是把已经读到的沉淀记录一起报成加载失败。
  */
 async function loadPages() {
-  if (!canBuild.value) {
+  if (!canReadPages.value) {
     pages.value = []
-    pagesNote.value = '这个账号没有 portal:build:manage，读不到页面清单：要选页面的操作暂时无法使用，皮肤与模板列表照常'
+    pagesNote.value = '这个账号没有 portal:page:manage，读不到页面清单：要选页面的操作暂时无法使用，皮肤与模板列表照常'
     return
   }
   try {

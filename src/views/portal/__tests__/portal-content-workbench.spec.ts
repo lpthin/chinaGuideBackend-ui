@@ -133,7 +133,7 @@ beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
   // 默认按「平台侧账号」测：它两个码都有，词表读得到。租户档那一档在下面单独摆
-  authState.permissions = ['portal:siteinfo:manage', 'portal:build:manage']
+  authState.permissions = ['portal:siteinfo:manage', 'portal:page:manage']
 })
 
 describe('栏目卡集合只来自接口', () => {
@@ -278,7 +278,7 @@ describe('租户档账号（只有 portal:siteinfo:manage，实测 CONTENT_EDITO
     authState.permissions = ['portal:siteinfo:manage']
   })
 
-  it('没有建设域那一码就不发词表请求，栏目卡照旧出', async () => {
+  it('没有读页那一码就不发词表请求，栏目卡照旧出', async () => {
     const wrapper = await mountView([state('news', '资讯栏', 'article')])
     expect(portalPagesApi.statusLabels).not.toHaveBeenCalled()
     expect(wrapper.findAll('.acard-stub')).toHaveLength(1)
@@ -295,8 +295,8 @@ describe('租户档账号（只有 portal:siteinfo:manage，实测 CONTENT_EDITO
   })
 
   it('词表这一个口挂了（有码但读失败）也只影响用词，整页卡片照旧在', async () => {
-    authState.permissions = ['portal:siteinfo:manage', 'portal:build:manage']
-    vi.mocked(portalPagesApi.statusLabels).mockRejectedValue(new Error('缺少权限: portal:build:manage'))
+    authState.permissions = ['portal:siteinfo:manage', 'portal:page:manage']
+    vi.mocked(portalPagesApi.statusLabels).mockRejectedValue(new Error('缺少权限: portal:page:manage'))
     const wrapper = await mountView([state('news', '资讯栏', 'article')])
     expect(portalPagesApi.statusLabels).toHaveBeenCalledTimes(1)
     expect(wrapper.findAll('.acard-stub')).toHaveLength(1)

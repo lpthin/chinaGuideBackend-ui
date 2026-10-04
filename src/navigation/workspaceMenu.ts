@@ -97,7 +97,7 @@ export const MENU_GROUPS: MenuGroupDef[] = [
   { key: 'site-content', label: '网站内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看到的东西，含企业信息与站点设置' },
   { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', hint: '流量、引用、GEO 体检与客户经营' },
   // ===== 平台管理（6 组 34 项）=====
-  { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', hint: '前采需求单 → 出方案 → 页面搭建，含骨架与皮肤' },
+  { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', hint: '前采需求单 → 出方案 → 区块与骨架，含皮肤与模板沉淀' },
   { key: 'build-assets', label: '站点与租户', domain: 'platform', icon: 'database', hint: '站点、租户与栏目开通' },
   { key: 'build-quality', label: '平台质量', domain: 'platform', icon: 'safety', hint: '页面巡检、引用探测、整站组装与改版工单' },
   { key: 'billing', label: '计费', domain: 'platform', icon: 'account-book', hint: '账单、订单、钱包与发票' },
@@ -149,6 +149,12 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // 企业信息一处、站点级 SEO/GEO 与 robots 一处（P5 合并后）；项名「站点设置」，组名不再与它同名
   'workspace-portal-company': 'site-content',
   'workspace-portal-site-info': 'site-content',
+  // Q-P7-3：页面搭建挪进租户可见的「网站内容」组。后端把这条控制器拆成两档之后，
+  // 这一页对 SITE_ADMIN 是「读自己的页、改页面信息、发布/下线」——那是网站内容，不是建站；
+  // 建站那半（新建页、区块装配、检查结构、回滚）在视图里按 `portal:build:manage` 守卫。
+  // 同一视图两种分支的先例是上面的「门户上线」：一项入口按谁能用它归组，不按名字像不像建站归组
+  // （Spec-C §2.1 记过「建站项与租户内容混排」的老病，把它留在 build 组才是复发）。
+  'workspace-portal-pages': 'site-content',
   // 效果与经营（原「效果与引用」7 项 + 原「运营管理」4 项：都是看结果、跟客户）
   'workspace-portal-analytics': 'site-effect',
   'workspace-portal-citations': 'site-effect',
@@ -165,7 +171,6 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // 建站（原「建站交付」2 + 原「参考与样式」3 + 骨架库；Spec-C §7 P3：「建站流水线」整页删除，
   // 主线收进需求单详情。骨架库跟着它服务的「造一个站」走，不再单列一组）
   'workspace-portal-briefs': 'build',
-  'workspace-portal-pages': 'build',
   'workspace-portal-reference-sites': 'build',
   'workspace-portal-blocks': 'build',
   'workspace-portal-presets': 'build',
