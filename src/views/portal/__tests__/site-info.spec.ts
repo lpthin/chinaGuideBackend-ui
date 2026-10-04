@@ -113,6 +113,28 @@ describe('Q-P4c：覆写原文的缺口提示要在屏上，不能只留在库�
     expect(view).toMatch(/v-if="robotsWarnings\.length"/);
   });
 
+  // 缺陷 F：闸只拦新的贴入、不改历史行 ⇒ 库里能躺着一份「今天存不回去」的原文，
+  // 而同一屏不许对它说「不影响保存」。blocking 那一档必须从后端读出来并单独摆。
+  it('读侧的 blocking 也接进来：有它会当场被拒的那一类时单独摆一条，且不再讲「不影响保存」', () => {
+    expect(adapter).toMatch(/blocking\?:\s*string\[\]/);
+    expect(view).toMatch(/robotsStructured\.value\?\.blocking \?\? \[\]/);
+    expect(view).toMatch(/v-if="robotsBlocking\.length"/);
+    expect(view).toMatch(/type="error"/);
+    expect(view).toMatch(/保存闸会当场拒的/);
+    // 「不影响保存」这句只能在没有 blocking 的那一档里出现（三元表达式），不许无条件摆
+    expect(view).toMatch(/robotsSaveBlocked \? '这一份现在点保存会先被上面那条拒掉' : '不影响保存'/);
+  });
+
+  // 2026-10-04 浏览器现场：这条错误档同时写了 description prop 和 #description 槽，
+  // ant-design-vue 里 prop 赢 ⇒ 点名的那一行（Sitemap 相对地址）一个字都没摆出来，
+  // 而文案还在说「按下面点名的那一行改」——指着一份界面上不存在的清单。
+  it('错误档点名的那一处必须真渲染出来：说明句和清单一起走 #description 槽，不许再挂 description prop', () => {
+    const block = view.slice(view.indexOf('v-if="robotsBlocking.length"'), view.indexOf('v-if="robotsWarnings.length"'));
+    expect(block).toMatch(/<template #description>/);
+    expect(block).toMatch(/li v-for="\(issue, index\) in robotsBlocking"/);
+    expect(block).not.toMatch(/\ndescription=/);
+  });
+
   it('覆写框一开始就把「Sitemap 要写完整地址」说在前面——相对地址会被后端拒，不能等报错才知道', () => {
     expect(view).toMatch(/Sitemap 那行请写 https:\/\/ 开头的完整地址/);
     expect(view).toMatch(/\{sitemap\}/);

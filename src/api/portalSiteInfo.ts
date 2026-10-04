@@ -54,9 +54,15 @@ export interface RobotsStructured {
   exportedText: string;
   /**
    * 覆写原文「少了哪一段 AI 爬虫」的点名清单（后端 RobotsTxtPolicy.inspectOverride）。
-   * 这些只是提示，保存不会因为它们被拒；结构化档恒为空数组。
+   * 这些不会因为提示拦人（客户有权少勾一家），但必须看得见；结构化档恒为空数组。
    */
   warnings: string[];
+  /**
+   * 这一份原文「今天再存一次就会被拒」的形状错清单（同一次体检的另一档）。
+   * 闸只拦新的贴入、不改历史行，所以库里可能躺着一份改造前就存下的非法原文 ——
+   * 界面必须据此改口：有 blocking 时不许再说「不影响保存」。
+   */
+  blocking?: string[];
 }
 
 /** 一个信息项的读回（后端 SiteInfoService.FieldView） */

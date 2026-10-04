@@ -32,12 +32,30 @@
                 style="margin-bottom: 12px"
               />
 
+              <!-- 保存闸会拒的那一类：闸只拦新的贴入、不动历史行，所以库里可能躺着一份今天存不回去的原文 -->
+              <!-- 说明句和点名的行必须一起走 #description 槽：a-alert 的 description **prop** 会把槽挤掉
+                   （2026-10-04 现场：错误档只回了那句解释，「按下面点名的那一行」下面什么都没有）。 -->
+              <a-alert
+                v-if="robotsBlocking.length"
+                type="error"
+                show-icon
+                :message="`这份覆写原文里有 ${robotsBlocking.length} 处是保存闸会当场拒的`"
+                style="margin-bottom: 12px"
+              >
+                <template #description>
+                  <p class="robots-block-note">这一份是在闸之前存进来的，闸只拦新的贴入、不改已经躺在库里的行 —— 所以你打开这一页看到的就是逐字对外的那一份，但在这一栏里点「保存覆写原文」会被拒。要么按下面点名的这一处改掉（或写 {sitemap} 让系统换成本站地址），要么勾爬虫改走「保存爬虫勾选」。</p>
+                  <ul class="robots-warnings">
+                    <li v-for="(issue, index) in robotsBlocking" :key="index">{{ issue }}</li>
+                  </ul>
+                </template>
+              </a-alert>
+
               <!-- 缺口提示：只点名不拦人（客户有权屏蔽某一家），但必须看得见，否则「贴了原文却没人告诉我省了哪段」 -->
               <a-alert
                 v-if="robotsWarnings.length"
                 type="info"
                 show-icon
-                :message="`这份覆写原文里有 ${robotsWarnings.length} 处要留意的地方（不影响保存）`"
+                :message="`这份覆写原文里有 ${robotsWarnings.length} 处要留意的地方（${robotsSaveBlocked ? '这一份现在点保存会先被上面那条拒掉' : '不影响保存'}）`"
                 style="margin-bottom: 12px"
               >
                 <template #description>
@@ -179,6 +197,8 @@ const robotsMode = computed(() => robotsStructured.value?.mode ?? '');
 const robotsCrawlers = computed(() => robotsStructured.value?.crawlers ?? []);
 const robotsExportedText = computed(() => robotsStructured.value?.exportedText ?? '');
 const robotsWarnings = computed(() => robotsStructured.value?.warnings ?? []);
+const robotsBlocking = computed(() => robotsStructured.value?.blocking ?? []);
+const robotsSaveBlocked = computed(() => robotsBlocking.value.length > 0);
 
 // 勾选袋：id -> checked，初值来自后端 structured.crawlers[].allowed（真相不猜）
 const crawlerChecked = reactive<Record<string, boolean>>({});
@@ -349,6 +369,10 @@ onMounted(() => {
 
   .robots-warnings li {
     margin-bottom: 4px;
+  }
+
+  .robots-block-note {
+    margin: 0 0 8px;
   }
 
   .toolbar-actions {
