@@ -14,10 +14,10 @@ import { env } from '../lib/env';
  *
  * 所以这一条要交出的是两半各一个实测数：
  *
- * 半 A「按需一次点 5 篇」：限流三档现值（application.yml:109-112 一个都不带覆盖地跑）
- *   requests-per-minute=20 / max-concurrent-per-tenant=3 / concurrent-wait-timeout-seconds=30；
- *   TenantRateLimitService.java:52-73 是「等 30s 拿不到许可就抛 RateLimitExceededException」，
- *   **没有排队**：一篇生成实测 55~76s，所以一次点 5 篇时第 4、5 篇几乎必然等超时被打成 FAILED(stage=限流)。
+ * 半 A「按需一次点 5 篇」：限流三档现值（application.yml:108-114 一个都不带覆盖地跑）
+ *   requests-per-minute=20 / max-concurrent-per-tenant=3 / concurrent-wait-timeout-seconds=180。
+ *   TenantRateLimitService 现在是「公平排队等许可」，等待预算按缺陷 A 的实测改到够排完前面那一队
+ *   （一篇生成实测 57~91s，改造前只等 30s，所以一次点 5 篇必有 2 篇被判 FAILED）。
  *   这一半测的不是「模型行不行」，是「点一次到底能落几篇」。
  *
  * 半 B「8 点前自动」：全仓 @Scheduled 命中 11 处（spec §4 那张表），**没有一条 cron 是「生成 5 篇文章」**；
@@ -52,7 +52,7 @@ test('SYS-J03 每日自动产出：一次点 5 篇落几篇 + 静置 5.5 分钟�
       用例号: 'SYS-J03-01',
       判据: 'G-04（B-2a：这一条只作「缺的是哪一半」的证据，G-04 仍判未达成）',
       层级: 'API',
-      前置: `后端 ${env.apiBase}；探针租户现开；限流三档按现值不覆盖（20/分钟、3 并发、等 30s）；真调模型 5~7 次`,
+      前置: `后端 ${env.apiBase}；探针租户现开；限流三档按现值不覆盖（20/分钟、3 并发、公平排队等 180s）；真调模型 5~7 次`,
       步骤: [
         '1 开探针租户 A，导 6 条关键词（选题要有的可选）',
         '2 一次提交 5 个生成任务（紧循环，不给它错开的机会）—— 这就是「客户点一下批量」的那一发',
@@ -121,7 +121,8 @@ test('SYS-J03 每日自动产出：一次点 5 篇落几篇 + 静置 5.5 分钟�
     });
     j.expect('5 个任务都到了终态（没有卡在 PENDING/PROCESSING 的）', rows.filter(r => !TERMINAL.includes(r.status)).length, 0);
     // ★ 立项原话是「一次生成 5 篇」这一量的产出口径：这一格按现状判，实测数是几就是几
-    j.expect('★一次点 5 篇，5 篇都要落下来（现状：并发闸 3、等 30s 拿不到就判死、没有排队）', done.length, 5);
+    //   （缺陷 A 修前这一格实测 3/5——第 4、5 篇在 30s 那一点被判 FAILED；改成公平排队 + 180s 预算后重测）
+    j.expect('★一次点 5 篇，5 篇都要落下来（并发闸 3，多出来的两发排队等，等不到才判失败）', done.length, 5);
     j.check('失败的那几发必须写明为什么（话术里点名限流），不许是空 error_message',
       failed.map(f => `${f.status}/${f.stage}/${(f.error_message ?? '').slice(0, 30)}`).join(' | '),
       failed.every(f => (f.error_message ?? '').length > 0));
@@ -169,12 +170,12 @@ test('SYS-J03 每日自动产出：一次点 5 篇落几篇 + 静置 5.5 分钟�
     j.expect('5 篇都有 >200 字的正文', Number(artAgg[0]?.withVersion), 5);
 
     // ── 6 反例：同一个关键词再点一次（进程内缓存命中那一条路） ────────────────
-    //  ArticleGenerationService.java:65-89 命中缓存时返回的是一个**从没 insert 过**的 task 对象
-    //  （id=null、status=COMPLETED、articleId=缓存里那一篇）；WorkspaceController.java:396-403 只读它的
-    //  getId()，然后固定回 status=PENDING +「文章生成任务已提交，正在处理中」，再拿这个 null 去
-    //  executeTaskAsync(null)（:122-128 selectById 查不到 ⇒ log.error 后直接 return）。
-    //  界面那侧 ArticleGeneratePanel.vue:1046-1052 把这个 null 当 taskId 存下来去 SSE / 轮询。
-    //  这一发是「客户在批量里点重了」的形状，不是构出来的分支：批量 5 篇里有 2 篇限流失败，客户再点一次就是它。
+    //  修前现场（Q-P2a 定稿 a 的那三条红）：ArticleGenerationService 命中缓存时返回的是一个**从没 insert 过**的
+    //  task 对象（id=null、status=COMPLETED、articleId=缓存里那一篇），WorkspaceController 只读它的 getId()，
+    //  然后固定回 status=PENDING +「文章生成任务已提交，正在处理中」，再拿这个 null 去 executeTaskAsync
+    //  （selectById 查不到 ⇒ log.error 后 return）——回体、任务表、界面三处各自谎报一层。
+    //  现在这一发把复用的那一行落进任务表，回体给 REUSED + 可轮询的 taskId + articleId。
+    //  这一发是「客户在批量里点重了」的形状，不是构出来的分支。
     const maxTaskIdBeforeDup = Math.max(...(await tasksOf()).map(r => r.id));
     const dup = await admin.post('/api/workspace/articles/generate-async', { keyword: words[0] });
     const dupData = (dup.data ?? {}) as Record<string, unknown>;
