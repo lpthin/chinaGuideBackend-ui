@@ -20,6 +20,7 @@ import {
   EditOutlined,
   FileSearchOutlined,
   FileTextOutlined,
+  FieldTimeOutlined,
   FolderOutlined,
   FormOutlined,
   FunnelPlotOutlined,
@@ -112,6 +113,8 @@ export const MENU_GROUPS: MenuGroupDef[] = [
 export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // AI 写稿（原「内容生产」，一项没动：这条本来就是关键词 → 生成 → 审 → 发布六步）
   'workspace-keywords': 'content',
+  // P9-B（G-04）：自动写稿是这条流水线的第一环的自动化版，跟着热词库进「AI 写稿」组
+  'workspace-daily-output': 'content',
   'workspace-cluster': 'content',
   'workspace-article-generate': 'content',
   'workspace-review': 'content',
@@ -268,6 +271,8 @@ const ICONS: Record<string, Component> = {
   case: ProfileOutlined,
   category: FolderOutlined,
   chart: BarChartOutlined,
+  /** 「每日产出」那颗：到点跑一次的语义用时钟，不用 calendar（这一页管的是自动排产，不是日历） */
+  clock: FieldTimeOutlined,
   cloud: CloudServerOutlined,
   cluster: ClusterOutlined,
   dashboard: DashboardOutlined,

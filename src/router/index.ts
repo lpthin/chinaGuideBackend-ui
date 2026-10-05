@@ -145,6 +145,7 @@ const AlertRecordView = () => import('../views/workspace/AlertRecordView.vue')
 const AlertChannelView = () => import('../views/workspace/AlertChannelView.vue')
 const AlertCenterView = () => import('../views/workspace/AlertCenterView.vue')
 const NotificationInboxView = () => import('../views/workspace/NotificationInboxView.vue')
+const DailyOutputView = () => import('../views/workspace/DailyOutputView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 /**
@@ -282,6 +283,15 @@ export const routes: RouteRecordRaw[] = [
         // 这一条推翻了 Spec-F 的 Q11-A（当年特意加括号是为了跟旧名「关键词库」区分），
         // 区分这件事由 desc 这句话继续做，不再靠菜单里那 4 个字的噪音。
         meta: { title: '热词库', desc: '搜索联想用的热词库（旧名「关键词库」）', icon: 'database' }
+      },
+      {
+        // P9-B（G-04）：到点自动选题、产出草稿这一条链的设置与留痕。
+        // 路由挂 content:output:view（V166 已发 SITE_ADMIN/SUPER_ADMIN，且是可分配码——拍板 Q7 后半句），
+        // 保存那一半另要 content:output:manage，视图里按码把按钮摆出来。
+        path: 'daily-output',
+        name: 'workspace-daily-output',
+        component: DailyOutputView,
+        meta: { title: '每日产出', desc: '到点自动选题、产出草稿的设置与留痕', icon: 'clock', requiredPermission: 'content:output:view' }
       },
       {
         path: 'article-templates',
