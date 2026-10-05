@@ -199,6 +199,14 @@ describe('读回来的是这一家那一份，读不到就不假装', () => {
     expect(rows[0].text()).not.toContain('QUOTA_INSUFFICIENT')
     expect(rows[1].text()).toContain('FUTURE_CODE')
   })
+
+  it('留痕那一列的时间是人话，不是后端的 ISO 原文', async () => {
+    const wrapper = await mountView({ runs: [run()] })
+
+    const first = wrapper.findAll('.row')[0].text()
+    expect(first).toContain('2026-10-05 03:22:00')
+    expect(first).not.toContain('2026-10-05T03:22:00')
+  })
 })
 
 describe('改得动的那一半按权限码摆', () => {

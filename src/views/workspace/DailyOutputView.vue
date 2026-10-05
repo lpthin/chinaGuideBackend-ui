@@ -112,6 +112,10 @@
             <span v-if="record.note" class="note-text">{{ record.note }}</span>
             <span v-if="!record.skipReasonText && !record.note" class="muted">—</span>
           </template>
+          <!-- 后端回的是 ISO 原文（2026-10-05T13:39:20），直接摆给客户看等于念机器话 -->
+          <template v-else-if="column.key === 'updatedAt'">
+            {{ formatDateTime(record.updatedAt, true) }}
+          </template>
         </template>
       </a-table>
     </a-card>
