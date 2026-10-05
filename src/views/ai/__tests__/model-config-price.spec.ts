@@ -241,4 +241,28 @@ describe('模型配置页 · 单价那一格', () => {
     expect(priceInputIn(rowByLabel('DeepSeek-已定价')).props('value')).toBe(0.008)
     expect(vi.mocked(message.error)).toHaveBeenCalled()
   })
+
+  it('单价的出处要跟着那一格念出来，留空的行也说清为什么留空', async () => {
+    const pricedWithNote = row({ id: 11, name: '百炼-聊天', modelName: 'qwen3.7-plus',
+      pricePer1kTokens: 0.002,
+      priceNote: '2026-10-05 抄自阿里云百炼模型价格页：输入原价 2 元/百万 token（按下限口径）' })
+    const deliberatelyUnpriced = row({ id: 12, name: '百炼-图像', modelName: 'qwen-image-3.0-pro',
+      modelType: 'image', pricePer1kTokens: null,
+      priceNote: '2026-10-05 抄自同一页：按张计费（生成 0.25 元/张）· 与「元/1k token」不同量纲 · 故意留空不折算' })
+    currentWrapper = await mountView([pricedWithNote, deliberatelyUnpriced,
+      row({ id: 26, name: '没写处价的行', provider: 'deepseek', modelName: 'deepseek-flash', pricePer1kTokens: 0.002 })])
+
+    const priced = rowByLabel('百炼-聊天')
+    expect(priced.textContent).toContain('出处：')
+    expect(priced.textContent).toContain('输入原价 2 元/百万 token')
+
+    // 这一行没有单价，但「为什么没有」当场答得出来 —— 不是一句「未定价」把人打发走
+    const unpriced = rowByLabel('百炼-图像')
+    expect(unpriced.textContent).toContain('未定价：这一台模型的外呼不算费用')
+    expect(unpriced.textContent).toContain('按张计费')
+    expect(unpriced.textContent).toContain('故意留空不折算')
+
+    // 没写处价的行不硬挤出一句「出处：」
+    expect(rowByLabel('没写处价的行').textContent).not.toContain('出处：')
+  })
 })

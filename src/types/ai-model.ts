@@ -104,6 +104,11 @@ export interface ModelConfig {
    * 这一格只由 setPrice 那个口写（整表单那条 PUT 走 updateById，null 不进 SET，清不掉旧价）。
    */
   pricePer1kTokens?: number | null
+  /**
+   * 这一行单价的出处（哪天从哪个公开页抄的、取的输入还是输出那一档），跟单价同走 setPrice。
+   * 单价清成「未定价」时后端会把它一起清掉——出处不能比它活的久。
+   */
+  priceNote?: string | null
   sortOrder?: number
   healthStatus?: 'unknown' | 'passed' | 'failed' | string
   lastHealthCheckAt?: string

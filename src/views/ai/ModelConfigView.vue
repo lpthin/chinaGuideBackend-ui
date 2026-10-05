@@ -653,14 +653,18 @@ async function setDefaultConfig(config: ModelConfig) {
 /**
  * 「留空」与「0」在这一格里必须是两个样子：账单上那一笔费用到底是没统计还是免费，
  * 只有这一处能回答，界面不许把它压成一个 0。
+ *
+ * 出处（priceNote）跟着念：单价这个东西是从厂商牌价折来的，而牌价会改、也会分输入/输出两档，
+ * 所以「这个数打哪儿来」和「留空是有意还是没顾上」都得在这一格里当场答得出来。
  */
 function priceTooltip(record: ModelConfig) {
+  const note = record.priceNote ? ` · 出处：${record.priceNote}` : ''
   if (record.pricePer1kTokens == null) {
-    return '未定价：这一台模型的外呼不算费用，账单里那一格留空（不是 0）。要开始计费就填每 1000 token 的单价，填 0 表示真免费。'
+    return `未定价：这一台模型的外呼不算费用，账单里那一格留空（不是 0）。要开始计费就填每 1000 token 的单价，填 0 表示真免费。${note}`
   }
   return `每 1000 token ${record.pricePer1kTokens} 元${
     record.pricePer1kTokens === 0 ? '（真免费）' : ''
-  } · 改完直接点别处即保存；清空 = 回到未定价，那一笔的费用不再统计。`
+  } · 改完直接点别处即保存；清空 = 回到未定价，那一笔的费用不再统计。${note}`
 }
 
 async function savePrice(record: ModelConfig) {
