@@ -389,14 +389,32 @@ test('SYS-J07 读者互动：评论、点赞、待审队列与系统补写真的
     j.expect('补完之后前台从 1 条变 2 条（读者看不出哪条是补的）', num(front.total), 2);
     j.expect('前台条目仍然只有那四个键（补写的内容也一样不带来源）',
       Object.keys(listOf(front)[0] ?? {}).sort(), ['authorName', 'content', 'createdAt', 'id']);
-    // ★现状登记（N-P9c-1）：这两支走的是 AiFailoverService.completeWithFallback，
-    // 那一条链只写 Micrometer 指标，不写 ai_call_log（写日志的是 AiCallLogService 那一层，没人调）
-    // ⇒ 类注释里「purpose 进 ai_call_log.purpose」与《CommentModerationService》那句「两个 purpose 分开记」
-    //   现在都不成立：这两笔模型钱在用量页与费用页上都看不到。判据钉住实测的 0，改动的人会被这一条红提醒。
-    j.expect('★示例评论那一发没有落 ai_call_log（花钱无账，登记为缺口）', await db.count(
-      "SELECT COUNT(*) AS n FROM ai_call_log WHERE purpose = 'comment_seed'", []), 0);
-    j.expect('★评论安全闸那一发同样没落 ai_call_log', await db.count(
-      "SELECT COUNT(*) AS n FROM ai_call_log WHERE purpose = 'comment_moderation'", []), 0);
+    // ★P9-D 改口：这两支（示例评论 comment_seed、评论安全闸 comment_moderation）走的是
+    // AiFailoverService.completeWithFallback，P3/P9-C 那几轮里这一条链只报 Micrometer 指标、
+    // 不写 ai_call_log ⇒ 这里当时钉的是实测 0（登记为 N-P9c-1 那条「花钱无账」的缺口）。
+    // 拍板「在新路一处补落库」之后，判据翻成「有行，而且四要素齐」。
+    // 计数按这一家来：全站按 purpose 数会把别人的轮次算进来，改口后更要认得出是谁花的钱。
+    const traceOf = (purpose: string) => db.rows<Record<string, unknown>>(
+      `SELECT purpose, status, success, provider, model, token_estimate, call_duration_ms,
+              site_id, run_id, cost_estimate, input_hash
+         FROM ai_call_log WHERE tenant_id = ? AND purpose = ? ORDER BY id`, [A.tenantId, purpose]);
+    const checkTrace = async (purpose: string, 标签: string): Promise<void> => {
+      const rows = await traceOf(purpose);
+      j.expect(`★${标签}那一发落了 ai_call_log（修前实测 0 行 = N-P9c-1 那条缺口）`, rows.length >= 1, true);
+      j.note(`${标签}的留痕原样`, rows);
+      const ok = rows.filter(r => str(r.status) === 'success')[0];
+      if (!ok) { j.expect(`${标签}：找不到成功的行`, false, true); return; }
+      j.expect(`${标签}：① 状态 status=success 且 success 位一致`, [str(ok.status), num(ok.success)], ['success', 1]);
+      j.expect(`${标签}：② 来源不是 unknown（是真服务它那台）`,
+        str(ok.provider) !== 'unknown' && str(ok.model) !== 'unknown', true);
+      j.check(`${标签}：③ 耗时有值且 > 0`, num(ok.call_duration_ms ?? 0), num(ok.call_duration_ms ?? 0) > 0);
+      j.expect(`${标签}：④ 输入指纹是 64 位十六进制`,
+        /^[0-9a-f]{64}$/.test(str(ok.input_hash)), true);
+      j.check(`${标签}：token 估算落了值`, num(ok.token_estimate ?? 0), num(ok.token_estimate ?? 0) > 0);
+      j.expect(`${标签}：site_id 落在这一家的站上`, num(ok.site_id ?? -1), A.siteId);
+      j.expect(`${标签}：run_id 为空（互动不属于任何一轮 GEO 诊断）`, ok.run_id, null);
+    };
+    await checkTrace('comment_seed', '示例评论那一发');
     j.note('本轮 ai_call_log 里这一家的全部行（看这一家的钱到底记在了哪些用途上）', await db.rows(
       'SELECT purpose, model, success, cost_estimate AS cost FROM ai_call_log WHERE tenant_id = ? ORDER BY id',
       [A.tenantId]));
@@ -410,6 +428,9 @@ test('SYS-J07 读者互动：评论、点赞、待审队列与系统补写真的
     j.note('auto 模式下一句正常访客留言的判定结果（模型明确说干净才 approved）', row4);
     j.expect('★不许静默丢弃：要么直接 approved，要么退回待审且行上留着那句判词',
       row4?.status === 'approved' || (row4?.status === 'pending' && !!row4?.note), true);
+    // 安全闸那一发只有 auto 模式才跑（ReaderCommentService:130 那个分支），所以这条改口的断言挂在这里，
+    // 不像 P9-C 那一轮挂在第 10 步——那时跑到的位置压根还没调过模型，「=0」是条永真断言。
+    await checkTrace('comment_moderation', '评论安全闸那一发');
     j.expect('切回 review 回 OK', (await admin.put(CFG, { moderationMode: 'review' })).code, 'OK');
 
     // ── 12 限流：同一个访客连着灌 ────────────────────────────────────────
