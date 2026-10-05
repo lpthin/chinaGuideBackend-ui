@@ -8,19 +8,33 @@ import { env } from '../lib/env';
 /**
  * SYS-J10 AI 留痕与失败面（判据 G-12「所有 AI 生成内容都有状态、来源和失败记录」design.md:871）
  *
- * 一句话结论先摆在这里，跑完拿数对：往 ai_call_log 写行的只有 AiCallLogService（insertLog 三处：
- * 成功 :105、末次失败 :113、流式补记 :85），而**文章正文那一步（AiCallStep.java:19 走 AiFailoverService）
- * 与翻译那一步（TranslationStep.java:56 走 DynamicAiClient）都不经过它** ⇒ 这两跳真花了钱、真出了稿子，
- * 表里一行都没有。静态证据在 scratch/p3-trace-coverage.txt（30 处有留痕的 purpose 名单 vs 12 个直接持有
- * 客户端的文件），行为证据就是本条：跑完一次真生成，按 purpose 数给看。
+ * 一句话结论先摆在这里，跑完拿数对：往 ai_call_log 写行的原本只有 AiCallLogService 一层，
+ * 而**正文生成那一步（AiCallStep.java:19 走 AiFailoverService）与翻译那一步（TranslationStep 走 DynamicAiClient）
+ * 都不经过它** ⇒ P3 那一轮实测「生成 + 翻译 真出了稿子，表里一行都没有」，G-12 就判在未达成。
+ * P9-D 按拍板「在新路一处补落库」把两处的口子接上了（AiFailoverService 一处 + TranslationStep 一处），
+ * 本条第 7、8 步判的就是这个：生成与翻译那一跳现在必须有行，换模型那条路的失败面也必须有行。
  *
- * 失败面要测的是「记录并且不吞」：故意在探针租户名下挂一条坏模型行（model_type=chat、sort_order 最小、
- * api_endpoint 指向 127.0.0.1:9 这个必然拒绝连接的端口），让 DynamicAiClient.java:190-207 那个
- * 「租户自己的行优先、借平台是兜底」的选择顺序把这一发引到坏行上。
- * 之后断言三件：日志里有 status='failed' 那一行、error_message 没被吞成空、这一笔不计进额度
+ * 失败面测两条路，手法相同：在**探针租户自己名下**挂一条坏模型行（model_type=chat、sort_order 最小、
+ * api_endpoint 指向 127.0.0.1:9 这个必然拒绝连接的端口），让「租户自己的行优先、借平台是兜底」的顺序
+ * 把这一发引到坏行上（DynamicAiClient.java:190-207 / AiFailoverService.java:186-199）。之后断言三件：
+ * 日志里有 status='failed' 那一行、error_message 没被吞成空、这一笔不计进额度
  * （AiCallLogService.java:106 只在成功分支 incrementUsage）。
+ * 第 8 步是同一个手法用在换模型那条路上：这一家只挂了这一条行、且这一家有行就不借平台
+ * ⇒ 无处可换 ⇒ 注定失败，而 error_message 要写出「试过 1 台均不可用：openai/… → 原因」。
  *
- * 本条真花钱：1 次好蒸馏 + 1 次注定失败的蒸馏（几乎不花钱，端口立刻拒）+ 1 次真生成（实测 55~91s）。
+ * ★「挂在这一家名下」必须走 X-Tenant-Id 声明头（本条用 api.withTenant(A.tenantId) 那一份），
+ *   只在请求体里写 tenantId 是不生效的：AiModelConfigController.java:390-399 的 effectiveTenantId
+ *   先取令牌里那个家（超管令牌 = 平台 1），只有它为空时才认体里那个号。10-06 那一轮就是这么踩的：
+ *   体里写 tenantId=575、回体与实际入库都是 tenant_id=1 ⇒ 坏行挂进了平台列表，
+ *   第 8 步「无处可换」的前提整个不成立（换到平台里下一台照样 COMPLETED），两条断言红。
+ *   现在除了前提，还额外把「回体与库里的 tenant_id 都得是这一家」钉成断言，走错口当场红。
+ *   顺带一条本条自己欠的账：上一轮那两条坏行虽按序删掉了，但删除前的两分钟里它们是
+ *   平台列表里 sort_order=-1 的第一台 ⇒ 那一段时间内任何借平台模型的租户都会先撞上它。
+ *   挂在自己名下之后这个侧面风险就没了。
+ *
+ * 本条真花钱：2 次好蒸馏 + 1 次注定失败的蒸馏 + 1 次真生成带 1 次翻译（实测 55~172s）+ 1 次注定失败的生成（端口立刻拒，几乎不花钱）。
+ * 第 8 步中间睡 65s：换模型那条路的「这一家有哪些模型」有 60s 缓存（AiFailoverService 的 Caffeine），
+ * 不等过去那一发读到的是第 7 步缓存下来的平台模型行，反而成功 ⇒ 测不到失败面。
  */
 
 interface LogRow {
@@ -29,7 +43,7 @@ interface LogRow {
   token_estimate: number | null; call_duration_ms: number | null; site_id: number | null; run_id: number | null;
 }
 
-test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成那一跳的缺口', async () => {
+test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成与翻译那一跳补上的留痕（P9-D）', async () => {
   test.info().setTimeout(900_000);
   const j = new Journal('SYS-J10');
   const db = new Db(j);
@@ -42,24 +56,28 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成那一
       判据: 'G-12',
       层级: 'API',
       前置: `后端 ${env.apiBase}；探针租户现开（名下本来没有模型行 ⇒ 借平台模型）；`
-        + `本条自己在租户名下挂一条坏模型行，测完删掉；模型调用 2 次 + 生成 1 次`,
+        + `本条自己在这一家名下挂两条坏模型行（第 5 步、第 8 步各一条，走 X-Tenant-Id 声明头挂在 A 家而不是平台家），测完删掉；模型调用 2 次 + 生成 2 次（第 2 发注定失败）+ 翻译 1 次`,
       步骤: [
         '1 开探针租户 A，导 3 条关键词，记下 ai_call_log 与 tenant_usage 的基线数',
         '2 真蒸馏一次（成功面，走 ?preview=true 这一支——只有它把 distillSource/usedRuleFallback 放进回体）：ai_call_log 新增一行，四要素逐个查（状态/来源/耗时/输入指纹）',
         '3 额度一致性：成功那一笔计进 tenant_usage(api_call)，且只计一次',
-        '4 超管在 A 家挂一条坏模型行（api_endpoint=127.0.0.1:9，sort_order 最小 ⇒ 优先选中）',
-        '5 再真蒸馏一次（失败面）：接口回 200 但 distillSource 从 ai_model 翻成 rule_fallback；日志里必须有 status=failed 那一行，error_message 非空；额度不再涨',
+        '4 超管切进 A 家（X-Tenant-Id）挂一条坏模型行（api_endpoint=127.0.0.1:9，sort_order 最小 ⇒ 优先选中），并验这一行确实落在 A 家名下（回体 + 库里两处都查）',
+        '5 再真蒸馏一次（老路的失败面）：接口回 200 但 distillSource 从 ai_model 翻成 rule_fallback；日志里必须有 status=failed 那一行，error_message 非空；额度不再涨',
         '6 摘掉坏行 ⇒ 证明那发失败是这条行引的，不是模型网关抖（随后真生成能跑完就是证据）',
-        '7 覆盖面（★G-12 的红）：跑一次真生成，按 purpose 数给看——文章正文那一跳在 ai_call_log 里有没有行',
+        '7 覆盖面（★G-12 的本体）：带 targetLocales=["en-US"] 跑一次真生成，按 purpose 数给看——正文生成与翻译那两跳现在必须有行，且每行过同样的四要素',
+        '8 新路的失败面：再挂一条只属于这一家的坏模型行（这一家有行 ⇒ 不借平台 ⇒ 无处可换 ⇒ 注定失败），等 60s 模型列表缓存过期后再提交一发生成；断言终态不是 COMPLETED、日志里有 status=failed 那一行、error_message 点名是哪台坏的、这一笔不计额度',
       ],
       期望: [
         '步骤 2 那一行：status=success 且 success=1、provider/model 不是 unknown、call_duration_ms>0、input_hash 是 64 位十六进制、output_summary 非空、token_estimate>0、site_id=本站、run_id 为空',
+        '步骤 4：回体里的 tenantId 与库里那一行的 tenant_id 都等于 A 家 —— 只在请求体里写 tenantId 而不带声明头会被令牌里那个家顶掉（AiModelConfigController.java:390-399），这一格钉的就是这个坑',
         '步骤 5 失败那一行：status=failed、success=0、error_message 有内容、call_duration_ms 有值（不许是 null）',
         '步骤 5 额度：api_call 计数在失败这一笔前后不变',
-        '步骤 7 判据原话是「所有 AI 生成内容都有状态、来源和失败记录」⇒ 生成那一跳必须留痕（按现状这一格是红的）',
+        '步骤 7 判据原话是「所有 AI 生成内容都有状态、来源和失败记录」⇒ 正文生成那一跳与翻译那一跳都要在 ai_call_log 里有成功的行（P3 实测 0，P9-D 补的就是这一处），并且两行各自的四要素与步骤 2 同尺',
+        '步骤 8：换模型那条路的失败同样落一行，provider/model 记的是真试过的那台（不是 unknown），error_message 里写明「试过几台、各是怎么坏的」',
       ],
       反例: ['坏模型不许让接口 500 蒙混（要看得见退化）', '失败不许只留在日志服务自己的 error_message 里就完事：状态位与来源位也要落',
-        '摘掉坏行后同一家同样的调用必须恢复（证明引火的是那条行，不是网络）'],
+        '摘掉坏行后同一家同样的调用必须恢复（证明引火的是那条行，不是网络）',
+        '补的那几行不许顺手把 tenant_usage 涨上去：留痕与计量是两件事（P9-D 正档 §4 明写的口径差）'],
       收尾: '先 DELETE /api/ai/model-configs/{id} 删掉坏模型行，再 DELETE /api/admin/tenants/{id} 软删探针租户；'
         + '坏行删除后按 id 复查一次它确实不在了（这条行如果被留着，会把下一轮的探针租户一起带沟里）',
     });
@@ -75,6 +93,35 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成那一
     const usageSum = async (): Promise<number> => Number((await db.rows<{ s: number }>(
       `SELECT COALESCE(SUM(used_count),0) AS s FROM tenant_usage WHERE tenant_id = ? AND usage_type = ?`,
       [A!.tenantId, 'api_call']))[0]?.s ?? 0);
+
+    // 超管切进 A 家那一档的口子：这一条要往「这一家自己名下」挂模型行，只能走声明头。
+    // 只带 X-Tenant-Id 后端也会去库里把 code 验一遍（TenantFilter.java:63-83），两个头都带上是界面 TenantSwitcher 的走法。
+    const saAt = sa.api.withTenant(A.tenantId, A.code);
+    /** 在 A 家名下挂一条注定连不上的 chat 模型行，返回它的 id（sort_order=-1 ⇒ 两处选模型都排第一） */
+    const hangBrokenModel = async (标签: string, 第几名: number): Promise<number> => {
+      const r = await saAt.post('/api/ai/model-configs', {
+        tenantId: A!.tenantId, name: `E2E 坏模型探针 ${标签}`, provider: 'openai',
+        modelName: `e2e-broken-chat-${第几名}`,
+        modelType: 'chat', apiKey: 'e2e-invalid-key', isActive: true, isDefault: false, sortOrder: -1,
+        apiEndpoint: 'http://127.0.0.1:9/v1/chat/completions', apiProtocol: 'openai',
+      });
+      j.expect(`挂第 ${第几名} 条坏模型行回 OK（超管切进 A 家这一档）`, r.code, 'OK');
+      const id = Number((r.data as Record<string, unknown>)?.id ?? 0);
+      j.check(`拿到第 ${第几名} 条模型行的 id`, id, id > 0);
+      // ★这一格是 10-06 那一轮两条红的根：不带声明头时体里的 tenantId 会被令牌里那个家（平台 1）顶掉，
+      //   坏行挂进平台列表 ⇒ 「这一家无处可换」的前提不成立。回体与库里两处都验，走错口当场红。
+      j.expect(`第 ${第几名} 条坏行回体的 tenantId = A 家（不是被静默改成平台 1）`,
+        Number((r.data as Record<string, unknown>)?.tenantId ?? 0), A!.tenantId);
+      const dbOwner = await db.rows<{ tenant_id: number }>(
+        'SELECT tenant_id FROM ai_model_config WHERE id = ?', [id]);
+      j.expect(`第 ${第几名} 条坏行库里的 tenant_id = A 家`, dbOwner[0]?.tenant_id, A!.tenantId);
+      // 回体里的 key 必须是打码的（这张表里存的是密文，接口不许把 key 念出来）；字段名按 Jackson 的 camelCase 读
+      j.expect('创建回体里没有把 apiKey 原样念出来',
+        String((r.data as Record<string, unknown>)?.apiKey ?? '').includes('e2e-invalid-key'), false);
+      j.expect(`第 ${第几名} 条坏行的 model_type 字面 = chat（老路的 findChatModel 按这一列挑，写成别的值这一发引不到火）`,
+        (r.data as Record<string, unknown>)?.modelType, 'chat');
+      return id;
+    };
 
     // ── 1 基线 ─────────────────────────────────────────────────────────────
     const imported = await admin.post('/api/workspace/keywords/import', {
@@ -113,20 +160,8 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成那一
     const usage1 = await usageSum();
     j.expect('成功一笔 ⇒ tenant_usage(api_call) +1', usage1 - usage0, 1);
 
-    // ── 4 挂一条坏模型行 ───────────────────────────────────────────────────
-    const broken = await sa.api.post('/api/ai/model-configs', {
-      tenantId: A.tenantId, name: 'E2E 坏模型探针', provider: 'openai', modelName: 'e2e-broken-chat',
-      modelType: 'chat', apiKey: 'e2e-invalid-key', isActive: true, isDefault: false, sortOrder: -1,
-      apiEndpoint: 'http://127.0.0.1:9/v1/chat/completions', apiProtocol: 'openai',
-    });
-    j.expect('超管在探针租户名下挂坏模型行回 OK', broken.code, 'OK');
-    brokenModelId = Number((broken.data as Record<string, unknown>)?.id ?? 0);
-    j.check('拿到那条模型行的 id', brokenModelId, brokenModelId > 0);
-    // 回体里的 key 必须是打码的（这张表里存的是密文，接口不许把 key 念出来）；字段名按 Jackson 的 camelCase 读
-    const returnedKey = String((broken.data as Record<string, unknown>)?.apiKey ?? '');
-    j.expect('创建回体里没有把 apiKey 原样念出来', returnedKey.includes('e2e-invalid-key'), false);
-    j.expect('挂的那一行确实是 chat 类型（不是 chat/text，findChatModel 不会选它）',
-      (broken.data as Record<string, unknown>)?.modelType, 'chat');
+    // ── 4 挂一条坏模型行（挂在这一家自己名下）───────────────────────────────
+    brokenModelId = await hangBrokenModel('1', 1);
     // 再导 3 条，否则第二次蒸馏没有 pending 关键词可吃，根本不会去调模型
     const imported2 = await admin.post('/api/workspace/keywords/import', {
       keywords: ['成人矫正要多久', '牙周袋深度多少要手术', '智齿发炎期间能拔牙吗'],
@@ -155,19 +190,25 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成那一
     const usage2 = await usageSum();
     j.expect('失败这一笔不计额度（AiCallLogService.java:106 只在成功分支涨）', usage2, usage1);
 
-    // ── 6 摘掉坏行 ─────────────────────────────────────────────────────────
-    const del = await sa.api.del(`/api/ai/model-configs/${brokenModelId}`);
+    // ── 6 摘掉坏行（删除也得站在 A 家这一档：requireOwnership 拿声明头比）───
+    const del = await saAt.del(`/api/ai/model-configs/${brokenModelId}`);
     j.expect('删掉坏模型行回 OK', del.code, 'OK');
     const goneRow = await db.count('SELECT COUNT(*) AS n FROM ai_model_config WHERE id = ? AND del_flag = ?',
       [brokenModelId, '0']);
     j.expect('按 id 复查：这条行不再活着（软删真落地）', goneRow, 0);
     brokenModelId = 0;
 
-    // ── 7 覆盖面：真生成那一跳留没留痕 ────────────────────────────────────
-    const gen = await admin.post('/api/workspace/articles/generate-async', { keyword: '种植牙集采后价格降了多少' });
+    // ── 7 覆盖面：真生成与翻译那一跳留没留痕（★G-12 的本体）────────────────
+    // 带 targetLocales=["en-US"]：J-04 实测这一发全程约 172s，同形那一种不带的那一篇少一次翻译调用。
+    // 翻译那一跳走的是第三条路（直连 DynamicAiClient，不经 failover 也不经日志服务），
+    // P9-D 之前它在 ai_call_log 里 0 行，所以这一趟要把它点出来。
+    const gen = await admin.post('/api/workspace/articles/generate-async',
+      { keyword: '种植牙集采后价格降了多少', targetLocales: ['en-US'] });
     j.expect('提交生成回 OK（摘掉坏行后回落平台模型 ⇒ 还能跑，说明引火的确实是那条行）', gen.code, 'OK');
     const taskId = Number((gen.data as Record<string, unknown>)?.taskId ?? 0);
     j.check('拿到 taskId', taskId, taskId > 0);
+    const usageBeforeGen = await usageSum();
+    const logsBeforeGen = (await logsOf()).length;
     const deadline = Date.now() + 420_000;
     let task: Record<string, unknown> = {};
     for (;;) {
@@ -182,29 +223,125 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成那一
     j.expect('生成任务跑完了（能跑完 = 引火的是那条坏行，不是网关）', task.status, 'COMPLETED');
     const genLogs = await logsOf();
     const purposes = [...new Set(genLogs.map(l => l.purpose))];
-    j.note('整条链跑完后这一家的 ai_call_log 按 purpose 的账（★G-12 的红就在这张表里）',
+    j.note('整条链跑完后这一家的 ai_call_log 按 purpose 的账（这一张表以前缺 article_generate 与 translation 两个 purpose）',
       { 行数: genLogs.length, 出现过的purpose: purposes, 各purpose行数: genLogs.reduce<Record<string, number>>((acc, l) => {
         acc[l.purpose] = (acc[l.purpose] ?? 0) + 1; return acc; }, {}) });
-    // 这一发真金白银写了 1 篇文章（正文 + 可能还有内链/_geo_增强/翻译的若干次模型调用），
-    // 而判据原话是「所有 AI 生成内容都有状态、来源和失败记录」。
-    const articlePurposeRows = genLogs.filter(l => /article|generat|translat/i.test(l.purpose));
-    j.expect('★生成与翻译那一跳在 ai_call_log 里有行（按判据原话该 ≥1；实测为 0 就是缺口）',
-      articlePurposeRows.length, 1);
-    // 但稿子那一侧不是完全没留痕：版本行上写着是谁写的
-    const versionTrace = await db.rows<{ ai_model: string | null }>(
-      `SELECT ai_model FROM article_version WHERE article_id = ? AND del_flag = ?`,
+    j.check('跑完一趟生成确实新增了行（修前这一趟只留预审那一行，正文与翻译都不在表里）',
+      genLogs.length - logsBeforeGen, genLogs.length > logsBeforeGen);
+    const genOk = genLogs.filter(l => l.purpose === 'article_generate' && l.status === 'success')[0];
+    const transOk = genLogs.filter(l => l.purpose === 'translation' && l.status === 'success')[0];
+    j.expect('★正文生成那一跳在 ai_call_log 里有成功的行（P9-D 修前实测 0 ⇒ 这一格就是靠这条判未达成）',
+      genOk === undefined, false);
+    j.expect('★翻译那一跳同样有成功的行（走的是第三条路，落点在 TranslationStep 自己那一处）',
+      transOk === undefined, false);
+    const byPurpose = (row: LogRow | undefined, 标签: string): void => {
+      if (!row) { j.expect(`${标签}：找不到那一行`, false, true); return; }
+      j.note(`${标签}那一行原样`, row);
+      j.expect(`${标签}：① 状态 status=success 且 success 位一致`, [row.status, row.success], ['success', 1]);
+      j.expect(`${标签}：② 来源 provider 不是 unknown（是真服务它的那台，不是配置里排第一台）`,
+        row.provider !== 'unknown', true);
+      j.expect(`${标签}：② 来源 model 不是 unknown`, row.model !== 'unknown', true);
+      j.check(`${标签}：③ 耗时 call_duration_ms 有值且 > 0`,
+        row.call_duration_ms ?? 0, (row.call_duration_ms ?? 0) > 0);
+      j.expect(`${标签}：④ 输入指纹是 64 位十六进制`, /^[0-9a-f]{64}$/.test(String(row.input_hash ?? '')), true);
+      j.check(`${标签}：④ 输出摘要非空`, (row.output_summary ?? '').length, (row.output_summary ?? '').length > 0);
+      j.check(`${标签}：token 估算落了值`, row.token_estimate ?? 0, (row.token_estimate ?? 0) > 0);
+      j.expect(`${标签}：site_id 落在这一家的站上`, row.site_id, A.siteId);
+      j.expect(`${标签}：run_id 为空（这一发不属于任何一轮 GEO 诊断）`, row.run_id, null);
+    };
+    byPurpose(genOk, '正文生成');
+    byPurpose(transOk, '翻译');
+    // 10-06 那一轮的教训摆在这里：那两条红的真正形状是「成功行里写着 前 1 台不通（openai/E2E 坏模型探针 2）
+    // ⇒ 换到 … 才成功」——我自己挂的坏行被换掉了，所以终态照样 COMPLETED。坏行挂对家之后这一幕不该再出现，
+    // 但平台网关真抖一次也会写成这个样子，所以判的是「不许点名我自己的行」，不是「必须为 null」。
+    const 我自己那两条 = ['E2E 坏模型探针 1', 'E2E 坏模型探针 2'];
+    for (const [标签, row] of [['正文生成', genOk], ['翻译', transOk]] as [string, LogRow | undefined][]) {
+      const msg = String(row?.error_message ?? '');
+      j.note(`${标签}那一行的 error_message（成功行只该在换过台时非空）`, msg || null);
+      j.expect(`★${标签}的成功行不许点名本条自己挂的坏行（挂了=坏行还赖在选中的列表里）`,
+        我自己那两条.some(n => msg.includes(n)), false);
+    }
+    // 内容安全闸那一跳发几发取决于流程（拒时还会回落成 article_generate 那一支），所以只登记不钉数
+    j.note('内容安全闸那一跳的行数（不钉死：一趟里可能一发也没有，也可能两发）',
+      genLogs.filter(l => l.purpose === 'content_safety').length);
+    // 已登记的口径差（P9-D 正档 §4）：补的这几行只写日志、不动 tenant_usage。
+    // 这里只把两边各自的数量摆出来，不在本轮判「该不该扣量」——那是计费决定。
+    j.note('★口径差事实：这一趟新增的留痕行数 vs tenant_usage(api_call) 的增量（两条不相等，本轮不判）',
+      { 新增留痕行: genLogs.length - logsBeforeGen, 额度增量: (await usageSum()) - usageBeforeGen });
+    // 稿子那一侧的留痕本来就有（这一趟带翻译 ⇒ 中文版 + 英文版，两行都写着是哪台模型写的）
+    const versionTrace = await db.rows<{ locale: string; ai_model: string | null }>(
+      `SELECT locale, ai_model FROM article_version WHERE article_id = ? AND del_flag = ? ORDER BY id`,
       [Number(task.articleId ?? 0), '0']);
-    j.expect('article_version.ai_model 留了模型名（来源这一半在稿子上，不在日志里）',
-      versionTrace.length, 1);
-    j.check('那个模型名是个非空字符串（不钉死是哪一个：换默认模型不该把这条测成红）',
-      versionTrace[0]?.ai_model ?? '', typeof versionTrace[0]?.ai_model === 'string' && versionTrace[0].ai_model.length > 0);
+    const modelByLocale = new Map(versionTrace.map(v => [v.locale, v.ai_model]));
+    j.expect('中文版那一行在', modelByLocale.has('zh-CN'), true);
+    j.expect('英文版那一行在（这一趟带了 targetLocales）', modelByLocale.has('en-US'), true);
+    j.expect('两行的 ai_model 都不是空（来源这一半在稿子上，日志里那一半现在也齐了）',
+      versionTrace.every(v => typeof v.ai_model === 'string' && (v.ai_model ?? '').length > 0), true);
+    j.note('版本行上的模型名原样（不钉死是哪一个：换默认模型不该把这条测成红）', versionTrace);
+
+    // ── 8 新路（换模型重试那一条）的失败面：不只要成功有账，失败也要有账 ─────
+    // 为什么单开这一步：步骤 4~6 测的是老路（AiCallLogService 自己重试）的失败面，
+    // 而 P9-D 补的正是另一条路；它的形状是「全部不通时落一行 status=failed，
+    // error_message 写「试过 N 台均不可用：provider/name → 原因」」（AiFailoverService.java:99-100）。
+    // 打成这一支要靠「这一家自己名下只有这一条坏行」：借平台那一支的前提是
+    // 这一家一条行都没有（AiFailoverService.java:192 的 models.isEmpty()），有这一条就不借 ⇒ 无处可换。
+    // 10-06 那一轮没打中就是因为坏行挂到了平台家（体里写 tenantId 不顶事，见文件头那段），
+    // 于是换到平台里下一台照样 COMPLETED ⇒ 这一支现场没测到。
+    // 失败得很快（本地端口立刻拒绝）⇒ 这一发不烧 token。
+    brokenModelId = await hangBrokenModel('2', 2);
+    // 换模型那一条的模型列表有 60s 缓存（AiFailoverService 的 Caffeine），
+    // 不等过去就会读到步骤 7 那一次缓存下来的平台模型行 ⇒ 这一发反而成功，测不到失败面
+    j.note('等模型列表缓存过期（60s + 5s 余量）再提交那一发', {});
+    await new Promise(r => setTimeout(r, 65_000));
+    const logsBeforeBroken = (await logsOf()).length;
+    const usageBeforeBroken = await usageSum();
+    const gen2 = await admin.post('/api/workspace/articles/generate-async', { keyword: '智齿发炎期间能拔牙吗' });
+    j.expect('第二次提交回 OK（任务本身照样收得下）', gen2.code, 'OK');
+    const taskId2 = Number((gen2.data as Record<string, unknown>)?.taskId ?? 0);
+    const deadline2 = Date.now() + 240_000;
+    let task2: Record<string, unknown> = {};
+    for (;;) {
+      await new Promise(r => setTimeout(r, 5_000));
+      const s = await admin.get(`/api/workspace/articles/generate/${taskId2}/status`);
+      task2 = (s.data ?? {}) as Record<string, unknown>;
+      j.note(`任务 ${taskId2} 轮询（注定失败那一发）`, { status: task2.status, stage: task2.stage });
+      if (typeof task2.status === 'string'
+        && ['COMPLETED', 'FAILED', 'CANCELLED', 'TIMEOUT', 'CONTENT_REJECTED'].includes(task2.status)) break;
+      if (Date.now() > deadline2) throw new Error(`任务 ${taskId2} 超时未终态：${JSON.stringify(task2)}`);
+    }
+    j.expect('★坏行在的时候这一发跑不完（终态不是 COMPLETED）', String(task2.status ?? '') !== 'COMPLETED', true);
+    j.note('注定失败那一发的终态与阶段', { status: task2.status, stage: task2.stage });
+    const failRows = (await logsOf()).slice(logsBeforeBroken)
+      .filter(l => l.status === 'failed' && (l.purpose === 'article_generate' || l.purpose === 'content_safety'));
+    j.expect('★新路的失败也落了行（修前这一条路成功与失败都一行都没有）', failRows.length >= 1, true);
+    const failRow = failRows[failRows.length - 1];
+    j.note('失败那一行原样（error_message 要能点名是哪台坏的）', failRow);
+    if (failRow) {
+      j.expect('来源记的是真试过的那台（不是 unknown：坏行的 provider/name 就在配置行上）',
+        [failRow.provider, failRow.model], ['openai', 'E2E 坏模型探针 2']);
+      j.check('失败原因没被吞：error_message 非空', (failRow.error_message ?? '').length,
+        (failRow.error_message ?? '').length > 0);
+      j.expect('这一行说了实话：试过几台、各是怎么坏的', (failRow.error_message ?? '').includes('均不可用'), true);
+      j.expect('失败那一行也记了耗时（不是 null）',
+        failRow.call_duration_ms === null || failRow.call_duration_ms === undefined, false);
+      j.expect('失败的那一笔没有用量 ⇒ 费用那格是空的不是 0', failRow.token_estimate, null);
+    }
+    j.expect('失败的那一笔不计额度（新路与老路同一口径：只有成功才 +1）', await usageSum(), usageBeforeBroken);
+    const del2 = await saAt.del(`/api/ai/model-configs/${brokenModelId}`);
+    j.expect('摘掉第二条坏模型行回 OK', del2.code, 'OK');
+    const goneRow2 = await db.count('SELECT COUNT(*) AS n FROM ai_model_config WHERE id = ? AND del_flag = ?',
+      [brokenModelId, '0']);
+    j.expect('按 id 复查：这条行不再活着（软删真落地）', goneRow2, 0);
+    brokenModelId = 0;
   } finally {
     if (brokenModelId > 0) {
       // 上一次删除没走到就得补一刀：这条行留着会把后来任何借模型的探针租户带进沟里
       try {
         const api = (await Api.login(env.apiBase, j, env.superAdmin.username, env.superAdmin.password)).api;
-        await api.del(`/api/ai/model-configs/${brokenModelId}`);
-        j.note('收尾补删坏模型行', { brokenModelId });
+        // 坏行现在挂在 A 家名下 ⇒ 删除也要站在这一家那一档，否则 requireOwnership 直接 FORBIDDEN
+        // （AiModelConfigController.java:211-220 + :401-406）
+        await (A ? api.withTenant(A.tenantId, A.code) : api).del(`/api/ai/model-configs/${brokenModelId}`);
+        j.note('收尾补删坏模型行', { brokenModelId, tenantId: A?.tenantId });
       } catch (e) {
         j.note('补删坏模型行失败（要人工清）', { brokenModelId, error: String(e) });
       }
