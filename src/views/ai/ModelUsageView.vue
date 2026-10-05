@@ -79,10 +79,11 @@
               </div>
               <div class="stat-info">
                 <!--
-                  Q-P7-6a：这一格以前恒念「¥0.00」，而同一时刻旁边的 token 在涨。根因不在界面：
-                  `ai_call_log.cost_estimate` 没有任何写入点，SQL 里那层 COALESCE 把「没统计过」兜成了
-                  「0 元」。现在后端在全 NULL 时回 null，界面就念「未统计」，并把真账指回下面那块额度
-                  与扣费流水——0 是一个数，而真相是「没有这个数」，两者不许互换（§9.6 同一条纪律）。
+                  Q-P7-6a 起这一格不再恒念「¥0.00」；P9-A 起它有真来源：ModelPricing 按
+                  「这一笔当时那台模型的单价」把 cost_estimate 算死再落库。
+                  于是这里的三态是准的：数字 = 窗口里定价模型的钱；¥0.00 = 那些模型真免费；
+                  「未统计」= 窗口里全是没定价的模型（一行 NULL 都没有），不是「花费为 0」。
+                  0 是一个数，而真相是「没有这个数」，两者不许互换（§9.6 同一条纪律）。
                 -->
                 <div class="stat-value" :class="{ 'stat-value--none': !hasStat('totalCost') }">
                   {{ hasStat('totalCost') ? `¥${totalCost.toFixed(2)}` : '未统计' }}
@@ -92,8 +93,10 @@
                   <ArrowUpOutlined /> {{ costGrowth }}% 较上月
                 </div>
                 <p v-if="!hasStat('totalCost')" class="stat-note">
-                  这一列没有来源（模型的单价没处取），所以不念 ¥0。真账在下方「本月额度」那块：
-                  它按 token 记水位与扣费流水，要在右上角选定租户才读得到。
+                  这一段窗口里的调用全落在没定价的模型上，所以费用不念 ¥0。
+                  去「模型配置」那一页给这些模型填每 1000 token 的单价，之后的调用就开始计钱
+                  （已经落库的那些不回填——单价改一次，历史账就跟着变一次）。
+                  额度与扣费流水在下方那块，按 token 记，要在右上角选定租户才读得到。
                 </p>
               </div>
             </div>
@@ -470,7 +473,8 @@
                   <div class="tokens-badge">{{ record.tokens ? record.tokens.toLocaleString() : '-' }}</div>
                 </template>
                 <template v-if="column.key === 'cost'">
-                  <span class="cost-value">¥{{ record.cost ? record.cost.toFixed(4) : '-' }}</span>
+                  <!-- 0 与 null 是两个答案：「真免费」和「这一台模型没定价、没统计」。`record.cost ? …` 会把它们并成一个「-」 -->
+                  <span class="cost-value">{{ record.cost == null ? '未统计' : `¥${record.cost.toFixed(4)}` }}</span>
                 </template>
                 <template v-if="column.key === 'duration'">
                   {{ record.duration }}ms

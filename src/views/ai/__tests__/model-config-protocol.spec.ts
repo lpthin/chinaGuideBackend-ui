@@ -37,6 +37,7 @@ vi.mock('../../../api/ai-model', () => ({
     testNew: vi.fn(),
     imageProbe: vi.fn(),
     checkAllHealth: vi.fn(),
+    setPrice: vi.fn(),
   },
   usageApi: { today: vi.fn() },
 }))

@@ -58,6 +58,11 @@ export const modelConfigApi = {
   update: (id: number, data: Partial<ModelConfigForm>) =>
     http.put<ModelConfig>(`/ai/model-configs/${id}`, data),
 
+  // 只写这一行的单价（元 / 1000 token）：给数字是定价，给 null 是清成「未定价」。
+  // 为什么不走上面那条 PUT：它后端是 updateById，null 不进 SET，清了等于没清。
+  setPrice: (id: number, pricePer1kTokens: number | null) =>
+    http.put<ModelConfig>(`/ai/model-configs/${id}/price`, { pricePer1kTokens }),
+
   // 删除配置
   delete: (id: number) =>
     http.delete(`/ai/model-configs/${id}`),

@@ -120,6 +120,18 @@
                 <a-tag :color="record.apiProtocol ? 'purple' : 'default'">{{ protocolText(record.apiProtocol) }}</a-tag>
               </a-tooltip>
             </template>
+            <template v-if="column.key === 'pricePer1kTokens'">
+              <a-tooltip :title="priceTooltip(record)">
+                <a-input-number
+                  v-model:value="record.pricePer1kTokens"
+                  :min="0"
+                  :step="0.001"
+                  placeholder="未定价"
+                  style="width: 130px"
+                  @blur="savePrice(record)"
+                />
+              </a-tooltip>
+            </template>
             <template v-if="column.key === 'priority'">
               <a-tag :color="getPriorityColor(record.priority)">P{{ record.priority }}</a-tag>
             </template>
@@ -357,6 +369,14 @@ const checkingAll = ref(false)
 const togglingId = ref<number | null>(null)
 const settingDefaultId = ref<number | null>(null)
 
+/**
+ * 单价的「库里现在是多少」快照，按配置 id 存。
+ *
+ * <p>那一格是 v-model 就地改写行对象的，所以「用户到底改了没有」不能跟行对象比——
+ * 它已经是刚敲进去的那个数。失焦时跟这份快照比，没变就不发请求；存失败了也拿它把格子还原。</p>
+ */
+const priceSnapshot = new Map<number, number | null>()
+
 const showAddModal = ref(false)
 const editingConfig = ref<ModelConfig | null>(null)
 
@@ -453,6 +473,7 @@ const columns = [
   { title: '提供商', key: 'provider', width: 140 },
   { title: '模型', dataIndex: 'modelName', key: 'modelName', width: 140 },
   { title: '接口协议', key: 'apiProtocol', width: 130 },
+  { title: '单价（元/1k token）', key: 'pricePer1kTokens', width: 170 },
   { title: '优先级', key: 'priority', width: 100, align: 'center' as const },
   { title: '默认配置', key: 'isDefault', width: 100, align: 'center' as const },
   { title: '状态', key: 'isActive', width: 100, align: 'center' as const },
@@ -629,6 +650,35 @@ async function setDefaultConfig(config: ModelConfig) {
   }
 }
 
+/**
+ * 「留空」与「0」在这一格里必须是两个样子：账单上那一笔费用到底是没统计还是免费，
+ * 只有这一处能回答，界面不许把它压成一个 0。
+ */
+function priceTooltip(record: ModelConfig) {
+  if (record.pricePer1kTokens == null) {
+    return '未定价：这一台模型的外呼不算费用，账单里那一格留空（不是 0）。要开始计费就填每 1000 token 的单价，填 0 表示真免费。'
+  }
+  return `每 1000 token ${record.pricePer1kTokens} 元${
+    record.pricePer1kTokens === 0 ? '（真免费）' : ''
+  } · 改完直接点别处即保存；清空 = 回到未定价，那一笔的费用不再统计。`
+}
+
+async function savePrice(record: ModelConfig) {
+  const entered = record.pricePer1kTokens ?? null
+  if (priceSnapshot.get(record.id) === entered) return
+  try {
+    const result = await modelConfigApi.setPrice(record.id, entered)
+    const stored = result.pricePer1kTokens ?? null
+    record.pricePer1kTokens = stored
+    priceSnapshot.set(record.id, stored)
+    message.success(stored == null ? '已清成未定价，这一台模型的费用不再统计' : `单价已设为每 1000 token ${stored} 元`)
+  } catch (error) {
+    logError('ai/model-config-view', error)
+    record.pricePer1kTokens = priceSnapshot.get(record.id) ?? null
+    message.error('单价保存失败')
+  }
+}
+
 async function testConnection(config: ModelConfig) {
   testingId.value = config.id
   try {
@@ -778,6 +828,7 @@ async function loadData() {
       priority: item.sortOrder ?? item.priority ?? 3,
       baseUrl: item.apiEndpoint || item.baseUrl || '',
     }))
+    configs.value.forEach(config => priceSnapshot.set(config.id, config.pricePer1kTokens ?? null))
   } catch (error) {
     logError('ai/model-config-view', '加载模型配置失败:', error)
     message.error('加载模型配置失败')

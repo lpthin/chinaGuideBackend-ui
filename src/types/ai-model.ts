@@ -99,6 +99,11 @@ export interface ModelConfig {
   apiEndpoint?: string
   /** 接口协议：留空表示由后端按接口地址推断（语义只写在后端 AiProtocols，前端不重复实现） */
   apiProtocol?: string
+  /**
+   * 每 1000 token 的单价（元）。null = 没定过价 ⇒ 这一笔的钱「未统计」；0 = 真免费 ⇒ 费用是 ¥0.00。
+   * 这一格只由 setPrice 那个口写（整表单那条 PUT 走 updateById，null 不进 SET，清不掉旧价）。
+   */
+  pricePer1kTokens?: number | null
   sortOrder?: number
   healthStatus?: 'unknown' | 'passed' | 'failed' | string
   lastHealthCheckAt?: string
