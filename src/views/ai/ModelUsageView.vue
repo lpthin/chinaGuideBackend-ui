@@ -86,7 +86,7 @@
                   0 是一个数，而真相是「没有这个数」，两者不许互换（§9.6 同一条纪律）。
                 -->
                 <div class="stat-value" :class="{ 'stat-value--none': !hasStat('totalCost') }">
-                  {{ hasStat('totalCost') ? `¥${totalCost.toFixed(2)}` : '未统计' }}
+                  {{ hasStat('totalCost') ? formatYuan(totalCost) : '未统计' }}
                 </div>
                 <div class="stat-title">{{ rangeLabel }}总费用</div>
                 <div v-if="hasStat('costGrowth')" class="stat-trend up">
@@ -194,7 +194,7 @@
               </a-col>
               <a-col :span="8">
                 <div class="mini-stat">
-                  <div class="mini-value">¥{{ todayStats.cost.toFixed(2) }}</div>
+                  <div class="mini-value">{{ formatYuan(todayStats.cost) }}</div>
                   <div class="mini-label">今日费用</div>
                   <div class="mini-diff" :class="todayStats.costGrowth >= 0 ? 'up' : 'down'">
                     {{ todayStats.costGrowth >= 0 ? '+' : '' }}{{ todayStats.costGrowth.toFixed(1) }}%
@@ -474,7 +474,7 @@
                 </template>
                 <template v-if="column.key === 'cost'">
                   <!-- 0 与 null 是两个答案：「真免费」和「这一台模型没定价、没统计」。`record.cost ? …` 会把它们并成一个「-」 -->
-                  <span class="cost-value">{{ record.cost == null ? '未统计' : `¥${record.cost.toFixed(4)}` }}</span>
+                  <span class="cost-value">{{ formatYuan(record.cost) }}</span>
                 </template>
                 <template v-if="column.key === 'duration'">
                   {{ record.duration }}ms
@@ -908,6 +908,23 @@ const statsPayload = ref<Record<string, unknown>>({})
 function hasStat(key: string): boolean {
   const value = statsPayload.value?.[key]
   return value !== undefined && value !== null
+}
+
+/**
+ * 费用的念法。三位一体：null = 「未统计」（这一台没定价），0 = 「¥0.00」（真免费），有数就报数。
+ *
+ * <p>为什么要专门写这个而不是 `toFixed(2)`：真跑 P9-A2 时接口回的是 totalCost=0.001742，
+ * 卡片按两位小数一舍就成了「¥0.00」——那一眼看上去正是「真免费」，把 P9-A 立起来要区分的
+ * 三态又并回了一个。所以非零的数一律不许被舍成零：不到一分的按有效位展开，不到百万分之一的
+ * 直接换成科学计数法，宁可念得难看，也不许念成一个看起来像读数的 0。</p>
+ */
+function formatYuan(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '未统计'
+  if (value === 0) return '¥0.00'
+  const abs = Math.abs(value)
+  if (abs >= 0.01) return `¥${value.toFixed(2)}`
+  if (abs < 0.000001) return `¥${value.toExponential(2)}`
+  return `¥${value.toFixed(6).replace(/0+$/, '')}`
 }
 
 const QUICK_DATE_LABELS: Record<string, string> = {

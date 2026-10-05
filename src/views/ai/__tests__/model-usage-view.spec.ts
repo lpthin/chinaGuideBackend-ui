@@ -255,6 +255,18 @@ describe('接口没回的那几项，界面上不许出现假 0', () => {
     expect(wrapper.findAll('.perf-value--none')).toHaveLength(2)
     expect(text).toContain('0ms')
   })
+
+  /**
+   * 2026-10-05 现场抓的（scratch/p9a2-stats-noscoped.json 对 shot-06 那张屏）：
+   * 接口回 totalCost=0.001742，卡片按两位小数一舍就念成「¥0.00」——那一眼正是「真免费」，
+   * 上一条用例刚立的三态在这一格被舍掉了。所以不到一分的真数要按有效位展开。
+   */
+  it('费用不到一分也不许被两位小数舍成 ¥0.00：真账要念得出数', async () => {
+    const wrapper = await mountView({ ...STATS, totalCost: 0.001742 })
+    const cell = wrapper.find('.stat-value')
+    expect(cell.text()).toBe('¥0.001742')
+    expect(cell.classes()).not.toContain('stat-value--none')
+  })
 })
 
 describe('接口回了就照念，包括真 0', () => {
