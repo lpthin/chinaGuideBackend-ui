@@ -172,7 +172,7 @@ describe('写评论', () => {
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
-    expect(submitArticleComment.mock.calls[0][1]).toMatchObject({ website: 'http://spam.example' })
+    expect(vi.mocked(submitArticleComment).mock.calls[0][1]).toMatchObject({ website: 'http://spam.example' })
     expect(wrapper.find('#portal-comment-receipt').text()).toBe('已提交，感谢留言')
   })
 })
