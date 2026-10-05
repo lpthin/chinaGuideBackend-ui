@@ -148,6 +148,9 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-portal-stores': 'site-content',
   'workspace-portal-jobs': 'site-content',
   'workspace-portal-guestbook': 'site-content',
+  // P9-C（G-08）：文章底下的读者评论与点赞。跟「留言管理」进同一组，因为这一组回答的是
+  // 「访客写进来的话在哪里处理」；评论的录入方是访客本人，租户这一侧只有队列与开关。
+  'workspace-interaction': 'site-content',
   'workspace-portal-messages': 'site-content',
   // 企业信息一处、站点级 SEO/GEO 与 robots 一处（P5 合并后）；项名「站点设置」，组名不再与它同名
   'workspace-portal-company': 'site-content',

@@ -403,15 +403,17 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     expect(domains.slice(5).every(d => d === 'platform')).toBe(true)
   })
 
-  it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) +P9-B(1) = 69（租户 39 + 平台 30）', () => {
+  it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) +P9-B(1) +P9-C(1) = 70（租户 40 + 平台 30）', () => {
     // 16 组时是 39 + 34 = 73 项（再加固定两项 = 75）。P0 归组一个页面都没动；
     // P3 往下每摘一颗都要在这里减一个数，并且 `MENU_EXCLUDED` 里要多一行理由——
     // 以后谁借着「合并栏目」把页面从菜单里摘掉却不留地址、不留理由，这条会直接问他要。
     // Q-P7-3a 把「页面搭建」从建站组挪进内容与维护组：总数不变，只是同一颗换了桶（37/31 → 38/30）。
     // P9-B 加的是新页「每日产出」（G-04 那条自动链的设置与留痕），挂 content:output:view，
     // V166 已把这一码发给 SITE_ADMIN ⇒ 它是租户段的新项，不是平台段多出来的入口。
-    expect(grouped).toHaveLength(69)
-    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(39)
+    // P9-C 再加一颗「读者互动」（G-08：评论队列 + 两个开关），挂 interaction:view（V169 发给
+    // SITE_ADMIN/SUPER_ADMIN，是可分配码）⇒ 同样是租户段的新项，进的是「网站内容」那一组。
+    expect(grouped).toHaveLength(70)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(40)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(30)
   })
 

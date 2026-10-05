@@ -146,6 +146,7 @@ const AlertChannelView = () => import('../views/workspace/AlertChannelView.vue')
 const AlertCenterView = () => import('../views/workspace/AlertCenterView.vue')
 const NotificationInboxView = () => import('../views/workspace/NotificationInboxView.vue')
 const DailyOutputView = () => import('../views/workspace/DailyOutputView.vue')
+const InteractionView = () => import('../views/workspace/InteractionView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
 
 /**
@@ -671,6 +672,16 @@ export const routes: RouteRecordRaw[] = [
         name: 'workspace-portal-guestbook',
         component: GuestbookManageView,
         meta: { title: '留言管理', icon: 'guestbook', requiredPermission: 'portal:siteinfo:manage' }
+      },
+      {
+        // P9-C（G-08）：文章底下的读者评论与点赞。跟「留言管理」做邻居——那是这一组里唯一
+        // 另一处「访客写进来的话在哪里处理」，分成两页各摆一处会让人两边都要查。
+        // 路由只拦 interaction:view（V169 发的可分配码），放行/驳回/改开关另要 interaction:manage，
+        // 视图里按码把按钮摆出来。
+        path: 'interaction',
+        name: 'workspace-interaction',
+        component: InteractionView,
+        meta: { title: '读者互动', desc: '文章评论的待审队列、点赞数与系统补写的账', icon: 'message', requiredPermission: 'interaction:view' }
       },
       {
         path: 'portal/company',
