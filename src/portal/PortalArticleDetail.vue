@@ -1,5 +1,5 @@
 <template>
-  <PortalPageShell>
+  <PortalPageShell v-slot="{ shell }">
     <div v-if="loading" class="portal-article__state">内容加载中…</div>
     <div v-else-if="errorMessage" class="portal-article__state">
       <h1>{{ errorMessage }}</h1>
@@ -40,6 +40,13 @@
         <span v-else />
         <router-link v-if="article.next" :to="article.next.link">下一篇：{{ article.next.title }}</router-link>
       </nav>
+
+      <!-- 靠预览令牌翻开的那一套候选站还没交付：这一整页的内容都不算数，评论与点赞干脆不摆。
+           判据只认后端壳层那一个字段（与 InquiryFormBlock 同一口径），不按地址栏有没有令牌猜 -->
+      <p v-if="isPreviewContext(shell)" class="portal-article__preview-note">
+        这一套方案还在预览阶段，评论与点赞要等它被选定、上线之后才开通。
+      </p>
+      <PortalArticleInteraction v-else :id-or-slug="idOrSlug" />
     </article>
   </PortalPageShell>
 </template>
@@ -49,7 +56,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useHead } from '@vueuse/head'
 import PortalPageShell from './PortalPageShell.vue'
+import PortalArticleInteraction from './PortalArticleInteraction.vue'
 import { fetchArticle, PortalApiError, type PortalArticleDetail } from './api/portalPublic'
+import { isPreviewContext } from './blocks/types'
 import { renderMarkdown } from './portalMarkdown'
 import { formatDate } from '../utils/format'
 
@@ -61,6 +70,9 @@ const route = useRoute()
 const article = ref<PortalArticleDetail | null>(null)
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
+
+/** 评论区要用同一个 key 去要评论：数字 id 与中文 slug 两条路后端都认（ReaderCommentService 判 \d+） */
+const idOrSlug = computed(() => String(route.params.idOrSlug || ''))
 
 const bodyHtml = computed(() => renderMarkdown(article.value?.contentMd))
 
@@ -135,7 +147,7 @@ async function load(idOrSlug: string) {
   }
 }
 
-onMounted(() => load(String(route.params.idOrSlug || '')))
+onMounted(() => load(idOrSlug.value))
 watch(() => route.params.idOrSlug, value => {
   if (route.name === 'portal-article-detail') {
     load(String(value || ''))
@@ -268,6 +280,16 @@ watch(() => route.params.idOrSlug, value => {
       font-size: 13px;
       color: #4b5563;
     }
+  }
+
+  &__preview-note {
+    margin: 36px 0 0;
+    padding: 16px 20px;
+    border-left: 3px solid #2563eb;
+    background: #f8fafc;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    color: #4b5563;
   }
 
   &__neighbours {

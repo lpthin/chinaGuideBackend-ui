@@ -210,7 +210,8 @@ export class PortalApiError extends Error {
   }
 }
 
-async function request<T>(method: 'get' | 'post', path: string, payload: Record<string, unknown> = {}): Promise<T> {
+async function request<T>(method: 'get' | 'post', path: string, payload: Record<string, unknown> = {},
+  sendPreviewToken = false): Promise<T> {
   const site = resolveSiteCode()
   const params = { ...(site ? { site } : {}) }
   // 预览令牌走请求头这一条通道（后端 SiteVisibilityGuard.PREVIEW_TOKEN_HEADER）：
@@ -219,17 +220,17 @@ async function request<T>(method: 'get' | 'post', path: string, payload: Record<
   // 结果就是「首屏有内容、一点导航就变成别的租户或 404」，那种串台最难看出来。
   // 地址栏里没有令牌时一个头都不加：匿名访客的请求不该多一次会话表查询的机会。
   const previewToken = previewTokenOfUrl()
-  const config = {
-    params: { ...params, ...payload },
-    ...(previewToken ? { headers: { 'X-Review-Token': previewToken } } : {})
-  }
+  const tokenHeader = (previewToken && (method === 'get' || sendPreviewToken))
+    ? { headers: { 'X-Review-Token': previewToken } }
+    : {}
   try {
     const response = method === 'get'
-      ? await axios.get(path, config)
-      // POST 只有 /track 与 /inquiry 两条公开写口，两条都不认预览授权：埋点按域名归属，
-      // 留资在预览视图连提交按钮都不给（后端 InquiryService 里还有同一口径的一道闸）。
-      // 这里刻意不把令牌带过去——带上只是给一套还没交付的站多开一条写入口。
-      : await axios.post(path, payload, { params })
+      ? await axios.get(path, { params: { ...params, ...payload }, ...tokenHeader })
+      // 公开写口默认不带令牌：/track 按域名归属，/inquiry 在预览视图连提交按钮都不给
+      // （后端 InquiryService 里还有同一口径的一道闸），带上只是给一套还没交付的站多开一条写入口。
+      // 唯一的例外是评论与点赞这两条（见 submitArticleComment），它们必须让后端知道
+      // 「这一页是被令牌翻开的」，否则访客看到的会是「无法定位站点」而不是那句真话。
+      : await axios.post(path, payload, { params, ...tokenHeader })
     const body = response.data
     if (body && typeof body.success === 'boolean') {
       // 判成功的唯一依据是 success：/tickets 这类无返回值端点的 data 就是 null，
@@ -254,13 +255,16 @@ function get<T>(path: string, params: Record<string, unknown> = {}): Promise<T> 
 }
 
 /**
- * 访客侧唯一的写路径：预览令牌下的改版工单。
+ * 预览令牌下的改版工单。
  *
  * 后端对「令牌无效」也返回 success:true 且什么都不落库（不给探测者区分无效/过期/内容非法的信号），
  * 所以调用方不能只看状态码判断「已提交」，必须带一句「已收到，运营会处理」这种不承诺结果的文案。
+ *
+ * @param withPreviewToken 仅评论与点赞这两条置 true，理由见 request 里那段注释；
+ *   工单那条令牌本来就在路径里，留资与埋点则一律不带。
  */
-function post<T>(path: string, payload: Record<string, unknown> = {}): Promise<T> {
-  return request<T>('post', path, payload)
+function post<T>(path: string, payload: Record<string, unknown> = {}, withPreviewToken = false): Promise<T> {
+  return request<T>('post', path, payload, withPreviewToken)
 }
 
 export function fetchSiteShell(): Promise<PortalSiteShell> {
@@ -274,6 +278,67 @@ export function fetchArticles(params: { category?: string; page?: number; size?:
 /** 详情 key 可能是中文 slug：这里统一编码，路由参数拿到的是已解码值 */
 export function fetchArticle(idOrSlug: string | number): Promise<PortalArticleDetail> {
   return get<PortalArticleDetail>(`${BASE}/articles/${encodeURIComponent(String(idOrSlug))}`)
+}
+
+/**
+ * 评论区（P9-C / G-08）：这一组三条口是门户第二条匿名写口，形状跟留资不一样，界面话术也就不一样。
+ *
+ * 留资对「真收了 / 被限流了 / 命中蜜罐」一律回同一句已收到，而评论这边：
+ * ① 格式不合规与限流回<b>真错</b>（PortalApiError，带 code），界面必须把那句原样念出来——
+ *    对着输入框的人等的是结果，告诉他「已提交」再把话丢掉，等于教他明天再来写一遍；
+ * ② 蜜罐与重复内容仍然回成功形状，但 accepted:false，界面照 message 念，不多承诺一句。
+ * 所以这里唯一的规则是：<b>message 只从后端拿，前端一个字都不抄</b>（含「等待审核」那句）。
+ */
+export interface PortalCommentItem {
+  id: number
+  authorName: string | null
+  content: string
+  createdAt: string | null
+}
+
+export interface PortalArticleComments {
+  items: PortalCommentItem[]
+  total: number
+  likeCount: number
+}
+
+export function fetchArticleComments(idOrSlug: string | number, page = 1, size = 10): Promise<PortalArticleComments> {
+  return get<PortalArticleComments>(`${BASE}/articles/${encodeURIComponent(String(idOrSlug))}/comments`, { page, size })
+}
+
+/** 访客写评论：authorName 留空后端会填「匿名读者」，所以这里不做必填 */
+export interface PortalCommentPayload {
+  authorName?: string | null
+  content: string
+  /** 蜜罐：正常表单里隐藏且永不初值 */
+  website?: string
+}
+
+/** 后端的 CommentReceipt；前端只念 message，不拿 needsReview 去自造一句文案 */
+export interface PortalCommentReceipt {
+  accepted: boolean
+  needsReview: boolean
+  message: string
+}
+
+export function submitArticleComment(idOrSlug: string | number, payload: PortalCommentPayload): Promise<PortalCommentReceipt> {
+  // withPreviewToken=true：预览视图后端回的是那句真话「这个页面还在预览阶段，暂不接收评论」，
+  // 不带令牌的话 access() 直接为空，访客看到的会是「无法定位站点」——那是我们的 bug，不是答案。
+  return post<PortalCommentReceipt>(`${BASE}/articles/${encodeURIComponent(String(idOrSlug))}/comments`,
+    { ...payload }, true)
+}
+
+/**
+ * 访客点赞：按 IP 去重，重复点不报错也不减，回的是当前总数。
+ * 界面必须以返回值为准刷新数字，绝不本地 +1——那样一个人连点五下，页面上就多了五个赞。
+ */
+export interface PortalLikeReceipt {
+  likeCount: number
+  recorded: boolean
+}
+
+export function likeArticle(idOrSlug: string | number): Promise<PortalLikeReceipt> {
+  return post<PortalLikeReceipt>(`${BASE}/articles/${encodeURIComponent(String(idOrSlug))}/like`, {}, true)
 }
 
 /**
