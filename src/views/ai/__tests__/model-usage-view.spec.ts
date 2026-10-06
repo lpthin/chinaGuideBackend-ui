@@ -480,6 +480,23 @@ describe('本月额度念的是两池，不是相加那一个数（G4）', () =>
     expect(wrapper.findAll('.progress-stub').map(n => n.attributes('data-percent'))).toEqual(['1', '2'])
   })
 
+  /**
+   * N-P9d-3（2026-10-06 拍板「保持两条账，界面写明出处不同」）：额度这块与上面那格「总费用」
+   * 对不上是结构性的 —— 费用按每一次出网逐笔算，而额度只由真正扣它的流水线写。
+   * 断言要两侧的出处都点名：只念一句「口径不同」等于没念，读的人仍会把 0 增量当成漏记。
+   */
+  it('额度这块点名它和「总费用」不是同一本账', async () => {
+    const wrapper = await mountPools(POOLS)
+    const note = wrapper.findAll('.pool-note').map(n => n.text())
+    const pairing = note.find(t => t.includes('不是同一本账'))
+    expect(pairing).toBeDefined()
+    expect(pairing).toContain('总费用')
+    expect(pairing).toContain('正文生成')
+    expect(pairing).toContain('评论种子与审查')
+    expect(pairing).toContain('新增 3 行出网留痕')
+    expect(pairing).toContain('不是漏记')
+  })
+
   it('两池的流水各数各的：界面不念那个把两池加起来的总数', async () => {
     const wrapper = await mountPools(POOLS)
     const rows = wrapper.findAll('.pool-row')
