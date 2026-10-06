@@ -22,6 +22,8 @@ import { env } from '../lib/env';
  *  - 同一计划有在册轮次（PENDING/RUNNING）时先抛 GEO_CAMPAIGN_RUN_IN_FLIGHT，也轮不到钱。
  *    所以拦与放两步用同一个计划、并把「受理那一发」放在最后：起跑前库里全平台零在册轮次（preflight2.md）。
  *  - 水位「留空 = 不限制」，读口给 null 而不是 0（V158/N2）；剩余一律夹到 0，不念负数。
+ *    2026-10-06 Q-P6a 拍板 (a) 之后这一条覆盖到<b>门禁那句拒词</b>：拒词、读口、超管页三处同一个数
+ *    （旧形拒词念原值负数，实测见 evidence/system-2026-10-04/p6）；判定仍按原值比，夹 0 只改话术。
  *  - 鉴权排在钱前面：{@code POST /api/geo/campaign/{id}/run} 要 geo:campaign:run（V147 起只授
  *    SITE_ADMIN/SUPER_ADMIN），而 tenant15_admin 是 CONTENT_EDITOR —— 上一轮拿它发这一发收到的是
  *    403 PERMISSION_DENIED，看着像「没拦住」其实是压根没走到门禁。诊断那两步改用 jingtian_admin。
@@ -137,13 +139,20 @@ test('SYS-J09b 水位闸：通用池拒得干净、GEO 池分得开、水位可�
     j.expect('拒的机器码是 QUOTA_EXCEEDED', denied.code, 'QUOTA_EXCEEDED');
     j.expect('拒的是通用池那一路的历史原文（G4 只给 GEO 那一路加池子名与前缀，这一句一个字不许改）',
       `${denied.message.startsWith('Token配额不足')}/${denied.message.endsWith(`月度配额: ${GATE_QUOTA}`)}`, 'true/true');
-    // 现场读回来的两处「剩余」不是同一个口径：门禁那句念 quota-used 原值（负数），用量页与超管页夹到 0。
-    // 钱没算错（两处都判「不够」），但客户看到的是「剩余: -142352」。这一条不是本轮拍过的判据，
-    // 按「缺陷只报不改」如实点名并写进报告，不拿它把用例判红。
+    // Q-P6a（2026-10-06 拍板 (a)「夹到 0，三处同一个数」）：这一条原来是「缺陷候选 J09b-1，只报不改」。
+    // 现场实测过的旧形在 docs/evidence/system-2026-10-04/p6/SYS-J09b.1004-112834.jsonl 里，那一轮拒词念的是
+    // 「剩余: -142352」，而同一轮同一屏的读口与超管页念 0 —— 客户看着同一个动作拿到两个数。
+    // 现在三处必须同一个数；判定仍按原值（负数）比，所以夹 0 不会把「不够」夹成「够」。
     const refusedRemaining = denied.message.match(/剩余: (-?\d+)/)?.[1];
-    j.note('缺陷候选 J09b-1（只报不改）：TokenQuotaService:378 的 remaining 未夹负数，拒词按原值念；'
-      + '读口与超管页走 Math.max(0,…)。同一时刻两个「剩余」不同形，判据本身是对的（都判「不够」）。',
-      `拒词原文=${denied.message}　拒词里的剩余=${refusedRemaining}　读口 remainingTokens=${tokenPool?.remainingTokens}　水位=${GATE_QUOTA}　本月已用=${ledgerUsed}`);
+    j.expect('★三处同一个「剩余」：门禁拒词与读口都是 0（夹过，不许念负数）',
+      `${refusedRemaining}/${tokenPool?.remainingTokens}`, '0/0');
+    j.expect('拒词里出现负号 = 闸那一处退回原值、界面与拒词又各说一套',
+      /剩余: -\d/.test(denied.message), false);
+    j.expect(`夹 0 只改话术没改判定：水位 ${GATE_QUOTA}、本月已用 ${ledgerUsed}，这一发仍被当场拒`,
+      denied.status, 429);
+    j.note('Q-P6a 落地位置：TokenQuotaService.checkQuota 给 deniedMessage 传 Math.max(0, remaining)，'
+      + '比较那一句仍用原值（单测里那条「已超支 + 预计 0 token 照样拦」钉的就是这一条）',
+      `拒词原文=${denied.message}　水位=${GATE_QUOTA}　本月已用=${ledgerUsed}`);
 
 
 
