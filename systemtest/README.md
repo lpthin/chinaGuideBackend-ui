@@ -49,7 +49,7 @@ npx playwright test specs/journey-j01-provision.spec.ts   # 或一把跑：npx p
 收尾用业务口 `DELETE /api/admin/tenants/{id}` 软删 —— 软删行继续占 `code`/`username` 唯一索引，
 所以**重跑必须换 `E2E_RUN_ID`**；每轮结尾会报一次逐表残留数，那个数进报告不进沉默。
 
-三条用一把跑法跑出来的规矩（违反的代价都实测过，别改回去）：
+四条用一把跑法跑出来的规矩（违反的代价都实测过，别改回去）：
 
 1. **一条 journey 的种子 tag 要带用例号**（`J01A` / `J12A`，不是 `A`）。一次 `playwright test` 里多条旅程共用同一个
    `E2E_RUN_ID`，而 `TENANT_CODE_EXISTS` 连软删行一起算 —— 共用 `A` 时第二条会在建租户那步撞死（run 1003-111011 实测）。
@@ -57,6 +57,22 @@ npx playwright test specs/journey-j01-provision.spec.ts   # 或一把跑：npx p
    「可重放」是门禁（Q-8=8a）的原话，只留最后一轮等于没证明重放过。
 3. **超管动别家的账号要先站到那一家**：`AdminUserController.requireUser` 比的是行归属，平台档身份直接 `?tenantId=` 指过去，
    创建能过、授角色会被判「无权限操作该用户」（J-12 run 3 就是这么红的）。`lib/seed.ts` 里那两处 `withTenant()` 就是界面右上角切租户做的事。
+4. **判「这一发被拒了」一律比 `code`，不许拿 `status` 当判据**（Q-P6b，2026-10-06 拍板「不动代码，写死纪律」）。
+   同一个「拒」在四个地方是四种 HTTP 形状，`status` 只反映抛的是哪一类异常，不反映拒没拒：
+
+   | 形状 | 哪一路 | 实测出处 |
+   | --- | --- | --- |
+   | `403` + `PERMISSION_DENIED` | 权限闸（`GeoCampaignService` 的 `@RequiresPermission` 那一路先拦） | `system-2026-10-04/p6/SYS-J09b.1004-112408.jsonl:41`（`POST /api/geo/campaign/12/run`，「缺少权限: geo:campaign:run」） |
+   | `200` + `FORBIDDEN` | 超管专属口被普通账号打到（`AdminAuthUtils.checkSuperAdmin` 抛 `BusinessException`） | `system-2026-10-03/p0/SYS-J12.1003-111632.jsonl`（`POST /api/admin/tenants`，「需要超级管理员权限」） |
+   | `200` + `GEO_CAMPAIGN_GATE_DENIED` / `GEO_OPPORTUNITY_GATE_DENIED` | GEO 两池水位闸（`gateNotice` 排在 `checkQuota` 之前，自己拼拒词） | 本轮 `p9f/SYS-J09b.1006-120831-p9f.jsonl:48`；机会那路 `system-2026-10-04/p7/SYS-J05b.1004-152827.jsonl` |
+   | `429` + `QUOTA_EXCEEDED` | 通用池水位闸（`QuotaExceededException` 走全局异常处理器） | `p9f/SYS-J09b.1006-120831-p9f.jsonl:18`、`:64` |
+   | `401` + `UNAUTHORIZED` | 没带 token | `p9f-reconcile/J-anon.json`（2026-10-06） |
+   | `400` + `MISSING_PARAM` | 必填 query 参数缺失/空串（Spring 参数绑定先拦，业务层那条同款判据在 HTTP 面轮不到） | `p9f-reconcile/D-empty-tenantId.json`、`E-missing-tenantId.json` |
+
+
+   反面代价：J09b 里「GEO 池拒」与「通用池拒」断言同一次「钱不够」，若都写成 `expect(status, 429)`，
+   GEO 那一条会假绿或假红（它回的是 200）。业务码 `code` 两边都稳定，所以判据只认它 + 拒词原文。
+   （2026-10-06 现场：`429/QUOTA_EXCEEDED` 与 `200/GEO_CAMPAIGN_GATE_DENIED` 各一条，两形并存于同一轮同一租户。）
 
 证据文件里不落明文：`lib/api.ts` 的 `reqHeaders` / `reqBody` / `data` 三处都过 `redact()`（键名命中 `password|token|secret` 即遮）。
 这两条都曾实测打穿过一次 —— 接线前 run 111632/111743 的证据里有过口令与 JWT，`docs/SYSTEM_TEST_REPORT.md` §0 与 §3 第 8 条留了痕迹。

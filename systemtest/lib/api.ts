@@ -1,5 +1,12 @@
 import type { Journal } from './journal';
 
+/**
+ * 一次请求的回体。
+ *
+ * 判「这一发被拒了」只看 `code`，不看 `status`（Q-P6b 拍板「不动代码，写死纪律」）：
+ * 同一次「钱不够」在通用池是 `429 + QUOTA_EXCEEDED`，在 GEO 两路是 `200 + GEO_*_GATE_DENIED`；
+ * 权限拒也有 `403 + PERMISSION_DENIED` 与 `200 + FORBIDDEN` 两形。四形实测出处见 `systemtest/README.md` 数据纪律第 4 条。
+ */
 export interface Envelope<T = unknown> {
   status: number;
   success: boolean;
