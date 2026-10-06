@@ -62,6 +62,7 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成与翻
         '2 真蒸馏一次（成功面，走 ?preview=true 这一支——只有它把 distillSource/usedRuleFallback 放进回体）：ai_call_log 新增一行，四要素逐个查（状态/来源/耗时/输入指纹）',
         '3 额度一致性：成功那一笔计进 tenant_usage(api_call)，且只计一次',
         '4 超管切进 A 家（X-Tenant-Id）挂一条坏模型行（api_endpoint=127.0.0.1:9，sort_order 最小 ⇒ 优先选中），并验这一行确实落在 A 家名下（回体 + 库里两处都查）',
+        '4b 同一档再发一发「体里点平台 1 家、声明头是 A 家」的建模型行（N-P9d-1）：必须当场拒、话术点名两个值、库里一行都不许多',
         '5 再真蒸馏一次（老路的失败面）：接口回 200 但 distillSource 从 ai_model 翻成 rule_fallback；日志里必须有 status=failed 那一行，error_message 非空；额度不再涨',
         '6 摘掉坏行 ⇒ 证明那发失败是这条行引的，不是模型网关抖（随后真生成能跑完就是证据）',
         '7 覆盖面（★G-12 的本体）：带 targetLocales=["en-US"] 跑一次真生成，按 purpose 数给看——正文生成与翻译那两跳现在必须有行，且每行过同样的四要素',
@@ -162,6 +163,27 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成与翻
 
     // ── 4 挂一条坏模型行（挂在这一家自己名下）───────────────────────────────
     brokenModelId = await hangBrokenModel('1', 1);
+
+    // ── 4b 体与声明头不一致 ⇒ 当面拒（N-P9d-1，2026-10-06 拍板）────────────────
+    // 这一发是上一轮两条红的反面教材：旧写法「有上下文就一律按上下文走」，于是「体里点平台 1 家、
+    // 这次声明的是 A 家」会静默把行挂到点名的那一家去吗——不，它按上下文走，回体还回 OK，
+    // 调用方以为给 A 家建好了。现在必须当场拒，而且库里一行都不许多（不许先落库再报错）。
+    const mismatch = await saAt.post('/api/ai/model-configs', {
+      tenantId: 1, name: 'E2E 归属不一致探针', provider: 'openai',
+      modelName: 'e2e-mismatch-probe', modelType: 'chat', apiKey: 'e2e-invalid-key',
+      isActive: true, isDefault: false, sortOrder: 99,
+      apiEndpoint: 'http://127.0.0.1:9/v1/chat/completions', apiProtocol: 'openai',
+    });
+    j.expect('★体和声明头不一致时回的是拒绝，不是静默按一家建（旧写法这一发回 OK）',
+      mismatch.code, 'AI_MODEL_CONFIG_TENANT_MISMATCH');
+    const mismatchMessage = String((mismatch as { message?: string }).message ?? '');
+    j.note('被拒的那一句原样（两个值都要点名，只回「不一致」等于让调用方回去猜）', mismatchMessage);
+    j.expect('拒的那一句点名了「这次站的是哪家」（含它的站码）',
+      mismatchMessage.includes(`租户 ${A!.tenantId}`) && mismatchMessage.includes(A!.code), true);
+    j.expect('拒的那一句点名了「体里点的是哪家」', /参数里点的是租户 1(?!\d)/.test(mismatchMessage), true);
+    const ghostRows = await db.rows<{ c: number }>(
+      'SELECT COUNT(*) AS c FROM ai_model_config WHERE name = ?', ['E2E 归属不一致探针']);
+    j.expect('被拒那一发在库里一行都没留', ghostRows[0]?.c, 0);
     // 再导 3 条，否则第二次蒸馏没有 pending 关键词可吃，根本不会去调模型
     const imported2 = await admin.post('/api/workspace/keywords/import', {
       keywords: ['成人矫正要多久', '牙周袋深度多少要手术', '智齿发炎期间能拔牙吗'],
@@ -183,6 +205,11 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成与翻
     j.expect('失败行的 purpose 也是 keyword_distill（同一支调用，状态不同）', bad?.purpose, 'keyword_distill');
     j.expect('失败原因没被吞成空：error_message 有内容',
       (bad?.error_message ?? '').length > 0, true);
+    // N-P9d-2（2026-10-06 拍板「为空退回异常类名」）：以前 e.getMessage() 是 null 时，这一格念的是
+    // 「AI 调用失败: null」——留痕等于没留。现场这一发连的是本地拒绝端口，异常带原话，
+    // 所以这一条判的是「念出来的那一句里有名头」，那个空消息的分支由单测钉（DynamicAiClientFailureReasonTest）。
+    j.expect('★老路失败行念得出原因，不是「: null」这种没有名头的句子',
+      /:\s*null(\s|$)/.test(String(bad?.error_message ?? '')), false);
     j.note('失败行原样（provider/model/耗时/token 各是什么写法）', bad);
     // 本地端口拒绝连接可能快到取整成 0ms，所以判的是「记没记」，不是「够不够长」
     j.expect('失败那一行也记了耗时（不是 null：重试过两次，时长是要钱的）',
@@ -246,7 +273,7 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成与翻
       j.expect(`${标签}：④ 输入指纹是 64 位十六进制`, /^[0-9a-f]{64}$/.test(String(row.input_hash ?? '')), true);
       j.check(`${标签}：④ 输出摘要非空`, (row.output_summary ?? '').length, (row.output_summary ?? '').length > 0);
       j.check(`${标签}：token 估算落了值`, row.token_estimate ?? 0, (row.token_estimate ?? 0) > 0);
-      j.expect(`${标签}：site_id 落在这一家的站上`, row.site_id, A.siteId);
+      j.expect(`${标签}：site_id 落在这一家的站上`, row.site_id, A!.siteId);
       j.expect(`${标签}：run_id 为空（这一发不属于任何一轮 GEO 诊断）`, row.run_id, null);
     };
     byPurpose(genOk, '正文生成');
@@ -322,6 +349,8 @@ test('SYS-J10 AI 留痕与失败面：四要素、坏模型不吞、生成与翻
       j.check('失败原因没被吞：error_message 非空', (failRow.error_message ?? '').length,
         (failRow.error_message ?? '').length > 0);
       j.expect('这一行说了实话：试过几台、各是怎么坏的', (failRow.error_message ?? '').includes('均不可用'), true);
+      j.expect('★新路失败行同样不念「: null」（AiFailoverService 那一句和老路共用同一个取原因的口子）',
+        /:\s*null(\s|$)/.test(String(failRow.error_message ?? '')), false);
       j.expect('失败那一行也记了耗时（不是 null）',
         failRow.call_duration_ms === null || failRow.call_duration_ms === undefined, false);
       j.expect('失败的那一笔没有用量 ⇒ 费用那格是空的不是 0', failRow.token_estimate, null);
