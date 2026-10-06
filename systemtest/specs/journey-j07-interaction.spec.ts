@@ -13,7 +13,8 @@ import { env } from '../lib/env';
  * 本轮 P9-C 把整块做完了，所以判据换成「四条拍板落地成什么形状」：
  *   拍板 1（方案1，一次做全 + 默认关 + 开通落在租户本人账号 + 前台不带 AI 标识）
  *   拍板 2（默认进人工待审，租户可切成「安全闸判过直接显示」）
- *   拍板 3（点赞沿用 article_like.ip_address 明文去重 —— 与 G-10「IP 只进散列」的冲突就地登记）
+ *   拍板 3（点赞按访客去重；这一列在 P9-G 由明文 IP 改成加盐散列 visitor_key，N-P9c-2 拍板 (a)，
+ *          与 G-10「IP 只进散列」那条冲突就地登记 ⇒ 现已消掉，见下面第 6 步那三条断言）
  *   拍板 4（四道闸全接：XssFilter / 长度与重复 / AntiSpam 限流与敏感词 / 内容安全闸判拒降级进待审）
  * 立项原话里的形状约束也在这里判：「点赞：AI 在发布的时候就把数量写上。评论：AI 在随机时间生成……
  * 文章发布时间的前一个月，而且不要太有规律」—— 后半句读的是 comment_seed_task.fire_at 的分布。
@@ -213,9 +214,9 @@ test('SYS-J07 读者互动：评论、点赞、待审队列与系统补写真的
       [articleId]);
     j.check(`虚拟点赞落在配置的 20~30 区间内（实测 ${virtualLikes}）`, virtualLikes,
       virtualLikes >= 20 && virtualLikes <= 30);
-    j.note('虚拟点赞那几行的 ip_address 形状（拍板：来源标在 source 列，不藏在 IP 里伪装真人）',
-      await db.rows<{ ip: string }>(
-        "SELECT ip_address AS ip FROM article_like WHERE article_id = ? AND source = 'virtual' LIMIT 3", [articleId]));
+    j.note('虚拟点赞那几行的访客键（来源标在 source 列，键是 virtual- 合成串而不是散列，更不是 IP——散列它等于把「这几条是补的」抹掉）',
+      await db.rows<{ vk: string }>(
+        "SELECT visitor_key AS vk FROM article_like WHERE article_id = ? AND source = 'virtual' LIMIT 3", [articleId]));
     const seedRows = await db.rows<{ id: number; seq: number; fire: string; status: string }>(
       `SELECT id, seq, DATE_FORMAT(fire_at, '%Y-%m-%d %H:%i:%s') AS fire, status
        FROM comment_seed_task WHERE article_id = ? ORDER BY seq`, [articleId]);
@@ -240,7 +241,7 @@ test('SYS-J07 读者互动：评论、点赞、待审队列与系统补写真的
     j.check(`「不要太有规律」②：相邻间隔同一个值最多出现 2 次（实测 ${maxRepeat}，等间隔会到 9）`, maxRepeat, maxRepeat <= 2);
     j.note('相邻间隔分布（小时 → 出现次数）', [...gapCounts.entries()].sort((a, b) => a[0] - b[0]));
 
-    // ── 6 匿名点赞：IP 去重 + 数一起数 + 明文 IP 登记 ─────────────────────
+    // ── 6 匿名点赞：访客键去重 + 数一起数 + 库里不落明文 IP ────────────────
     const like1 = obj(await postLike('198.51.100.11'));
     j.expect('第一个访客点赞被记下', like1.recorded, true);
     j.expect('数 = 虚拟数 + 1', num(like1.likeCount), virtualLikes + 1);
@@ -250,11 +251,16 @@ test('SYS-J07 读者互动：评论、点赞、待审队列与系统补写真的
     const like3 = obj(await postLike('198.51.100.12'));
     j.expect('换一个人就记上', like3.recorded, true);
     j.expect('数 +1', num(like3.likeCount), virtualLikes + 2);
-    const readerIpRows = await db.rows<{ ip: string }>(
-      "SELECT ip_address AS ip FROM article_like WHERE article_id = ? AND source = 'reader' ORDER BY ip_address",
+    const readerKeyRows = await db.rows<{ vk: string }>(
+      "SELECT visitor_key AS vk FROM article_like WHERE article_id = ? AND source = 'reader' ORDER BY visitor_key",
       [articleId]);
-    j.expect('库里真实点赞两行，ip_address 存的是明文（★登记：与 G-10「IP 只进散列」冲突，拍板 3 沿用现状）',
-      readerIpRows.map(r => r.ip), ['198.51.100.11', '198.51.100.12']);
+    j.expect('库里真实点赞两行，一人一行（访客键去重成立）', readerKeyRows.length, 2);
+    j.expect('★访客键是 pepper 参与的 SHA-256 十六进制，库里不再有明文访客 IP（N-P9c-2 拍板 (a)，P9-G 落地）',
+      readerKeyRows.every(r => /^[0-9a-f]{64}$/.test(r.vk)), true);
+    j.expect('两把键互不相同（不同访客不会被折成同一个人）',
+      new Set(readerKeyRows.map(r => r.vk)).size, 2);
+    j.note('真实点赞那两行的访客键（散列，认不回明文；与 198.51.100.11 / .12 的对应关系由上面那三步的行为证）',
+      readerKeyRows);
     const backDetail = obj(await admin.get(`/api/articles/${articleId}`));
     j.expect('后台那一篇的 likeCount = 虚拟 + 真实（两个来源一起数）', num(backDetail.likeCount), virtualLikes + 2);
 
