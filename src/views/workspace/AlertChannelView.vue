@@ -75,6 +75,13 @@
       @ok="handleSubmit"
       @cancel="handleCancel"
     >
+      <a-alert
+        v-if="isEdit"
+        type="info"
+        show-icon
+        message="地址与密钥读回来是掩码：不改的那一格沿用库里已有的值，改了才会覆盖"
+        style="margin-bottom: 16px"
+      />
       <a-form
         ref="formRef"
         :model="formData"
@@ -103,6 +110,15 @@
               v-model:value="webhookConfig.url"
               placeholder="请输入Webhook地址"
             />
+          </a-form-item>
+          <a-form-item
+            label="载荷格式"
+            extra="接收端要什么形状就选什么。飞书群机器人只认它自己那一份，选错会被拒收——它拒收时也回 200，所以现在是照返回体里的 code 判成败，不再只看状态码"
+          >
+            <a-select v-model:value="webhookConfig.format" style="width: 100%">
+              <a-select-option value="generic">通用 JSON（自建接收端）</a-select-option>
+              <a-select-option value="feishu">飞书群机器人</a-select-option>
+            </a-select>
           </a-form-item>
           <a-form-item label="请求方法">
             <a-select v-model:value="webhookConfig.method" style="width: 100%">
@@ -205,6 +221,16 @@
           <a-form-item label="启用SSL">
             <a-switch v-model:checked="emailConfig.useSsl" />
           </a-form-item>
+          <a-form-item
+            label="收件邮箱"
+            extra="多个地址用逗号或换行分隔；一格都不填时报警发不出去，通知日志会当面记一条失败"
+          >
+            <a-textarea
+              v-model:value="emailConfig.toEmails"
+              placeholder="ops@example.com, alert@example.com"
+              :rows="2"
+            />
+          </a-form-item>
         </template>
 
         <a-form-item label="设为默认" name="isDefault">
@@ -255,14 +281,16 @@ const formData = reactive<Partial<AlertChannelConfig>>({
   isDefault: false
 })
 
-const webhookConfig = reactive({
+const defaultWebhookConfig = () => ({
   url: '',
+  // 老渠道的载荷是平铺 JSON，默认值必须还是它，否则历史接收端会突然收到飞书那一份
+  format: 'generic',
   method: 'POST',
   headers: {},
   secret: ''
 })
 
-const smsConfig = reactive({
+const defaultSmsConfig = () => ({
   provider: 'aliyun',
   accessKeyId: '',
   accessKeySecret: '',
@@ -270,15 +298,20 @@ const smsConfig = reactive({
   templateCode: ''
 })
 
-const emailConfig = reactive({
+const defaultEmailConfig = () => ({
   smtpHost: '',
   smtpPort: 465,
   fromEmail: '',
   fromName: '',
   username: '',
   password: '',
-  useSsl: true
+  useSsl: true,
+  toEmails: ''
 })
+
+const webhookConfig = reactive(defaultWebhookConfig())
+const smsConfig = reactive(defaultSmsConfig())
+const emailConfig = reactive(defaultEmailConfig())
 
 const webhookHeadersStr = computed({
   get: () => JSON.stringify(webhookConfig.headers || {}, null, 2),
@@ -360,29 +393,15 @@ const handleAdd = () => {
     config: {},
     isDefault: false
   })
-  Object.assign(webhookConfig, {
-    url: '',
-    method: 'POST',
-    headers: {},
-    secret: ''
-  })
-  Object.assign(smsConfig, {
-    provider: 'aliyun',
-    accessKeyId: '',
-    accessKeySecret: '',
-    signName: '',
-    templateCode: ''
-  })
-  Object.assign(emailConfig, {
-    smtpHost: '',
-    smtpPort: 465,
-    fromEmail: '',
-    fromName: '',
-    username: '',
-    password: '',
-    useSsl: true
-  })
+  resetChannelConfigs()
   modalVisible.value = true
+}
+
+/** 上一次编辑留下的值不能跟着下一次新增跑掉，三个类型都从默认档重新开始 */
+const resetChannelConfigs = () => {
+  Object.assign(webhookConfig, defaultWebhookConfig())
+  Object.assign(smsConfig, defaultSmsConfig())
+  Object.assign(emailConfig, defaultEmailConfig())
 }
 
 const handleEdit = (record: AlertChannelConfig) => {
@@ -392,6 +411,7 @@ const handleEdit = (record: AlertChannelConfig) => {
     ...record,
     config: savedConfig
   })
+  resetChannelConfigs()
 
   if (record.channelType === 'webhook') {
     Object.assign(webhookConfig, savedConfig)
@@ -432,9 +452,33 @@ const buildConfigData = () => {
   return {}
 }
 
+/**
+ * 表单里那些 name 绑的是 formData 的键，配置对象上的字段挂不上 a-form 的 rules，
+ * 所以必填这一层在提交前自己拦一道——发不出去的配置不该等到通知日志里才看见。
+ */
+const channelConfigProblem = (): string | null => {
+  if (formData.channelType === 'webhook' && !String(webhookConfig.url || '').trim()) {
+    return '请填写 Webhook 地址'
+  }
+  if (formData.channelType === 'email') {
+    if (!String(emailConfig.smtpHost || '').trim()) {
+      return '请填写 SMTP 服务器地址'
+    }
+    if (!String(emailConfig.toEmails || '').trim()) {
+      return '请填写至少一个收件邮箱'
+    }
+  }
+  return null
+}
+
 const handleSubmit = async () => {
   try {
     await formRef.value?.validate()
+    const problem = channelConfigProblem()
+    if (problem) {
+      message.warning(problem)
+      return
+    }
     submitLoading.value = true
 
     const data: any = {
