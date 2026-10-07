@@ -46,6 +46,7 @@ export interface KnowledgeDocument {
   vectorId?: string
   vectorModel?: string
   chunkCount?: number
+  vectorCount?: number
   tags: string[]
   uploadedBy: number
   uploadedByName?: string

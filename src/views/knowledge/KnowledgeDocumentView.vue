@@ -146,6 +146,7 @@
                     <a-tag v-if="file.vectorStatus" :color="getVectorStatusColor(file.vectorStatus)" size="small">
                       向量: {{ getVectorStatusText(file.vectorStatus) }}
                     </a-tag>
+                    <span v-if="vectorCountText(file)" class="vector-count">{{ vectorCountText(file) }}</span>
                   </div>
                 </template>
               </a-card-meta>
@@ -207,9 +208,12 @@
               <span v-else>-</span>
             </template>
             <template v-if="column.key === 'vectorStatus'">
-              <a-tag v-if="record.vectorStatus" :color="getVectorStatusColor(record.vectorStatus)">
-                {{ getVectorStatusText(record.vectorStatus) }}
-              </a-tag>
+              <template v-if="record.vectorStatus">
+                <a-tag :color="getVectorStatusColor(record.vectorStatus)">
+                  {{ getVectorStatusText(record.vectorStatus) }}
+                </a-tag>
+                <div v-if="vectorCountText(record)" class="vector-count">{{ vectorCountText(record) }}</div>
+              </template>
               <span v-else>-</span>
             </template>
             <template v-if="column.key === 'createdAt'">
@@ -1127,6 +1131,7 @@ function getVectorStatusColor(status: string): string {
     PENDING: 'default',
     PROCESSING: 'processing',
     COMPLETED: 'success',
+    PARTIAL: 'warning',
     FAILED: 'error',
     NOT_VECTORIZED: 'default',
     VECTORIZING: 'processing',
@@ -1140,12 +1145,19 @@ function getVectorStatusText(status: string): string {
     PENDING: '待向量化',
     PROCESSING: '向量化中',
     COMPLETED: '已完成',
+    PARTIAL: '部分完成',
     FAILED: '失败',
     NOT_VECTORIZED: '未向量化',
     VECTORIZING: '向量化中',
     VECTORIZED: '已向量化'
   }
   return map[status] || status
+}
+
+// 状态只说「齐不齐」，具体几格有向量要说得出数：全败的文档念「失败 0/5」才不冤枉人
+function vectorCountText(record: any): string {
+  if (!record?.chunkCount) return ''
+  return `向量 ${record.vectorCount || 0}/${record.chunkCount} 格`
 }
 
 function getOcrStatusColor(status: string): string {
@@ -1307,6 +1319,11 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.vector-count {
+  font-size: 12px;
+  color: #8c8c8c;
 }
 
 .doc-tags {
