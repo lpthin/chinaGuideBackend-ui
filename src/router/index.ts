@@ -81,6 +81,7 @@ const BriefIntakeView = () => import('../views/portal/BriefIntakeView.vue')
 const BriefDetailView = () => import('../views/portal/BriefDetailView.vue')
 const CandidateGalleryView = () => import('../views/portal/CandidateGalleryView.vue')
 const SpecDocumentView = () => import('../views/portal/SpecDocumentView.vue')
+const PlatformPromptTemplatesView = () => import('../views/admin/PromptTemplatesView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
@@ -574,6 +575,21 @@ export const routes: RouteRecordRaw[] = [
           icon: 'file-text',
           hidden: true,
           requiredPermission: 'site_spec:edit',
+          requiresSuperAdmin: true
+        }
+      },
+      {
+        // 平台默认提示词（Spec-M D2/§7、P1）：建站那一族八份的「读得到也写得到」。
+        // 与系统管理里那一项「提示词」不是一回事——那一页管的是 article 那条链的 prompt 表，
+        // 这一页只管建站出方案的八份平台默认行，所以标题带上「建站」两个字。
+        path: 'portal/prompts',
+        name: 'workspace-portal-prompts',
+        component: PlatformPromptTemplatesView,
+        meta: {
+          title: '建站提示词',
+          desc: '平台默认提示词（建站那一族八份），改一处影响所有租户',
+          icon: 'prompt',
+          requiredPermission: 'prompt:template:manage',
           requiresSuperAdmin: true
         }
       },
