@@ -80,6 +80,7 @@ const SiteBriefsView = () => import('../views/portal/SiteBriefsView.vue')
 const BriefIntakeView = () => import('../views/portal/BriefIntakeView.vue')
 const BriefDetailView = () => import('../views/portal/BriefDetailView.vue')
 const CandidateGalleryView = () => import('../views/portal/CandidateGalleryView.vue')
+const SpecDocumentView = () => import('../views/portal/SpecDocumentView.vue')
 const PageBuilderView = () => import('../views/portal/PageBuilderView.vue')
 const RevisionTicketView = () => import('../views/portal/RevisionTicketView.vue')
 const ReferenceSiteView = () => import('../views/portal/ReferenceSiteView.vue')
@@ -558,6 +559,21 @@ export const routes: RouteRecordRaw[] = [
           icon: 'form',
           hidden: true,
           requiredPermission: 'portal:build:manage',
+          requiresSuperAdmin: true
+        }
+      },
+      {
+        // 建站说明书（Spec-M P0）：七段是出方案那一趟读的那一份，和「需求单勾选」分家。
+        // 来路只有详情页那颗按钮，所以不占一级菜单；守卫码跟后端读口（site_spec:edit）一致，
+        // 挂 portal:build:manage 会让「能出方案但没编辑说明书权限」的账号点进来看见一片 403。
+        path: 'portal/brief/:brief/spec',
+        name: 'workspace-portal-brief-spec',
+        component: SpecDocumentView,
+        meta: {
+          title: '建站说明书',
+          icon: 'file-text',
+          hidden: true,
+          requiredPermission: 'site_spec:edit',
           requiresSuperAdmin: true
         }
       },

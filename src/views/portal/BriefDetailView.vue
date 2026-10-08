@@ -254,6 +254,16 @@ function goGallery() {
   router.push({ name: 'workspace-portal-brief-candidates', params: { id: String(id) } })
 }
 
+/**
+ * 建站说明书（Spec-M P0）：这一单「喂给 AI 的那份文档」住在那一页。
+ * 来路只有详情页这一颗按钮——它是出方案之前的准备动作，不是一级菜单。
+ */
+function goSpec() {
+  const id = briefId.value
+  if (id === null) return
+  router.push({ name: 'workspace-portal-brief-spec', params: { brief: String(id) } })
+}
+
 // ------------------------------------------------------------------
 // 出方案四步门禁（拍板 9A：预估 → 勾选确认 → 执行 → 按套看进度；不自动重试）
 // ------------------------------------------------------------------
@@ -653,6 +663,7 @@ onUnmounted(stopPolling)
           钱要么已经在花、要么已经花完，轮不到在这里再按一次。
         </p>
         <a-space wrap class="brief-detail__actions">
+          <a-button @click="goSpec">建站说明书（喂 AI 的那七段）</a-button>
           <a-button :disabled="!canEstimate" :loading="estimating" @click="runEstimate">先估算消耗（不调模型）</a-button>
           <a-checkbox v-model:checked="confirmChecked" :disabled="!canConfirm">
             我已看过这次预估，确认出方案{{ tenantBearsCost ? '会消耗租户配额' : '的这次消耗由平台承担' }}
