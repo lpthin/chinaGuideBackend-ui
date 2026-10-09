@@ -88,6 +88,10 @@ export interface ReferenceMapping {
  * <p>为什么要有它而不是直接用 `ReferenceMapping[]`：按行显示时「47 条对不上」听着像缺 47 类能力，
  * 实际 18 行是页头页脚这类站级公共格子——模型只在第一页映射一次，其余每页各回一句「重复」。
  * 归并之后是 5 类，其中还分得出「白名单真没有」与「我们有、这一趟没再映射」。</p>
+ *
+ * <p>{@link UnmatchedGroup.mappingId} 与 {@link UnmatchedGroup.promotedBlockKey} 是「一键沉淀」
+ * （Spec-M §8 第 4 步）挂在这一视图上的两半：归并行本身没有 id（它是好几个 id 的合成物），
+ * 而沉淀那一口必须按 mappingId 走，所以后端替这一族挑了一个，并把它沉淀过没有一起带出来。</p>
  */
 export interface UnmatchedGroup {
   observedBlock: string
@@ -96,6 +100,33 @@ export interface UnmatchedGroup {
   rowCount: number
   paths: string[]
   note: string | null
+  /**
+   * 这一族里<em>第一条</em>映射的 id——「沉淀为组件」那一口的路径参数。
+   *
+   * <p>取最早那一行而不是最后一行：最早那一行是这一形第一次被看到的那一次，沉淀留痕挂它身上最合理。</p>
+   * <p>空 = 后端没给（老数据）。界面上这时按钮按下去也没有去处，所以给它不可点 + 一句为什么。</p>
+   */
+  mappingId?: number | null
+  /**
+   * 这一族里已有任意一行沉淀成组件时带出那个 blockKey。非空就是界面那句「已沉淀成 X」的回指。
+   *
+   * <p>它存在的理由不是好看：判据⑤要的是「重复沉淀直接拒」。按钮因此<b>留着但按不下去</b>，
+   * 而不是整排藏起来——藏掉按钮等于把「这一口原来会拒」这件证据也一起藏了。</p>
+   */
+  promotedBlockKey?: string | null
+}
+
+/**
+ * 一键沉淀的结果（后端 record `Promoted(blockDefId, blockKey, name, observedBlock)`）。
+ *
+ * <p>注意 id 那一格的真名是 `blockDefId` 而不是 `id`：这一口返回的是「另起一张表的行」，
+ * 前端按 `id` 取会拿到 undefined，然后组件库那边跳过去是个空白页。</p>
+ */
+export interface PromotedBlock {
+  blockDefId?: number | null
+  blockKey: string
+  name?: string | null
+  observedBlock?: string | null
 }
 
 export interface ReferenceCreateForm {
@@ -364,6 +395,23 @@ export const portalReferenceApi = {
    * 而人要看的是「我们缺几类能力」。两者差多少，2026-09-28 那趟第二家参考站实测过——47 行对不上，归并只有 5 类。
    */
   unmatchedGroups: (id: number) => http.get<UnmatchedGroup[]>(`/portal/reference-sites/${id}/unmatched-groups`),
+
+  /**
+   * 把「暂未对上现有区块」里的<em>一族</em>观察板块一键沉淀成一个界面组件（Spec-M §8 第 4 步，判据⑤）。
+   *
+   * <p>沉淀出来的是<em>草稿</em>组件（`source='manual'`、未启用）：它只带着通用卡片渲染器和默认槽位，
+   * 专属设计还没有。启用是组件库里的第二个动作，不是这里按下去的那一个——理由是「可挑清单会进提示词」，
+   * 半成品进去就污染此后每一次生成。所以界面上成功那句话不许写成「已可用于搭建」。</p>
+   *
+   * <p>这一口<em>没有请求体</em>：那一行里能沉淀的东西（板块名、来源网址、来源页面）后端自己都会读，
+   * 前端再传一份 name/blockKey 只是把组件库新建抽屉的那套校验绕过一遍。真要挑名字与形状，去那边建。</p>
+   *
+   * <p>四道拒（已沉淀过 / 这一行没有板块名 / 这一行已经映射到了现有组件 / 同名 key 已有组件覆盖）
+   * 的中文理由都在 `error.message` 里，而且已经写成给人看的话了——界面原样念，别在这儿抄第二份，
+   * 抄了的那一份会和后端那句脱钩。</p>
+   */
+  promote: (id: number, mappingId: number) =>
+    http.post<PromotedBlock>(`/portal/reference-sites/${id}/mappings/${mappingId}/promote`),
 
   /**
    * 模板包：这一站拆出来的 L0~L5 拼成的一份只读 JSON。

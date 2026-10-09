@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { Button } from 'ant-design-vue'
+import { Button, message } from 'ant-design-vue'
 import ReferenceSiteView from '../ReferenceSiteView.vue'
-import { portalReferenceApi, REFERENCE_MAX_PAGES_LIMIT } from '../../../api/referenceSites'
+import http from '../../../api/http'
+import { portalReferenceApi, REFERENCE_MAX_PAGES_LIMIT, type PromotedBlock } from '../../../api/referenceSites'
 import { portalPagesApi } from '../../../api/portalPages'
 import { siteApi } from '../../../api/workspace'
 import { useAuthStore } from '../../../stores/auth'
@@ -18,6 +19,10 @@ import { useAuthStore } from '../../../stores/auth'
  * 3. **两个数不许互相冒充**：清单里的路由条数与「有版面的路由」是两件事，
  *    站级 token 与段级证据是两件事（后者永不上身，拍板 P-9）。
  * 顺带钉住模板包是只读的：点它不产生任何 POST。
+ *
+ * 以及「一键沉淀」（Spec-M §8 第 4 步）那一栏：它给的是一条<em>草稿</em>组件，
+ * 所以成功那句话不许写成「已可用于搭建」；而判据⑤（重复沉淀直接拒）要看得见，
+ * 于是已沉淀的那一行是「按钮留着但按不动 + 一句回指」，不是把按钮藏掉、也不是把后端那句拒绝改写成界面自己编的话。
  */
 
 vi.mock('../../../api/referenceSites', async () => {
@@ -37,6 +42,7 @@ vi.mock('../../../api/referenceSites', async () => {
       pages: fn(),
       mappings: fn(),
       unmatchedGroups: fn(),
+      promote: fn(),
       templatePackage: fn(),
       analyzeEstimate: fn(),
       analyze: fn(),
@@ -160,6 +166,16 @@ const TAG_STUB = {
   template: '<span class="tag-stub"><slot /></span>'
 }
 
+/**
+ * 提示气泡把 title 也画出来：这一页有好几句「为什么这个按钮是死的」只写在 tooltip 里，
+ * 画不出来就等于测不到——而那些话正是界面不许谎报的地方。
+ */
+const TOOLTIP_STUB = {
+  name: 'ATooltip',
+  props: ['title'],
+  template: '<div class="a-tooltip-stub"><span class="tooltip-title">{{ title }}</span><slot /></div>'
+}
+
 async function mountView() {
   const wrapper = mount(ReferenceSiteView, {
     attachTo: document.body,
@@ -176,7 +192,7 @@ async function mountView() {
         'a-descriptions': PASS_THROUGH('ADescriptions'),
         'a-descriptions-item': PASS_THROUGH('ADescriptionsItem'),
         'a-divider': PASS_THROUGH('ADivider'),
-        'a-tooltip': PASS_THROUGH('ATooltip'),
+        'a-tooltip': TOOLTIP_STUB,
         'a-tag': TAG_STUB,
         'a-progress': { name: 'AProgress', props: ['percent'], template: '<i class="progress-stub" />' },
         'a-image': { name: 'AImage', props: ['src', 'width'], template: '<img class="img-stub" :src="src">' },
@@ -625,7 +641,13 @@ describe('路由清单的诚实口径', () => {
 })
 
 describe('「暂未对上现有区块」那一栏按「类」报数，且不替人决定要不要新增区块', () => {
-  /** 2026-09-28 第二家参考站的真实形状：11 页把页脚重复声明了 11 次，真缺口只有一类 */
+  /**
+   * 2026-09-28 第二家参考站的真实形状：11 页把页脚重复声明了 11 次，真缺口只有一类。
+   *
+   * 后两列是「一键沉淀」（Spec-M §8 第 4 步）要的：mappingId 是这一族第一条映射的 id（按钮的去处），
+   * promotedBlockKey 非空就是这一族已经有一个组件了。页脚那一行按「已经沉淀过」的样子写，
+   * 这样同一份 fixture 既能测按钮，也能测回指。
+   */
   function backlog() {
     return [
       {
@@ -633,14 +655,18 @@ describe('「暂未对上现有区块」那一栏按「类」报数，且不替�
         capabilityKnown: false,
         rowCount: 3,
         paths: ['/', '/articles', '/about'],
-        note: '白名单里没有能长出筛选 tabs 的区块'
+        note: '白名单里没有能长出筛选 tabs 的区块',
+        mappingId: 9,
+        promotedBlockKey: null
       },
       {
         observedBlock: '页脚',
         capabilityKnown: true,
         rowCount: 11,
         paths: ['/', '/articles'],
-        note: '重复的页脚，无需映射'
+        note: '重复的页脚，无需映射',
+        mappingId: 12,
+        promotedBlockKey: 'card-21fa426f'
       }
     ]
   }
@@ -699,6 +725,198 @@ describe('「暂未对上现有区块」那一栏按「类」报数，且不替�
     expect(texts).toContain('2 页 / 11 条')
     // 这一栏不再逐行给「改成映射到…」：一行现在代表十几条，一次点击改不完，反而会看着像改完了
     expect(texts).not.toContain('改成映射到')
+  })
+})
+
+/**
+ * 「一键沉淀」（Spec-M §8 第 4 步）：积压清单从「看完就完了」变成「看完能留下一条草稿」。
+ *
+ * <p>钉住四件事，每一件都是这一栏容易说谎的地方：
+ * ① 按钮打的是这一族<em>第一条</em>映射的 id，界面上不自己挑另一行；
+ * ② 已沉淀的那一行给回指、按钮留着但按不动——判据⑤要的就是「重复沉淀直接拒」这件看得见的事，
+ *    把按钮藏掉等于把那条拒绝规则也一起藏了；
+ * ③ 后端那四句中文拒绝理由原样念（清单是缓存的，界面这一侧永远可能已经过期）；
+ * ④ 成功只说「存成了草稿」，启用是组件库里的第二个动作，这一口什么都没启用。</p>
+ */
+describe('暂未对上那一栏的「沉淀为组件」', () => {
+  /** 三种形状各一行：按得动的、已经沉淀过的、后端没给 mappingId 的 */
+  function backlog() {
+    return [
+      {
+        observedBlock: '文章列表筛选',
+        capabilityKnown: false,
+        rowCount: 3,
+        paths: ['/', '/articles'],
+        note: '白名单里没有能长出筛选 tabs 的区块',
+        mappingId: 9,
+        promotedBlockKey: null
+      },
+      {
+        observedBlock: '全站菜单导航列表',
+        capabilityKnown: false,
+        rowCount: 2,
+        paths: ['/'],
+        note: '整页菜单这一形对不到',
+        mappingId: null,
+        promotedBlockKey: null
+      },
+      {
+        observedBlock: '页脚',
+        capabilityKnown: true,
+        rowCount: 11,
+        paths: ['/', '/articles'],
+        note: '重复的页脚，无需映射',
+        mappingId: 12,
+        promotedBlockKey: 'card-21fa426f'
+      }
+    ]
+  }
+
+  /** 三行的抓手（见 rowOf 为什么不能用区块名）：按得动的那一形、没 id 的那一形、已经沉淀过的那一形 */
+  const GAP_ROW = '白名单里没有能长出筛选 tabs 的区块'
+  const NO_ID_ROW = '整页菜单这一形对不到'
+  const PROMOTED_ROW = '重复的页脚，无需映射'
+
+  /** 任务的 id 就是沉淀那一口的路径参数，所以清单里那一行也得是 3 号任务 */
+  async function openBacklog() {
+    vi.mocked(portalReferenceApi.list).mockResolvedValue([task('needs_human', { id: 3 })] as any)
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('needs_human', { id: 3 }), undefined, backlog())
+    return wrapper
+  }
+
+  function pane(wrapper: any) {
+    const found = wrapper
+      .findAll('.tab-pane-stub')
+      .find((node: any) => (node.attributes('data-tab') || '').startsWith('暂未对上现有区块'))
+    if (!found) {
+      throw new Error('找不到「暂未对上现有区块」那一栏')
+    }
+    return found
+  }
+
+  /**
+   * 按「为什么对不上」那一格的文字取行。
+   *
+   * <p>不能用区块名：那一列是 dataIndex，测试桩只把 bodyCell 的内容画出来，没写的列就是空的。
+   * 这三句笔记在 fixture 里各不重复，认得出是哪一行。</p>
+   */
+  function rowOf(wrapper: any, note: string) {
+    const found = pane(wrapper).findAll('.row').find((node: any) => node.text().includes(note))
+    if (!found) {
+      throw new Error(`找不到「${note}」那一行`)
+    }
+    return found
+  }
+
+  function promoteButton(row: any) {
+    const found = row.findAll('button').filter((node: any) => (node.text() || '').trim() === '沉淀为组件')
+    if (!found.length) {
+      throw new Error('那一行没有「沉淀为组件」按钮')
+    }
+    return found[0]
+  }
+
+  it('按下去打的是这一族第一条映射的 id：界面不自己挑另一行，也不多带一份 body', async () => {
+    vi.mocked(portalReferenceApi.promote).mockResolvedValue({
+      blockDefId: 51, blockKey: 'card-9bb2c1', name: '文章列表筛选', observedBlock: '文章列表筛选'
+    } as any)
+    const wrapper = await openBacklog()
+
+    expect(rowOf(wrapper, GAP_ROW).text()).toContain('沉淀为组件')
+    await promoteButton(rowOf(wrapper, GAP_ROW)).trigger('click')
+    await flushPromises()
+
+    expect(portalReferenceApi.promote).toHaveBeenCalledWith(3, 9)
+    // 两个参数就是全部：这一口没有请求体（那条口子与组件库新建抽屉重复，还会绕过那边校验）
+    expect(vi.mocked(portalReferenceApi.promote).mock.calls[0]).toHaveLength(2)
+    wrapper.unmount()
+  })
+
+  it('地址写的就是「这个任务的这一行」，且真的不带请求体', async () => {
+    const actual = await vi.importActual<typeof import('../../../api/referenceSites')>('../../../api/referenceSites')
+    const post = vi.spyOn(http, 'post').mockResolvedValue({ blockKey: 'card-9bb2c1' } as any)
+    await actual.portalReferenceApi.promote(3, 9)
+    expect(post).toHaveBeenCalledWith('/portal/reference-sites/3/mappings/9/promote')
+    expect(post.mock.calls[0]).toHaveLength(1)
+    post.mockRestore()
+  })
+
+  /** 判据⑤：回指而不是藏按钮——那一句「已经沉淀成 X」才是这一行现在的真相 */
+  it('已沉淀的那一行摆出回指（含那个 key），按钮还在但按不动', async () => {
+    const wrapper = await openBacklog()
+    const row = rowOf(wrapper, PROMOTED_ROW)
+
+    expect(row.text()).toContain('已沉淀成 card-21fa426f')
+    expect(row.text()).toContain('沉淀为组件')
+    expect(promoteButton(row).attributes('disabled')).toBeDefined()
+    await promoteButton(row).trigger('click')
+    await flushPromises()
+    expect(portalReferenceApi.promote).not.toHaveBeenCalled()
+  })
+
+  it('后端没给 mappingId 的那一行按下去也没有去处：按钮是死的，并说清为什么是死的', async () => {
+    const wrapper = await openBacklog()
+    const row = rowOf(wrapper, NO_ID_ROW)
+
+    expect(promoteButton(row).attributes('disabled')).toBeDefined()
+    expect(row.text()).toContain('这一行没有可沉淀的映射记录')
+  })
+
+  /** 清单是缓存的，界面这一侧永远可能已经过期——所以拒绝来了要念原话，念不出就是少了一格证据 */
+  it('后端回「已经沉淀过了」时界面原样念它那一句，不自己编一句，也不报成成功', async () => {
+    vi.mocked(portalReferenceApi.promote).mockRejectedValue(
+      new Error('这一行已经沉淀成组件「card-21fa426f」了，去组件库看它，别再建一个同形的')
+    )
+    const errored = vi.spyOn(message, 'error').mockImplementation(() => ({ key: 'toast' } as any))
+    const succeeded = vi.spyOn(message, 'success').mockImplementation(() => ({ key: 'toast' } as any))
+    const wrapper = await openBacklog()
+
+    await promoteButton(rowOf(wrapper, GAP_ROW)).trigger('click')
+    await flushPromises()
+
+    expect(errored.mock.calls.map(call => String(call[0]))).toContain(
+      '这一行已经沉淀成组件「card-21fa426f」了，去组件库看它，别再建一个同形的'
+    )
+    expect(succeeded).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('成功那句只说「草稿」，不替人宣布它能用了；说完重拉一次清单，让那一行自己变成回指', async () => {
+    vi.mocked(portalReferenceApi.promote).mockResolvedValue({
+      blockDefId: 51, blockKey: 'card-9bb2c1', name: '文章列表筛选', observedBlock: '文章列表筛选'
+    } as any)
+    const succeeded = vi.spyOn(message, 'success').mockImplementation(() => ({ key: 'toast' } as any))
+    const wrapper = await openBacklog()
+    expect(portalReferenceApi.unmatchedGroups).toHaveBeenCalledTimes(1)
+
+    await promoteButton(rowOf(wrapper, GAP_ROW)).trigger('click')
+    await flushPromises()
+
+    const toast = succeeded.mock.calls.map(call => String(call[0])).join('|')
+    expect(toast).toContain('已存为组件库草稿 card-9bb2c1，启用后才会进搭建器面板与提示词')
+    expect(toast).not.toContain('已可用于搭建')
+    // 回指来自后端那一列，不是界面在这儿自己记一笔：所以点完必须重读清单
+    expect(portalReferenceApi.unmatchedGroups).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('一行按下去只发一次：还没回来之前那一行的按钮先转圈，不给人连点出两个同形组件', async () => {
+    let release: (value: PromotedBlock) => void = () => {}
+    vi.mocked(portalReferenceApi.promote).mockImplementation(
+      () => new Promise<PromotedBlock>(resolve => { release = resolve })
+    )
+    const wrapper = await openBacklog()
+    const button = promoteButton(rowOf(wrapper, GAP_ROW))
+
+    await button.trigger('click')
+    await button.trigger('click')
+    await flushPromises()
+    expect(portalReferenceApi.promote).toHaveBeenCalledTimes(1)
+
+    release({ blockKey: 'card-9bb2c1' })
+    await flushPromises()
+    wrapper.unmount()
   })
 })
 

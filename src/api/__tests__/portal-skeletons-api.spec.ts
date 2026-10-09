@@ -94,7 +94,7 @@ describe('参考站 → 骨架沉淀与审核', () => {
 /** Q2 新建的这几个文件：从头到尾只该读接口（Spec-C P3：SiteBuildWorkbenchView 已删，扫描面跟着收小） */
 const scanned = import.meta.glob(
   ['../portalSkeletons.ts', '../../portal/blocks/blockDemo.ts', '../../views/portal/BlockShowcaseView.vue',
-    '../../views/portal/SkeletonLibraryView.vue'],
+    '../../views/portal/SkeletonLibraryView.vue', '../blockDefs.ts'],
   { eager: true, query: '?raw', import: 'default' }
 ) as Record<string, string>
 
@@ -102,7 +102,7 @@ const raw = Object.values(scanned).join('\n')
 
 describe('I-1：前端不抄第二份清单与词表', () => {
   it('扫到了文件本身（路径写错会让这条用例静默通过）', () => {
-    expect(Object.keys(scanned).length).toBe(4)
+    expect(Object.keys(scanned).length).toBe(5)
   })
 
   it('没有区块 key / 骨架 key 的键值清单', () => {
@@ -111,6 +111,21 @@ describe('I-1：前端不抄第二份清单与词表', () => {
       'banner-carousel', 'job-list', 'inquiry-form', 'corporate-base', 'content-first', 'lead-gen'].join('|')
     // 形如 'hero': / "news-list": 的写法就是第二份清单（渲染器白名单只在前端 registry.ts 里按 rendererKey 登记）
     expect(new RegExp(`['"\`](${keys})['"\`]\\s*:`, 'm').test(raw.replace(/\\'/g, ''))).toBe(false)
+  })
+
+  /**
+   * 组件库那一族的两份取值（分类词表、可用渲染器）各自有读口：
+   * `ManualBlockDefService.CATEGORIES` / `RendererKeys`。抄一份的后果与区块清单同一条——
+   * 后端加一档，界面上的下拉不会跟着变，而且不报错。
+   */
+  it('组件库那一页也没有第二份分类词表或渲染器清单', () => {
+    const library = Object.entries(scanned)
+      .filter(([path]) => path.endsWith('BlockShowcaseView.vue') || path.endsWith('blockDefs.ts'))
+      .map(([, text]) => text)
+      .join('\n')
+    expect(library).not.toMatch(/\[\s*['"](layout|content|commerce|social|nav)['"]/)
+    // genericCard 只许出现在「后端回过来的那一份」的说明里，不许被列成一个数组给下拉用
+    expect(library).not.toMatch(/\[\s*['"]genericCard['"]\s*[,~]/)
   })
 
   it('没有状态中文常量的第二份来源（中文说法只有 /admin/portal/skeletons/statuses）', () => {

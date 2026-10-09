@@ -623,13 +623,15 @@ export const routes: RouteRecordRaw[] = [
         path: 'portal/blocks',
         name: 'workspace-portal-blocks',
         component: BlockShowcaseView,
-        // 区块画廊是纯读元数据：清单与显示名只有 /api/portal/blocks 一处来源（I-1）。
-        // 这一页要跨的两个码不许分家——后端那个读口挂的是 portal:build:manage，
-        // 这里要是写 preset，就等于给「只给得出 preset」的账号开一屏注定 403 的空画廊。
+        // 组件库（Spec-M §8 第 4 步）：这一页从「只读画廊」变成可写的了，读的是
+        // `GET /api/admin/portal-blocks`——那个类整类挂 portal:block:manage（V177），守卫跟着换码。
+        // 菜单标签与守卫读的是同一条 meta.requiredPermission，所以这里换码就等于菜单一起换；
+        // 两枚码今天发的是同一批人（`AdminBlockDefPermissionTest` 钉着两枚的角色面不许分家）。
         meta: {
-          title: '区块画廊',
+          title: '组件库',
+          desc: '两族组件都在这一页：代码声明的只读，界面添加的可新建、可启用',
           icon: 'appstore',
-          requiredPermission: 'portal:build:manage'
+          requiredPermission: 'portal:block:manage'
         }
       },
       {

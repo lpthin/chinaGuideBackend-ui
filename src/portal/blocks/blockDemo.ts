@@ -12,7 +12,7 @@ import { resolveRenderer } from './registry'
  * 推导规则（只看槽位自己的 schema 形状，不看它属于哪个区块）：
  * 1. `oneOf[字符串, {$data}]`（字面内容或绑定二选一）→ 给字面样例，样例的**种类按字符串分支的 maxLength 分档**：
  *    ≤200 是短文案档（标题/按钮一类）、500 是链接档（其中名字长得像图片位的给一个内联占位图，
- *    免得画廊里出现裂图）、≥10000 是段落档；同档内按槽位序号轮换，所以一页里不会出现两句一样的话。
+ *    免得画廊里出现裂图）、≥1000 是段落档；同档内按槽位序号轮换，所以一页里不会出现两句一样的话。
  * 2. 只接受 `{$data}` 的槽位（列表槽 items/links）→ 给演示集合，条目字段是一份**通用并集**
  *    （标题/摘要/职位/薪资…各区块读自己认得的那几个键），因此任何列表区块拿它都能渲出样子。
  * 3. `enum` / `integer` / `boolean` → 取白名单内的合法值（列数取 3、条数取区间中段的 3、开关给 true）。
@@ -20,6 +20,13 @@ import { resolveRenderer } from './registry'
  *
  * 骨架预览走的 `resolveDemoBlocks` 用的是同一套规则，只是把「字面样例」换成「按槽位形状取演示标量/集合」，
  * 于是 layout_json 里那些真实绑定（`{"$data":"..."}`）在管理端也有东西可渲，而不用去碰客户的库。
+ *
+ * 人工组件（Spec-M §8 第 4 步）那份 schema 里没有 `oneOf`，每一格都是裸的 `{"type":"string"}` 或
+ * `{"type":"array","items":{…}}`——按第 4 条它一格都渲不出来，组件库里那一格就成了空壳，
+ * 「填了槽位能不能渲出卡片」这条判据就没法在这一页上看。所以第 1、2 两档各加一条**只走裸形状**的兜底：
+ * 类型仍从这一格自己的 schema 读（`format` 是 image/uri 就按图片位/链接处理，`type:"array"` 就按
+ * `items.properties` 逐格推），名字命中通用并集的先取并集那一份。凡是带 `oneOf` 的形状一概不兜底——
+ * 那是代码族「字面或绑定二选一」的槽，猜错了就是把「这一格没数据」这种真实状态遮掉。
  */
 
 /** layout_json 里的一个区块声明（未解析绑定） */
@@ -32,10 +39,12 @@ export interface LayoutBlock {
 interface PropertySchema {
   oneOf?: unknown[]
   type?: string
+  format?: string
   enum?: unknown[]
   minimum?: number
   maximum?: number
   maxLength?: number
+  items?: unknown
   properties?: Record<string, unknown>
 }
 
@@ -114,6 +123,9 @@ const DEMO_ITEMS: Array<Record<string, unknown>> = [1, 2, 3, 4, 5, 6].map(index 
   linkUrl: `/demo-page-${index}`
 }))
 
+/** 通用并集里已有的字段名：人工组件的条目槽撞上这些名字时先取并集那一份，与代码族同一个来源 */
+const DEMO_UNION_KEYS = new Set(Object.keys(DEMO_ITEMS[0]))
+
 function propertiesOf(schema: Record<string, unknown> | null): Record<string, PropertySchema> {
   const raw = schema?.properties as Record<string, PropertySchema> | undefined
   return raw || {}
@@ -134,7 +146,11 @@ function shapeOf(property: PropertySchema): 'literal' | 'binding' | 'enum' | 'in
   return 'unknown'
 }
 
+/** 字面分支：`oneOf` 里挑那个字符串分支；裸 `{"type":"string"}`（人工组件那一族）就是它自己 */
 function stringBranchOf(property: PropertySchema): PropertySchema | null {
+  if (property.type === 'string') {
+    return property
+  }
   const matched = (property.oneOf as PropertySchema[] | undefined)?.find(item => item?.type === 'string')
   return matched ?? null
 }
@@ -143,15 +159,31 @@ function pickSample<T>(pool: T[], seed: number): T {
   return pool[Math.abs(seed) % pool.length]
 }
 
-/** 字面槽的样例值：分档只看 maxLength，因为白名单里 SHORT/URL/TEXT 三档的长度就是它们的身份 */
+function linkSample(seed: number): string {
+  return `/demo-page-${Math.abs(seed) % DEMO_ITEMS.length + 1}`
+}
+
+/**
+ * 字面槽的样例值。
+ *
+ * <p>先看 `format`：图片位与链接这一区分由后端在 schema 里说（{@code IMAGE_SLOT} 与 {@code URL_SLOT}
+ * 同为「最长 500 的字符串」，光看长度分不出来），名字正则只是没有 format 时的老兜底。
+ * 再按 maxLength 分档：≥1000 段落档、>200 链接档、其余短文案档。</p>
+ */
 function literalSample(property: PropertySchema, slotName: string, seed: number): string {
-  const branch = stringBranchOf(property)
-  const maxLength = branch?.maxLength ?? 200
-  if (maxLength >= 10000) {
+  const branch = stringBranchOf(property) ?? {}
+  const maxLength = branch.maxLength ?? 200
+  if (branch.format === 'image' || IMAGE_SLOT_NAME.test(slotName)) {
+    return PLACEHOLDER_IMAGE
+  }
+  if (branch.format === 'uri') {
+    return linkSample(seed)
+  }
+  if (maxLength >= 1000) {
     return pickSample(PARAGRAPH_SAMPLES, seed)
   }
   if (maxLength > 200) {
-    return IMAGE_SLOT_NAME.test(slotName) ? PLACEHOLDER_IMAGE : `/demo-page-${Math.abs(seed) % 6 + 1}`
+    return linkSample(seed)
   }
   return pickSample(SHORT_SAMPLES, seed)
 }
@@ -171,6 +203,72 @@ function enumSample(property: PropertySchema): unknown {
   const values = property.enum || []
   const numbers = values.filter(value => typeof value === 'number') as number[]
   return numbers.length === values.length ? integerSample(property) : values[0]
+}
+
+/**
+ * 裸形状（没有 `oneOf`）的兜底：人工组件那一族的每一格都长这样。
+ *
+ * <p>带 `oneOf` 的一概不兜底并回 null：那是代码族的「字面或绑定二选一」，其中 `oneOf[{$data}]`
+ * （utility-bar / breadcrumb 的列表槽）今天刻意一格不填，猜一个绑法就是把「这一格没数据」
+ * 这个真实状态遮掉（规则 4）。</p>
+ */
+function plainSample(property: PropertySchema, slotName: string, seed: number): unknown {
+  if (Array.isArray(property.oneOf)) {
+    return null
+  }
+  if (Array.isArray(property.enum)) {
+    return enumSample(property)
+  }
+  if (property.type === 'string') {
+    return literalSample(property, slotName, seed)
+  }
+  if (property.type === 'integer' || property.type === 'number') {
+    return integerSample(property)
+  }
+  if (property.type === 'boolean') {
+    return true
+  }
+  if (property.type === 'array') {
+    return demoArrayOf(property.items, seed)
+  }
+  return null
+}
+
+/**
+ * `{"type":"array","items":{…}}`：条目里的每一格仍按它自己的 schema 推。
+ *
+ * <p>名字撞上通用并集的（title/summary/link/position…）先取并集那一份——人工组件与代码族于是
+ * 用同一批演示文案，改一处就够了。并集里没有的（比如默认 schema 那格 `image`）按声明的形状现推：
+ * `format:"image"` 或名字像图片位给占位图，其余走 {@link plainSample}。推不出来的格子就不给，
+ * 于是「这一格谁都没填」在预览里是看得见的。</p>
+ */
+function demoArrayOf(itemsSchema: unknown, seed: number): Array<Record<string, unknown>> | unknown[] | null {
+  const item = itemsSchema as PropertySchema | null
+  if (!item || typeof item !== 'object') {
+    return null
+  }
+  const properties = (item.properties || {}) as Record<string, PropertySchema>
+  if (Object.keys(properties).length > 0) {
+    return demoList(seed).map((entry, offset) => {
+      const row: Record<string, unknown> = {}
+      Object.entries(properties).forEach(([name, property], index) => {
+        if (DEMO_UNION_KEYS.has(name)) {
+          row[name] = entry[name]
+          return
+        }
+        const sample = plainSample(property, name, seed + index + offset)
+        if (sample !== null) {
+          row[name] = sample
+        }
+      })
+      return row
+    })
+  }
+  if (item.type === 'string') {
+    return Array.from({ length: DEMO_LIST_SIZE },
+      (_, index) => String(pickSample(SHORT_SAMPLES, seed + index)))
+  }
+  return null
 }
 
 /** 一个区块的演示 props（已解析成渲染器能直接吃的值），完全由 dataSchema 推出来 */
@@ -199,7 +297,12 @@ export function demoPropsFor(meta: PortalBlockMeta, seed = 0): Record<string, un
       props[name] = true
       return
     }
-    // unknown：什么都不填。猜出来的值后端校验一定不认，填了反而把「这一格没数据」这种真实状态遮掉
+    // unknown：先试裸形状的兜底（人工组件那一族的每一格都在这里），推不出来才真的什么都不填。
+    // 猜出来的值后端校验一定不认，填了反而把「这一格没数据」这种真实状态遮掉——所以 null 就留着。
+    const fallback = plainSample(property, name, seed + index)
+    if (fallback !== null) {
+      props[name] = fallback
+    }
   })
   return props
 }
