@@ -144,31 +144,21 @@
 
               <a-divider style="margin: 12px 0" />
               <div class="page-builder__theme">
-                <span class="page-builder__muted">主题（design token，白名单由服务端给，当前 {{ tokenFields.length }} 个旋钮）</span>
-                <p v-if="!tokenFields.length" class="page-builder__muted">样式变量清单还没取到：这里不留第二份清单，刷新页面重试。</p>
-                <div v-for="token in tokenFields" :key="token.key" class="page-builder__theme-row">
-                  <label>{{ designTokenLabel(token.key) }}</label>
-                  <a-input-number
-                    v-if="token.kind === 'SCALE'"
-                    size="small"
-                    :value="(themeJson as Record<string, string | number>)[token.key] as number"
-                    :min="token.min"
-                    :max="token.max"
-                    step="0.05"
-                    @update:value="writeTheme(token.key, $event)"
-                  />
-                  <a-input
-                    v-else
-                    size="small"
-                    :value="(themeJson as Record<string, string | number>)[token.key] ?? ''"
-                    :placeholder="designTokenPlaceholder(token.key)"
-                    @update:value="writeTheme(token.key, $event)"
-                  />
-                  <a-button size="small" type="text" @click="clearTheme(token.key)">清</a-button>
-                </div>
+                <span class="page-builder__muted">本页主题覆盖（只填这页要改的键，其余跟随站点主题；白名单由服务端给，当前 {{ tokenFields.length }} 个旋钮）</span>
+                <ThemeTokenForm
+                  :fields="tokenFields"
+                  :model="themeJson"
+                  empty-hint="样式变量清单还没取到：这里不留第二份清单，刷新页面重试。"
+                  @update="writeTheme"
+                  @clear="clearTheme"
+                />
               </div>
             </template>
           </a-card>
+
+          <!-- 站级主题挨着「本页主题覆盖」摆：这两个框的关系就是这一版的模型（站点打底、本页改键），
+               分在两个页面就没人能看出「为什么我改了主色这一页没变」 -->
+          <SiteThemePanel v-if="canBuild" class="page-builder__site-theme" :site-id="siteId" :fields="tokenFields" @updated="loadPreview" />
         </a-col>
 
         <a-col :xs="24" :lg="6">
@@ -312,7 +302,8 @@ import { portalSitesApi } from '../../api/portalSites'
 import { themePresetsApi, type ThemeTokenField } from '../../api/themePresets'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
-import { designTokenLabel, designTokenPlaceholder } from '../../portal/designTokens'
+import ThemeTokenForm from './builder/ThemeTokenForm.vue'
+import SiteThemePanel from './builder/SiteThemePanel.vue'
 import BlockPropsForm from './builder/BlockPropsForm.vue'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 
@@ -522,8 +513,9 @@ function writeProps(index: number, props: Record<string, unknown>) {
   dirty.value = true
 }
 
-function writeTheme(key: string, value: string | number | null) {
-  if (value === '' || value === null) {
+function writeTheme(key: string, value: string | number | null | undefined) {
+  // a-select 的 allow-clear 回的是 undefined，a-input-number 清空回 null：两种都得当成「清掉这一键」
+  if (value === '' || value === null || value === undefined) {
     clearTheme(key)
     return
   }
@@ -541,7 +533,9 @@ function clearTheme(key: string) {
 function layoutPayload() {
   return {
     layoutJson: JSON.stringify({ blocks: layoutBlocks.value }),
-    themeJson: Object.keys(themeJson.value).length ? JSON.stringify(themeJson.value) : null
+    // 空对象必须发「显式清空」（空串），不能发 null：null 在这道口是「这一列不动」，
+    // 点了清却发 null，界面上看着清了、库里的旧覆盖还在（updateById 又把 NULL 剔出 SET）
+    themeJson: Object.keys(themeJson.value).length ? JSON.stringify(themeJson.value) : ''
   }
 }
 
@@ -784,17 +778,8 @@ onMounted(async () => {
     margin-left: auto;
   }
 
-  &__theme-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 6px;
-
-    > label {
-      width: 84px;
-      font-size: 12px;
-      color: rgba(0, 0, 0, 0.65);
-    }
+  &__site-theme {
+    margin-top: 12px;
   }
 
   &__preview {

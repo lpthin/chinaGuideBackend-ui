@@ -59,13 +59,20 @@ export interface PromoteForm {
 
 /**
  * 一个可改的样式变量：后端 LayoutValidator 的白名单条目。
- * kind 决定渲哪种输入框，min/max 只对 SCALE 有意义（COLOR/LENGTH 回 0，界面不读）。
+ * kind 决定渲哪种输入框，min/max 只对 SCALE 有意义（COLOR/LENGTH/FONT 回 0，界面不读），
+ * options 只对 FONT 有意义（非枚举类后端回空数组）——下拉的选项来自这里，前端不留第二份字体词表。
  */
+export interface ThemeTokenOption {
+  value: string
+  label: string
+}
+
 export interface ThemeTokenField {
   key: string
-  kind: 'COLOR' | 'LENGTH' | 'SCALE'
+  kind: 'COLOR' | 'LENGTH' | 'SCALE' | 'FONT'
   min: number
   max: number
+  options?: ThemeTokenOption[]
 }
 
 export const themePresetsApi = {

@@ -13,6 +13,25 @@
   padding: 0 calc(24px * var(--portal-spacing-scale));
 }
 
+/* 字体两个旋钮的落地处（Spec-M D6）：正文跟着页根、标题跟着 h1~h4。
+   必须写在这一份全局表里而不是各组件 scoped：区块的 h2 在区块自己的模板里，
+   父组件的 scoped 规则选不中它（PortalDynamicPage.vue 那份 scoped 只管它自己的根节点）。
+   默认栈在 portal-tokens.less，站点下发的是标识、翻译成栈在 portalTheme.ts，三处各管一件事。 */
+.portal-dynamic-page,
+.pbv__frame {
+  font-family: var(--portal-font-body);
+}
+
+.portal-dynamic-page,
+.pbv__frame {
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--portal-font-heading);
+  }
+}
+
 .pb-section {
   padding: calc(100px * var(--portal-spacing-scale)) 0;
   background: var(--portal-color-bg);

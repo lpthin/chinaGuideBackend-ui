@@ -33,6 +33,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { fetchSiteShell, type PortalNavItem, type PortalSiteShell } from './api/portalPublic'
+// 这一族页面按路由懒加载，不保证同 chunk 里有人导过区块样式表；字体变量走 var() 就得把默认值那份带进来
+import '@/styles/portal-tokens.less'
 
 /**
  * 详情页共用的门户壳：页头页脚只放后端真的有的信息。
@@ -63,7 +65,9 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   background: #f7f8fa;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  /* 这一族详情页目前没有主题来源（公开壳接口不回 theme），所以这里只会取到 portal-tokens.less 的默认栈；
+     但栈不再抄第二份，站点主题接进壳的时候不用再改这里 */
+  font-family: var(--portal-font-body);
 
   &__bar {
     width: 100%;

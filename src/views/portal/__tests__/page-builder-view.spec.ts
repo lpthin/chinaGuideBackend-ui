@@ -5,6 +5,7 @@ import PageBuilderView from '../PageBuilderView.vue'
 import { portalPagesApi, type PortalPage } from '../../../api/portalPages'
 import { portalSitesApi } from '../../../api/portalSites'
 import { themePresetsApi } from '../../../api/themePresets'
+import { siteThemeApi } from '../../../api/siteTheme'
 
 /**
  * 页面搭建视图的两档权限形状（Q-P7-3）。
@@ -49,7 +50,11 @@ vi.mock('../../../api/portalPages', () => ({
   }
 }))
 vi.mock('../../../api/portalSites', () => ({ portalSitesApi: { listMine: vi.fn() } }))
-vi.mock('../../../api/themePresets', () => ({ themePresetsApi: { tokens: vi.fn() } }))
+vi.mock('../../../api/themePresets', () => ({ themePresetsApi: { tokens: vi.fn(), list: vi.fn() } }))
+// 站点主题面板挂在同一列（canBuild 才渲），不桩住它就直接拿真 http 去请 /admin/sites/{id}
+vi.mock('../../../api/siteTheme', () => ({
+  siteThemeApi: { get: vi.fn(), update: vi.fn(), saveSkin: vi.fn(), applySkin: vi.fn() }
+}))
 
 const authState = { permissions: [] as string[] }
 
@@ -190,7 +195,11 @@ beforeEach(() => {
     { versionNo: 2, changeSource: 'manual', note: '搭建器保存', createdAt: '2026-10-03 10:00:00' }
   ] as never)
   vi.mocked(portalPagesApi.blocks).mockResolvedValue([])
-  vi.mocked(themePresetsApi.tokens).mockResolvedValue([])
+  // 给一行真旋钮：清空语义那条用例要点到「清」按钮，字段清单为空时那一行根本不渲
+  vi.mocked(themePresetsApi.tokens).mockResolvedValue([{ key: 'colorPrimary', kind: 'COLOR', min: 0, max: 0 }] as never)
+  vi.mocked(siteThemeApi.get).mockResolvedValue(
+    { id: 9, name: '演示站', themeJson: null, themePresetId: null, themeUpdatedAt: null } as never
+  )
   vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 9, code: 'site-9', name: '演示站', domain: null }])
 })
 
@@ -267,5 +276,22 @@ describe('页面搭建：另持建设码的平台侧', () => {
     expect(readOnly.find('.props-stub').exists()).toBe(false)
     expect(readOnly.text()).toContain('不给编辑')
     readOnly.unmount()
+  })
+
+  it('本页覆盖清干净后保存发的是空串：null 在那道口是「这一列不动」', async () => {
+    vi.mocked(portalPagesApi.get).mockResolvedValue(
+      { ...PAGE, themeJson: '{"colorPrimary":"#1B6EF3"}' } as never
+    )
+    vi.mocked(portalPagesApi.updateLayout).mockResolvedValue({ ...PAGE, version: 4 } as never)
+    const wrapper = await mountView(['portal:page:manage', 'portal:build:manage'])
+    const clearButton = wrapper.findAll('.page-builder__theme button').find(node => node.text().trim() === '清')
+    if (!clearButton) throw new Error('本页主题覆盖那一行的「清」没渲出来')
+    await clearButton.trigger('click')
+    const saveButton = wrapper.findAll('button').find(node => node.text().replace(/\s+/g, '') === '保存')
+    if (!saveButton) throw new Error('保存按钮没渲出来')
+    await saveButton.trigger('click')
+    await flushPromises()
+    expect(portalPagesApi.updateLayout).toHaveBeenCalledWith(77, expect.objectContaining({ themeJson: '' }))
+    wrapper.unmount()
   })
 })

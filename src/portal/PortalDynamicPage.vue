@@ -169,7 +169,9 @@ watch([() => props.slug, reviewToken], load, { immediate: true })
   min-height: 100vh;
   background: var(--portal-color-bg);
   color: var(--portal-color-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  /* 栈由 --portal-font-body 给（默认值在 portal-tokens.less，站点下发的标识翻译成栈在 portalTheme.ts）：
+     这一行曾经写死一份栈，scoped 属性选择器的优先级比全局规则高，站点选了字体也压不过它 */
+  font-family: var(--portal-font-body);
 
   &__state {
     padding: 120px 24px;

@@ -3,8 +3,9 @@ import type { ThemeTokenField } from '../api/themePresets'
 /**
  * design token 的界面词表：只放中文标签与示例值。
  *
- * 键名、种类（颜色/长度/比例）与比例类的合法区间的唯一真相在后端 `LayoutValidator`，
- * 由 `GET /portal/theme-presets/tokens` 回传，搭建器照那份清单渲输入框。
+ * 键名、种类（颜色/长度/比例/字体枚举）与比例类的合法区间的唯一真相在后端 `LayoutValidator`，
+ * 由 `GET /portal/theme-presets/tokens` 回传，搭建器照那份清单渲输入框；字体下拉的具体选项同样来自
+ * 那一份（`options`），这里绝不列字体名——否则后端加一档字体，界面还是那五句老话。
  * 这里曾经是一份 8 个旋钮的完整声明——服务端哪天加第 9 个，界面不会报错，只会安静少一个输入框。
  * 值域判定也从来不在前端：界面上出现的是校验器回传的中文原因。
  */
@@ -18,7 +19,9 @@ const LABEL_BY_KEY: Record<string, string> = {
   radius: '圆角',
   sectionMaxWidth: '区块最大宽度',
   fontScale: '字号比例',
-  spacingScale: '间距比例'
+  spacingScale: '间距比例',
+  fontHeading: '标题字体',
+  fontBody: '正文字体'
 }
 
 const PLACEHOLDER_BY_KEY: Record<string, string> = {

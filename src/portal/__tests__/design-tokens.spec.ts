@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { designTokenLabel, designTokenPlaceholder } from '../designTokens'
-import { themeVars } from '../blocks/portalTheme'
+import { FONT_STACKS, themeVars } from '../blocks/portalTheme'
 import type { ThemeTokenField } from '../../api/themePresets'
 
 /**
@@ -47,5 +47,37 @@ describe('theme_json 落到 CSS 变量', () => {
   it('没下发辅助色时不写内联变量——观感由 portal-tokens.less 里「accent = primary」那条别名兜住', () => {
     expect(themeVars({ colorPrimary: '#1677ff' })).toEqual({ '--portal-color-primary': '#1677ff' })
     expect(themeVars(undefined)).toEqual({})
+  })
+})
+
+/**
+ * 字体这两个旋钮（Spec-M D6）：后端认的是标识，栈只在这一份里翻译。
+ *
+ * 这条对账是跨仓的：`FONT_STACKS` 的键必须与后端 `LayoutValidator.FONT_OPTIONS` 的 value
+ * 逐字相同。后端那份的值域在这里对不上时，两种坏法都静默——后端认得出而前端翻不出
+ * （访客页回落到默认栈，界面却显示「已选宋体」），或者前端多出一档而校验器拒收
+ * （存进去就报「不支持的值」）。所以两份都要列全，缺一即红。
+ */
+describe('字体标识落到 font-family', () => {
+  const BACKEND_FONT_IDS = ['system-sans', 'source-han-sans', 'pingfang', 'system-serif', 'songti']
+
+  it('前端这份栈的键与后端那份枚举逐字相同（对账见 LayoutValidator.FONT_OPTIONS）', () => {
+    expect(Object.keys(FONT_STACKS).sort()).toEqual([...BACKEND_FONT_IDS].sort())
+  })
+
+  it('标识翻译成栈，标题与正文各走各的变量', () => {
+    expect(themeVars({ fontHeading: 'songti', fontBody: 'source-han-sans' })).toEqual({
+      '--portal-font-heading': FONT_STACKS.songti,
+      '--portal-font-body': FONT_STACKS['source-han-sans']
+    })
+  })
+
+  it('认不出的标识绝不下发：值会变成 CSS 里的 font-family，原样拼就等于放开任意样式', () => {
+    expect(themeVars({ fontBody: '18px Evilel, url(http://x)' })).toEqual({})
+  })
+
+  it('标题字体与正文字体有中文名', () => {
+    expect(designTokenLabel('fontHeading')).toBe('标题字体')
+    expect(designTokenLabel('fontBody')).toBe('正文字体')
   })
 })

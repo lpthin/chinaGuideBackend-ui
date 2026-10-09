@@ -2,12 +2,13 @@
  * 门户区块的运行时设计变量（唯一一处）。
  *
  * 默认值逐个抄自旧 Tech 模板的十六进制常量，保证「进页面模型」不等于「改版式」。
- * 站点在 portal_page.theme_json 里覆盖的值由 PortalDynamicPage.vue 写成内联 style，
- * 内联优先级高于这里的 :root，所以运行时换肤只有那一个入口；
+ * 站点在 site.theme_json 里的这一份由后端与页级 portal_page.theme_json（本页覆盖）逐键合成后，
+ * 经 PortalDynamicPage.vue 写成内联 style；内联优先级高于这里的 :root，所以运行时换肤只有那一个入口；
  * 区块组件一律只消费变量，不再各自硬编码色值（决策 D4）。
  *
- * 键名必须与后端 LayoutValidator 的白名单一致：
- * colorPrimary / colorAccent / colorBg / colorText / colorMuted / radius / sectionMaxWidth / fontScale / spacingScale
+ * 键名必须与后端 LayoutValidator 的白名单一致（现下十一个，含 Spec-M D6 加的两个字体标识）：
+ * colorPrimary / colorAccent / colorBg / colorText / colorMuted / radius / sectionMaxWidth
+ * / fontScale / spacingScale / fontHeading / fontBody
  */
 :root {
   --portal-color-primary: #6366f1;
@@ -22,18 +23,24 @@
   --portal-section-max-width: 1200px;
   --portal-font-scale: 1;
   --portal-spacing-scale: 1;
+  /* 字体默认栈逐字抄自改造前 PortalDynamicPage.vue 里写死的那一行：接上变量不等于改版式。
+     站点下发的是 fontHeading / fontBody 两个枚举标识，标识→栈的翻译只在 portalTheme.ts 一处 */
+  --portal-font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --portal-font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
 }
 
 /**
- * 「accent = primary」这条别名要在真正承载主色的那一层再写一遍。
+ * 「accent = primary」「heading = body」两条别名要在真正承载值的那一层再写一遍。
  *
- * var() 是在写下它的那一层就算完的：上面 :root 那行取的是 :root 的 #6366f1，
- * 而站点覆盖的主色是内联在 .portal-dynamic-page（访客页根）和 .pbv__frame（搭建器/画廊那个渲染框）上的，
+ * var() 是在写下它的那一层就算完的：上面 :root 那行取的是 :root 的默认值，
+ * 而站点覆盖的主色与字体是内联在 .portal-dynamic-page（访客页根）和 .pbv__frame（搭建器/画廊那个渲染框）上的，
  * 后代换主色不会带着 :root 的别名一起变——只下发 colorPrimary、还没配强调色的老站点就会在
  * CTA 条、数字条这些地方悄悄掉回默认靛蓝。补在这一层，取到的就是这一层自己的主色。
- * 内联优先级高于选择器，所以站点确实下发 colorAccent 时这里自动让位。
+ * 标题字体同理：只调正文的站，标题该跟着走，而不是留在默认栈上（那是界面没说出口的第二个旋钮）。
+ * 内联优先级高于选择器，所以站点确实下发 colorAccent / fontHeading 时这里自动让位。
  */
 .portal-dynamic-page,
 .pbv__frame {
   --portal-color-accent: var(--portal-color-primary);
+  --portal-font-heading: var(--portal-font-body);
 }
