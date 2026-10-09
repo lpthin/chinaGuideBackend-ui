@@ -176,7 +176,8 @@
                       </template>
                     </a-table>
                     <p v-if="overrides.length" class="prompt-page__muted">
-                      一站一行，摆的是生成真会拿的那一条。要改它们得进那一站自己的提示词页，这里只给看。
+                      一站一行，摆的是生成真会拿的那一条。这一期站级覆盖只给平台侧（那一口要
+                      <code>portal:build:manage</code>，租户管理员连读都是 403），界面上也还没有摆那一页；这里只给看。
                     </p>
                   </a-spin>
                 </div>
