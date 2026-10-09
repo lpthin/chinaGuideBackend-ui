@@ -325,6 +325,39 @@ describe('新建网站向导', () => {
     expect(bodyText()).toContain('还有 1 段空着')
   })
 
+  it('七段都填了字时不许念成「还有 0 段空着」，也不许提前说已确认', async () => {
+    // 现场那一单（需求单 #59）就是这个形状：statusLabel「草稿（人编辑中，未确认）」+ 无空段
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ blockers: [], sections: [
+      { key: 'overview', title: '1 项目概述', order: 1, content: '有字', charCount: 2, blank: false, overLimit: false }
+    ] }))
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+
+    mountAt('spec', '59')
+    await flushPromises()
+
+    expect(bodyText()).toContain('签字才能放行生成')
+    expect(bodyText()).not.toContain('还有 0 段空着')
+    // 没签字就绝不算走完：这一步顶多是 process
+    expect(steps()[1].dataset.status).toBe('process')
+  })
+
+  it('第一步那格把候选数念成「要出几套」（意图），不念成已经建出来的套数', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief({ candidateCount: 3 })])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+
+    mountAt('intake')
+    await flushPromises()
+
+    expect(bodyText()).toContain('这一单要出几套：3')
+    expect(bodyText()).not.toContain('候选套数：3')
+    // 真正建出来几套只有候选那一屏说得出：这里一套都还没有
+    expect(bodyText()).not.toContain('候选 3 套')
+  })
+
   it('说明书读失败不冒充「还没有说明书」：报的是那一发的原话', async () => {
     vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)

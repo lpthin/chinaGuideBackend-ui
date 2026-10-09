@@ -141,7 +141,7 @@ const stepNotice = computed<Record<string, string>>(() => ({
     : !spec.value?.exists ? '这一单还没有说明书（AI 出初稿与逐段修改都在那一页）。'
     : spec.value.status === 'CONFIRMED'
       ? `已确认的第 ${spec.value.specVersion} 版，${spec.value.sections.length} 段全文就是生成的输入。`
-      : `现在的状态是「${spec.value.statusLabel}」：还有 ${blankSections.value} 段空着，签字才能放行生成。`,
+      : `现在的状态是「${spec.value.statusLabel}」：${blankSections.value ? `还有 ${blankSections.value} 段空着，` : ''}签字才能放行生成。`,
   generate: !briefId.value ? '要先有需求单。'
     : candidatesError.value ? `候选站没读到：${candidatesError.value}`
     : !candidates.value.length ? '这一单还没有候选站：估价与「开始出方案」都在需求单详情里，那一发要人亲手勾确认。'
@@ -293,7 +293,7 @@ onMounted(async () => {
           </a-form-item>
           <a-form-item>
             <span class="site-wizard__hint">
-              {{ currentBrief ? `状态：${statusText(currentBrief)}；候选套数：${currentBrief.candidateCount ?? '-'}` : stepNotice.intake }}
+              {{ currentBrief ? `状态：${statusText(currentBrief)}；这一单要出几套：${currentBrief.candidateCount ?? '-'}（意图，不是已经建出来的套数）` : stepNotice.intake }}
             </span>
           </a-form-item>
         </a-form>
