@@ -49,7 +49,7 @@ async function go(to: number) {
 <template>
   <div class="admin-wizard">
     <a-steps :current="current" size="small">
-      <a-step v-for="step in steps" :key="step.key" :title="step.title" />
+      <a-step v-for="step in steps" :key="step.key" :title="step.title" :status="step.status" />
     </a-steps>
     <div class="admin-wizard__body">
       <slot v-if="steps[current]" :name="`step-${steps[current].key}`" />

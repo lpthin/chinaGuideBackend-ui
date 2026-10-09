@@ -154,9 +154,9 @@ describe('平台段与租户段分家', () => {
     const sections = buildMenuSections(leaves, TENANT)
     expect(sections.map(section => section.domain)).toEqual(['tenant'])
     const visibleNames = sections.flatMap(section => section.groups.flatMap(g => g.items.map(i => i.label)))
-    expect(visibleNames).not.toContain('前采需求单')
+    expect(visibleNames).not.toContain('新建网站')
     expect(visibleNames).not.toContain('栏目开通')
-    expect(visibleNames).not.toContain('站点管理')
+    expect(visibleNames).not.toContain('站点清单')
     // Q-P7-3：「页面搭建」这一项不再属于建设段——它的闸是 portal:page:manage，
     // 租户管理员确实能读页、改页面信息、发布与下线（视图里建站那半按码藏着）
     expect(visibleNames).toContain('页面搭建')
@@ -185,15 +185,28 @@ describe('平台段与租户段分家', () => {
     expect(leafVisible(pages!, buildOnly)).toBe(false)
   })
 
-  it('前采需求单是平台项：进「建站」组，与邻页同一条闸，租户既看不见也进不去', () => {
-    const briefs = grouped.find(leaf => leaf.routeName === 'workspace-portal-briefs')
-    expect(briefs?.label).toBe('前采需求单')
-    // Spec-H §4.3：原「建站交付」2 项 + 原「参考与样式」3 项 + 骨架库 = 「建站」6 项，
-    // 那个只有两项的组（C-1 第二例）不再存在
-    expect(briefs?.group).toBe('build')
-    expect(briefs?.superAdminOnly).toBe(true)
-    expect(briefs?.permission).toBe('portal:build:manage')
-    // 新建/录入页藏在列表后面：不进菜单（group 为空串），但闸与列表同一条——敲地址也不给过
+  /**
+   * Spec-M §7.1：超管侧从「新建网站」这一个入口走五步，需求单列表不再是菜单项。
+   *
+   * 列表的路由必须留着——老收藏夹、文档里的链接、以及从别的页面跳过来都指着它；
+   * 从菜单摘掉要求 `hidden: true` 与组表删除**同时**改，只改一边要么留下孤儿要么留下假入口。
+   */
+  it('「新建网站」向导是建站组第一项；需求单列表退出菜单但路由不断', () => {
+    const wizard = grouped.find(leaf => leaf.routeName === 'workspace-portal-wizard')
+    expect(wizard?.label).toBe('新建网站')
+    expect(wizard?.group).toBe('build')
+    expect(wizard?.superAdminOnly).toBe(true)
+    expect(wizard?.permission).toBe('portal:build:manage')
+    // 向导排在建站组最前：进「建站」第一眼就是它，不是那张列表
+    expect(grouped.filter(leaf => leaf.group === 'build')[0].routeName).toBe('workspace-portal-wizard')
+    expect(leafVisible(wizard!, TENANT)).toBe(false)
+
+    const briefs = leaves.find(leaf => leaf.routeName === 'workspace-portal-briefs')
+    expect(briefs, '需求单列表的路由必须还在，老地址与文档链接不断').toBeTruthy()
+    expect(briefs!.group).toBe('')
+    expect(briefs!.superAdminOnly).toBe(true)
+    expect(briefs!.permission).toBe('portal:build:manage')
+    // 新建/录入页藏在向导后面：不进菜单（group 为空串），但闸与向导同一条——敲地址也不给过
     ;['workspace-portal-brief-new', 'workspace-portal-brief-intake'].forEach(routeName => {
       const leaf = leaves.find(item => item.routeName === routeName)
       expect(leaf, `${routeName} 必须还在路由表里`).toBeTruthy()
@@ -201,7 +214,6 @@ describe('平台段与租户段分家', () => {
       expect(leaf!.superAdminOnly).toBe(true)
       expect(leaf!.permission).toBe('portal:build:manage')
     })
-    expect(leafVisible(briefs!, TENANT)).toBe(false)
   })
 
   it('P3 降级与删除：整站组装留在「平台质量」组，建站流水线整页从路由绝迹', () => {
@@ -414,6 +426,8 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     // SITE_ADMIN/SUPER_ADMIN，是可分配码）⇒ 同样是租户段的新项，进的是「网站内容」那一组。
     // M-P1 加的是「建站提示词」（Spec-M D2 那半张「读得到也写得到」的平台默认写口），
     // 挂 prompt:template:manage，V173 只发给 SUPER_ADMIN ⇒ 多的是平台段那一颗，不是租户多一个入口。
+    // M-P4 把「新建网站」向导放进建站组、同时把「前采需求单」从菜单摘掉（路由留着，见上那条用例）：
+    // 一加一减，总数照旧 71。这一条钉的就是「收入口不等于删页面」——摘掉的那颗必须仍有地址可达。
     expect(grouped).toHaveLength(71)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(40)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(31)

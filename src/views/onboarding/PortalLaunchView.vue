@@ -28,7 +28,7 @@
           <a-descriptions-item label="访问域名">{{ siteField(site?.domain, '未绑定') }}</a-descriptions-item>
         </a-descriptions>
         <p class="hint">
-          域名由平台管理员在「系统管理 → 站点管理」绑定。没绑域名时门户仍然可以按站点编码预览，
+          域名由平台管理员在「平台管理 → 站点与租户 → 站点清单」绑定。没绑域名时门户仍然可以按站点编码预览，
           但 <b>sitemap.xml 不会输出任何 URL</b>（绝对地址只能来自已配置域名，系统不会拿访问者的请求域名凑一个）。
         </p>
         <p v-if="errors.site" class="error-line">{{ errors.site }}</p>

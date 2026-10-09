@@ -54,7 +54,7 @@
       </p>
       <p v-if="sitesError" class="assemble-job-page__error">{{ sitesError }}</p>
       <p v-else-if="!loadingBase && !sites.length" class="assemble-job-page__error">
-        一个站点都取不到：这个账号名下没有站点，先去系统管理 &gt; 站点管理建一个。
+        一个站点都取不到：这个账号名下没有站点，先去「平台管理 → 站点与租户 → 站点清单」建一个。
       </p>
       <p v-if="skeletonsError" class="assemble-job-page__error">{{ skeletonsError }}</p>
       <p v-else-if="!loadingBase && sites.length && !publishedSkeletonOptions.length" class="assemble-job-page__error">

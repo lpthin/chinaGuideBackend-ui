@@ -504,7 +504,7 @@ describe('P4 的诚实边界与每一步的真去处', () => {
     expect(pushSpy).toHaveBeenLastCalledWith({ name: 'workspace-portal-brief-candidates', params: { id: '12' } })
     click(byText('这一站的组装任务')[0])
     expect(pushSpy).toHaveBeenLastCalledWith({ name: 'workspace-portal-assemble-jobs', query: { siteId: '31' } })
-    click(byText('到站点管理只看这一单的站')[0])
+    click(byText('到站点清单只看这一单的站')[0])
     expect(pushSpy).toHaveBeenLastCalledWith({ name: 'workspace-sites', query: { briefId: '12' } })
     wrapper.unmount()
   })

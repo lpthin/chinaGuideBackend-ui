@@ -77,6 +77,7 @@ const BlockShowcaseView = () => import('../views/portal/BlockShowcaseView.vue')
 const SkeletonLibraryView = () => import('../views/portal/SkeletonLibraryView.vue')
 const AssembleJobView = () => import('../views/portal/AssembleJobView.vue')
 const SiteBriefsView = () => import('../views/portal/SiteBriefsView.vue')
+const SiteWizardView = () => import('../views/portal/SiteWizardView.vue')
 const BriefIntakeView = () => import('../views/portal/BriefIntakeView.vue')
 const BriefDetailView = () => import('../views/portal/BriefDetailView.vue')
 const CandidateGalleryView = () => import('../views/portal/CandidateGalleryView.vue')
@@ -513,14 +514,31 @@ export const routes: RouteRecordRaw[] = [
         }
       },
       {
+        // 新建网站向导（Spec-M §3 五步 / §7.1，D3：入口只给超管）。
+        // 它排在「建站」组第一项靠的是路由定义顺序（菜单只认这个顺序，不认路径）。
+        path: 'portal/wizard',
+        name: 'workspace-portal-wizard',
+        component: SiteWizardView,
+        meta: {
+          title: '新建网站',
+          desc: '需求单 → 说明书 → 估价与出方案 → 候选比较 → 选定转正，五步一条线，每步只摆今天真能做的动作',
+          icon: 'rocket',
+          requiredPermission: 'portal:build:manage',
+          requiresSuperAdmin: true
+        }
+      },
+      {
         path: 'portal/briefs',
         name: 'workspace-portal-briefs',
         component: SiteBriefsView,
         // 前采需求单是建站主线的第一站（Spec §3.2）：超管录 13 题需求，后面才有候选站可出。
         // 闸与相邻建设页同码（菜单显隐、路由守卫、后端 @RequirePermission 三处一个码，Spec §3.1 硬规则 1/5）。
+        // Spec-M §7.1（M-P4）：它从一级菜单退出，改由向导第一步进去——地址不断，
+        // 收藏夹与文档里那些老链接照旧能进（守卫还是同一条 portal:build:manage）。
         meta: {
           title: '前采需求单',
           icon: 'form',
+          hidden: true,
           requiredPermission: 'portal:build:manage',
           requiresSuperAdmin: true
         }
@@ -974,7 +992,10 @@ export const routes: RouteRecordRaw[] = [
         path: 'sites',
         name: 'workspace-sites',
         component: SitesView,
-        meta: { title: '站点管理', icon: 'global', requiresSuperAdmin: true }
+        // 菜单名从「站点管理」改叫「站点清单」（Spec-M §7.1 消命名撞车）：
+        // 建站那条链里「站点/网站」指的是 AI 建出来的那一站，这一页管的是平台侧的站点行，
+        // 两个词以前撞在同一屏上（现在向导叫「新建网站」）。页面内部的标题跟着一起改。
+        meta: { title: '站点清单', icon: 'global', requiresSuperAdmin: true }
       },
       {
         path: 'tenant',

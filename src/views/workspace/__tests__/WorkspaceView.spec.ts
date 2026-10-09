@@ -130,8 +130,10 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(text).not.toContain('联系平台')
     expect(text).not.toContain('平台工单队列')
     // 平台段的项应该还在
-    expect(text).toContain('前采需求单')
-    expect(text).toContain('站点管理')
+    // M-P4：建站主线的一级入口换成了「新建网站」向导，「前采需求单」从菜单退出（路由还在）
+    expect(text).toContain('新建网站')
+    expect(text).not.toContain('前采需求单')
+    expect(text).toContain('站点清单')
     expect(text).not.toContain('建站流水线')
     expect(text).not.toContain('栏目管理')
     expect(text).not.toContain('建站工作台')
@@ -178,7 +180,7 @@ describe('WorkspaceView 侧边菜单', () => {
     // Spec-C P3：「建站流水线」整页删除（主线收进需求单详情），菜单里它必须随之绝迹——
     // 留着就是一条点了 404 的假入口
     expect(text).not.toContain('建站流水线')
-    expect(text).not.toContain('前采需求单')
+    expect(text).not.toContain('新建网站')
     expect(text).toContain('站点设置')
     expect(text).toContain('文章分类')
     expect(text).not.toContain('栏目管理')
@@ -191,10 +193,10 @@ describe('WorkspaceView 侧边菜单', () => {
     const text = wrapper.text()
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
     expect(text).not.toContain('平台管理')
-    expect(items).not.toContain('前采需求单')
+    expect(items).not.toContain('新建网站')
     expect(items).not.toContain('栏目开通')
     expect(items).not.toContain('页面搭建')
-    expect(items).not.toContain('站点管理')
+    expect(items).not.toContain('站点清单')
     expect(items).not.toContain('大模型配置')
     // 该看的还在：AI 写稿那组、企业信息、以及固定在菜单最下方的「联系平台」
     expect(text).toContain('AI 写稿')
@@ -250,8 +252,8 @@ describe('WorkspaceView 侧边菜单', () => {
     })
     await flushPromises()
     const items = wrapper.findAll('.menu-item-stub').map(node => node.text().trim())
-    // 租户档：平台段的项（前采需求单、栏目开通）一项不许出现；租户段的项各只渲染一次（视图不手抄第二份清单）
-    expect(items).not.toContain('前采需求单')
+    // 租户档：平台段的项（新建网站、栏目开通）一项不许出现；租户段的项各只渲染一次（视图不手抄第二份清单）
+    expect(items).not.toContain('新建网站')
     expect(items).not.toContain('栏目开通')
     expect(items.filter(label => label === '文章列表')).toHaveLength(1)
     expect(items.filter(label => label === '企业信息')).toHaveLength(1)

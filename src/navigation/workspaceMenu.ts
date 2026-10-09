@@ -98,7 +98,7 @@ export const MENU_GROUPS: MenuGroupDef[] = [
   { key: 'site-content', label: '网站内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看到的东西，含企业信息与站点设置' },
   { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', hint: '流量、引用、GEO 体检与客户经营' },
   // ===== 平台管理（6 组 34 项）=====
-  { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', hint: '前采需求单 → 出方案 → 区块与骨架，含皮肤与模板沉淀' },
+  { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', hint: '新建网站向导（需求单 → 说明书 → 出方案 → 候选 → 转正），含提示词、区块与骨架' },
   { key: 'build-assets', label: '站点与租户', domain: 'platform', icon: 'database', hint: '站点、租户与栏目开通' },
   { key: 'build-quality', label: '平台质量', domain: 'platform', icon: 'safety', hint: '页面巡检、引用探测、整站组装与改版工单' },
   { key: 'billing', label: '计费', domain: 'platform', icon: 'account-book', hint: '账单、订单、钱包与发票' },
@@ -174,9 +174,12 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-operation-cases': 'site-effect',
   'workspace-operation-reports': 'site-effect',
   'workspace-operation-customers': 'site-effect',
-  // 建站（原「建站交付」2 + 原「参考与样式」3 + 骨架库；Spec-C §7 P3：「建站流水线」整页删除，
+  // 建站（Spec-M §7.1 / M-P4：第一项换成「新建网站」这条五步向导，正是回答他那句「没找到入口」。
+  // 「前采需求单」这一项从组表里摘出来、路由改成 hidden——地址不断，只是入口收进向导第一步，
+  // 同一个动作不再有两个名字（项数账 71 颗：一加一减，平台段还是 31）。
+  // 原「建站交付」2 项 + 原「参考与样式」3 项 + 骨架库；Spec-C §7：「建站流水线」整页删除，
   // 主线收进需求单详情。骨架库跟着它服务的「造一个站」走，不再单列一组）
-  'workspace-portal-briefs': 'build',
+  'workspace-portal-wizard': 'build',
   // 平台默认提示词（Spec-M D2/P1）：建站那一族八份的写口。跟着「造一个站」那一组，
   // 不与系统管理里那颗「提示词」（article 那条链的 prompt 表）混在同一组——两页读的不是同一张表。
   'workspace-portal-prompts': 'build',

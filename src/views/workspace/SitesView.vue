@@ -168,7 +168,7 @@ const briefFilterCount = computed(() =>
 
 /** 空态按「为什么是空」来说：筛完没有不等于一站都没有——这是这一族页面反复犯过的错 */
 const emptyText = computed(() => {
-  if (!sites.value.length) return '一个站点都没有：可以「新建站点」，也可以从「前采需求单」录一单让流水线建候选站'
+  if (!sites.value.length) return '一个站点都没有：可以「新建站点」，也可以从「新建网站」向导录一份前采需求单让流水线建候选站'
   if (briefFilter.value !== null) return `需求单 #${briefFilter.value} 名下没有站点（这一列还没回填时也会是这样）`
   if (archiveScope.value === 'only') return '现在没有归档候选：还没有客户否掉过方案'
   return '当前筛选下没有站点：把上面的「归档候选」切回默认再看'
@@ -340,7 +340,7 @@ async function save() {
       await siteStore.loadSites()
     } else {
       await siteApi.create({ ...payload, tenantId })
-      message.success('站点已建好，下一步去录前采需求单')
+      message.success('站点已建好，下一步在「新建网站」向导里录前采需求单')
       modalVisible.value = false
       await load()
       await siteStore.loadSites()
@@ -370,7 +370,7 @@ onMounted(() => {
   <div class="sites-view">
     <div class="page-header">
       <div>
-        <h3>站点管理</h3>
+        <h3>站点清单</h3>
         <p>
           维护站点画像与归属：域名、租户、启用状态都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。
           建站流水线建出来的是 <b>候选站</b>（等客户选中才转正），客户没选中的收进 <b>归档</b>——这两种在下面的行里都单独标色，

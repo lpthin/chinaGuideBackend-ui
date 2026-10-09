@@ -234,7 +234,7 @@ function goList() {
   router.push({ name: 'workspace-portal-briefs' })
 }
 
-/** 「从需求单进入」的另一头：站点管理带着本单号过去，只列这一单名下的站 */
+/** 「从需求单进入」的另一头：站点清单带着本单号过去，只列这一单名下的站 */
 function goSites() {
   const id = briefId.value
   if (id === null) return
@@ -874,7 +874,7 @@ onUnmounted(stopPolling)
             </template>
           </a-table>
           <a-space wrap class="brief-detail__actions">
-            <a-button @click="goSites">到站点管理只看这一单的站</a-button>
+            <a-button @click="goSites">到站点清单只看这一单的站</a-button>
           </a-space>
           <p v-if="promotedSiteMissing" class="brief-detail__muted">
             上面有一行是需求单回填的转正站号，但站点列表里查不到它：可能是列表没取全，也可能这个站已经不在了。
