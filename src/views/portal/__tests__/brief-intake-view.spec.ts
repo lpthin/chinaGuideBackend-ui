@@ -308,9 +308,18 @@ async function afterDebounce() {
   await vi.advanceTimersByTimeAsync(360)
 }
 
+/** 按题干定位输入格：证据句只在题目下面念一遍、不抄进 placeholder（Spec-M §10.8 末段那一处），
+ *  所以测试的把手是「这一题的标签」而不是 placeholder —— 标签才是给人看的那一格。 */
+function inputOfQuestion(wrapper: any, labelFragment: string, nodes?: any[]) {
+  return (nodes ?? wrapper.findAllComponents(Input)).find((node: any) => String(
+    node.element?.closest?.('.brief-intake__question')
+      ?.querySelector('.brief-intake__q-label')?.textContent ?? ''
+  ).includes(labelFragment))
+}
+
 /** 把 D1 词表里两题必填答掉：星号来自词表 q.required，界面保存闸只拦这两题 */
 async function fillRequiredD1(wrapper: any) {
-  const brand = wrapper.findAllComponents(Input).find((node: any) => node.props('placeholder') === '页脚用这一串字')
+  const brand = inputOfQuestion(wrapper, '品牌全称')
   brand!.vm.$emit('update:value', '某某科技')
   wrapper.findAllComponents(RadioGroup)[0].vm.$emit('update:value', 'inquiry')
   await flushPromises()
@@ -352,10 +361,14 @@ describe('题目按词表循环渲染', () => {
     expect(wrapper.findAll('.cascader-stub')).toHaveLength(1)
     // color 走的是原生色块 + 十六进制格（这一版组件库没有 ColorPicker，桩件会把「控件根本没渲」藏住，所以这里摸真实节点）
     expect(wrapper.findAll('input[type=color]')).toHaveLength(1)
-    const placeholders = wrapper.findAllComponents(Input).map(node => node.props('placeholder'))
+    const placeholders = wrapper.findAllComponents(Input).map(node => String(node.props('placeholder') ?? ''))
     expect(placeholders).toContain('#RRGGBB')
-    expect(placeholders).toContain('这题自己打字')
-    expect(placeholders).toContain('不认识就退回输入框')
+    // text 与未知形态两题退到同一个中性 placeholder：词表那句证据不抄进输入格，一句话不摆两遍
+    expect(placeholders.filter(p => p === '按客户原话打这一行')).toHaveLength(2)
+    expect(placeholders).not.toContain('这题自己打字')
+    expect(placeholders).not.toContain('不认识就退回输入框')
+    expect(wrapper.text().split('这题自己打字').length - 1).toBe(1)
+    expect(wrapper.text().split('不认识就退回输入框').length - 1).toBe(1)
     wrapper.unmount()
   })
 

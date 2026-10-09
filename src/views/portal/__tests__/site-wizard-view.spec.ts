@@ -235,6 +235,15 @@ function mounted() {
   })
 }
 
+/** 按题干找向导第一步那一格里的输入件：placeholder 已不抄词表的证据句（Spec-M §10.8 末段），
+ *  测试的把手因此换成「这一题的标签」。 */
+function inputOfQuestion(wrapper: any, labelFragment: string) {
+  return wrapper.findAllComponents({ name: 'a-input' }).find((node: any) => String(
+    node.element?.closest?.('.brief-intake__question')
+      ?.querySelector('.brief-intake__q-label')?.textContent ?? ''
+  ).includes(labelFragment))
+}
+
 /** 站到某一步：走的是地址那条真路（`?step=`），不是测试后门 */
 function mountAt(step: string, briefId?: string) {
   document.body.innerHTML = ''
@@ -565,8 +574,7 @@ describe('新建网站向导', () => {
     expect(bodyText()).toContain('第 1 / 2 段')
     expect(bodyText()).not.toContain('页面清单')
 
-    const brand = wrapper.findAllComponents({ name: 'a-input' })
-      .find(node => node.props('placeholder') === '页脚用这一串字')
+    const brand = inputOfQuestion(wrapper, '品牌全称')
     expect(brand, '词表里那题的输入格应挂在向导第一步上').toBeTruthy()
     brand!.vm.$emit('update:value', '某某科技')
     await flushPromises()
@@ -605,8 +613,7 @@ describe('新建网站向导', () => {
     await flushPromises()
     expect(bodyText()).toContain('第 1 / 2 段')
 
-    const brand = wrapper.findAllComponents({ name: 'a-input' })
-      .find(node => node.props('placeholder') === '页脚用这一串字')
+    const brand = inputOfQuestion(wrapper, '品牌全称')
     brand!.vm.$emit('update:value', '新的一单')
     await flushPromises()
     await click(buttonThat('保存'))

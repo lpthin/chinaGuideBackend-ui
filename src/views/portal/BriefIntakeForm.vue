@@ -1174,11 +1174,13 @@ onMounted(boot)
               <span class="brief-intake__q-hint">AI 决定</span>
             </div>
 
-            <!-- 词表出现不认识的新形态时退化成输入框：宁可让人打字，也不猜语义 -->
+            <!-- 词表出现不认识的新形态时退化成输入框：宁可让人打字，也不猜语义。
+                 placeholder 不抄 q.evidence——那句在题目下面已经念过一遍（`.brief-intake__q-hint`），
+                 摆进输入格就是一句话两遍，而且词表里那几句曾以「表名（V133）：」开头，等于把 schema 念给录单的人。 -->
             <a-input
               v-else
               :value="textOf(q.key)"
-              :placeholder="q.evidence || ''"
+              placeholder="按客户原话打这一行"
               @update:value="(value: unknown) => onPickText(q.key, value)"
             />
 
