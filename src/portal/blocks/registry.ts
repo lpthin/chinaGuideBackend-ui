@@ -1,9 +1,14 @@
 /**
  * 区块渲染器注册表：rendererKey → Vue 组件。
  *
- * rendererKey 由后端 PortalBlockCatalogue 下发（代码是唯一真相源，DB 只是它的镜像），
- * 这里必须与那份声明的渲染器键一一对应——多出来的组件没人能引用，缺了的组件访客会看到空白。
+ * rendererKey 由后端下发，而「有哪些区块」从 Spec-M §8 第 2 步起有两族：代码声明那一族
+ * （`PortalBlockCatalogue`）与界面手工新增那一族（`portal_block_def.source='manual'`）。
+ * 这里必须与那份下发的渲染器键一一对应——多出来的组件没人能引用，缺了的组件访客会看到空白。
  * 所以 block-registry.spec.ts 用一份显式清单把两边钉住，改一边就会红。
+ *
+ * 最后一项 `genericCard` 是<em>人工那一族唯一可用的渲染器</em>，后端那道同名闸在
+ * `portal/blocks/RendererKeys.java`：那边不认的渲染器键根本进不了这份清单（读取时按不存在处理），
+ * 就是为了不出现「后台存得进去、前台一个字都没有」。加第二支通用渲染器时两处要一起改。
  *
  * 未登记的 rendererKey 一律不渲染并 console.error：宁缺不滥，绝不退化成「把未知内容当 HTML 打出来」。
  */
@@ -35,7 +40,9 @@ const RENDERERS: Record<string, () => Promise<Component>> = {
   ctaBand: () => import('./CtaBandBlock.vue'),
   contactBlock: () => import('./ContactBlock.vue'),
   inquiryForm: () => import('./InquiryFormBlock.vue'),
-  siteFooter: () => import('./SiteFooterBlock.vue')
+  siteFooter: () => import('./SiteFooterBlock.vue'),
+  // 人工那一族的渲染器：不绑定栏目，按区块自带 schema 摆卡片
+  genericCard: () => import('./GenericCardBlock.vue')
 }
 
 const CACHE = new Map<string, Component>()

@@ -4,16 +4,23 @@ import { isInternalPath, resolveLink, safeExternal } from '../blocks/linkPolicy'
 import { slugOfPath } from '../portalPath'
 
 /**
- * 这份清单必须与后端 PortalBlockCatalogue 的 rendererKey 逐个对齐。
+ * 这份清单必须与后端下发的 rendererKey 逐个对齐。
  * 两边各写一份看起来重复，但正因为重复才能挡住「后端加区块、前端没组件」——
  * 那种页面在访客侧就是一串空白区块，而后端校验还会判它合法。
+ *
+ * 从 Spec-M §8 第 2 步起分两族：前 26 支来自代码声明（`PortalBlockCatalogue`），
+ * 最后那支 `genericCard` 是界面手工新增那一族唯一可用的渲染器（后端同名闸 `RendererKeys.java`）。
+ * 也就是说这里多出「人工那一族」这一栏不是排版：它的成立条件是「后端不会把别的键发下来」，
+ * 而那一头由 `RendererKeysTest` 钉住。
  */
-const RENDERER_KEYS = [
+const CODE_RENDERER_KEYS = [
   'siteHeader', 'utilityBar', 'breadcrumb', 'hero', 'pageHero', 'bannerCarousel', 'serviceCards', 'caseGrid', 'caseList',
   'newsList', 'relatedContent', 'jobList', 'aboutRich', 'textBand', 'teamGrid', 'statsBand', 'logoWall',
   'testimonialCards', 'milestoneTimeline', 'awardGrid', 'faqAccordion', 'mapBlock',
   'ctaBand', 'contactBlock', 'inquiryForm', 'siteFooter'
 ]
+const MANUAL_RENDERER_KEYS = ['genericCard']
+const RENDERER_KEYS = [...CODE_RENDERER_KEYS, ...MANUAL_RENDERER_KEYS]
 
 describe('区块渲染器注册表', () => {
   it('渲染器键与后端区块白名单一一对应', () => {
@@ -24,6 +31,12 @@ describe('区块渲染器注册表', () => {
     RENDERER_KEYS.forEach(key => {
       expect(resolveRenderer(key), `渲染器 ${key} 未注册`).not.toBeNull()
     })
+  })
+
+  it('代码那一族 26 支、人工那一族只有 genericCard 一支', () => {
+    // 数字写死是有意的：想加第二支通用渲染器，就得同时改后端的 RendererKeys 与这里的分族
+    expect(CODE_RENDERER_KEYS).toHaveLength(26)
+    expect(MANUAL_RENDERER_KEYS).toEqual(['genericCard'])
   })
 
   describe('未知渲染器：宁缺不滥', () => {
