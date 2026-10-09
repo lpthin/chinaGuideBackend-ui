@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest'
  */
 
 const scanned = import.meta.glob(
-  ['../BriefIntakeView.vue', '../SiteBriefsView.vue', '../BriefDetailView.vue', '../CandidateGalleryView.vue',
+  ['../BriefIntakeView.vue', '../BriefIntakeForm.vue', '../SiteBriefsView.vue', '../BriefDetailView.vue', '../CandidateGalleryView.vue',
     '../../../api/siteBriefs.ts', '../../workspace/SitesView.vue', '../CompanyInfoView.vue'],
   { eager: true, query: '?raw', import: 'default' }
 ) as Record<string, string>
@@ -44,7 +44,7 @@ function textOf(path: string): string {
 
 function briefFiles(): Array<[string, string]> {
   return entries.filter(([path]) =>
-    /BriefIntakeView\.vue|SiteBriefsView\.vue|BriefDetailView\.vue|CandidateGalleryView\.vue|siteBriefs\.ts$/.test(path)
+    /BriefIntakeView\.vue|BriefIntakeForm\.vue|SiteBriefsView\.vue|BriefDetailView\.vue|CandidateGalleryView\.vue|siteBriefs\.ts$/.test(path)
   ).map(([path, source]) => [path, String(source)])
 }
 
@@ -64,10 +64,10 @@ const BRIEF_QUESTION_KEYS =
   /['"`](industry|sub_industry|audiences|primary_goal|must_have|tone|reference_urls|brand_color|scale|languages|channels|business_form|avoid)['"`]/
 
 describe('I-1：需求单这一族文件没有第二份词表', () => {
-  it('扫到了全部七份文件（glob 写错会让这条用例静默通过）', () => {
-    expect(entries.length).toBe(7)
+  it('扫到了全部八份文件（glob 写错会让这条用例静默通过）', () => {
+    expect(entries.length).toBe(8)
     for (const probe of [
-      'BriefIntakeView.vue', 'SiteBriefsView.vue', 'BriefDetailView.vue', 'CandidateGalleryView.vue',
+      'BriefIntakeView.vue', 'BriefIntakeForm.vue', 'SiteBriefsView.vue', 'BriefDetailView.vue', 'CandidateGalleryView.vue',
       'api/siteBriefs.ts', 'workspace/SitesView.vue', 'CompanyInfoView.vue'
     ]) {
       expect(entries.some(([path]) => path.endsWith(probe)), `没扫到 ${probe}`).toBe(true)
@@ -116,9 +116,12 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     }
   })
 
-  it('录入页按词表循环渲染：v-for 走 questions，题目名/选项名都取自 q.label/opt.label', () => {
-    const intake = textOf('BriefIntakeView.vue')
-    expect(intake).toMatch(/v-for="q in questions"/)
+  it('录入表单按词表循环渲染：v-for 走的那一撮题派生自 intakeLoopQuestions(词表)，题名/选项名都取自 q.label/opt.label', () => {
+    const intake = textOf('BriefIntakeForm.vue')
+    // 题目的唯一出处：词表回包先过适配层 intakeLoopQuestions（排掉那两块专用控件），视图再按段切
+    expect(intake).toMatch(/const questions = computed<BriefVocabularyQuestion\[\]>\(\(\) => intakeLoopQuestions\(vocabulary\.value\)\)/)
+    expect(intake).toMatch(/v-for="q in loopQuestions"/)
+    expect(intake).toMatch(/const loopQuestions = computed\(\(\) =>/)
     expect(intake).toMatch(/\{\{\s*q\.label\s*\}\}/)
     expect(intake).toMatch(/v-for="opt in q\.options"/)
     expect(intake).toMatch(/\{\{\s*opt\.label\s*\}\}/)
@@ -129,7 +132,7 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
   })
 
   it('requirements_summary 只从 summary-preview 取，前端不拼句', () => {
-    const intake = textOf('BriefIntakeView.vue')
+    const intake = textOf('BriefIntakeForm.vue')
     expect(intake).toMatch(/siteBriefsApi\.summaryPreview\(/)
     expect(intake).toMatch(/requirementsSummary/)
     // 300ms debounce 的节流口径
@@ -141,7 +144,7 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
 
   it('P3 边界：花钱三口只许在适配层与详情页；录入页/列表页照旧一个生成按钮都不许有', () => {
     // 行为没变（不摆点了没反应的按钮），变的只是「详情②那一格今天真的有契约口了」
-    const intake = textOf('BriefIntakeView.vue')
+    const intake = textOf('BriefIntakeForm.vue')
     expect(intake).not.toMatch(/briefGenerationApi|发起生成|开始生成|一键生成|生成候选|生成方案|预估|估算费/)
     expect(intake).toMatch(/不摆点不动的死链|也不摆一个点了没反应的/)  // 那句原话还在（注释/文案）
     const list = textOf('SiteBriefsView.vue')

@@ -24,6 +24,7 @@ import {
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
 import { siteSpecApi, type SpecDocumentView } from '@/api/siteSpec'
+import BriefIntakeForm from '@/views/portal/BriefIntakeForm.vue'
 import WizardSteps from '@/components/WizardSteps.vue'
 import { createWizardState, type WizardState, type WizardStepDef } from '@/components/wizardModel'
 
@@ -222,8 +223,18 @@ function statusText(brief: SiteBrief): string {
   return briefStatusLabel(vocabulary.value, brief.status)
 }
 
-function goNewBrief() {
-  router.push({ name: 'workspace-portal-brief-new' })
+/** 「录一份新的」：把第一步那张空表单摊开就地录，不再跳去独立页（独立页还在，只是不再是必经之路） */
+function startNewBrief() {
+  briefId.value = null
+  syncQuery(wizard.value.current, null)
+}
+
+/** 表单真存下一单之后向导才认这个号：后面四步读的都是它，列表里先补上这一行免得下拉里查无此单 */
+function onIntakeSaved(saved: SiteBrief) {
+  if (!saved?.id) return
+  if (!briefs.value.some(brief => brief.id === saved.id)) briefs.value = [saved, ...briefs.value]
+  briefId.value = saved.id
+  syncQuery(wizard.value.current, saved.id)
 }
 
 function goBriefDetail() {
@@ -298,12 +309,14 @@ onMounted(async () => {
           </a-form-item>
         </a-form>
         <a-space class="site-wizard__row">
-          <a-button type="primary" @click="goNewBrief">录一份新需求单</a-button>
+          <a-button @click="startNewBrief">录一份新需求单</a-button>
           <a-button :disabled="!briefId" @click="goBriefDetail">看这一单的详情（喂模型的那句话在这里）</a-button>
         </a-space>
         <p v-if="!briefsError && !briefs.length" class="site-wizard__hint">
-          一份需求单都还没有：第一步就是录它（13 题，以勾选为主），后面四步都要靠它这一个号。
+          一份需求单都还没有：第一步就是录它（题目与分段都来自后端前采词表），后面四步都要靠它这一个号。
         </p>
+        <!-- 前采本体就地录：这一份和独立页 `BriefIntakeView` 用的是同一个组件，不存在第二套提交形状 -->
+        <BriefIntakeForm :brief-id="briefId" embedded @saved="onIntakeSaved" />
       </template>
 
       <template #step-spec>

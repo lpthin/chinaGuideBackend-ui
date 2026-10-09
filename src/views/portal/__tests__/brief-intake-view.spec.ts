@@ -172,13 +172,6 @@ const CASCADER_STUB = {
   template: '<div class="cascader-stub" />'
 }
 
-const COLOR_STUB = {
-  name: 'AColorPicker',
-  props: ['value', 'disabled'],
-  emits: ['update:value'],
-  template: '<div class="color-stub" />'
-}
-
 const PASS_THROUGH = (name: string) => ({
   name,
   props: ['title', 'message', 'type', 'description'],
@@ -269,8 +262,7 @@ async function mountView(options: Options = {}) {
         'a-tag': Tag,
         'a-space': PASS_THROUGH('ASpace'),
         'a-alert': PASS_THROUGH('AAlert'),
-        'a-cascader': CASCADER_STUB,
-        'a-color-picker': COLOR_STUB
+        'a-cascader': CASCADER_STUB
       }
     }
   })
@@ -287,6 +279,18 @@ function byText(text: string) {
 
 function click(node: Element) {
   node.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+}
+
+/**
+ * 分步后一次只渲当前那一段：要摸哪一段的控件，先点锚点条上的段按钮把表单翻过去。
+ * 段名按冒号前的短名比——那正是界面上摆出来的那几个字，测试不抄词表里的全称。
+ */
+async function gotoSection(wrapper: any, shortName: string) {
+  const target = wrapper.findAll('.brief-intake__anchors button')
+    .find((node: any) => node.text().replace(/\s+/g, '').includes(shortName))
+  expect(target, `锚点条里没有「${shortName}」这一段`).toBeTruthy()
+  click(target!.element)
+  await flushPromises()
 }
 
 /** 在指定容器内按文本找按钮：页面里「添加区块/上移」会出现多次，必须限定在哪一页/哪一栏 */
@@ -346,8 +350,10 @@ describe('题目按词表循环渲染', () => {
     expect(wrapper.findAllComponents(RadioGroup)).toHaveLength(1)
     expect(wrapper.findAllComponents(CheckboxGroup)).toHaveLength(1)
     expect(wrapper.findAll('.cascader-stub')).toHaveLength(1)
-    expect(wrapper.findAll('.color-stub')).toHaveLength(1)
+    // color 走的是原生色块 + 十六进制格（这一版组件库没有 ColorPicker，桩件会把「控件根本没渲」藏住，所以这里摸真实节点）
+    expect(wrapper.findAll('input[type=color]')).toHaveLength(1)
     const placeholders = wrapper.findAllComponents(Input).map(node => node.props('placeholder'))
+    expect(placeholders).toContain('#RRGGBB')
     expect(placeholders).toContain('这题自己打字')
     expect(placeholders).toContain('不认识就退回输入框')
     wrapper.unmount()
@@ -373,20 +379,25 @@ describe('题目按词表循环渲染', () => {
 })
 
 describe('四组分区与锚点导航（段名只认词表 groups 那一份）', () => {
-  it('词表带 groups：按段插段标题、锚点条露冒号前的短名，点了能跳到带 id 的那一节', async () => {
+  it('词表带 groups：一次只渲当前那一段，锚点条露冒号前的短名，点了把表单翻到那一段', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
+    // 停在第一段：段标题只有基础段那一条，段名与题目都只可能是 groups 回包里的字
     const heads = wrapper.findAll('.brief-intake__section-head')
-    // 两段的标题字面只可能来自 groups 回包：页面一个字都没抄
-    expect(heads).toHaveLength(2)
+    expect(heads).toHaveLength(1)
     expect(heads[0].text()).toBe('基础段：这是谁、给谁看')
-    expect(heads[1].text()).toBe('结构段：要哪几页、首页怎么排')
+    expect(document.getElementById('brief-intake-section-basic')).toBeTruthy()
+    expect(document.getElementById('brief-intake-section-structure')).toBeNull()
     const anchors = wrapper.findAll('.brief-intake__anchors button')
-    expect(anchors.map(node => node.text().replace(/\s+/g, ''))).toEqual(['基础段', '结构段'])
-    // 锚点目标真的在页面上（jsdom 没有 scrollIntoView：视图判了存在才调，这里断言的是那一节挂得住）
+    expect(anchors.map(node => node.text().replace(/\s+/g, ''))).toEqual(['1.基础段', '2.结构段'])
+
     click(anchors[1].element)
     await flushPromises()
+    // 翻过去之后：结构段的题渲出来，基础段那一节整段撤下（分步不是「滚动到位」，是一屏一段）
+    const headsAfter = wrapper.findAll('.brief-intake__section-head')
+    expect(headsAfter).toHaveLength(1)
+    expect(headsAfter[0].text()).toBe('结构段：要哪几页、首页怎么排')
     expect(document.getElementById('brief-intake-section-structure')).toBeTruthy()
-    expect(document.getElementById('brief-intake-section-basic')).toBeTruthy()
+    expect(document.getElementById('brief-intake-section-basic')).toBeNull()
     wrapper.unmount()
   })
 
@@ -402,11 +413,13 @@ describe('四组分区与锚点导航（段名只认词表 groups 那一份）',
 describe('必填只剩词表打星的题 + 跳过要说人话', () => {
   it('星号来自 q.required：打星的空题显式说会被后端拒，可跳过的空题显式写「客户未提供」', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
+    const basic = VOCAB_D1.questions.filter(question => question.group === 'basic')
+    const structure = VOCAB_D1.questions.filter(question => question.group === 'structure')
     expect(wrapper.findAll('.brief-intake__req')).toHaveLength(2) // brand_name + primary_goal，恰是词表打星的两题
-    expect(wrapper.findAll('.brief-intake__opt')).toHaveLength(VOCAB_D1.questions.length - 2)
+    expect(wrapper.findAll('.brief-intake__opt')).toHaveLength(basic.length - 2)
     const skips = wrapper.findAll('.brief-intake__skip')
-    // 每道还没答的题都挂一句：不留「看着像填好」的空框（必填那两句红色写法也算 skip 节点）
-    expect(skips).toHaveLength(VOCAB_D1.questions.length)
+    // 本段每道还没答的题都挂一句：不留「看着像填好」的空框（必填那两句红色写法也算 skip 节点）
+    expect(skips).toHaveLength(basic.length)
     expect(skips.filter(node => node.classes('brief-intake__skip--required'))).toHaveLength(2)
     expect(wrapper.text()).toContain('客户未提供')
 
@@ -414,7 +427,13 @@ describe('必填只剩词表打星的题 + 跳过要说人话', () => {
     const trustGroup = wrapper.findAllComponents(CheckboxGroup)[0]
     trustGroup.vm.$emit('update:value', ['numbers'])
     await flushPromises()
-    expect(wrapper.findAll('.brief-intake__skip')).toHaveLength(VOCAB_D1.questions.length - 1)
+    expect(wrapper.findAll('.brief-intake__skip')).toHaveLength(basic.length - 1)
+
+    // 翻到结构段：一段的星与空格子只算这一段自己的题，页面上没有一处按总题数硬写
+    await gotoSection(wrapper, '结构段')
+    expect(wrapper.findAll('.brief-intake__req')).toHaveLength(0)
+    expect(wrapper.findAll('.brief-intake__opt')).toHaveLength(structure.length)
+    expect(wrapper.findAll('.brief-intake__skip')).toHaveLength(structure.length)
     wrapper.unmount()
   })
 
@@ -434,6 +453,8 @@ describe('必填只剩词表打星的题 + 跳过要说人话', () => {
 describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () => {
   it('加页/填字段/上下移/删除都挂真实控件；缺 home 与 contact 的即时提示逐条列出来', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
+    // 页面清单长在结构段：先翻过去（分步后本段的控件才挂得出来）
+    await gotoSection(wrapper, '结构段')
     expect(wrapper.findAll('.brief-intake__page-row')).toHaveLength(0)
 
     click(byText('添加一页')[0])
@@ -484,6 +505,7 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
 
   it('栏目卡片来自 /portal/sections：点卡片即选，名字一个都不抄；区块候选挡掉 notWired 的与已加的', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
+    await gotoSection(wrapper, '结构段')
     click(byText('加一页：首页（home）')[0])
     await flushPromises()
     const row = wrapper.findAll('.brief-intake__page-row')[0]
@@ -525,6 +547,7 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
     wrapper.findAllComponents(Select)[0].vm.$emit('update:value', 15)
     const audience = wrapper.findAllComponents(Textarea)[0] // D1 形态里第一块 textarea 就是 audience_note
     audience.vm.$emit('update:value', '给工厂做配套的采购助理')
+    await gotoSection(wrapper, '结构段')
     click(byText('加一页：首页（home）')[0])
     click(byText('添加一页')[0]) // 故意留一行全空
     await flushPromises()
@@ -561,6 +584,7 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
 describe('home_layout 区块顺序编辑器（上下移动代替拖拽）', () => {
   it('从区块目录挑→加进来→上下移→删除；上限那句明说是后端判据不是本地闸', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
+    await gotoSection(wrapper, '结构段')
     const layout = wrapper.find('.brief-intake__layout')
     const picker = wrapper.findAllComponents(Select)
       .find(node => node.props('placeholder') === '从区块目录挑一个')!
@@ -677,13 +701,25 @@ describe('候选套数与头部三件事', () => {
     wrapper.unmount()
   })
 
-  it('color 题的「AI 决定」落哨兵值 ai 并锁住取色器；notes 纯空白落 null，参考行 trim 后过滤', async () => {
+  it('color 题：色块与十六进制格是同一份值；「AI 决定」落哨兵值 ai 并锁住色块；notes 纯空白落 null，参考行 trim 后过滤', async () => {
     const wrapper = await mountView()
     wrapper.findAllComponents(Select)[0].vm.$emit('update:value', 15)
     wrapper.findAllComponents(RadioGroup)[0].vm.$emit('update:value', 'opt-a') // 必填（词表打星）先答上
+    await flushPromises()
+
+    // 色块是原生 `<input type="color">`，不是组件库桩件：装在 node_modules 的 ant-design-vue 4.2.6 没有 ColorPicker，
+    // 上一版这里写 `<a-color-picker>` 在浏览器里整块不渲，而打了桩的单测照样绿——所以这一条必须摸真实节点。
+    const swatch = wrapper.find('input[type=color]')
+    expect(swatch.exists(), 'color 题没有摆出色块').toBe(true)
+    await swatch.setValue('#1a2b3c')
+    const hexBox = wrapper.findAllComponents(Input).find(node => node.props('placeholder') === '#RRGGBB')
+    expect(hexBox!.props('value')).toBe('#1a2b3c')
+
     wrapper.findAllComponents(Switch)[0].vm.$emit('update:checked', true)
     await flushPromises()
-    expect(wrapper.findAllComponents({ name: 'AColorPicker' })[0].props('disabled')).toBe(true)
+    expect((swatch.element as HTMLInputElement).disabled).toBe(true)
+    expect((swatch.element as HTMLInputElement).value).toBe('#000000') // 哨兵值不是颜色：色块回落成黑，文字格也不再冒充有值
+    expect(hexBox!.props('value')).toBe('')
 
     const refInput = wrapper.findAllComponents(Input).find(node => node.props('placeholder') === 'https://example.com')
     refInput!.vm.$emit('update:value', '  https://ref.example  ')
@@ -754,14 +790,15 @@ describe('编辑存量单与后端的拒绝原话', () => {
         homeLayout: ['hero', 'case-grid']
       })
     })
-    // 页面清单读回一行，标识格带着库里的值；区块顺序读回两行
-    expect(wrapper.findAll('.brief-intake__page-row')).toHaveLength(1)
-    expect((wrapper.find('.brief-intake__page-key').element as HTMLInputElement).value).toBe('home')
-    expect(wrapper.findAll('.brief-intake__layout .brief-intake__block-row')).toHaveLength(2)
-    // 答过的题不再挂「客户未提供」；没答的（audience_note）仍然挂
+    // 答过的题不再挂「客户未提供」；没答的（audience_note）仍然挂——回填走的是勾选袋，不是重录
     expect(wrapper.text()).toContain('客户未提供')
     const trust = wrapper.findAllComponents(CheckboxGroup)[0]
     expect(trust.props('value')).toEqual(['numbers'])
+    // 页面清单读回一行，标识格带着库里的值；区块顺序读回两行（这两题都在结构段）
+    await gotoSection(wrapper, '结构段')
+    expect(wrapper.findAll('.brief-intake__page-row')).toHaveLength(1)
+    expect((wrapper.find('.brief-intake__page-key').element as HTMLInputElement).value).toBe('home')
+    expect(wrapper.findAll('.brief-intake__layout .brief-intake__block-row')).toHaveLength(2)
     wrapper.unmount()
   })
 })
