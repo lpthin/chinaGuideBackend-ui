@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * 1. 请求形状——路径不带 /api；estimate 一发不带任何 body（它的验收点就是「不调模型」）；
  *    run 的 confirm 是调用方传进来的那一个布尔值，前端不许有「默认 true」的写法；
  *    apply-page 一次只带一个 pageId，接口层面就不存在批量应用这个口子；
- * 2. 钱的口径——draftRowState 把「没产出草稿 / 被门禁拒 / 已应用 / 可应用」分得开：
- *    这是给超管交代「这一页到底花没花钱」用的，混着说就是在替后端撒谎；
+ * 2. 钱的口径——draftRowState 把「没产出草稿 / 被门禁拒 / 已应用 / 已回滚 / 可应用」分得开：
+ *    这是给超管交代「这一页到底花没花钱、钱换来的内容还挂着吗」用的，混着说就是在替后端撒谎；
  * 3. I-1 单源——状态中文说法不许在这两个新文件里出现第二份。
  */
 
@@ -33,6 +33,7 @@ function draftRow(overrides: Partial<AssembleDraftRow> = {}): AssembleDraftRow {
     error: null,
     warnings: [],
     applied: false,
+    rolledBack: false,
     ...overrides
   }
 }
@@ -126,7 +127,7 @@ describe('组装任务的路径与 body', () => {
   })
 })
 
-describe('草稿行的四种落点分得开', () => {
+describe('草稿行的五种落点分得开', () => {
   it('draftId 为空是没产出草稿，不是被门禁拒', () => {
     expect(draftRowState(draftRow({ draftId: null }))).toBe('no-draft')
     expect(draftRowState(draftRow({ draftId: null, rejected: true, pageId: null }))).toBe('no-draft')
@@ -139,6 +140,13 @@ describe('草稿行的四种落点分得开', () => {
   it('已应用优先于可应用：只有点过应用才为真，且只有第四种允许再点', () => {
     expect(draftRowState(draftRow({ applied: true }))).toBe('applied')
     expect(draftRowState(draftRow())).toBe('applicable')
+  })
+
+  it('应用过又被回滚退回去是第五种：不是「没应用过」，也不再允许点应用', () => {
+    expect(draftRowState(draftRow({ rolledBack: true }))).toBe('rolled-back')
+    // 后端同一行不会既说「还挂着」又说「已退回」（applied 里已经带了未回滚的条件）。
+    // 真收到这种谎报时以 applied 为准——回滚按钮与「已应用 N 页」都按它计数，宁可少退一页也不多退一页。
+    expect(draftRowState(draftRow({ applied: true, rolledBack: true }))).toBe('applied')
   })
 
   it('落定状态只认后端那三个终态 key，别的值一律按「还没落定」处理', () => {

@@ -159,6 +159,7 @@ function row(overrides: Partial<AssembleDraftRow> = {}): AssembleDraftRow {
     error: null,
     warnings: [],
     applied: false,
+    rolledBack: false,
     ...overrides
   }
 }
@@ -483,7 +484,7 @@ describe('组装：先出价、再亲手勾确认，两道都过了才发那一�
   })
 })
 
-describe('草稿表：三种落点各说各的话，应用一页一次', () => {
+describe('草稿表：每一档落点各说各的话，应用一页一次', () => {
   const DRAFTS: AssembleDraftRow[] = [
     row({ pageId: 41, draftId: 88, pageKey: 'home', title: '首页' }),
     row({
@@ -530,6 +531,25 @@ describe('草稿表：三种落点各说各的话，应用一页一次', () => {
     expect(wrapperText()).toContain('可应用 2 页')
     expect(wrapperText()).toContain('被门禁拒 1 页')
     expect(wrapperText()).toContain('没产出草稿 1 页')
+  })
+
+  it('回滚之后那一页要说「已回滚」：已应用清零、回滚按钮灭掉、应用入口也不给', async () => {
+    await mountWithDrafts([
+      row({ pageId: 44, draftId: 91, pageKey: 'contact', title: '联系我们', applied: false, rolledBack: true })
+    ])
+    expect(rowContaining('联系我们')?.textContent).toContain('已回滚')
+    // 这一条就是 M-P6 修的那个谎：内容已经退回组装前了，界面不许再念「已应用 1 页」
+    expect(wrapperText()).toContain('已应用 0 页')
+    expect(wrapperText()).not.toContain('已应用 1 页')
+    const rollback = buttonContaining('回滚本任务应用过的页面')
+    expect(rollback.length).toBeGreaterThan(0)
+    expect((rollback[0] as HTMLButtonElement).disabled).toBe(true)
+    // 已回滚不是「可应用」：草稿基于的那一版已不是当前版本，后端会拒，所以这里按钮灭着不给假入口
+    buttonContaining('应用这一页').forEach(node =>
+      expect((node as HTMLButtonElement).disabled).toBe(true))
+    click(buttonContaining('应用这一页')[0])
+    await flushPromises()
+    expect(portalAssembleApi.applyPage).not.toHaveBeenCalled()
   })
 
   it('素材来源/照抄的警告原样列出来：这些是允许落地但必须看见的提示', async () => {

@@ -59,8 +59,10 @@ export interface AssembleDraftRow {
   error: string | null
   /** 素材来源/照抄嫌疑：过了门禁但必须让超管看见的提示，不许静悄悄落地 */
   warnings: string[]
-  /** 只有点过「应用这一页」才为真——这是全链路唯一见客的动作留下的痕迹 */
+  /** 只有点过「应用这一页」且还没被回滚退回去才为真——这是全链路唯一见客的动作留下的痕迹 */
   applied: boolean
+  /** 应用过、但又被「一键全部回滚」退回组装前那一版；applied 此时已是 false，这一列负责说明它去哪了 */
+  rolledBack: boolean
 }
 
 /** 出价回执。aiEnabled 为 false 时那串数字不是「能花的钱」，notice 才是结论 */
@@ -91,23 +93,26 @@ export interface AssembleJobView {
 }
 
 /**
- * 草稿行的四种落点。界面对它们说不同的话，是因为「这一页没动过」和「这一页白烧了 token」
+ * 草稿行的五种落点。界面对它们说不同的话，是因为「这一页没动过」和「这一页白烧了 token」
  * 是两种要交代的账：
  * - no-draft：压根没产出草稿（页面在站点上找不到、或整轮被拒），钱没花在这一页上；
  * - rejected：草稿在但门禁不让用，error 里是后端的中文原因；
- * - applied：已经由本任务应用过，访客能看到，也在 rollback-all 的射程里；
+ * - applied：已经由本任务应用过且还挂着，访客能看到，也在 rollback-all 的射程里；
+ * - rolled-back：应用过，但已经被回滚退回到组装前那一版了——不是「没应用过」，钱花过、内容退回了，
+ *   这一档不许点应用（后端会按「草稿基于的那一版已不是当前版本」拒绝，见 PORTAL_DRAFT_ROLLED_BACK）；
  * - applicable：唯一允许点「应用这一页」的状态。
  *
  * 返回的是英文标识，中文说法配在界面里；后端词表（status→中文）不在这儿，也不该在这儿。
  */
-export type AssembleDraftState = 'no-draft' | 'rejected' | 'applied' | 'applicable'
+export type AssembleDraftState = 'no-draft' | 'rejected' | 'applied' | 'rolled-back' | 'applicable'
 
 export function draftRowState(
-  row: Pick<AssembleDraftRow, 'draftId' | 'rejected' | 'applied'>
+  row: Pick<AssembleDraftRow, 'draftId' | 'rejected' | 'applied' | 'rolledBack'>
 ): AssembleDraftState {
   if (row.draftId === null) return 'no-draft'
   if (row.rejected) return 'rejected'
   if (row.applied) return 'applied'
+  if (row.rolledBack) return 'rolled-back'
   return 'applicable'
 }
 

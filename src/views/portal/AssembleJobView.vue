@@ -291,6 +291,7 @@ const DRAFT_STATE_TEXT: Record<AssembleDraftState, string> = {
   'no-draft': '没产出草稿',
   rejected: '被门禁拒',
   applied: '已应用',
+  'rolled-back': '已回滚',
   applicable: '可应用'
 }
 
@@ -298,6 +299,7 @@ const DRAFT_STATE_COLOR: Record<AssembleDraftState, string> = {
   'no-draft': 'default',
   rejected: 'orange',
   applied: 'green',
+  'rolled-back': 'purple',
   applicable: 'blue'
 }
 
