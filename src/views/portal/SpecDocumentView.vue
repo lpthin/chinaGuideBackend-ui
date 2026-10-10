@@ -67,6 +67,7 @@
 
           <div class="spec-page__actions">
             <a-button @click="load">重新读取</a-button>
+            <a-button @click="diffOpen = true">版本对比</a-button>
             <a-tooltip :title="draftTip">
               <a-button :disabled="!canWrite || busy" :loading="drafting" @click="askDraft">
                 AI 出初稿
@@ -122,6 +123,14 @@
         </div>
       </template>
     </a-card>
+
+    <a-drawer v-model:open="diffOpen" title="说明书版本对比" placement="right" :width="960">
+      <p class="spec-page__muted">
+        存档只在人点「确认」那一刻落：草稿的中间态不存，所以这里能看到的每一版都是签过字的。
+        右边那一栏默认是主表当前全文，含还没签字的改动。
+      </p>
+      <SpecVersionDiff v-if="diffOpen && briefId !== null" :brief-id="briefId" />
+    </a-drawer>
   </div>
 </template>
 
@@ -130,6 +139,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Modal, message } from 'ant-design-vue'
 import { siteSpecApi, type SpecDocumentView, type SpecSection } from '../../api/siteSpec'
+import SpecVersionDiff from './SpecVersionDiff.vue'
 import { useAuthStore } from '../../stores/auth'
 
 /**
@@ -156,6 +166,8 @@ const denied = ref('')
 /** 人动过但还没存的段：按 key 记，保存成功后由后端回包清掉 */
 const touched = ref<string[]>([])
 const drafts = reactive<Record<string, string>>({})
+/** 版本对比那一屏每次点开都重新挂载：它读的是历史表，与七段草稿是不是脏了没关系，不该长期驻留 */
+const diffOpen = ref(false)
 
 /** 需求单号：路由参数（详情页跳过来带的就是它），地址里可独立打开，也兼容按 query 传 */
 const briefId = computed<number | null>(() => {

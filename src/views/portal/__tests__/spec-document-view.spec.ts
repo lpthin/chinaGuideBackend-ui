@@ -37,7 +37,14 @@ vi.mock('../../../api/siteSpec', async importOriginal => {
   const actual = await importOriginal<typeof import('../../../api/siteSpec')>()
   return {
     ...actual,
-    siteSpecApi: { read: vi.fn(), saveSection: vi.fn(), draft: vi.fn(), confirm: vi.fn() }
+    siteSpecApi: {
+      read: vi.fn(),
+      saveSection: vi.fn(),
+      draft: vi.fn(),
+      confirm: vi.fn(),
+      versions: vi.fn(),
+      diff: vi.fn()
+    }
   }
 })
 
@@ -117,6 +124,7 @@ function mounted() {
         'a-descriptions-item': PASS_THROUGH('a-descriptions-item'),
         'a-tooltip': PASS_THROUGH('a-tooltip'),
         'a-button': Button,
+        'a-drawer': PASS_THROUGH('a-drawer'),
         'a-textarea': TEXTAREA_STUB
       }
     }
@@ -227,6 +235,21 @@ describe('进页面只读，写口都由人点', () => {
     expect(bodyText()).toContain('没有 site_spec:edit')
     expect(bodyText()).not.toContain('说明书没读到')
     expect(bodyText()).not.toContain('还没有说明书')
+    // 版本对比那颗钮也不摆：它读的是同一族口，缺写码的人连读都不给读
+    expect(buttonThat('版本对比')).toBeUndefined()
+    expect(siteSpecApi.versions).not.toHaveBeenCalled()
+  })
+
+  it('进页面不读版本目录：那是人点「版本对比」才要的那一屏', async () => {
+    mounted()
+    await flushPromises()
+
+    expect(siteSpecApi.versions).not.toHaveBeenCalled()
+
+    await click(buttonThat('版本对比'))
+
+    expect(siteSpecApi.versions).toHaveBeenCalledTimes(1)
+    expect(siteSpecApi.versions).toHaveBeenCalledWith(12)
   })
 })
 
