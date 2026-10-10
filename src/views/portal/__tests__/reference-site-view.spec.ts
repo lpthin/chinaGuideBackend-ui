@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { Button, message } from 'ant-design-vue'
 import ReferenceSiteView from '../ReferenceSiteView.vue'
@@ -176,6 +176,15 @@ const TOOLTIP_STUB = {
   template: '<div class="a-tooltip-stub"><span class="tooltip-title">{{ title }}</span><slot /></div>'
 }
 
+/**
+ * 挂过的壳记账，用例结束统一拆。
+ *
+ * <p>抽屉里那两根进度轮询是 setInterval，只要壳还活着它就照着当前那份 mock 去读 get/映射/积压清单。
+ * 上一条用例没拆壳时，这些到点的轮询会落进下一条用例的计数里——「这一次拉了几回」就变成看调度：
+ * 单跑一个文件全绿，整仓并行跑才红（M-P6 收口那次先在全量里撞到）。</p>
+ */
+const mountedWrappers: any[] = []
+
 async function mountView() {
   const wrapper = mount(ReferenceSiteView, {
     attachTo: document.body,
@@ -218,6 +227,7 @@ async function mountView() {
     }
   })
   await flushPromises()
+  mountedWrappers.push(wrapper)
   return wrapper
 }
 
@@ -464,6 +474,13 @@ beforeEach(() => {
   vi.mocked(portalReferenceApi.templatePackage).mockResolvedValue(templatePackage() as any)
 })
 
+afterEach(() => {
+  // 拆壳才会停抽屉那两根轮询；上面 beforeEach 清空 body 只是抹了 DOM，抹不掉定时器
+  while (mountedWrappers.length) {
+    mountedWrappers.pop()?.unmount()
+  }
+})
+
 describe('ReferenceSiteView 消费词表（不抄第二份）', () => {
   it('路由清单每一行的版面/来源/抓取状态念的是 /vocabularies 那份中文', async () => {
     const wrapper = await mountView()
@@ -563,7 +580,6 @@ describe('两步走：先列清单，勾完再抓', () => {
     expect(wrapper.text()).not.toContain('路由发现完成')
     // 受理回执里状态还是排队中：界面不许自己把它推成别的
     expect(wrapper.text()).toContain('排队中')
-    wrapper.unmount()
   })
 
   it('补录一条路由只往清单里加一行，不带抓取', async () => {
@@ -830,7 +846,6 @@ describe('暂未对上那一栏的「沉淀为组件」', () => {
     expect(portalReferenceApi.promote).toHaveBeenCalledWith(3, 9)
     // 两个参数就是全部：这一口没有请求体（那条口子与组件库新建抽屉重复，还会绕过那边校验）
     expect(vi.mocked(portalReferenceApi.promote).mock.calls[0]).toHaveLength(2)
-    wrapper.unmount()
   })
 
   it('地址写的就是「这个任务的这一行」，且真的不带请求体', async () => {
@@ -879,7 +894,6 @@ describe('暂未对上那一栏的「沉淀为组件」', () => {
       '这一行已经沉淀成组件「card-21fa426f」了，去组件库看它，别再建一个同形的'
     )
     expect(succeeded).not.toHaveBeenCalled()
-    wrapper.unmount()
   })
 
   it('成功那句只说「草稿」，不替人宣布它能用了；说完重拉一次清单，让那一行自己变成回指', async () => {
@@ -898,7 +912,6 @@ describe('暂未对上那一栏的「沉淀为组件」', () => {
     expect(toast).not.toContain('已可用于搭建')
     // 回指来自后端那一列，不是界面在这儿自己记一笔：所以点完必须重读清单
     expect(portalReferenceApi.unmatchedGroups).toHaveBeenCalledTimes(2)
-    wrapper.unmount()
   })
 
   it('一行按下去只发一次：还没回来之前那一行的按钮先转圈，不给人连点出两个同形组件', async () => {
@@ -916,7 +929,6 @@ describe('暂未对上那一栏的「沉淀为组件」', () => {
 
     release({ blockKey: 'card-9bb2c1' })
     await flushPromises()
-    wrapper.unmount()
   })
 })
 
@@ -1051,7 +1063,6 @@ describe('底数据按码取：缺 manage 就不发那两个口', () => {
     // 缺码只影响那两个下拉：任务列表这一半该照常拉，且一个 error 提示都不该弹出来
     expect(portalReferenceApi.list).toHaveBeenCalledTimes(1)
     expect(alerts(wrapper, 'error')).toHaveLength(0)
-    wrapper.unmount()
   })
 })
 
