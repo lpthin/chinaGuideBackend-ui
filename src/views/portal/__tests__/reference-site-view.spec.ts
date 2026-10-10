@@ -1054,3 +1054,42 @@ describe('底数据按码取：缺 manage 就不发那两个口', () => {
     wrapper.unmount()
   })
 })
+
+/**
+ * 拆出去的那几份组件：setup 里的名字不许和 prop 同名。
+ *
+ * <p>这一条是现场真跑逼出来的。抽屉壳写 `:open="open"` 传 prop，内部又有一个用来打开任务的
+ * `function open(id)`——`<script setup>` 的模板解析先看 setup 再看 props，于是 `:open` 绑上的是那个
+ * 函数（恒真），抽屉一挂上就永远开着，把列表页那颗「新建摄取任务」整个盖住。单测全绿、vue-tsc 也绿：
+ * 全局桩件把 a-drawer 换成了一个不带 open 语义的 div，这类只影响真 DOM 的遮蔽它查不出来。</p>
+ */
+describe('抽屉与四栏的 prop 名不许被同名函数/变量盖掉', () => {
+  it('每份组件的 defineProps 键名，与它 setup 顶层声明的名字，一个都不许重叠', () => {
+    // import.meta.glob 的参数必须是字面量，所以两处各写一次
+    const drawer = import.meta.glob('../ReferenceTaskDrawer.vue', {
+      eager: true,
+      query: '?raw',
+      import: 'default'
+    }) as Record<string, string>
+    const tabs = import.meta.glob('../reference/*.vue', {
+      eager: true,
+      query: '?raw',
+      import: 'default'
+    }) as Record<string, string>
+    const sources = { ...drawer, ...tabs }
+    expect(Object.keys(sources)).toHaveLength(5)
+
+    for (const [file, source] of Object.entries(sources)) {
+      const propsBlock = source.match(/defineProps<\{([\s\S]*?)\n\}>\(\)/)
+      if (!propsBlock) continue
+      const propNames = [...propsBlock[1].matchAll(/^\s{2}(\w+)\??\s*:/gm)].map(m => m[1])
+      expect(propNames.length).toBeGreaterThan(0)
+      const script = source.slice(source.indexOf('<script setup'))
+      const declared = [...script.matchAll(/^(?:async )?function (\w+)|^(?:const|let) (\w+)\s*[=:(]/gm)].map(
+        m => m[1] || m[2]
+      )
+      const collisions = propNames.filter(name => declared.includes(name))
+      expect(collisions, `${file}：${collisions.join('、')} 与 prop 同名，模板里那个名字会绑到 setup 这一份`).toEqual([])
+    }
+  })
+})

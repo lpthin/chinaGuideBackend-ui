@@ -48,7 +48,14 @@ describe('themePresetsApi', () => {
     const views = readRaw(
       import.meta.glob('../../views/portal/*.vue', { eager: true, query: '?raw', import: 'default' }) as Record<string, string>
     )
-    expect(views).not.toMatch(/colorPrimary|colorBg|colorText|colorMuted|sectionMaxWidth|fontScale|spacingScale/)
+    // 拆成子组件的那几栏同样在搭建器这一棵树下：只扫 views/portal/ 一层，谁把键名抄进子组件就正好躲过这条闸
+    const tabViews = readRaw(
+      import.meta.glob('../../views/portal/reference/*.vue', { eager: true, query: '?raw', import: 'default' }) as Record<
+        string,
+        string
+      >
+    )
+    expect(views + tabViews).not.toMatch(/colorPrimary|colorBg|colorText|colorMuted|sectionMaxWidth|fontScale|spacingScale/)
     // 而搭建器确实去问服务端要清单——「接口有了」和「前端取了」是两件事，历史上只有前者成立过
     const builder = readRaw(
       import.meta.glob('../../views/portal/PageBuilderView.vue', { eager: true, query: '?raw', import: 'default' }) as Record<

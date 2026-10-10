@@ -69,15 +69,26 @@ describe('portalReferenceApi', () => {
     // 页数上限同理：那一头是后端 clamp，这一头只许有一个常量，用它的地方一律引常量。
     // 界面写死 :max="12" 的表现是后端放宽上限后这里还在拦人，而且没人知道是谁拦的。
     expect([...source.matchAll(/^\s*export const REFERENCE_MAX_PAGES_LIMIT = \d+$/gm)]).toHaveLength(1)
-    const view = import.meta.glob('../../views/portal/ReferenceSiteView.vue', {
+    // 视图在 2026-10-10 拆成了「列表壳 + 任务抽屉 + 四栏」，所以这一发要把拆出去的每一页都扫到：
+    // 只扫壳子的话，谁把上限写死在某一栏里，这条闸就正好漏掉那一处。
+    // glob 的参数必须是字面量，所以两处各写一次，不封装成函数。
+    const shellSource = Object.values(
+      import.meta.glob('../../views/portal/Reference*.vue', { eager: true, query: '?raw', import: 'default' }) as Record<
+        string,
+        string
+      >
+    ).join('')
+    const tabFiles = import.meta.glob('../../views/portal/reference/*.vue', {
       eager: true,
       query: '?raw',
       import: 'default'
     }) as Record<string, string>
-    const viewSource = Object.values(view).join('')
+    const viewSource = shellSource + Object.values(tabFiles).join('')
     expect(viewSource).toMatch(/:max="maxPagesLimit"/)
     expect(viewSource).not.toMatch(/:max="12"/)
     expect(viewSource).not.toMatch(/1–12/)
+    // 拆出去的每一栏都得真的在扫描范围里：闸扫的是「扫到了几份」，少一个文件它就一直空转
+    expect(Object.keys(tabFiles)).toHaveLength(4)
   })
 
   it('依赖体检是一个只读快照：不带 tenantId 时把参数留空，让后端按平台探', async () => {

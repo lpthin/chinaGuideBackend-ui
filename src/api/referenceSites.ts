@@ -335,6 +335,36 @@ export function referenceIsRunning(status: string | null | undefined): boolean {
   return !!status && REFERENCE_IN_FLIGHT.includes(status)
 }
 
+/**
+ * 状态与抓取状态的颜色。判据用后端字面量，中文标签一律从 /statuses 与 /vocabularies 读：
+ * 词表会跟着后端变，颜色不会（这是表现层，不是第二份词表）。
+ *
+ * <p>放在 api 这一层而不是视图里：拆分后列表页与抽屉两侧都要染同一个状态色，
+ * 视图各写一份的话，改一处漏一处的那一格就会变成「同一个状态在两个地方两种颜色」。</p>
+ */
+export function referenceStatusColor(status: string | null | undefined): string {
+  if (status === 'done') return 'green'
+  if (status === 'failed') return 'red'
+  if (status === 'needs_human') return 'orange'
+  if (status && referenceIsRunning(status)) return 'blue'
+  return 'default'
+}
+
+export function referenceCrawlStateColor(state: string | null | undefined): string {
+  if (state === 'ok') return 'green'
+  if (state === 'not_found' || state === 'blocked') return 'red'
+  if (state === 'discovered') return 'blue'
+  return 'default'
+}
+
+/**
+ * 真缺口类数：这一趟没对上任何区块的那些。标签页上的数字与那一栏的说明共用它，
+ * 不用行数、也不用归并后的总类数（见视图里那段关于第三家参考站的注释）。
+ */
+export function unmatchedTrueGapCountOf(groups: UnmatchedGroup[]): number {
+  return groups.filter(group => !group.capabilityKnown).length
+}
+
 export const portalReferenceApi = {
   statusLabels: () => http.get<Record<string, string>>('/portal/reference-sites/statuses'),
 
