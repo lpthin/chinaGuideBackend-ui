@@ -1,8 +1,8 @@
 <template>
   <div class="spec-page">
+    <!-- 标题只认路由 meta.title 那一份：菜单与页面同字，不靠这一页自己抄（Spec-M UIB-3） -->
+    <PageTitle />
     <a-card size="small" class="spec-page__head">
-      <template #title>建站说明书</template>
-
       <p class="spec-page__lead">
         这份文档是后面 AI 出方案时读的那一份：七段由超管逐段写或先让 AI 出一版，
         <strong>点了「确认」之后才会被拿去生成</strong>。需求单上的勾选怎么改都不动这里已经写下的字。
@@ -140,6 +140,7 @@ import { useRoute } from 'vue-router'
 import { Modal, message } from 'ant-design-vue'
 import { siteSpecApi, type SpecDocumentView, type SpecSection } from '../../api/siteSpec'
 import SpecVersionDiff from './SpecVersionDiff.vue'
+import PageTitle from '../../components/PageTitle.vue'
 import { useAuthStore } from '../../stores/auth'
 
 /**

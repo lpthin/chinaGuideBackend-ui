@@ -1,5 +1,6 @@
 <template>
   <div class="skeleton-library">
+    <PageTitle />
     <a-alert type="info" show-icon class="skeleton-library__notice">
       <template #message>
         骨架是站点的「出生证明」：一套骨架 = 一组页面 + 导航顺序 + 默认皮肤，
@@ -276,6 +277,7 @@
 import '@/styles/portal-preview.less'
 import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import PageTitle from '../../components/PageTitle.vue'
 import { portalPagesApi, type PortalBlockMeta } from '../../api/portalPages'
 import {
   portalSkeletonsApi,

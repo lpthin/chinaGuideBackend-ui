@@ -25,7 +25,8 @@ vi.mock('../../../api/http', () => ({
 
 const routeState = vi.hoisted(() => ({ params: { brief: '12' } as Record<string, string> }))
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: routeState.params, query: {} })
+  // meta 也要给：页面第一行标题读的是 route.meta.title（PageTitle），桩件缺这一格会把页面渲崩
+  useRoute: () => ({ params: routeState.params, query: {}, meta: { title: '建站说明书' } })
 }))
 
 const authState = vi.hoisted(() => ({ permissions: ['site_spec:edit', 'site_spec:confirm'] as string[] }))

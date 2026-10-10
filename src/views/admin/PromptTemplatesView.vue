@@ -1,8 +1,9 @@
 <template>
   <div class="prompt-page">
+    <!-- 标题只认路由 meta.title 那一份：从前卡片写着「平台提示词」、菜单写着「建站提示词」，
+         同一条链路两个名字（Spec-M UIB-3）。 -->
+    <PageTitle />
     <a-card size="small" class="prompt-page__head">
-      <template #title>平台提示词</template>
-
       <p class="prompt-page__lead">
         这一页改的是<em>平台默认</em>那一份：保存之后，所有租户后面每一单的这一步读到的都是改后的措辞。
         某一站自己盖过的行不跟着变——右栏下面那一栏就是「现在谁还盖着」。
@@ -193,6 +194,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Modal, message } from 'ant-design-vue'
+import PageTitle from '../../components/PageTitle.vue'
 import {
   platformPromptApi,
   type PlatformPromptDetail,

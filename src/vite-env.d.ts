@@ -3,8 +3,9 @@
 declare module '*.css'
 
 /**
- * 测试侧「按磁盘扫源码」的最小口子（唯一消费者：header-scroll-state.spec——
- * vite 的 CSS 插件会把 `.less?raw` 变成空串，那份证据读不得，只能从盘上读，见该文件的说明）。
+ * 测试侧「按磁盘扫源码」的最小口子（消费者都是单测：header-scroll-state.spec、theme.spec、
+ * build-page-titles.spec——vite 的 CSS 插件会把 `.less?raw` 变成空串，那份证据读不得，
+ * 只能从盘上读，见 header-scroll-state.spec 的说明）。
  * 这一档不引 @types/node：不为一个源码扫描用例挂整棵依赖树（I 系列的老纪律同样管工具链）。
  * 应用运行时代码一个都不许用这三个——浏览器里没有它们。
  */

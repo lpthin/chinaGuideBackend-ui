@@ -1,5 +1,6 @@
 <template>
   <div class="theme-preset-page">
+    <PageTitle />
     <a-form layout="inline" class="theme-preset-page__filter">
       <a-form-item class="toolbar-actions">
         <a-space>
@@ -238,6 +239,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
+import PageTitle from '../../components/PageTitle.vue'
 import { themePresetsApi, type ThemePreset } from '../../api/themePresets'
 import { portalPagesApi, type PortalPage } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'

@@ -1,5 +1,6 @@
 <template>
   <div class="block-library">
+    <PageTitle />
     <a-alert type="info" show-icon class="block-library__notice">
       <template #message>
         这里是平台侧的组件库。每一格用的都是<strong>访客端同一套渲染器</strong>，演示槽位是按区块自己的
@@ -180,6 +181,7 @@ import '@/styles/portal-preview.less'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import FilterBar from '../../components/FilterBar.vue'
+import PageTitle from '../../components/PageTitle.vue'
 import { blockDefsApi, type BlockDefRow } from '../../api/blockDefs'
 import type { PortalBlockMeta } from '../../api/portalPages'
 import { demoPropsFor, demoShell } from '../../portal/blocks/blockDemo'

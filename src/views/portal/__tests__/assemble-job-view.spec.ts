@@ -73,7 +73,8 @@ vi.mock('../../../api/workspace', () => ({ siteApi: { list: vi.fn() } }))
 const { routeQuery } = vi.hoisted(() => ({ routeQuery: { current: {} as Record<string, string> } }))
 vi.mock('vue-router', async importOriginal => {
   const actual = await importOriginal<Record<string, any>>()
-  return { ...actual, useRoute: () => ({ query: routeQuery.current, params: {} }) }
+  // meta 也要给：页面第一行标题读的是 route.meta.title（PageTitle），桩件缺这一格会把页面渲崩
+  return { ...actual, useRoute: () => ({ query: routeQuery.current, params: {}, meta: { title: '整站组装' } }) }
 })
 
 // 这一页按 portal:build:assemble 放行，但底数据分属 manage / preset / reference 三个码；

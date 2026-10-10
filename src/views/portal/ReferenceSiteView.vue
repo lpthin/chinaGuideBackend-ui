@@ -1,5 +1,6 @@
 <template>
   <div class="reference-site-page">
+    <PageTitle />
     <a-form layout="inline" class="reference-site-page__filter">
       <a-form-item label="状态">
         <a-select
@@ -126,6 +127,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { LoadingOutlined } from '@ant-design/icons-vue'
+import PageTitle from '../../components/PageTitle.vue'
 import ReferenceTaskDrawer from './ReferenceTaskDrawer.vue'
 import {
   portalReferenceApi,

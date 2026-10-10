@@ -1,5 +1,7 @@
 <template>
   <div class="assemble-job-page">
+    <!-- 标题只认路由 meta.title 那一份（Spec-M UIB-3）：这一页从前一进来只有三块编号卡，没有人知道自己站在哪 -->
+    <PageTitle />
     <a-alert type="info" show-icon class="assemble-job-page__notice">
       <template #message>
         AI 整站组装要跑两步模型（整站规划 + 逐页文案），{{ costOwnerLine }}，
@@ -271,6 +273,7 @@ import { siteApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * AI 整站组装任务视图（Spec §6.3，Q3；N4：只有平台能发起）。

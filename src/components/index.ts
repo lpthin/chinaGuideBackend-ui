@@ -3,6 +3,7 @@ export { default as TenantSelect } from './TenantSelect.vue'
 export { default as TenantSwitcher } from './TenantSwitcher.vue'
 // P0 底座九件套（Spec-F §9.2）
 export { default as PageShell } from './PageShell.vue'
+export { default as PageTitle } from './PageTitle.vue'
 export { default as FilterBar } from './FilterBar.vue'
 export { default as DataTable } from './DataTable.vue'
 export { default as StateBlock } from './StateBlock.vue'
