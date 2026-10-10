@@ -4,7 +4,7 @@
       <a-form-item class="toolbar-actions">
         <a-space>
           <a-button :loading="loading" @click="load">刷新</a-button>
-          <a-button v-if="canManage" @click="openSaveSkin">把页面样式沉淀为皮肤</a-button>
+          <a-button v-if="canPreset" @click="openSaveSkin">把页面样式沉淀为皮肤</a-button>
           <a-button v-if="canPromote" type="primary" @click="openPromote">沉淀为平台模板</a-button>
         </a-space>
       </a-form-item>
@@ -69,9 +69,9 @@
         <template v-else-if="column.key === 'createdAt'">{{ formatDateTime(record.createdAt) }}</template>
         <template v-else-if="column.key === 'op'">
           <a-space size="4">
-            <a-button v-if="canManage" size="small" type="link" @click="openApply(record)">应用到页面</a-button>
+            <a-button v-if="canPreset" size="small" type="link" @click="openApply(record)">应用到页面</a-button>
             <a-button
-              v-if="canManage && record.isPlatform"
+              v-if="canPreset && record.isPlatform"
               size="small"
               type="link"
               @click="openInstantiate(record)"
@@ -79,7 +79,7 @@
               用此模板建页
             </a-button>
             <a-popconfirm
-              v-if="canManage"
+              v-if="canPreset"
               :title="record.isPlatform ? '删除平台模板会影响所有租户，确认删除？' : '确认删除这份沉淀？'"
               @confirm="removePreset(record.id)"
             >
@@ -258,7 +258,15 @@ import { useAuthStore } from '../../stores/auth'
  */
 
 const auth = useAuthStore()
-const canManage = computed(() => auth.hasPermission('portal:build:preset'))
+/**
+ * 四枚码各管一件事，名字一律跟着码走（原来这一枚叫 canManage，而 manage 在这一族里是另一枚码的名字，
+ * 读的人只能靠猜）。这一页的路由守卫就是下面这一枚，所以缺它的人根本进不来：
+ * - `portal:build:preset`：套皮肤、存皮肤、平台模板的删除与停用（与路由守卫同码）
+ * - `portal:template:promote`：沉淀成平台资产，独立一枚，V81 起就是它
+ * - `portal:build:manage`：站点清单那一个下拉
+ * - `portal:page:manage`：页面下拉，Q-P7-3 之后与 build:manage 分家
+ */
+const canPreset = computed(() => auth.hasPermission('portal:build:preset'))
 const canPromote = computed(() => auth.hasPermission('portal:template:promote'))
 const canBuild = computed(() => auth.hasPermission('portal:build:manage'))
 /** 页面下拉只是读清单：Q-P7-3 之后读页挂 portal:page:manage，与 build:manage（站点清单那棵）分家 */
