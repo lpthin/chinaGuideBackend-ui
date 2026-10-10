@@ -1,4 +1,5 @@
 import http from './http';
+import type { SectionState } from './portalSections';
 
 /**
  * 前采需求单与词表（Spec「建站流程重构」§4.1 / §5 / I-1）。
@@ -212,7 +213,20 @@ export const siteBriefsApi = {
 
   /** 右侧「AI 将理解的这段话」的唯一来源：零模型调用，纯后端确定性渲染 */
   summaryPreview: (form: SiteBriefForm) =>
-    http.post<{ requirementsSummary: string }>('/admin/site-briefs/summary-preview', form)
+    http.post<{ requirementsSummary: string }>('/admin/site-briefs/summary-preview', form),
+
+  /**
+   * 录入页「这一页属于哪个栏目」的那份词表（形状复用 `portalSections.ts` 的 `SectionState`，
+   * 栏目这件事的接口面仍然只有一处）。
+   *
+   * <p>不取租户侧的 `/portal/sections`：那一口按登录上下文解析租户，超管没在右上角选租户时
+   * 回 `TENANT_REQUIRED`，于是录单页一进来就红一句「请先选择租户」——而这一单的租户在单上写着。
+   * 传 briefId 时后端按这一单绑的站点回覆盖态，没绑站点（或不传）回的是纯词表默认，不是空列表。</p>
+   */
+  sectionCatalogue: (briefId?: number | null) =>
+    http.get<SectionState[]>('/admin/site-briefs/section-catalogue', {
+      params: { briefId: briefId ?? undefined }
+    })
 };
 
 export const vocabularyApi = {
@@ -474,8 +488,8 @@ export function briefAnswerRows(
 }
 
 /**
- * 演示内容档位的中文（含拍板 7 那句「几篇文章几条案例」的数量口径）：
- * 只取词表 `demoContentModes`，查不到就露码 + 一句原话。
+ * 演示内容档位的中文：只取词表 `demoContentModes.label` 那一句原话，查不到就露码。
+ * 数量口径（几篇文章几条案例）由后端写在这一句话里，这里不再拼第二遍。
  */
 export function briefDemoModeText(
   vocabulary: SiteBriefVocabulary | null,
@@ -483,7 +497,7 @@ export function briefDemoModeText(
 ): string {
   if (!mode) return '没填（保存时由后端按系统默认档落）';
   const found = (vocabulary?.demoContentModes ?? []).find(entry => entry.value === mode);
-  return found ? `${found.label}（文章 ${found.articleCount} 篇 / 案例 ${found.caseCount} 条）` : mode;
+  return found ? found.label : mode;
 }
 
 /**

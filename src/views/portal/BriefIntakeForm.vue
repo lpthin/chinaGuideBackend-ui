@@ -27,7 +27,7 @@ import {
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
 import { portalPagesApi, type PortalBlockMeta } from '@/api/portalPages'
-import { portalSectionsApi, type SectionState } from '@/api/portalSections'
+import type { SectionState } from '@/api/portalSections'
 import { siteApi, tenantApi } from '@/api/workspace'
 import type { Tenant } from '@/types/workspace'
 
@@ -92,10 +92,12 @@ const vocabularyFailed = ref(false)
 
 const questions = computed<BriefVocabularyQuestion[]>(() => intakeLoopQuestions(vocabulary.value))
 const candidateMax = computed(() => vocabulary.value?.candidateMaxCount ?? 1)
+// 文案一个字都不在这里加工：后端词表的 label 本身就带着「几篇文章几条案例」，
+// 这里再拼一遍就是同一句摆两遍（现场量到「完整演示内容（10 篇文章 + 3 条案例）（文章 10 篇 / 案例 3 条）」）。
 const demoModeOptions = computed(() =>
   (vocabulary.value?.demoContentModes ?? []).map(mode => ({
     value: mode.value,
-    label: `${mode.label}（文章 ${mode.articleCount} 篇 / 案例 ${mode.caseCount} 条）`
+    label: mode.label
   }))
 )
 
@@ -635,13 +637,20 @@ async function loadBlocks() {
   }
 }
 
+/**
+ * 栏目词表：走需求单侧那一个口，不碰租户侧的 `/portal/sections`。
+ *
+ * <p>后者按登录上下文解析租户，超管没在右上角选租户时回 `TENANT_REQUIRED`，于是这一页一进来
+ * 就甩一句红色「请先选择租户」——可这一单的租户就写在单上，右上角那颗切换器跟录单无关。
+ * 失败也只留在原地说明（下面那一行「栏目词表没取到」+ 重取按钮），不再弹 toast：
+ * 同一件事喊两遍只会让人以为按坏了。</p>
+ */
 async function loadSections() {
   sectionsFailed.value = false
   try {
-    sectionStates.value = (await portalSectionsApi.list()) || []
-  } catch (error) {
+    sectionStates.value = (await siteBriefsApi.sectionCatalogue(briefId.value)) || []
+  } catch {
     sectionsFailed.value = true
-    message.error(errText(error))
   }
 }
 
@@ -791,7 +800,7 @@ async function boot() {
   booting.value = true
   const id = routeBriefId()
   // 三份目录并行取：词表决定渲什么题，区块目录与栏目词表只喂那两个编辑器
-  await Promise.all([loadTenants(), loadSites(), loadBlocks(), loadSections()])
+  await Promise.all([loadTenants(), loadSites(), loadBlocks()])
   if (id === null) {
     const fromQuery = routeTenantId()
     if (fromQuery !== null) {
@@ -804,6 +813,8 @@ async function boot() {
   await loadVocabulary()
   activeSection.value = sectionAnchors.value[0]?.code || ''
   if (id !== null) await loadBrief(id)
+  // 栏目词表排在取单之后：绑了站点的单要按那一单的站点回覆盖态，先取就只能拿到纯词表默认
+  await loadSections()
   ensureShape()
   await nextTick()
   booting.value = false
@@ -830,6 +841,8 @@ watch(() => [props.briefId, props.tenantId], async () => {
   }
   if (id !== null) await loadBrief(id)
   else ensureShape()
+  // 换一单＝换一份栏目词表：绑没绑站点决定这一份是覆盖态还是纯词表
+  await loadSections()
   activeSection.value = sectionAnchors.value[0]?.code || ''
   await nextTick()
   booting.value = false
@@ -892,11 +905,14 @@ onMounted(boot)
           @update:value="onCandidateInput"
         />
         <span class="brief-intake__profile-label">演示内容档位</span>
+        <!-- 宽度按内容长，不写死像素：整句档位名（连词表自带的「几篇文章几条案例」）都由后端下发，
+             写死宽度在词表加长时就会裁字（现场量到裁 16px）。下拉面板同理由内容定宽。 -->
         <a-select
           :value="form.demoContentMode || undefined"
           :options="demoModeOptions"
           :placeholder="vocabularyFailed ? '词表没取到，刷新重试' : '哪一档'"
-          style="width: 280px"
+          :dropdown-match-select-width="false"
+          class="brief-intake__demo-mode"
           @update:value="onModeChange"
         />
       </a-space>
@@ -1277,6 +1293,12 @@ onMounted(boot)
   color: #111827;
   font-size: 13px;
   font-weight: 600;
+}
+/* 档位那一行只有下限没有上限：宽度跟着词表里那条最长的人话走，
+   写成定值就等于把「词表改了界面就裁字」这一条重新装回去 */
+.brief-intake__demo-mode {
+  width: fit-content;
+  min-width: 140px;
 }
 .brief-intake__alert {
   margin-bottom: 16px;

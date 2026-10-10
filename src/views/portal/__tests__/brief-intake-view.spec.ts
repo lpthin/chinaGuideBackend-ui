@@ -20,6 +20,7 @@ import { siteApi, tenantApi } from '../../../api/workspace'
 import { portalPagesApi } from '../../../api/portalPages'
 import { portalSectionsApi } from '../../../api/portalSections'
 
+
 /**
  * 前采录入页的交互契约（Spec-C §4.1 的老三条 + Spec-D D1 的新五条）。
  *
@@ -74,7 +75,8 @@ vi.mock('../../../api/siteBriefs', async (importOriginal) => {
       get: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
-      summaryPreview: vi.fn()
+      summaryPreview: vi.fn(),
+      sectionCatalogue: vi.fn()
     },
     vocabularyApi: { adminVocabulary: vi.fn(), portalVocabulary: vi.fn() }
   }
@@ -115,10 +117,11 @@ const VOCAB = {
     { key: 'q_odd', label: '题目新形态', evidence: '不认识就退回输入框', select: 'slider', required: false, options: [] }
   ],
   candidateMaxCount: 3,
+  // 三档的 label 照后端 SiteBriefVocabulary 的真形状抄：数量口径本来就写在这一句话里
   demoContentModes: [
-    { value: 'full', label: '整套演示', articleCount: 8, caseCount: 4 },
-    { value: 'lite', label: '少量演示', articleCount: 3, caseCount: 1 },
-    { value: 'none', label: '不带演示', articleCount: 0, caseCount: 0 }
+    { value: 'full', label: '完整演示内容（10 篇文章 + 3 条案例）', articleCount: 10, caseCount: 3 },
+    { value: 'lite', label: '精简演示（3 篇文章 + 1 条案例）', articleCount: 3, caseCount: 1 },
+    { value: 'none', label: '不生成演示内容', articleCount: 0, caseCount: 0 }
   ]
 }
 
@@ -226,13 +229,17 @@ interface Options {
   brief?: any
   blocks?: any
   sections?: any
+  sectionsError?: string
 }
 
 async function mountView(options: Options = {}) {
   vi.mocked(tenantApi.list).mockResolvedValue([{ id: 15, code: 't-a', name: '甲租户' }] as any)
   vi.mocked(siteApi.list).mockResolvedValue([{ id: 3, name: '甲站', tenantId: 15 }] as any)
   vi.mocked(portalPagesApi.blocks).mockResolvedValue(options.blocks ?? BLOCKS)
-  vi.mocked(portalSectionsApi.list).mockResolvedValue(options.sections ?? SECTIONS)
+  vi.mocked(siteBriefsApi.sectionCatalogue).mockResolvedValue(options.sections ?? SECTIONS)
+  if (options.sectionsError) {
+    vi.mocked(siteBriefsApi.sectionCatalogue).mockRejectedValueOnce(new Error(options.sectionsError))
+  }
   if (options.vocabError) {
     vi.mocked(vocabularyApi.adminVocabulary).mockRejectedValueOnce(new Error(options.vocabError))
   } else {
@@ -516,7 +523,7 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
     wrapper.unmount()
   })
 
-  it('栏目卡片来自 /portal/sections：点卡片即选，名字一个都不抄；区块候选挡掉 notWired 的与已加的', async () => {
+  it('栏目卡片来自超管那一份栏目词表：点卡片即选，名字一个都不抄；区块候选挡掉 notWired 的与已加的', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
     await gotoSection(wrapper, '结构段')
     click(byText('加一页：首页（home）')[0])
@@ -524,7 +531,7 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
     const row = wrapper.findAll('.brief-intake__page-row')[0]
 
     const cards = row.findAll('.brief-intake__section-card')
-    // 「不属于任何栏目」首卡 + 接口回来的两栏：卡片名只可能来自 /portal/sections 回包
+    // 「不属于任何栏目」首卡 + 接口回来的两栏：卡片名只可能来自那一口的回包
     expect(cards.map(node => node.text())).toEqual([
       expect.stringContaining('不属于任何栏目'),
       expect.stringContaining('案例库'),
@@ -551,6 +558,37 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
       .find(node => node.props('placeholder') === '从区块目录挑一个')!.props('options') as { label: string }[])
       .map(option => option.label)
     expect(leftLabels.join()).not.toContain('主视觉')
+    wrapper.unmount()
+  })
+
+  it('栏目词表走超管自己那一口：不打租户侧 /portal/sections，也不红一句「请先选择租户」（UIB-1）', async () => {
+    // 现场取证的形状：这一页一进来弹过一句红 toast，那是 /api/portal/sections 按登录上下文解析租户、
+    // 而超管右上角没选租户时回的 TENANT_REQUIRED。这一单自己的租户写在单上，与那颗切换器无关。
+    const wrapper = await mountView()
+    expect(siteBriefsApi.sectionCatalogue).toHaveBeenCalledTimes(1)
+    expect(portalSectionsApi.list).not.toHaveBeenCalled()
+    expect(message.error).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('栏目词表取不到时只在原地说明：不弹全局红 toast', async () => {
+    const wrapper = await mountView({ vocab: VOCAB_D1, sectionsError: 'boom' })
+    await gotoSection(wrapper, '结构段')
+    // 栏目卡片长在每一页的行编辑器里：先有一页，才谈得上「卡片只剩那一张」
+    click(byText('加一页：首页（home）')[0])
+    await flushPromises()
+    const row = wrapper.findAll('.brief-intake__page-row')[0]
+    expect(row.text()).toContain('栏目词表没取到')
+    expect(row.findAll('.brief-intake__section-card')).toHaveLength(1)
+    expect(message.error).not.toHaveBeenCalled()
+
+    // 重取那颗钮是真口：这一次拿到词表，说明行撤掉、卡片补齐
+    click(buttonIn(row.element, '重新取栏目词表')!)
+    await flushPromises()
+    expect(siteBriefsApi.sectionCatalogue).toHaveBeenCalledTimes(2)
+    const row2 = wrapper.findAll('.brief-intake__page-row')[0]
+    expect(row2.text()).not.toContain('栏目词表没取到')
+    expect(row2.findAll('.brief-intake__section-card')).toHaveLength(3)
     wrapper.unmount()
   })
 
@@ -711,6 +749,20 @@ describe('候选套数与头部三件事', () => {
     expect(payload.demoContentMode).toBe('full')
     // 新建保存成功后换到编辑地址：id 来自后端回包，不是前端猜的
     expect(replaceSpy).toHaveBeenCalledWith({ name: 'workspace-portal-brief-intake', params: { id: '55' } })
+    wrapper.unmount()
+  })
+
+  it('演示档位下拉：文案逐字等于词表 label，前端不在后面再拼一遍数量', async () => {
+    const wrapper = await mountView()
+    const modeSelect = wrapper
+      .findAllComponents(Select)
+      .find(item => ((item.props('options') ?? []) as { value: unknown }[]).some(o => o.value === 'full'))
+    // 后端那句 label 自己就带着「10 篇文章 + 3 条案例」；这里再拼一次就成了同一句话摆两遍
+    expect(modeSelect?.props('options')).toEqual([
+      { value: 'full', label: '完整演示内容（10 篇文章 + 3 条案例）' },
+      { value: 'lite', label: '精简演示（3 篇文章 + 1 条案例）' },
+      { value: 'none', label: '不生成演示内容' }
+    ])
     wrapper.unmount()
   })
 

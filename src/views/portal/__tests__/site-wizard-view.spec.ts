@@ -45,7 +45,14 @@ vi.mock('../../../api/siteBriefs', async importOriginal => {
     ...actual,
     // 第一步内嵌了前采表单：它会按单号读回那一单（向导自己不读），桩里得给它这一口，
     // 否则 loadBrief 里的 undefined 会被表单当成「那一发失败了」弹成错误
-    siteBriefsApi: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn() },
+    siteBriefsApi: {
+      list: vi.fn(),
+      get: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      // 第一步内嵌的前采表单要读那份栏目词表（UIB-1：它走超管自己这一口，不走租户侧）
+      sectionCatalogue: vi.fn().mockResolvedValue([])
+    },
     vocabularyApi: { adminVocabulary: vi.fn() },
     briefGenerationApi: { candidates: vi.fn() }
   }

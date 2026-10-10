@@ -122,7 +122,7 @@ const VOCAB = {
   questions: [],
   siteProfile: [],
   candidateMaxCount: 3,
-  demoContentModes: [{ value: 'full', label: '整套演示', articleCount: 10, caseCount: 3 }],
+  demoContentModes: [{ value: 'full', label: '整套演示（10 篇文章 + 3 条案例）', articleCount: 10, caseCount: 3 }],
   statusLabels: { awaiting_client: '等客户确认' }
 }
 
@@ -349,7 +349,9 @@ describe('配图三本账与演示内容', () => {
       progressData: [row({ siteId: 31, demoArticles: 12, demoCases: 4 })]
     })
     const text = wrapper.text()
-    expect(text).toContain('整套演示（文章 10 篇 / 案例 3 条）')
+    // 档位那一行就是词表 label 那一句原话：数量口径后端已经写在里面，前端不许再拼第二遍
+    expect(text).toContain('整套演示（10 篇文章 + 3 条案例）')
+    expect(text).not.toContain('（文章 10 篇 / 案例 3 条）')
     expect(text).toContain('实际落了文章 12 篇 / 案例 4 条')
     expect(text).toContain(DEMO_CONTENT_DISCLAIMER_TEXT)
     // 两张卡各挂一遍，不是页头挂一句就完事
