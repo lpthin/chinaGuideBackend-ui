@@ -110,9 +110,11 @@ const TABLE_STUB = defineComponent({
 
 const PASS_THROUGH = (name: string) => ({
   name,
-  props: ['title', 'message', 'type', 'description', 'label', 'span', 'column', 'bordered', 'size'],
+  props: ['title', 'message', 'type', 'description', 'label', 'span', 'column', 'bordered', 'size', 'header'],
   template: `<div class="${name}-stub"><span>{{ message }}{{ description }}</span>`
-    + '<slot name="title" /><slot name="message" /><slot /><slot name="default" /></div>'
+    + '<slot name="title" /><slot name="message" /><slot /><slot name="default" />'
+    // header 是 a-collapse-panel 那一栏的标题（「……后端原话逐字」那一句）：不渲就等于测试没读过它
+    + `<span class="fold-header">${'{{ header }}'}</span></div>`
 })
 
 function brief(overrides: Record<string, unknown> = {}) {
@@ -261,7 +263,10 @@ async function mountView(options: MountOptions = {}) {
         'a-empty': PASS_THROUGH('AEmpty'),
         'a-tooltip': PASS_THROUGH('ATooltip'),
         // 真 popconfirm 走 teleport + rAF，这里要钉的是 confirm 之后上屏的那份回执：换成把默认槽渲出来的壳
-        'a-popconfirm': PASS_THROUGH('APopconfirm')
+        'a-popconfirm': PASS_THROUGH('APopconfirm'),
+        // FoldedText 那一句人话 + 展开：桩要真把插槽与栏标题渲出来，测试才读得到「原文一个字都没丢」
+        'a-collapse': PASS_THROUGH('ACollapse'),
+        'a-collapse-panel': PASS_THROUGH('ACollapsePanel')
       }
     }
   })

@@ -101,9 +101,11 @@ vi.mock('../../../api/workspace', () => ({
 
 const PASS_THROUGH = (name: string) => ({
   name,
-  props: ['title', 'message', 'type', 'description', 'color'],
+  props: ['title', 'message', 'type', 'description', 'color', 'header'],
   template: `<div class="${name}-stub"><span>{{ message }}{{ description }}</span>`
-    + '<slot name="title" /><slot name="message" /><slot /></div>'
+    + '<slot name="title" /><slot name="message" /><slot />'
+    // header 是 a-collapse-panel 那一栏的标题（「……后端原话逐字」那一句）：不渲就等于测试没读过它
+    + `<span class="fold-header">${'{{ header }}'}</span></div>`
 })
 
 function brief(overrides: Record<string, unknown> = {}) {
@@ -221,7 +223,10 @@ async function mountView(options: MountOptions = {}) {
         'a-space': PASS_THROUGH('ASpace'),
         'a-alert': PASS_THROUGH('AAlert'),
         'a-card': PASS_THROUGH('ACard'),
-        'a-popconfirm': PASS_THROUGH('APopconfirm')
+        'a-popconfirm': PASS_THROUGH('APopconfirm'),
+        // FoldedText 那一句人话 + 展开：桩要真把插槽渲出来，测试才读得到「原文一个字都没丢」
+        'a-collapse': PASS_THROUGH('ACollapse'),
+        'a-collapse-panel': PASS_THROUGH('ACollapsePanel')
       }
     }
   })
@@ -328,8 +333,9 @@ describe('配图三本账与演示内容', () => {
     expect(text).toContain('跳过 1 张')
     // 一句都没说成「失败 1 张」：把按设计先不花这钱讲成试了没成，是两句假话
     expect(text).not.toMatch(/失败 \d+ 张/)
-    // 这一套自己的降级说明也原话列出来（后端逐条给的话）
-    expect(text).toContain('这一套的降级说明（后端原话）')
+    // 这一套自己的降级说明：默认一句人话（几条），后端逐字原话折在下面那一栏里——一个字都不丢
+    expect(text).toContain('这一套有 1 条降级说明')
+    expect(text).toContain('这一套的降级说明（后端原话逐字）')
     expect(text).toContain('图位按 §6.5 记为 skipped')
     wrapper.unmount()
   })
@@ -401,6 +407,11 @@ describe('预览链接：三态只认候选列表口的两个事实，链接只�
     expect(briefGenerationApi.previewLink).toHaveBeenCalledWith(31, expect.stringContaining('第 1 套'))
     const href = document.querySelector('a.candidate-gallery__url')!.getAttribute('href') || ''
     expect(href).toBe(`${window.location.origin}/?reviewToken=abc123`)
+    // 明文那一串单列一行、自带一句「只在这一次回执里有」：埋进按钮堆里就等于没告诉他复制哪个
+    const tokenLine = document.querySelector('.candidate-gallery__token-line')
+    expect(tokenLine).not.toBeNull()
+    expect(tokenLine!.textContent || '').toContain('这条就是发给客户的预览地址')
+    expect(tokenLine!.querySelector('a.candidate-gallery__url')!.textContent).toBe(`${window.location.origin}/?reviewToken=abc123`)
     // 明文只在回执这一次摆得出来，旁边必须跟那句「恢复不了」的原话
     expect(wrapper.text()).toContain(PREVIEW_LINK_ONCE_TEXT)
     click(byText('复制')[0])
@@ -422,7 +433,10 @@ describe('预览链接：三态只认候选列表口的两个事实，链接只�
     click(byText('发放预览地址')[0])
     await flushPromises()
     const text = wrapper.text()
-    expect(text).toContain('发放被后端拒了（原话）：站点「候选站 31」当前状态是 已归档候选')
+    // 那句原话还在，只是换了摆法：只有一句话时那一行就是全部原文（没有可折的，就不摆那一栏）
+    expect(text).toContain('站点「候选站 31」当前状态是 已归档候选')
+    expect(document.querySelectorAll('.folded-text--error').length).toBe(1)
+    expect(document.querySelectorAll('.ACollapsePanel-stub').length).toBe(0)
     expect(document.querySelectorAll('a.candidate-gallery__url').length).toBe(0)
     wrapper.unmount()
   })

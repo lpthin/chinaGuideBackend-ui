@@ -28,6 +28,8 @@ import {
   type RegenerateReceipt
 } from '@/api/siteBriefDelivery'
 import { siteApi, tenantApi } from '@/api/workspace'
+import FoldedText from '@/components/FoldedText.vue'
+import { firstSentence } from '@/components/foldedTextModel'
 import SectionAdviceCard from './SectionAdviceCard.vue'
 import { formatDateTime } from '@/utils/format'
 import type { Site } from '@/types'
@@ -72,6 +74,18 @@ const sitesFailed = ref(false)
 
 function errText(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error)
+}
+
+/**
+ * 「这一句是谁说的」要一直看得见（§10.16）：被拒的原话只上屏第一句，剩下的逐字进展开，
+ * 但短到只有一句时展开根本不存在，所以前缀拼在这一句上，而不是只写在展开标题里。
+ */
+function rejectedLine(action: string, raw: string): string {
+  return `${action}被后端拒了：${firstSentence(raw) || '后端这一回没给原因'}`
+}
+
+function clientNoteText(row: BriefDecisionView): string {
+  return (row.clientNote ?? '').trim()
 }
 
 function routeBriefId(): number | null {
@@ -164,7 +178,7 @@ const sitesUnavailable = computed(() => sitesFailed.value && !sites.value.length
 const columns = [
   { title: '题目', key: 'question', width: 260 },
   { title: '当时勾的 / 填的', key: 'answer' },
-  { title: '兑现依据（后端词表带的）', key: 'evidence', width: 280 }
+  { title: '这一格会被用在哪里', key: 'evidence', width: 280 }
 ]
 
 const siteColumns = [
@@ -595,7 +609,14 @@ onUnmounted(stopPolling)
 
       <a-card size="small" class="brief-detail__panel">
         <template #title>AI 将理解的这段话（后端渲染、落库留痕的那一份）</template>
-        <p v-if="brief.requirementsSummary" class="brief-detail__summary">{{ brief.requirementsSummary }}</p>
+        <div v-if="brief.requirementsSummary" class="brief-detail__summary">
+          <!-- 这一格以前是整段 1871 字的墙：默认只念它的第一句，剩下的逐字进展开；
+               字数那一行说的是库里这一份，展开在不在都成立（短到只有一句时不该谎称「全文在展开里」） -->
+          <FoldedText :raw="brief.requirementsSummary" raw-label="喂给模型的那句原话（逐字）" />
+          <p class="brief-detail__muted">
+            这一句由后端按 13 题的选择渲染，并真的喂给模型；库里这一份共 {{ brief.requirementsSummary.length }} 字，界面一个字都没改。
+          </p>
+        </div>
         <p v-else class="brief-detail__muted">
           库里还没有这段话：它由后端按 13 题的选择确定性渲染，必填题没答完时后端不会渲染摘要。
         </p>
@@ -634,7 +655,7 @@ onUnmounted(stopPolling)
                 <span v-else class="brief-detail__muted">没答</span>
               </template>
               <template v-else-if="column.key === 'evidence'">
-                <span class="brief-detail__muted">{{ record.evidence || '词表没给这一题的兑现依据' }}</span>
+                <span class="brief-detail__muted">{{ record.evidence || '后端没说明这一格会被用在哪里' }}</span>
               </template>
             </template>
             <template #emptyText>
@@ -720,10 +741,19 @@ onUnmounted(stopPolling)
                   <template v-if="row.siteId"> · 站点 #{{ row.siteId }}</template>
                   <template v-if="row.estimatedTokens != null"> · 本套预计 {{ row.estimatedTokens }} token</template>
                 </span>
-                <span v-if="row.errorMessage" class="brief-detail__locked">失败原因（后端原话）：{{ row.errorMessage }}</span>
-                <span v-if="row.notices?.length" class="brief-detail__muted">
-                  这一套的降级说明（后端原话）：{{ row.notices.join('；') }}
-                </span>
+                <FoldedText
+                  v-if="row.errorMessage"
+                  :raw="row.errorMessage"
+                  :summary="`这一套的失败原因：${firstSentence(row.errorMessage)}`"
+                  raw-label="失败原因（后端原话逐字）"
+                  tone="error"
+                />
+                <FoldedText
+                  v-if="row.notices?.length"
+                  :raw="row.notices?.join('\n')"
+                  :summary="`这一套有 ${row.notices.length} 条降级说明要对你说的话`"
+                  raw-label="这一套的降级说明（后端原话逐字）"
+                />
               </li>
             </ul>
           </div>
@@ -751,7 +781,15 @@ onUnmounted(stopPolling)
               <span class="brief-detail__muted">
                 · 来源会话 {{ row.sessionId == null ? '（超管代录，没有链接）' : `#${row.sessionId}` }} · {{ formatDateTime(row.createdAt) }}
               </span>
-              <div v-if="row.clientNote" class="brief-detail__answer">客户原话：{{ row.clientNote }}</div>
+              <!-- 客户原话默认只念第一句，长答复的其余部分逐字进展开（§10.16）；
+                   「是谁说的话」写在句首，展开不存在时这句 attribution 也不丢 -->
+              <FoldedText
+                v-if="clientNoteText(row)"
+                :raw="clientNoteText(row)"
+                :summary="`客户在这条答复里的原话：${firstSentence(clientNoteText(row))}`"
+                raw-label="客户原话（逐字）"
+                class="brief-detail__answer"
+              />
             </li>
           </ul>
         </template>
@@ -787,8 +825,21 @@ onUnmounted(stopPolling)
           收口重跑要等这一单确实已经出过方案（还在草稿/待出方案的单子上没有候选要收，
           已交付与已作废那两态后端会整条拒）。这里不摆「点了只会拿回一句拒绝」的按钮。
         </p>
-        <p v-if="promoteError" class="brief-detail__locked">转正被后端拒了（原话）：{{ promoteError }}</p>
-        <p v-if="regenerateError" class="brief-detail__locked">收口被后端拒了（原话）：{{ regenerateError }}</p>
+        <!-- 被拒那一句要说清是哪一步被拒（§10.16）：原话第一句上屏，长错误体逐字进展开 -->
+        <FoldedText
+          v-if="promoteError"
+          :raw="promoteError"
+          :summary="rejectedLine('转正', promoteError)"
+          raw-label="转正被拒的原话（逐字）"
+          tone="error"
+        />
+        <FoldedText
+          v-if="regenerateError"
+          :raw="regenerateError"
+          :summary="rejectedLine('收口重跑', regenerateError)"
+          raw-label="收口重跑被拒的原话（逐字）"
+          tone="error"
+        />
 
         <!-- 交付回执：只渲染 promote 响应里真有的那几格（§6.3 R-1 到这一刻才兑现） -->
         <template v-if="promoteReceipt">

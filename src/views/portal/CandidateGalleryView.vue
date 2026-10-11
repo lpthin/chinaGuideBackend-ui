@@ -29,6 +29,7 @@ import {
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
 import { resolvePreviewUrl } from '@/api/siteBriefDelivery'
+import FoldedText from '@/components/FoldedText.vue'
 import { portalSkeletonsApi, type SkeletonView } from '@/api/portalSkeletons'
 import { siteApi } from '@/api/workspace'
 import { formatDateTime } from '@/utils/format'
@@ -554,12 +555,20 @@ onMounted(loadAll)
         <p v-if="needsHumanOf(slot)" class="candidate-gallery__line">
           <b>{{ CANDIDATE_NEEDS_HUMAN_TEXT }}：</b>{{ CANDIDATE_NEEDS_HUMAN_HINT }}
         </p>
-        <p v-if="slot.row?.errorMessage" class="candidate-gallery__error">
-          失败原因（后端原话）：{{ slot.row.errorMessage }}
-        </p>
-        <p v-if="slot.row?.notices?.length" class="candidate-gallery__line">
-          <b>这一套的降级说明（后端原话）：</b>{{ slot.row.notices.join('；') }}
-        </p>
+        <!-- 失败原因与降级说明：默认一句人话，后端逐字原话折在下面那一栏（他拍板的排版口径，正档 Spec-M §10.16）。
+             这两格以前是卡上的文字墙——2037 字那面墙上挂的就是这种整段原话，摆着等于没告诉他 -->
+        <FoldedText
+          v-if="slot.row?.errorMessage"
+          :raw="slot.row.errorMessage"
+          raw-label="失败原因（后端原话逐字）"
+          tone="error"
+        />
+        <FoldedText
+          v-if="slot.row?.notices?.length"
+          :raw="slot.row.notices.join('\n')"
+          :summary="`这一套有 ${slot.row.notices.length} 条降级说明要对你说的话`"
+          raw-label="这一套的降级说明（后端原话逐字）"
+        />
 
         <!-- 截图位：今天必须空着并原话解释（§6.7 / N-4），不许放假缩略图 -->
         <div class="candidate-gallery__shot">
@@ -586,12 +595,16 @@ onMounted(loadAll)
                ④ 从来没发过 → 「未发送预览」+「发放」；
                ⑤ 候选列表那一口没回这一套 → 直说没取到（没取到不等于没发过）。 -->
           <template v-if="previewOf(slot)">
-            <a
-              class="candidate-gallery__url"
-              :href="previewHref(slot)"
-              target="_blank"
-              rel="noopener"
-            >{{ previewHref(slot) }}</a>
+            <!-- 明文那一串单列一行、自带一句说明：埋在一堆按钮中间就等于没告诉他该复制哪个 -->
+            <span class="candidate-gallery__token-line">
+              <b>这条就是发给客户的预览地址（明文只在这一份回执里有，事后取不回来）：</b>
+              <a
+                class="candidate-gallery__url"
+                :href="previewHref(slot)"
+                target="_blank"
+                rel="noopener"
+              >{{ previewHref(slot) }}</a>
+            </span>
             <a-space size="small" wrap>
               <a-button size="small" @click="copyPreview(slot)">复制</a-button>
               <a-popconfirm
@@ -641,9 +654,14 @@ onMounted(loadAll)
             <span v-if="previewHintOf(slot)" class="candidate-gallery__muted">{{ previewHintOf(slot) }}</span>
           </template>
           <span v-else class="candidate-gallery__muted">{{ PREVIEW_LINK_PENDING_TEXT }}</span>
-          <span v-if="siteIdOf(slot) !== null && previewErrors[siteIdOf(slot) as number]" class="candidate-gallery__error">
-            发放被后端拒了（原话）：{{ previewErrors[siteIdOf(slot) as number] }}
-          </span>
+          <!-- 那一发的中文原话以前是整段糊在这一格后面的（现场那发 401 回的是整份 JSON 体）：
+               现在一行说人话，整份原文在展开里，一个字都不少 -->
+          <FoldedText
+            v-if="siteIdOf(slot) !== null && previewErrors[siteIdOf(slot) as number]"
+            :raw="previewErrors[siteIdOf(slot) as number]"
+            raw-label="发放被后端拒了（原话逐字）"
+            tone="error"
+          />
         </p>
       </a-card>
     </div>
@@ -710,10 +728,12 @@ onMounted(loadAll)
   font-size: 13px;
   word-break: break-word;
 }
-.candidate-gallery__error {
+/* 明文地址那一整行：单独一行摆，说明文字与地址都在这一行里 */
+.candidate-gallery__token-line {
+  display: block;
   margin: 6px 0;
-  color: #cf1322;
-  font-size: 12px;
+  font-size: 13px;
+  word-break: break-word;
 }
 .candidate-gallery__disclaimer {
   display: inline-block;
@@ -726,7 +746,8 @@ onMounted(loadAll)
 }
 .candidate-gallery__url {
   display: inline-block;
-  max-width: 220px;
+  /* 明文那一串整条摊开（它自带一行说明）：换行交给 overflow-wrap，不许裁成看不见的省略号 */
+  max-width: 100%;
   overflow-wrap: anywhere;
   font-family: monospace;
   font-size: 12px;

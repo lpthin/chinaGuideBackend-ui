@@ -86,43 +86,47 @@
             这个账号没有 site_spec:edit：这一页只给看，三个动作一个都不摆出去按。
           </p>
         </a-spin>
-
-        <div v-for="section in sections" :key="section.key" class="spec-page__section">
-          <a-card size="small">
-            <template #title>
-              <span class="spec-page__section-title">{{ section.title }}</span>
-              <a-tag v-if="section.blank" color="orange">空的</a-tag>
-              <a-tag v-else-if="section.overLimit" color="red">超上限</a-tag>
-              <a-tag v-if="isDirty(section.key)" color="blue">未保存</a-tag>
-            </template>
-
-            <a-textarea
-              v-model:value="drafts[section.key]"
-              :rows="6"
-              :placeholder="placeholderFor(section)"
-              @blur="touch(section.key)"
-            />
-            <div class="spec-page__section-foot">
-              <span :class="{ 'spec-page__over': section.overLimit }">
-                {{ (drafts[section.key] || '').length }} / {{ doc?.maxSectionChars }} 字
-              </span>
-              <a-button
-                size="small"
-                type="primary"
-                :disabled="!canWrite || !isDirty(section.key) || savingKey !== ''"
-                :loading="savingKey === section.key"
-                @click="save(section.key)"
-              >
-                保存本段
-              </a-button>
-            </div>
-            <p class="spec-page__muted">
-              这一段存进去多少字，模型将来读到的就是多少字：系统不替你截断，超上限只会在确认与生成时拦下并点名这一段。
-            </p>
-          </a-card>
-        </div>
       </template>
     </a-card>
+
+    <!-- 七段编辑区从头部那张卡里搬出来：以前是「一张卡套七张卡」，现场量到 755 字 / 2218px 高的一整块
+         （§10.15 体检表那一行）。同一句「不替你截断」的说明也只说一遍，不再每段抄一次摆七遍。 -->
+    <template v-if="sectionsVisible && sections.length">
+      <p class="spec-page__muted spec-page__sections-note">
+        每一段存进去多少字，模型将来读到的就是多少字：系统不替你截断，超上限只会在确认与生成时拦下并点名那一段。
+      </p>
+      <div v-for="section in sections" :key="section.key" class="spec-page__section">
+        <a-card size="small">
+          <template #title>
+            <span class="spec-page__section-title">{{ section.title }}</span>
+            <a-tag v-if="section.blank" color="orange">空的</a-tag>
+            <a-tag v-else-if="section.overLimit" color="red">超上限</a-tag>
+            <a-tag v-if="isDirty(section.key)" color="blue">未保存</a-tag>
+          </template>
+
+          <a-textarea
+            v-model:value="drafts[section.key]"
+            :rows="6"
+            :placeholder="placeholderFor(section)"
+            @blur="touch(section.key)"
+          />
+          <div class="spec-page__section-foot">
+            <span :class="{ 'spec-page__over': section.overLimit }">
+              {{ (drafts[section.key] || '').length }} / {{ doc?.maxSectionChars }} 字
+            </span>
+            <a-button
+              size="small"
+              type="primary"
+              :disabled="!canWrite || !isDirty(section.key) || savingKey !== ''"
+              :loading="savingKey === section.key"
+              @click="save(section.key)"
+            >
+              保存本段
+            </a-button>
+          </div>
+        </a-card>
+      </div>
+    </template>
 
     <a-drawer v-model:open="diffOpen" title="说明书版本对比" placement="right" :width="960">
       <p class="spec-page__muted">
@@ -179,6 +183,11 @@ const briefId = computed<number | null>(() => {
 
 const canWrite = computed(() => auth.hasPermission('site_spec:edit'))
 const sections = computed<SpecSection[]>(() => doc.value?.sections ?? [])
+/**
+ * 七段编辑区什么时候摆出来，和头部那三态（没单号 / 没权限 / 读失败）是同一件事的两面：
+ * 判断只写这一处，模板里不重复念第二遍——搬出卡外之后靠它守住「读失败就不演输入框」那条口径。
+ */
+const sectionsVisible = computed(() => briefId.value !== null && !denied.value && !loadError.value)
 const blockers = computed<string[]>(() => doc.value?.blockers ?? [])
 const notices = computed<string[]>(() => doc.value?.notices ?? [])
 const busy = computed(() => loading.value || drafting.value || confirming.value || savingKey.value !== '')
@@ -372,6 +381,9 @@ onMounted(() => {
 }
 .spec-page__section {
   margin-top: 12px;
+}
+.spec-page__sections-note {
+  margin: 12px 0 0;
 }
 .spec-page__section-title {
   margin-right: 8px;
