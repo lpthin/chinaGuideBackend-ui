@@ -45,6 +45,18 @@ const tenantFilterOptions = computed(() =>
   tenants.value.map(tenant => ({ value: tenant.id, label: tenant.name || tenant.code || `#${tenant.id}` }))
 )
 
+/**
+ * 状态筛选下拉的选项就是后端词表 `statusLabels` 那一份中文（键序 = 状态机顺序，后端 LinkedHashMap 保序下发）。
+ *
+ * <p>以前这一格是「按状态代码过滤，如 draft / ready」的文本框：同一页的列表每一行显示的都是中文，
+ * 筛选框却要求人先知道英文码——一件事两种说法，而且猜不出码的人根本筛不了「等客户确认」那一档。
+ * 词表没取到时不降级成一份前端自己写的码清单：宁可这一发筛不动，也不摆第二份中文真相（I-1），
+ * 并把「还没取到」直接摆在提示语上。</p>
+ */
+const statusFilterOptions = computed(() =>
+  Object.entries(vocabulary.value?.statusLabels ?? {}).map(([code, label]) => ({ value: code, label }))
+)
+
 function tenantLabel(brief: SiteBrief): string {
   if (!brief.tenantId) return '未绑定租户'
   return tenantNames.value[brief.tenantId] || `租户 #${brief.tenantId}`
@@ -107,8 +119,10 @@ function onTenantFilterChange(value: unknown) {
   load()
 }
 
+/** 选完即筛（与租户那一格同一个时机）：清空回「全部状态」，不带空串去问后端 */
 function onStatusFilterChange(value: unknown) {
   filterStatus.value = value === null || value === undefined ? '' : String(value)
+  load()
 }
 
 function createBrief() {
@@ -176,13 +190,17 @@ onMounted(() => {
         />
       </a-form-item>
       <a-form-item label="状态">
-        <a-input
-          :value="filterStatus"
-          placeholder="按状态代码过滤，如 draft / ready"
+        <!-- 这一格原来是文本框（placeholder 写着「按状态代码过滤，如 draft / ready」）：
+             列表每一行的状态都是中文，筛的时候却要人背英文码，同一件事两种说法。换成后端词表
+             statusLabels 那一份中文下拉，一个码都不抄；词表没取到时不换成前端自己编的中文清单，
+             宁可筛不动也把「没取到」摆在明面上（I-1）。 -->
+        <a-select
+          :value="filterStatus || undefined"
+          :options="statusFilterOptions"
+          :placeholder="statusFilterOptions.length ? '全部状态' : '状态中文还没取到，点刷新重试'"
           allow-clear
-          style="width: 220px"
+          style="width: 200px"
           @update:value="onStatusFilterChange"
-          @press-enter="load"
         />
       </a-form-item>
       <a-form-item class="toolbar-actions">

@@ -12,7 +12,8 @@ import { tenantApi } from '../../../api/workspace'
  *    词表取不到该码时显示「状态未知（原码 xxx）」把码带出来，绝不前端自己编第二份映射（I-1）；
  *    租户名去租户列表查，演示档位中文只取词表 demoContentModes.label；
  * 2. 词表取不到只影响档位/状态那两格：露码或「状态未知」，不自己编一套中文；
- * 3. 过滤参数与列表接口一一对应（切租户立刻重拉，状态要按回车才带过去）；
+ * 3. 过滤参数与列表接口一一对应（切租户、选状态都是选完立刻重拉）；
+ *    状态那一格是后端词表 statusLabels 那份中文下拉，界面上不出现 draft/ready 这类码；
  * 4. 空态那句话只承诺今天真存在的一步（录前采），不摆 P3/P4 的死按钮；
  * 5. 一行有两个去处（详情 / 录入），而「绑定站点」这一格只有字没有控件——
  *    这一页写不了 siteId（回填在流水线里），摆了下拉就是骗人。
@@ -207,21 +208,34 @@ describe('列表行只报接口给的东西', () => {
 })
 
 describe('过滤与错误各说各的', () => {
-  it('切租户立刻重拉带租户号；状态打完字要按回车才带过去', async () => {
+  it('切租户、选状态都选完立刻重拉：状态那一格是词表中文下拉，界面不许念 draft / ready', async () => {
     const wrapper = await mountView({ briefs: [brief()] })
     wrapper.findAllComponents(Select)[0].vm.$emit('update:value', 15)
     await flushPromises()
     expect(siteBriefsApi.list).toHaveBeenLastCalledWith({ tenantId: 15, status: null })
 
-    const statusInput = wrapper
-      .findAllComponents(Input)
-      .find(node => node.props('placeholder') === '按状态代码过滤，如 draft / ready')
-    statusInput!.vm.$emit('update:value', 'ready')
-    await flushPromises()
-    expect(siteBriefsApi.list).toHaveBeenLastCalledWith({ tenantId: 15, status: null }) // 还没回车
-    statusInput!.vm.$emit('pressEnter')
+    const statusFilter = wrapper.findAllComponents(Select)[1]
+    // 选项就是后端 statusLabels 那一份（中文标签、码只当 value）；以前这里是文本框，
+    // 要求录单的人先知道英文码——同一页列表显示中文、筛选框背码，是同一件事的两种说法
+    expect(statusFilter.props('options')).toEqual([
+      { value: 'draft', label: '草稿' },
+      { value: 'ready', label: '待出方案' }
+    ])
+    statusFilter.vm.$emit('update:value', 'ready')
     await flushPromises()
     expect(siteBriefsApi.list).toHaveBeenLastCalledWith({ tenantId: 15, status: 'ready' })
+    statusFilter.vm.$emit('update:value', undefined) // 清空 = 回到全部状态
+    await flushPromises()
+    expect(siteBriefsApi.list).toHaveBeenLastCalledWith({ tenantId: 15, status: null })
+    expect(wrapper.text()).not.toMatch(/draft|ready/)
+    wrapper.unmount()
+  })
+
+  it('词表没取到：状态筛选宁可乐空，也不摆一份前端自己编的中文清单', async () => {
+    const wrapper = await mountView({ briefs: [brief()], vocabError: '词表读失败了' })
+    const statusFilter = wrapper.findAllComponents(Select)[1]
+    expect(statusFilter.props('options')).toEqual([])
+    expect(String(statusFilter.props('placeholder'))).toContain('还没取到')
     wrapper.unmount()
   })
 
@@ -258,8 +272,9 @@ describe('详情入口与绑定站点那一格', () => {
     const bound = await mountView({ briefs: [brief({ siteId: 31 })] })
     expect(bound.text()).toContain('站点 #31')
     // 这一页没有任何写 siteId 的能力：给了下拉/输入框就是摆了个不生效的控件
-    expect(bound.findAllComponents(Select)).toHaveLength(1) // 只剩租户过滤那一个
-    expect(bound.findAllComponents(Input)).toHaveLength(1) // 只剩状态过滤那一个
+    // （整页只有两个下拉：租户筛选与状态筛选；状态那一格刚从文本框换成下拉，所以输入框是 0）
+    expect(bound.findAllComponents(Select)).toHaveLength(2)
+    expect(bound.findAllComponents(Input)).toHaveLength(0)
     expect(bound.text()).not.toContain('选择站点')
   })
 })
