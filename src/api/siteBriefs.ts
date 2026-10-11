@@ -292,6 +292,21 @@ export function isIntakeStaticKey(key: string): boolean {
   return (INTAKE_STATIC_KEYS as readonly string[]).includes(key);
 }
 
+/**
+ * 那两块专用控件各自渲哪一张卡。
+ *
+ * <p>存在的理由：录入页改成「一屏一题」之后，参考站与补充说明也各自占一屏，
+ * 于是模板里必须能问「当前这一题该摆哪张卡」。判据只有适配层认得题目 key，
+ * 视图拿到的是卡片身份——视图里因此一处题目 key 字面量都不出现（I-1）。</p>
+ */
+export type IntakeStaticCard = 'references' | 'remarks';
+
+export function intakeStaticCard(key: string): IntakeStaticCard | null {
+  if (key === 'reference_urls') return 'references';
+  if (key === 'notes') return 'remarks';
+  return null;
+}
+
 export function intakeLoopQuestions(
   vocabulary: SiteBriefVocabulary | null
 ): BriefVocabularyQuestion[] {

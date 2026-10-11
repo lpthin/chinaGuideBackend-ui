@@ -3,14 +3,21 @@
  * 新建网站向导（Spec-M §3 那五步 / §7.1，D3：入口仍只给超管）。
  *
  * 这一页回答的是他那句「我不知道怎么给用户建一个新网站，没找到入口」：
- * 左侧「建站」组的第一项就是这里，五步一条线，每一步只摆**今天真存在**的那一个动作。
+ * 左侧「建站」组的第一项就是这里，五步一条线，**一步只说一件事、一件事只摆今天真存在的那一个动作**。
  *
- * 两条纪律写死在这里：
+ * 三条纪律写死在这里：
  * 1. **它不是第二个流水线**。估价、出初稿、签字、发预览、选定转正这些动作一个都不在这一页重做——
  *    它们各自有闸（估价的凭据两样、签字的空段点名、生成的配额与确认闸），复制一份就等于再造一份会漂移的真相。
  *    这一页读的是那些页面读的同几个只读口，然后把人送去按那一个按钮。
  * 2. **每一步「完成了没有」只由后端读数判**（说明书的 status、候选行的 siteId、预览令牌发没发过、
  *    需求单名下的站点），界面不许给任何一格手动打勾，也不许把「读失败」念成「还没有」。
+ * 3. **读数搬进来，动作留在那一页**（他 2026-10-11 拍板「按你推荐的来，但问题要一个一个地过」）：
+ *    以前第 2~5 步只有一句状态加一颗「去那一页」的按钮，等于把人来回赶；现在每一屏把那一屏该看的
+ *    后端读数摊开（说明书七段、价签与逐套进度、候选现状、客户留痕），要看原文就点开，
+ *    要按那一个花钱/签字的动作仍然去专用页——专用页留着「回向导」的入口，两边都不成为第二套真相。
+ *
+ * 取数时机分两层（`loadRailReadings` / `loadStepExtras`）：驱动顶上那条步序条的三件事一直读，
+ * 多出来的逐套进度与客户留痕等人走到那一步再读——进页面不把五步的读数一次发完。
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -19,12 +26,21 @@ import {
   briefGenerationApi,
   siteBriefsApi,
   vocabularyApi,
+  type BriefCandidateProgress,
   type BriefCandidateSite,
+  type BriefEstimate,
   type SiteBrief,
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
+import {
+  hasChosenDecision,
+  siteBriefDeliveryApi,
+  type BriefDecisionView
+} from '@/api/siteBriefDelivery'
+import { previewLinkStateColor, previewLinkStateHint, previewLinkStateOf, previewLinkStateText } from '@/api/siteBriefs'
 import { siteSpecApi, type SpecDocumentView } from '@/api/siteSpec'
 import BriefIntakeForm from '@/views/portal/BriefIntakeForm.vue'
+import FoldedText from '@/components/FoldedText.vue'
 import WizardSteps from '@/components/WizardSteps.vue'
 import { createWizardState, type WizardState, type WizardStepDef } from '@/components/wizardModel'
 
@@ -42,6 +58,14 @@ const spec = ref<SpecDocumentView | null>(null)
 const specError = ref('')
 const candidates = ref<BriefCandidateSite[]>([])
 const candidatesError = ref('')
+const progress = ref<BriefCandidateProgress[]>([])
+const progressError = ref('')
+/** 价签不是自动刷出来的：那一发是 POST，只有人在这屏点「先算一次价」才发（它零模型调用，但仍是请求） */
+const quote = ref<BriefEstimate | null>(null)
+const quoteError = ref('')
+const quoteLoading = ref(false)
+const decisions = ref<BriefDecisionView[]>([])
+const decisionsError = ref('')
 
 const wizard = ref<WizardState>(createWizardStateWithStep(readStepKeyFromQuery()))
 
@@ -86,10 +110,50 @@ function tenantLabel(brief: SiteBrief): string {
 
 /** 说明书七段里还空着几段：只数后端 `blank` 那一格，界面不猜段数也不抄段名 */
 const blankSections = computed(() => (spec.value?.sections || []).filter(section => section.blank).length)
+const filledSections = computed(() => (spec.value?.sections || []).length - blankSections.value)
 
 const deliveredCandidates = computed(() => candidates.value.filter(candidate => candidate.siteId !== null))
 const previewIssuedCount = computed(() => candidates.value.filter(candidate => candidate.previewIssued).length)
 const needsHumanCount = computed(() => deliveredCandidates.value.filter(candidate => candidate.needsHuman).length)
+const failedProgress = computed(() => progress.value.filter(row => row.status === 'failed' || !!row.errorMessage))
+
+/** 进度行按第几套对齐到候选行上：两套读数各说各的，界面上要让人看见同一套的两面 */
+function progressOf(candidate: BriefCandidateSite): BriefCandidateProgress | null {
+  const byId = progress.value.find(row => row.candidateId === candidate.candidateId)
+  if (byId) return byId
+  const byNo = progress.value.find(row => row.candidateNo === candidate.candidateNo)
+  return byNo ?? null
+}
+
+/**
+ * 这一套的账：三本账拼成一句人话，直接摆在屏上。
+ * 取不到读数的项念「没取到」，不许念成 0——0 是「一张都没出」，没取到是「这一格我没读到」，
+ * 两者在「重跑只补失败那一套」这条判据上是两件事。
+ */
+function setLedger(candidate: BriefCandidateSite): string {
+  const row = progressOf(candidate)
+  return [
+    `演示内容 文章 ${row?.demoArticles ?? '没取到'} 篇 / 案例 ${row?.demoCases ?? '没取到'} 条`,
+    `配图 成功 ${row?.imageDone ?? '没取到'} 张、失败 ${row?.imageFailed ?? 0} 张、跳过 ${row?.imageSkipped ?? 0} 张（跳过不等于失败）`,
+    `实耗 ${row?.promptTokens ?? '没取到'} + ${row?.completionTokens ?? '没取到'} token`
+  ].join('；')
+}
+
+/** 这一套有没有单独要说的话：待人工、失败记录、后端那几条原话，任一样都算 */
+function hasSetWords(candidate: BriefCandidateSite): boolean {
+  const row = progressOf(candidate)
+  return !!candidate.needsHuman || !!row?.errorMessage || !!(row?.notices?.length ?? 0) || !!(candidate.notices?.length ?? 0)
+}
+
+/** 原话逐字：失败原因在前，因为那一句要标红 */
+function setRawWords(candidate: BriefCandidateSite): string | null {
+  const row = progressOf(candidate)
+  return [
+    row?.errorMessage,
+    ...(row?.notices ?? []),
+    ...(candidate.notices ?? [])
+  ].filter(Boolean).join('\n') || null
+}
 
 /**
  * 五步的状态全部从读数推出来：wait/process/finish/error 不是人点的，是那一格的后端事实。
@@ -142,15 +206,16 @@ const stepNotice = computed<Record<string, string>>(() => ({
     : !spec.value?.exists ? '这一单还没有说明书（AI 出初稿与逐段修改都在那一页）。'
     : spec.value.status === 'CONFIRMED'
       ? `已确认的第 ${spec.value.specVersion} 版，${spec.value.sections.length} 段全文就是生成的输入。`
-      : `现在的状态是「${spec.value.statusLabel}」：${blankSections.value ? `还有 ${blankSections.value} 段空着，` : ''}签字才能放行生成。`,
+      : `第 ${spec.value.specVersion} 版草稿：${spec.value.sections.length} 段里写了 ${filledSections.value} 段${blankSections.value ? `、空着 ${blankSections.value} 段` : '，一段都没空着'}。签字才能放行生成。`,
   generate: !briefId.value ? '要先有需求单。'
     : candidatesError.value ? `候选站没读到：${candidatesError.value}`
-    : !candidates.value.length ? '这一单还没有候选站：估价与「开始出方案」都在需求单详情里，那一发要人亲手勾确认。'
-    : `候选 ${candidates.value.length} 套，建出站 ${deliveredCandidates.value.length} 套。`,
+    : !candidates.value.length ? '这一单还没有候选站：先算一次价，再带凭据去按「开始出方案」。'
+    : `候选 ${candidates.value.length} 套，建出站 ${deliveredCandidates.value.length} 套${failedProgress.value.length ? `，其中 ${failedProgress.value.length} 套有失败记录` : ''}。`,
   candidates: !deliveredCandidates.value.length ? '还没有可比较的候选站。'
     : `已发放预览地址 ${previewIssuedCount.value} / ${deliveredCandidates.value.length} 套`
       + (needsHumanCount.value ? `，其中 ${needsHumanCount.value} 套带「待人工」措辞` : '') + '。',
   deliver: currentBrief.value?.siteId ? `这一单已绑定站点 #${currentBrief.value.siteId}。`
+    : hasChosenDecision(decisions.value) ? '客户已经选定了某一套，转正那一发还等人按。'
     : '客户还没选定（或还没转正）：选定动作在候选画廊与需求单详情里。'
 }))
 
@@ -164,6 +229,8 @@ function beforeNext(to: number) {
 function onWizardStateChange(value: WizardState) {
   wizard.value = value
   syncQuery(value.current, briefId.value)
+  loadRailReadings()
+  loadStepExtras(value.current)
 }
 
 function selectBrief(value: unknown) {
@@ -214,13 +281,90 @@ async function loadCandidates() {
   }
 }
 
-function reloadStepData() {
+async function loadProgress() {
+  progress.value = []
+  progressError.value = ''
+  if (!briefId.value) return
+  try {
+    progress.value = (await briefGenerationApi.progress(briefId.value)) || []
+  } catch (error) {
+    progressError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+async function loadDecisions() {
+  decisions.value = []
+  decisionsError.value = ''
+  if (!briefId.value) return
+  try {
+    decisions.value = (await siteBriefDeliveryApi.decisions(briefId.value)) || []
+  } catch (error) {
+    decisionsError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+/**
+ * 读数分两层，两层都是纯 GET：
+ * 1. `loadRailReadings` 读**顶上一条步序条**要的三件事（说明书状态、候选行有没有建站、预览发没发过）——
+ *    这一组必须一直读，否则第 2 步明明已签字、条上却画成「没开始」，那是界面在说谎；
+ * 2. `loadStepExtras` 只读**当前这一步**的多出来的那几发（逐套进度、客户留痕），
+ *    人不走到那一步就不用替他把五发都发出去。
+ *
+ * 价签那一发不在任何一层里：它是 POST，只认人在这屏点那一颗。
+ */
+async function loadRailReadings() {
   loadSpec()
   loadCandidates()
 }
 
+function loadStepExtras(stepIndex: number) {
+  const key = STEP_KEYS[stepIndex]
+  if (key === 'generate' || key === 'candidates') loadProgress()
+  if (key === 'deliver') loadDecisions()
+}
+
+/** 在这一屏算一次价：零模型调用、零落库，但它是那一发花钱的凭据来源，所以仍然只由人点 */
+async function loadQuote() {
+  if (!briefId.value) return
+  quoteLoading.value = true
+  quoteError.value = ''
+  try {
+    quote.value = await briefGenerationApi.estimate(briefId.value)
+  } catch (error) {
+    quote.value = null
+    quoteError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    quoteLoading.value = false
+  }
+}
+
+const quoteSummary = computed(() => {
+  const price = quote.value?.estimate
+  if (!price) return ''
+  if (!price.aiEnabled) return '出方案开关没开，现在不是可以花的报价：缺的开关在下面那一栏里逐条写着。'
+  return `要是现在出方案：${price.candidateCount} 套、每套 ${price.pagesPerCandidate} 页，预估 ${price.estimatedTokens} token。这只是预估，不是最终账单。`
+})
+
+/** 钱算在谁头上（V142 交付态）：这一句决定界面对客户怎么说，口径跟着后端那一格走 */
+const quoteBearer = computed(() => {
+  const price = quote.value?.estimate
+  if (!price) return ''
+  return price.tenantBearsCost
+    ? '这一单的交付已经确定：这一发算在这个租户的当月配额里。'
+    : '这一单还没确定交付：这一发由平台自己承担，不扣这个租户的配额。'
+})
+
+/** 价签下面那几行明细：后端逐行拼好的原话，界面上只折起来，不重写 */
+const quoteBreakdown = computed(() => (quote.value?.estimate?.breakdown ?? []).join('\n'))
+
 function statusText(brief: SiteBrief): string {
   return briefStatusLabel(vocabulary.value, brief.status)
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false })
 }
 
 /** 「录一份新的」：把第一步那张空表单摊开就地录，不再跳去独立页（独立页还在，只是不再是必经之路） */
@@ -256,7 +400,14 @@ function goSites() {
   router.push({ name: 'workspace-sites', query: briefId.value ? { briefId: String(briefId.value) } : {} })
 }
 
-watch(briefId, reloadStepData)
+watch(briefId, () => {
+  quote.value = null
+  quoteError.value = ''
+  decisions.value = []
+  progress.value = []
+  loadRailReadings()
+  loadStepExtras(wizard.value.current)
+})
 
 onMounted(async () => {
   try {
@@ -266,7 +417,8 @@ onMounted(async () => {
     vocabulary.value = null
   }
   await loadBriefs()
-  reloadStepData()
+  loadRailReadings()
+  loadStepExtras(wizard.value.current)
 })
 </script>
 
@@ -277,7 +429,7 @@ onMounted(async () => {
         <h3>新建网站</h3>
         <p>
           五步一条线：录前采需求单 → AI 出说明书、超管逐段改并签字 → 估价并出 1~3 套候选 → 比较与发预览 → 客户选定后转正。
-          每一步下面只摆今天真能做的动作。
+          每一步只摊开这一步自己的读数；花钱、签字那两发动作在那一屏自己的页面上按。
         </p>
       </div>
     </div>
@@ -323,15 +475,48 @@ onMounted(async () => {
         <a-alert v-if="specError" type="error" show-icon>
           <template #message>{{ stepNotice.spec }}</template>
         </a-alert>
-        <p class="site-wizard__hint">{{ stepNotice.spec }}</p>
-        <ul v-if="spec && spec.status !== 'CONFIRMED' && spec.blockers.length" class="site-wizard__list">
-          <li v-for="blocker in spec.blockers" :key="blocker">{{ blocker }}</li>
-        </ul>
+        <p v-else class="site-wizard__reading">{{ stepNotice.spec }}</p>
+
+        <!-- 七段清单：段名、顺序、上限全部来自后端回包，界面不抄第二份；原文折进展开 -->
+        <div v-if="spec && spec.exists" class="site-wizard__sections">
+          <div v-for="section in spec.sections" :key="section.key" class="site-wizard__section">
+            <div class="site-wizard__section-head">
+              <span class="site-wizard__section-title">{{ section.title }}</span>
+              <a-tag v-if="section.blank">空着</a-tag>
+              <a-tag v-else-if="section.overLimit" color="red">超出上限</a-tag>
+              <a-tag v-else color="blue">{{ section.charCount }} 字</a-tag>
+            </div>
+            <FoldedText
+              :raw="section.content"
+              :summary="section.blank ? '这一段还没有字（AI 出初稿或你亲手写，都在下面那一页）。' : null"
+              :empty-text="section.blank ? '这一段还没有字（AI 出初稿或你亲手写，都在下面那一页）。' : '没填'"
+              raw-label="这一段全文（逐字）"
+            />
+          </div>
+        </div>
+
+        <div v-if="spec && spec.status !== 'CONFIRMED' && spec.blockers.length" class="site-wizard__blockers">
+          <p class="site-wizard__sub-title">为什么还不能拿去生成</p>
+          <ul class="site-wizard__list">
+            <li v-for="blocker in spec.blockers" :key="blocker">{{ blocker }}</li>
+          </ul>
+        </div>
+        <div v-if="spec && spec.notices.length" class="site-wizard__blockers">
+          <p class="site-wizard__sub-title">后端这一发要对你说的话</p>
+          <ul class="site-wizard__list">
+            <li v-for="notice in spec.notices" :key="notice">{{ notice }}</li>
+          </ul>
+        </div>
+
+        <p v-if="spec && spec.confirmedAt" class="site-wizard__hint">
+          签字：{{ spec.confirmedBy || '（后端没回名字）' }} · {{ formatDateTime(spec.confirmedAt) }}
+        </p>
+
         <a-space class="site-wizard__row">
-          <a-button type="primary" :disabled="!briefId" @click="goSpec">去写这一份说明书</a-button>
+          <a-button type="primary" :disabled="!briefId" @click="goSpec">去这一页出初稿 / 改某一段 / 签字</a-button>
         </a-space>
         <p class="site-wizard__hint">
-          出初稿会真调模型、真花配额，而且整份覆盖改过的字；签字是一次显式动作。这两发都在那一页按，这里不代按。
+          出初稿会真调模型、真花配额，而且整份覆盖改过的字；签字是一次显式动作。这两发都不在这一屏按。
         </p>
       </template>
 
@@ -339,17 +524,93 @@ onMounted(async () => {
         <a-alert v-if="candidatesError" type="error" show-icon>
           <template #message>{{ stepNotice.generate }}</template>
         </a-alert>
-        <p class="site-wizard__hint">{{ stepNotice.generate }}</p>
+        <p v-else class="site-wizard__reading">{{ stepNotice.generate }}</p>
+
+        <a-alert v-if="progressError" type="error" show-icon class="site-wizard__row">
+          <template #message>逐套进度没读到：{{ progressError }}（不是「还在跑」，是这一发失败了）</template>
+        </a-alert>
+
+        <!-- 价签：后端那一发是零模型调用的纯算，但它是 POST，所以只由人点这一颗 -->
+        <div class="site-wizard__quote">
+          <a-space align="center">
+            <a-button :loading="quoteLoading" :disabled="!briefId" @click="loadQuote">在这一屏算一次价（不花钱、不调模型）</a-button>
+            <span v-if="quote" class="site-wizard__hint">第 {{ quote.attempt ?? 1 }} 次估算 · 凭据 {{ quote.estimateId }}</span>
+          </a-space>
+          <a-alert v-if="quoteError" type="error" show-icon class="site-wizard__row">
+            <template #message>价签没算出来：{{ quoteError }}</template>
+          </a-alert>
+          <template v-if="quote">
+            <p class="site-wizard__reading site-wizard__row">{{ quoteSummary }}</p>
+            <p v-if="quoteBearer" class="site-wizard__hint">{{ quoteBearer }}</p>
+            <p v-if="quote.estimate.missingSwitches?.length" class="site-wizard__hint">
+              缺的开关：{{ quote.estimate.missingSwitches.join('、') }}（缺一样，确认框就不该能勾）
+            </p>
+            <FoldedText
+              :raw="[quoteBreakdown, quote.estimate.notice].filter(Boolean).join('\n')"
+              summary="这一份价格是怎么算出来的（明细与那句关于偏差的话都在展开里）"
+              raw-label="后端逐行拼的明细（逐字）"
+            />
+          </template>
+        </div>
+
+        <div v-if="progress.length" class="site-wizard__row">
+          <p class="site-wizard__sub-title">每一套跑到哪一步了</p>
+          <a-table
+            :data-source="progress"
+            :columns="[
+              { title: '第几套', dataIndex: 'candidateNo', key: 'candidateNo', width: 80 },
+              { title: '阶段', key: 'stage', width: 150 },
+              { title: '这一套的状态', key: 'status', width: 150 },
+              { title: '这一步说的话', key: 'detail' }
+            ]"
+            :pagination="false"
+            :row-key="(record: BriefCandidateProgress) => `${record.candidateId ?? 'x'}-${record.candidateNo ?? 'n'}`"
+            size="small"
+            bordered
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'stage'">
+                <a-tag>{{ record.stageLabel || record.stage || '后端没回阶段' }}</a-tag>
+              </template>
+              <template v-else-if="column.key === 'status'">
+                <a-tag :color="record.status === 'failed' ? 'red' : record.status === 'success' ? 'green' : 'blue'">
+                  {{ record.statusLabel || record.status || '状态未知' }}
+                </a-tag>
+              </template>
+              <template v-else-if="column.key === 'detail'">
+                <FoldedText
+                  v-if="record.errorMessage"
+                  :raw="record.errorMessage"
+                  tone="error"
+                  raw-label="失败原因原文（逐字）"
+                />
+                <FoldedText
+                  v-else-if="record.notices?.length"
+                  :raw="record.notices.join('\n')"
+                  :summary="`这套有 ${record.notices.length} 条降级说明，点开看后端那几句原话`"
+                  raw-label="降级说明（逐字）"
+                />
+                <span v-else class="site-wizard__hint">这一套这一发没有要说的话</span>
+              </template>
+              <template v-else>{{ record[column.dataIndex as string] ?? '-' }}</template>
+            </template>
+          </a-table>
+          <p class="site-wizard__hint">
+            哪一套失败只影响那一套：其它照跑，重跑只补失败的那一套（拍板里那条「逐套子任务」口径）。
+          </p>
+        </div>
+
         <a-space class="site-wizard__row">
-          <a-button type="primary" :disabled="!briefId" @click="goBriefDetail">去需求单详情估价、开始出方案</a-button>
+          <a-button type="primary" :disabled="!briefId" @click="goBriefDetail">带这两样凭据去需求单详情按「开始出方案」</a-button>
         </a-space>
         <p class="site-wizard__hint">
           只有已签字那一版说明书会被拿去生成；没签字时后端原话是「SPEC_NOT_CONFIRMED」，界面上照它那句话念。
+          花钱那一发要同时带回上面那个估算号与预估 token 数，缺一样后端中文拒。
         </p>
       </template>
 
       <template #step-candidates>
-        <p class="site-wizard__hint">{{ stepNotice.candidates }}</p>
+        <p class="site-wizard__reading">{{ stepNotice.candidates }}</p>
         <a-table
           v-if="deliveredCandidates.length"
           :data-source="deliveredCandidates"
@@ -358,7 +619,7 @@ onMounted(async () => {
             { title: '站点', key: 'site', width: 200 },
             { title: '这套侧重什么', dataIndex: 'focus', key: 'focus' },
             { title: '状态', key: 'status', width: 160 },
-            { title: '预览地址', key: 'preview', width: 140 }
+            { title: '预览地址', key: 'preview', width: 200 }
           ]"
           :pagination="false"
           row-key="candidateId"
@@ -369,19 +630,52 @@ onMounted(async () => {
             <template v-if="column.key === 'site'">
               {{ record.siteId ? `${record.siteName || record.siteCode || '（没有名字）'} #${record.siteId}` : '站还没建起来' }}
             </template>
+            <template v-else-if="column.key === 'focus'">
+              <FoldedText
+                :raw="record.focus"
+                :summary="record.focus ? null : 'plan 那一步没回这一套侧重什么'"
+                raw-label="这套的规划原话（逐字）"
+              />
+            </template>
             <template v-else-if="column.key === 'status'">
               <a-tag :color="record.needsHuman ? 'orange' : 'blue'">
                 {{ record.stage || record.status || '状态未知' }}
               </a-tag>
+              <p v-if="record.needsHuman" class="site-wizard__hint">待人工：这一套已交付、能预览，但有措辞没过极限用语闸，先看文案再发链接。</p>
             </template>
             <template v-else-if="column.key === 'preview'">
-              {{ record.previewIssued ? '已发放' : '还没发放' }}
+              <a-tag :color="previewLinkStateColor(previewLinkStateOf(record))">
+                {{ previewLinkStateText(previewLinkStateOf(record)) }}
+              </a-tag>
+              <!-- 令牌明文只在签发那一刻存在过：这一屏不签，所以只摆现状与那句解释 -->
+              <p class="site-wizard__hint">{{ previewLinkStateHint(previewLinkStateOf(record)) }}</p>
             </template>
             <template v-else>{{ record[column.dataIndex as string] ?? '-' }}</template>
           </template>
         </a-table>
+
+        <!-- 每一套的账摆在明面上：藏在「点开这一行」里的读数和没读一样，他拍板的就是这一条 -->
+        <div v-if="deliveredCandidates.length" class="site-wizard__row">
+          <p class="site-wizard__sub-title">每一套的账</p>
+          <ul class="site-wizard__list site-wizard__list--wide">
+            <li v-for="candidate in deliveredCandidates" :key="`ledger-${candidate.candidateId}`">
+              <p class="site-wizard__reading">第 {{ candidate.candidateNo }} 套：{{ setLedger(candidate) }}</p>
+              <FoldedText
+                v-if="hasSetWords(candidate)"
+                :raw="setRawWords(candidate)"
+                :summary="candidate.needsHuman ? '这一套带着要人过目的话，原文在展开里' : null"
+                :tone="progressOf(candidate)?.errorMessage ? 'error' : 'plain'"
+                raw-label="这一套的后端原话（逐字）"
+              />
+            </li>
+          </ul>
+          <p v-if="needsHumanCount" class="site-wizard__hint">
+            「待人工」与「失败」是两件事：失败的那套根本没跑成，这一套内容是落库的、站是能开的，只是系统不敢替客户签字。
+          </p>
+        </div>
+
         <a-space class="site-wizard__row">
-          <a-button type="primary" :disabled="!briefId" @click="goCandidates">打开候选画廊（三套并排比）</a-button>
+          <a-button type="primary" :disabled="!briefId" @click="goCandidates">打开候选画廊（三套并排比、按套发预览地址）</a-button>
         </a-space>
         <p class="site-wizard__hint">
           预览令牌绑站不绑页，而且明文只在签发那一刻存在过：所以发放要在画廊里按套亲手点，这一页不自动签。
@@ -389,14 +683,36 @@ onMounted(async () => {
       </template>
 
       <template #step-deliver>
-        <p class="site-wizard__hint">{{ stepNotice.deliver }}</p>
+        <p class="site-wizard__reading">{{ stepNotice.deliver }}</p>
+        <a-alert v-if="decisionsError" type="error" show-icon class="site-wizard__row">
+          <template #message>客户答复留痕没读到：{{ decisionsError }}（不是「客户没答复」，是这一发失败了）</template>
+        </a-alert>
+        <div v-else-if="briefId" class="site-wizard__row">
+          <p class="site-wizard__sub-title">客户在这条预览链接上答过什么</p>
+          <ul v-if="decisions.length" class="site-wizard__list site-wizard__list--wide">
+            <li v-for="row in decisions" :key="row.id">
+              {{ formatDateTime(row.createdAt) }} · 第 {{ row.candidateNo ?? '?' }} 套
+              {{ row.chosenSiteId ? `站 #${row.chosenSiteId}${row.chosenSiteName ? `（${row.chosenSiteName}）` : ''}` : '（只留了话，没选站）' }}
+              <FoldedText
+                :raw="row.clientNote"
+                :summary="row.clientNote ? null : '客户没留言'"
+                raw-label="客户原话（逐字）"
+              />
+            </li>
+          </ul>
+          <p v-else class="site-wizard__hint">
+            一条留痕都没有：要么链接还没发给客户，要么客户还没答。发地址要在画廊里按套签，这一屏不代签。
+          </p>
+        </div>
+        <p v-if="currentBrief" class="site-wizard__hint">
+          这一单现在的状态：{{ statusText(currentBrief) }}；
+          绑定站点：{{ currentBrief.siteId ? `#${currentBrief.siteId}` : '还没绑' }}。
+          转正那一刻才交棒给租户（交付态、计费口径都跟着那一步变），所以这一发必须是人点的，向导不代签。
+        </p>
         <a-space class="site-wizard__row">
           <a-button type="primary" :disabled="!briefId" @click="goBriefDetail">回需求单详情做选定与转正</a-button>
           <a-button @click="goSites">到站点清单只看这一单的站</a-button>
         </a-space>
-        <p class="site-wizard__hint">
-          转正之后这一单才交棒给租户（交付态、计费口径都跟着那一步变），所以这一发必须是人点的，向导不代签。
-        </p>
       </template>
     </WizardSteps>
   </div>
@@ -419,10 +735,57 @@ onMounted(async () => {
   color: #6b7280;
   font-size: 13px;
 }
-.site-wizard__list {
+.site-wizard__reading {
   margin: 8px 0 0;
+  font-size: 14px;
+  color: #1f2937;
+}
+.site-wizard__sub-title {
+  margin: 16px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+.site-wizard__list {
+  margin: 4px 0 0;
   padding-left: 20px;
   color: #6b7280;
   font-size: 13px;
+}
+.site-wizard__list--wide {
+  list-style: none;
+  padding-left: 0;
+}
+.site-wizard__list--wide > li {
+  padding: 6px 0;
+  border-bottom: 1px dashed #e5e7eb;
+}
+.site-wizard__sections {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+.site-wizard__section {
+  padding: 10px 12px;
+  border: 1px solid #eef0f3;
+  border-radius: 6px;
+  background: #fcfcfd;
+}
+.site-wizard__section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.site-wizard__section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+.site-wizard__quote {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #eef0f3;
+  border-radius: 6px;
 }
 </style>

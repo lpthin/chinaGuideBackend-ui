@@ -22,16 +22,22 @@ import { portalSectionsApi } from '../../../api/portalSections'
 
 
 /**
- * 前采录入页的交互契约（Spec-C §4.1 的老三条 + Spec-D D1 的新五条）。
+ * 前采录入页的交互契约（Spec-C §4.1 的老三条 + Spec-D D1 的五条 + 拍板「一屏一题」）。
  *
  * 老三条没挪窝：右侧那段话只能来自 summary-preview；候选套数封顶在词表 candidateMaxCount；
- * 后端拒单的中文一个字不许改。D1 新钉的是这一半：
- * 1. **四组分区与锚点**：段名与「哪题属哪段」只能来自词表 `groups`/`q.group`，页面一个字不抄；
- * 2. **必填只剩词表打星的题**（q.required），星号不是界面自造的名单；
- * 3. **没填的格子显式说「客户未提供」**，不许留一个看着像填好的空框；
- * 4. **page_plan 行编辑器挂真实控件**：加页/上下移/删除/栏目卡片/区块下拉都能点，
- *    本地提示只是提示，后端拒单的中文原样长在页面上；
- * 5. **区块与栏目的名字来自 /portal/blocks 与 /portal/sections**：未接线（notWired）的不进候选。
+ * 后端拒单的中文一个字不许改。
+ *
+ * 拍板那一条改了**排版**：题目要一个一个地过，不许把全部题摆在一页里。所以这一族的判据是——
+ * 1. **一屏只挂一道题**，题序与题数都来自词表 `questions` 那一份（界面一处不写死题数）；
+ *    参考站与补充说明这两块专用控件各占一屏，题干与那句说明也取自词表那两行；
+ * 2. **段名降级成页眉**：`groups` 里有就跟着当前这一题换，没有就没有这一行，界面不编段名；
+ * 3. **进度条一格一题**（点哪一格回到哪一题，回改不必重走），序列尽头多一屏「还空哪几题」；
+ * 4. **必填只剩词表打星的题**（q.required），没答的格子显式说「客户未提供」；
+ * 5. **page_plan 行编辑器挂真实控件**：加页/上下移/删除/栏目卡片/区块下拉都能点，
+ *    本地提示只是提示，后端拒单的中文原样长在页面上；区块与栏目的名字来自 /portal/blocks
+ *    与 /portal/sections，未接线（notWired）的不进候选。
+ *
+ * 分屏只是排版不是提交形状：保存仍一次交整张表单，payload 断言照旧走 buildBriefForm。
  *
  * setup.ts 把所有 a-* 桩成空壳且桩件不 emit，用它测出来的「点了没反应」是假的，
  * 所以这里挂真实控件；只有级联与取色器换成会 emit 的壳（真组件要弹层，测的是弹层本身）。
@@ -65,8 +71,8 @@ vi.mock('../../../api/http', () => ({
 
 vi.mock('../../../api/siteBriefs', async (importOriginal) => {
   // 视图会用 siteBriefs 里的纯映射函数（intakeLoopQuestions / buildBriefForm / readBriefSelections /
-  // pagePlanLocalHints 等）：这几份是真实适配逻辑，必须走真实现（顺带让 payload 断言真的经过映射）；
-  // 只有网络口的 siteBriefsApi / vocabularyApi 换成 vi.fn。
+  // pagePlanLocalHints / intakeStaticCard 等）：这几份是真实适配逻辑，必须走真实现
+  // （顺带让 payload 断言真的经过映射）；只有网络口的 siteBriefsApi / vocabularyApi 换成 vi.fn。
   const actual = await importOriginal<typeof import('../../../api/siteBriefs')>()
   return {
     ...actual,
@@ -95,7 +101,11 @@ vi.mock('../../../api/portalSections', () => ({
   portalSectionsApi: { list: vi.fn() }
 }))
 
-/** 题目名与选项 label 故意用「题目甲/选项乙」这种只在本文件出现的字：页面渲染它们只能来自词表回包 */
+/**
+ * 题目名与选项 label 故意用「题目甲/选项乙」这种只在本文件出现的字：页面渲染它们只能来自词表回包。
+ * 那两块专用控件（参考站 / 补充说明）在真词表里也是题目行（SiteBriefVocabulary 的
+ * Q_REFERENCE_URLS / Q_NOTES），所以桩词表必须带上它们——不带就等于测不到那两屏。
+ */
 const VOCAB = {
   questions: [
     {
@@ -114,7 +124,15 @@ const VOCAB = {
     { key: 'q_color', label: '题目颜色', select: 'color', required: false, options: [] },
     { key: 'q_text', label: '题目文本', evidence: '这题自己打字', select: 'text', required: false, options: [] },
     // 词表出现不认识的新形态：界面必须退化成输入框，而不是猜语义
-    { key: 'q_odd', label: '题目新形态', evidence: '不认识就退回输入框', select: 'slider', required: false, options: [] }
+    { key: 'q_odd', label: '题目新形态', evidence: '不认识就退回输入框', select: 'slider', required: false, options: [] },
+    {
+      key: 'reference_urls', label: '参考站（0~3 个网址）', select: 'text', required: false,
+      evidence: '填进来的网址会被真的打开拆开看，这份结构是 AI 规划这一站的输入之一'
+    },
+    {
+      key: 'notes', label: '补充说明', select: 'text', required: false,
+      evidence: '前面那些格子盖不住的那句话才写在这里，写了就以原话进摘要'
+    }
   ],
   candidateMaxCount: 3,
   // 三档的 label 照后端 SiteBriefVocabulary 的真形状抄：数量口径本来就写在这一句话里
@@ -128,7 +146,7 @@ const VOCAB = {
 /**
  * D1 的词表形状：每题带 group、顶层带 groups（后端 SiteBriefVocabulary 的真实下发形状）。
  * 题目 key 用后端真名（brand_name / page_plan / …）是为了让 payload 断言真的经过 camelCase 映射；
- * 段名故意写成「X段：…」，锚点上露的是冒号前的短名——全称长在段标题那一行。
+ * 段名故意写成「X段：…」——一屏一题之后它只是页眉上那一句，全称仍一个字不抄进页面。
  */
 const VOCAB_D1 = {
   questions: [
@@ -148,9 +166,11 @@ const VOCAB_D1 = {
     {
       key: 'font_hint', group: 'structure', label: '字体调性', select: 'single', required: false,
       options: [{ code: 'modern', label: '现代' }, { code: 'ai', label: '交给 AI 定' }]
-    }
+    },
+    { key: 'reference_urls', group: 'constraint', label: '参考站（0~3 个网址）', select: 'text', required: false, evidence: '最多三个网址，可空' },
+    { key: 'notes', group: 'constraint', label: '补充说明', select: 'text', required: false, evidence: '词表盖不住的那一句才写在这里' }
   ],
-  groups: { basic: '基础段：这是谁、给谁看', structure: '结构段：要哪几页、首页怎么排' },
+  groups: { basic: '基础段：这是谁、给谁看', structure: '结构段：要哪几页、首页怎么排', constraint: '约束段：参考与兜底的话' },
   candidateMaxCount: 3,
   demoContentModes: VOCAB.demoContentModes
 }
@@ -289,14 +309,20 @@ function click(node: Element) {
 }
 
 /**
- * 分步后一次只渲当前那一段：要摸哪一段的控件，先点锚点条上的段按钮把表单翻过去。
- * 段名按冒号前的短名比——那正是界面上摆出来的那几个字，测试不抄词表里的全称。
+ * 一屏一题之后一次只渲当前那一题：要摸哪一题的控件，先点进度条上那一格把表单翻过去。
+ * 比的是题干里的字（进度条摆的就是词表下发的那句题干），测试不抄题目 key。
  */
-async function gotoSection(wrapper: any, shortName: string) {
-  const target = wrapper.findAll('.brief-intake__anchors button')
-    .find((node: any) => node.text().replace(/\s+/g, '').includes(shortName))
-  expect(target, `锚点条里没有「${shortName}」这一段`).toBeTruthy()
+async function gotoStep(wrapper: any, labelFragment: string) {
+  const target = wrapper.findAll('.brief-intake__rail-chip')
+    .find((node: any) => node.text().replace(/\s+/g, '').includes(labelFragment))
+  expect(target, `进度条里没有「${labelFragment}」这一题`).toBeTruthy()
   click(target!.element)
+  await flushPromises()
+}
+
+/** 走到序列尽头那一屏（还空哪几题） */
+async function gotoReview(wrapper: any) {
+  click(wrapper.find('.brief-intake__rail-review').element)
   await flushPromises()
 }
 
@@ -324,10 +350,14 @@ function inputOfQuestion(wrapper: any, labelFragment: string, nodes?: any[]) {
   ).includes(labelFragment))
 }
 
-/** 把 D1 词表里两题必填答掉：星号来自词表 q.required，界面保存闸只拦这两题 */
+/** 把 D1 那两题必填答掉：星号来自词表 q.required，界面保存闸只拦这两题（各自在自己的那一屏上答） */
 async function fillRequiredD1(wrapper: any) {
+  await gotoStep(wrapper, '品牌全称')
   const brand = inputOfQuestion(wrapper, '品牌全称')
+  expect(brand, '品牌全称那一屏应挂得出输入格').toBeTruthy()
   brand!.vm.$emit('update:value', '某某科技')
+  await flushPromises()
+  await gotoStep(wrapper, '访客动作')
   wrapper.findAllComponents(RadioGroup)[0].vm.$emit('update:value', 'inquiry')
   await flushPromises()
 }
@@ -347,42 +377,94 @@ beforeEach(() => {
   routeQuery.current = {}
   vi.clearAllMocks()
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  // 换一题会把滚动位置归零（真人在这一步确实要回到顶部）；jsdom 没实现这个 API，
+  // 不接住它只是满屏噪音，接住它不影响任何判据。
+  Object.defineProperty(window, 'scrollTo', { value: () => {}, configurable: true, writable: true })
 })
 
 afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('题目按词表循环渲染', () => {
-  it('词表回几道题就挂几块，题名与选项全是接口回来的字，页面自己一个字不加', async () => {
+describe('一屏一题：题序、题干与控件形态只认词表', () => {
+  it('进度条一格一题，但一屏只挂一道题：题数与题序都跟着词表那份走', async () => {
     const wrapper = await mountView()
-    // 「固定说明」两块（参考站/补充说明）不算题目
-    expect(wrapper.findAll('.brief-intake__question:not(.brief-intake__static)')).toHaveLength(6)
-    const text = wrapper.text()
-    expect(text).toContain('题目单选')
-    expect(text).toContain('选项甲')
-    expect(text).toContain('题目新形态')
-    // 形态路由：single→radio 组、multi→checkbox 组、cascade/color→各自控件、text 与未知形态→输入框
-    expect(wrapper.findAllComponents(RadioGroup)).toHaveLength(1)
-    expect(wrapper.findAllComponents(CheckboxGroup)).toHaveLength(1)
-    expect(wrapper.findAll('.cascader-stub')).toHaveLength(1)
-    // color 走的是原生色块 + 十六进制格（这一版组件库没有 ColorPicker，桩件会把「控件根本没渲」藏住，所以这里摸真实节点）
-    expect(wrapper.findAll('input[type=color]')).toHaveLength(1)
-    const placeholders = wrapper.findAllComponents(Input).map(node => String(node.props('placeholder') ?? ''))
-    expect(placeholders).toContain('#RRGGBB')
-    // text 与未知形态两题退到同一个中性 placeholder：词表那句证据不抄进输入格，一句话不摆两遍
-    expect(placeholders.filter(p => p === '按客户原话打这一行')).toHaveLength(2)
-    expect(placeholders).not.toContain('这题自己打字')
-    expect(placeholders).not.toContain('不认识就退回输入框')
-    expect(wrapper.text().split('这题自己打字').length - 1).toBe(1)
-    expect(wrapper.text().split('不认识就退回输入框').length - 1).toBe(1)
+    // 词表回 8 行（6 道通用题 + 参考站 + 补充说明）⇒ 进度条 8 格；界面没一处写死题数
+    const chips = wrapper.findAll('.brief-intake__rail-chip')
+    expect(chips).toHaveLength(VOCAB.questions.length)
+    expect(chips.map(node => node.text().replace(/\s+/g, ''))).toEqual(
+      VOCAB.questions.map((question, index) =>
+        `${index + 1}.${question.label}`.replace(/\s+/g, '') + (question.key === 'q_single' ? '必填·空' : '空'))
+    )
+    // 页眉那句话说「共几题」的数也来自同一份，不是模板里写的常量
+    expect(wrapper.text()).toContain(`共 ${VOCAB.questions.length} 题`)
+
+    // 一屏只挂一道题：进度条把八道题干都摆出来（那是导航），但别题的控件不许在这一屏上渲
+    expect(wrapper.findAll('.brief-intake__question:not(.brief-intake__static)')).toHaveLength(1)
+    expect(wrapper.find('.brief-intake__q-label').text()).toContain('题目单选')
+    expect(wrapper.findAllComponents(CheckboxGroup)).toHaveLength(0)
+    expect(wrapper.find('.brief-intake__stepper').text()).toContain('第 1 / 8 题「题目单选」')
     wrapper.unmount()
   })
 
-  it('词表取不到：明说没取到、题目区不留假象，给「重新取词表」重试；此时保存不发任何请求', async () => {
+  it('六题各占一屏：single→radio、multi→checkbox、cascade→级联、color→色块、text 与未知形态→输入框', async () => {
+    const wrapper = await mountView()
+
+    expect(wrapper.findAllComponents(RadioGroup)).toHaveLength(1)
+    expect(wrapper.findAllComponents(CheckboxGroup)).toHaveLength(0)
+
+    await gotoStep(wrapper, '题目多选')
+    expect(wrapper.findAllComponents(CheckboxGroup)).toHaveLength(1)
+    expect(wrapper.text()).toContain('选项丙')
+
+    await gotoStep(wrapper, '题目级联')
+    expect(wrapper.findAll('.cascader-stub')).toHaveLength(1)
+
+    // color 走的是原生色块 + 十六进制格（这一版组件库没有 ColorPicker，桩件会把「控件根本没渲」藏住）
+    await gotoStep(wrapper, '题目颜色')
+    expect(wrapper.findAll('input[type=color]')).toHaveLength(1)
+    const hex = wrapper.findAllComponents(Input).find(node => String(node.props('placeholder') ?? '') === '#RRGGBB')
+    expect(hex).toBeTruthy()
+
+    // text 与未知形态两题退到同一个中性 placeholder：词表那句证据只在题目下面念一遍
+    for (const [label, evidence] of [['题目文本', '这题自己打字'], ['题目新形态', '不认识就退回输入框']] as const) {
+      await gotoStep(wrapper, label)
+      const placeholders = wrapper.findAllComponents(Input).map(node => String(node.props('placeholder') ?? ''))
+      expect(placeholders.filter(p => p === '按客户原话打这一行')).toHaveLength(1)
+      expect(placeholders).not.toContain(evidence)
+      expect(wrapper.text().split(evidence).length - 1).toBe(1)
+    }
+    wrapper.unmount()
+  })
+
+  it('参考站与补充说明各占一屏：题干与那句说明都是词表那两行里的字，界面不自己再写一句', async () => {
+    const wrapper = await mountView()
+    // 这两屏不在通用题循环里：进度条翻过去才挂得出来
+    await gotoStep(wrapper, '参考站')
+    const refs = wrapper.find('.brief-intake__static')
+    expect(refs.exists(), '参考站那一屏没挂出专用控件').toBe(true)
+    expect(refs.text()).toContain('参考站（0~3 个网址）')
+    expect(refs.text()).toContain('填进来的网址会被真的打开拆开看')
+    // 以前这里是界面自己写的一句「参考站（最多 3 个 URL，可空）」——词表改了它不会跟着改
+    expect(refs.text()).not.toContain('最多 3 个 URL')
+    expect(refs.findAllComponents(Input).length).toBeGreaterThan(0)
+
+    await gotoStep(wrapper, '补充说明')
+    const remarks = wrapper.find('.brief-intake__static')
+    expect(remarks.exists(), '补充说明那一屏没挂出 textarea').toBe(true)
+    expect(remarks.text()).toContain('补充说明')
+    expect(remarks.text()).toContain('前面那些格子盖不住的那句话才写在这里')
+    expect(remarks.find('textarea').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('词表取不到：明说没取到、进度条与题目区都不假装有题；此时保存不发任何请求', async () => {
     const wrapper = await mountView({ vocabError: '词表接口 500' })
     expect(wrapper.text()).toContain('前采词表没取到')
-    expect(wrapper.findAll('.brief-intake__question')).toHaveLength(2) // 只剩两块固定说明
+    // 没题就没步：进度条与翻页行整块撤下，也不留两块「看着像能录」的专用控件卡
+    expect(wrapper.find('.brief-intake__rail').exists()).toBe(false)
+    expect(wrapper.find('.brief-intake__stepper').exists()).toBe(false)
+    expect(wrapper.findAll('.brief-intake__question')).toHaveLength(0)
     expect(vi.mocked(message.error).mock.calls.flat().join()).toContain('词表接口 500')
 
     clickSave(wrapper)
@@ -393,71 +475,115 @@ describe('题目按词表循环渲染', () => {
     click(byText('重新取词表')[0])
     await flushPromises()
     expect(vocabularyApi.adminVocabulary).toHaveBeenCalledTimes(2)
-    expect(wrapper.findAll('.brief-intake__question:not(.brief-intake__static)')).toHaveLength(6)
+    expect(wrapper.findAll('.brief-intake__rail-chip')).toHaveLength(VOCAB.questions.length)
+    expect(wrapper.findAll('.brief-intake__question:not(.brief-intake__static)')).toHaveLength(1)
     wrapper.unmount()
   })
 })
 
-describe('四组分区与锚点导航（段名只认词表 groups 那一份）', () => {
-  it('词表带 groups：一次只渲当前那一段，锚点条露冒号前的短名，点了把表单翻到那一段', async () => {
+describe('段名降级成页眉：只认词表 groups 那一份', () => {
+  it('页眉跟着当前这一题的段走：翻到别段的题，段名与锚点 id 一起换', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
-    // 停在第一段：段标题只有基础段那一条，段名与题目都只可能是 groups 回包里的字
     const heads = wrapper.findAll('.brief-intake__section-head')
     expect(heads).toHaveLength(1)
     expect(heads[0].text()).toBe('基础段：这是谁、给谁看')
     expect(document.getElementById('brief-intake-section-basic')).toBeTruthy()
     expect(document.getElementById('brief-intake-section-structure')).toBeNull()
-    const anchors = wrapper.findAll('.brief-intake__anchors button')
-    expect(anchors.map(node => node.text().replace(/\s+/g, ''))).toEqual(['1.基础段', '2.结构段'])
 
-    click(anchors[1].element)
-    await flushPromises()
-    // 翻过去之后：结构段的题渲出来，基础段那一节整段撤下（分步不是「滚动到位」，是一屏一段）
+    await gotoStep(wrapper, '页面清单')
     const headsAfter = wrapper.findAll('.brief-intake__section-head')
     expect(headsAfter).toHaveLength(1)
     expect(headsAfter[0].text()).toBe('结构段：要哪几页、首页怎么排')
     expect(document.getElementById('brief-intake-section-structure')).toBeTruthy()
     expect(document.getElementById('brief-intake-section-basic')).toBeNull()
+    // 段名只是页眉：这一屏挂的还是那一道题
+    expect(wrapper.text()).toContain('第 5 / 10 题「页面清单」')
     wrapper.unmount()
   })
 
-  it('词表没下发 groups（老回包/缺段名）：不硬造分段，题目照旧循环渲染', async () => {
+  it('词表没下发 groups（老回包/缺段名）：照样一屏一题，只是没有段名页眉', async () => {
     const wrapper = await mountView()
-    expect(wrapper.find('.brief-intake__anchors').exists()).toBe(false)
     expect(wrapper.findAll('.brief-intake__section-head')).toHaveLength(0)
-    expect(wrapper.findAll('.brief-intake__question:not(.brief-intake__static)')).toHaveLength(6)
+    expect(wrapper.findAll('.brief-intake__rail-chip')).toHaveLength(VOCAB.questions.length)
+    expect(wrapper.findAll('.brief-intake__question:not(.brief-intake__static)')).toHaveLength(1)
     wrapper.unmount()
   })
 })
 
-describe('必填只剩词表打星的题 + 跳过要说人话', () => {
-  it('星号来自 q.required：打星的空题显式说会被后端拒，可跳过的空题显式写「客户未提供」', async () => {
+describe('进度条、回改与「还空哪几题」', () => {
+  it('进度条报的是真实读数：答完一题那格从「必填·空」翻成「已答」，已答/还空的数跟着动', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
-    const basic = VOCAB_D1.questions.filter(question => question.group === 'basic')
-    const structure = VOCAB_D1.questions.filter(question => question.group === 'structure')
-    expect(wrapper.findAll('.brief-intake__req')).toHaveLength(2) // brand_name + primary_goal，恰是词表打星的两题
-    expect(wrapper.findAll('.brief-intake__opt')).toHaveLength(basic.length - 2)
-    const skips = wrapper.findAll('.brief-intake__skip')
-    // 本段每道还没答的题都挂一句：不留「看着像填好」的空框（必填那两句红色写法也算 skip 节点）
-    expect(skips).toHaveLength(basic.length)
-    expect(skips.filter(node => node.classes('brief-intake__skip--required'))).toHaveLength(2)
-    expect(wrapper.text()).toContain('客户未提供')
+    const first = wrapper.findAll('.brief-intake__rail-chip')[0]
+    expect(first.text()).toContain('必填·空')
+    expect(wrapper.find('.brief-intake__stepper').text()).toContain('还空 10 题')
 
-    // 答完可跳过的多选：它那句「客户未提供」当场消失——提示跟着真实勾选走，不是死文案
-    const trustGroup = wrapper.findAllComponents(CheckboxGroup)[0]
-    trustGroup.vm.$emit('update:value', ['numbers'])
+    const brand = inputOfQuestion(wrapper, '品牌全称')
+    brand!.vm.$emit('update:value', '某某科技')
     await flushPromises()
-    expect(wrapper.findAll('.brief-intake__skip')).toHaveLength(basic.length - 1)
-
-    // 翻到结构段：一段的星与空格子只算这一段自己的题，页面上没有一处按总题数硬写
-    await gotoSection(wrapper, '结构段')
-    expect(wrapper.findAll('.brief-intake__req')).toHaveLength(0)
-    expect(wrapper.findAll('.brief-intake__opt')).toHaveLength(structure.length)
-    expect(wrapper.findAll('.brief-intake__skip')).toHaveLength(structure.length)
+    expect(wrapper.findAll('.brief-intake__rail-chip')[0].text()).toContain('已答')
+    expect(wrapper.find('.brief-intake__stepper').text()).toContain('已答 1 题、还空 9 题')
+    // 必填还空的那几题被点名：此刻只剩「访客动作」一题打星
+    expect(wrapper.find('.brief-intake__stepper').text()).toContain('必填还空的：访客动作')
     wrapper.unmount()
   })
 
-  it('必填还空着：保存被本地拦下并点名缺哪几题（星来自词表），create 一次都不发', async () => {
+  it('上一题/下一题真的翻屏，尽头多一屏核对；核对屏点名还空的题，「回到这一题」把人带回那一题', async () => {
+    const wrapper = await mountView({ vocab: VOCAB_D1 })
+    // 第一屏没有「上一题」可点（不是死链，是真到边了）
+    expect(byText('上一题')[0].hasAttribute('disabled')).toBe(true)
+    click(byText('下一题')[0])
+    await flushPromises()
+    expect(wrapper.find('.brief-intake__stepper').text()).toContain('第 2 / 10 题「访客动作」')
+
+    await gotoReview(wrapper)
+    const review = wrapper.find('.brief-intake__review')
+    expect(review.exists(), '核对那一屏没渲出来').toBe(true)
+    expect(review.text()).toContain('共 10 题：已答 0 题，还空 10 题')
+    expect(wrapper.findAll('.brief-intake__review-row')).toHaveLength(10)
+    expect(wrapper.find('.brief-intake__stepper').text()).toContain('第 11 / 11 屏（核对）')
+    // 到边了：核对屏没有「下一题」可点
+    expect(byText('下一题')[0].hasAttribute('disabled')).toBe(true)
+
+    const backToColor = wrapper.findAll('.brief-intake__review-row')
+      .find(row => row.text().includes('辅助色'))
+    expect(backToColor, '核对屏没列出「辅助色」这一题').toBeTruthy()
+    click(buttonIn(backToColor!.element, '回到这一题')!)
+    await flushPromises()
+    expect(wrapper.find('.brief-intake__review').exists()).toBe(false)
+    expect(wrapper.find('.brief-intake__stepper').text()).toContain('第 7 / 10 题「辅助色」')
+    wrapper.unmount()
+  })
+
+  it('星号来自 q.required：必填那屏明说会被后端拒，可跳过那屏写「客户未提供」，答完当场消失', async () => {
+    const wrapper = await mountView({ vocab: VOCAB_D1 })
+    // 必填屏：打星的空题不许看着像填好了
+    expect(wrapper.findAll('.brief-intake__req')).toHaveLength(1)
+    expect(wrapper.findAll('.brief-intake__opt')).toHaveLength(0)
+    const skip = wrapper.find('.brief-intake__skip')
+    expect(skip.classes()).toContain('brief-intake__skip--required')
+    expect(skip.text()).toContain('必填：这一题还空着')
+
+    await gotoStep(wrapper, '目标用户原话')
+    expect(wrapper.findAll('.brief-intake__req')).toHaveLength(0)
+    expect(wrapper.findAll('.brief-intake__opt')).toHaveLength(1)
+    expect(wrapper.find('.brief-intake__skip').text()).toContain('客户未提供')
+
+    // 答完这一题：那句「客户未提供」当场消失——提示跟着真实填写走，不是死文案
+    wrapper.findAllComponents(Textarea)[0].vm.$emit('update:value', '给工厂做配套的采购助理')
+    await flushPromises()
+    expect(wrapper.find('.brief-intake__skip').exists()).toBe(false)
+
+    // 参考站那一屏的判据看的是那一叠 URL，不是勾选袋（不在袋里的题不能被误判成永远空）
+    await gotoStep(wrapper, '参考站')
+    expect(wrapper.find('.brief-intake__static .brief-intake__skip').text()).toContain('客户未提供')
+    const refInput = wrapper.findAllComponents(Input).find(node => node.props('placeholder') === 'https://example.com')
+    refInput!.vm.$emit('update:value', 'https://a.example')
+    await flushPromises()
+    expect(wrapper.find('.brief-intake__static .brief-intake__skip').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('必填还空着：保存被本地拦下并点名缺哪几题（星来自词表），并把人停在「还空哪几题」那一屏', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
     wrapper.findAllComponents(Select)[0].vm.$emit('update:value', 15)
     await clickSave(wrapper)
@@ -466,6 +592,9 @@ describe('必填只剩词表打星的题 + 跳过要说人话', () => {
     expect(warning).toContain('还有打星的必填题没填')
     expect(warning).toContain('品牌全称')
     expect(warning).toContain('访客动作')
+    // 挡下来之后不必自己翻：这一屏正是「还空哪几题」
+    expect(wrapper.find('.brief-intake__review').exists()).toBe(true)
+    expect(wrapper.findAll('.brief-intake__review-row')).toHaveLength(VOCAB_D1.questions.length)
     wrapper.unmount()
   })
 })
@@ -473,8 +602,8 @@ describe('必填只剩词表打星的题 + 跳过要说人话', () => {
 describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () => {
   it('加页/填字段/上下移/删除都挂真实控件；缺 home 与 contact 的即时提示逐条列出来', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
-    // 页面清单长在结构段：先翻过去（分步后本段的控件才挂得出来）
-    await gotoSection(wrapper, '结构段')
+    // 页面清单自己占一屏：翻过去才挂得出行编辑器
+    await gotoStep(wrapper, '页面清单')
     expect(wrapper.findAll('.brief-intake__page-row')).toHaveLength(0)
 
     click(byText('添加一页')[0])
@@ -507,14 +636,12 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
     expect(buttonIn(rows[0].element, '上移')!.hasAttribute('disabled')).toBe(true)
     click(buttonIn(rows[0].element, '下移')!)
     await flushPromises()
-    const firstKey = wrapper.findAllComponents(Input).find(node => String(node.props('placeholder') ?? '').startsWith('标识 key'))
     // 第一行换成了 home（about 被挤到第二行）：行序是真的，不是只长个按钮
     const keys = wrapper.findAll('.brief-intake__page-key').map(node => (node.element as HTMLInputElement).value)
     expect(keys[0]).toBe('home')
     expect(keys).toHaveLength(3)
-    void firstKey
 
-    // 删除第二行（about 被下移后在第三行？不——先删掉现在第 2 行验证行数与顺序）
+    // 删除现在第 2 行：行数与剩下的顺序一起对上
     const rows2 = wrapper.findAll('.brief-intake__page-row')
     click(buttonIn(rows2[1].element, '删除')!)
     await flushPromises()
@@ -525,7 +652,7 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
 
   it('栏目卡片来自超管那一份栏目词表：点卡片即选，名字一个都不抄；区块候选挡掉 notWired 的与已加的', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
-    await gotoSection(wrapper, '结构段')
+    await gotoStep(wrapper, '页面清单')
     click(byText('加一页：首页（home）')[0])
     await flushPromises()
     const row = wrapper.findAll('.brief-intake__page-row')[0]
@@ -573,7 +700,7 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
 
   it('栏目词表取不到时只在原地说明：不弹全局红 toast', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1, sectionsError: 'boom' })
-    await gotoSection(wrapper, '结构段')
+    await gotoStep(wrapper, '页面清单')
     // 栏目卡片长在每一页的行编辑器里：先有一页，才谈得上「卡片只剩那一张」
     click(byText('加一页：首页（home）')[0])
     await flushPromises()
@@ -596,9 +723,9 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
     const wrapper = await mountView({ vocab: VOCAB_D1 })
     await fillRequiredD1(wrapper)
     wrapper.findAllComponents(Select)[0].vm.$emit('update:value', 15)
-    const audience = wrapper.findAllComponents(Textarea)[0] // D1 形态里第一块 textarea 就是 audience_note
-    audience.vm.$emit('update:value', '给工厂做配套的采购助理')
-    await gotoSection(wrapper, '结构段')
+    await gotoStep(wrapper, '目标用户原话')
+    wrapper.findAllComponents(Textarea)[0].vm.$emit('update:value', '给工厂做配套的采购助理')
+    await gotoStep(wrapper, '页面清单')
     click(byText('加一页：首页（home）')[0])
     click(byText('添加一页')[0]) // 故意留一行全空
     await flushPromises()
@@ -635,8 +762,9 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
 describe('home_layout 区块顺序编辑器（上下移动代替拖拽）', () => {
   it('从区块目录挑→加进来→上下移→删除；上限那句明说是后端判据不是本地闸', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
-    await gotoSection(wrapper, '结构段')
+    await gotoStep(wrapper, '首页区块顺序')
     const layout = wrapper.find('.brief-intake__layout')
+    expect(layout.exists(), '首页区块顺序那一屏没挂出区块编辑器').toBe(true)
     const picker = wrapper.findAllComponents(Select)
       .find(node => node.props('placeholder') === '从区块目录挑一个')!
 
@@ -688,10 +816,12 @@ describe('右侧那段话只来自 summary-preview', () => {
     wrapper.unmount()
   })
 
-  it('窗口内连改两题只发一次请求，带的是最后那一份勾选', async () => {
+  it('窗口内连改两题（第二题在下一屏）只发一次请求，带的是最后那一份勾选', async () => {
     const wrapper = await mountView()
     wrapper.findAllComponents(RadioGroup)[0].vm.$emit('update:value', 'opt-a')
     await vi.advanceTimersByTimeAsync(120)
+    // 分屏不改变「一次交整张表单」这件事：翻到下一屏勾完，摘要仍按整张表单渲染、只发一趟
+    await gotoStep(wrapper, '题目多选')
     wrapper.findAllComponents(CheckboxGroup)[0].vm.$emit('update:value', ['opt-c', 'opt-d'])
     await afterDebounce()
     expect(siteBriefsApi.summaryPreview).toHaveBeenCalledTimes(1)
@@ -774,6 +904,7 @@ describe('候选套数与头部三件事', () => {
 
     // 色块是原生 `<input type="color">`，不是组件库桩件：装在 node_modules 的 ant-design-vue 4.2.6 没有 ColorPicker，
     // 上一版这里写 `<a-color-picker>` 在浏览器里整块不渲，而打了桩的单测照样绿——所以这一条必须摸真实节点。
+    await gotoStep(wrapper, '题目颜色')
     const swatch = wrapper.find('input[type=color]')
     expect(swatch.exists(), 'color 题没有摆出色块').toBe(true)
     await swatch.setValue('#1a2b3c')
@@ -786,16 +917,26 @@ describe('候选套数与头部三件事', () => {
     expect((swatch.element as HTMLInputElement).value).toBe('#000000') // 哨兵值不是颜色：色块回落成黑，文字格也不再冒充有值
     expect(hexBox!.props('value')).toBe('')
 
+    // 翻到别屏再翻回来：这一格填过的值不许被排版洗掉（分屏只是排版，表单是一份）
+    await gotoStep(wrapper, '题目多选')
+    await gotoStep(wrapper, '题目颜色')
+    expect(wrapper.findAllComponents(Switch)[0].props('checked')).toBe(true)
+    expect((wrapper.find('input[type=color]').element as HTMLInputElement).disabled).toBe(true)
+
+    // 参考站与补充说明各自那一屏：值换了屏也不丢（分屏只是排版）
+    await gotoStep(wrapper, '参考站')
     const refInput = wrapper.findAllComponents(Input).find(node => node.props('placeholder') === 'https://example.com')
     refInput!.vm.$emit('update:value', '  https://ref.example  ')
-    wrapper.findAllComponents(Textarea)[0].vm.$emit('update:value', '   ')
+    await gotoStep(wrapper, '补充说明')
+    const notesBox = wrapper.findAllComponents(Textarea)[0]
+    notesBox.vm.$emit('update:value', '   ')
     await clickSave(wrapper)
     const payload = vi.mocked(siteBriefsApi.create).mock.calls[0][0]
     // 「AI 决定」的哨兵值 = 后端词表里那条选项的码 ai（不是自造的 auto）；平铺进品牌主色字段
     expect((payload as any).qColor).toBe('ai')
     expect(payload.referenceUrls).toEqual(['https://ref.example'])
     expect(payload.notes).toBeNull()
-    expect(wrapper.findAllComponents(Textarea)[0].props('maxlength')).toBe(500)
+    expect(notesBox.props('maxlength')).toBe(500)
     wrapper.unmount()
   })
 })
@@ -828,6 +969,9 @@ describe('编辑存量单与后端的拒绝原话', () => {
     expect(wrapper.find('.brief-intake__summary-text').text()).toBe('库里那段话')
     expect(vi.mocked(siteBriefsApi.summaryPreview)).not.toHaveBeenCalled()
 
+    // 回填过的题在进度条上就是「已答」：读回走的是同一份判据，不是只把格子画满
+    expect(wrapper.findAll('.brief-intake__rail-chip')[0].text()).toContain('已答')
+
     vi.mocked(siteBriefsApi.update).mockRejectedValue(
       new Error('这份需求单已经在出方案了，锁住不能改了')
     )
@@ -855,14 +999,17 @@ describe('编辑存量单与后端的拒绝原话', () => {
         homeLayout: ['hero', 'case-grid']
       })
     })
-    // 答过的题不再挂「客户未提供」；没答的（audience_note）仍然挂——回填走的是勾选袋，不是重录
-    expect(wrapper.text()).toContain('客户未提供')
-    const trust = wrapper.findAllComponents(CheckboxGroup)[0]
-    expect(trust.props('value')).toEqual(['numbers'])
-    // 页面清单读回一行，标识格带着库里的值；区块顺序读回两行（这两题都在结构段）
-    await gotoSection(wrapper, '结构段')
+    // 答过的题不再挂「客户未提供」；没答的（目标用户原话）仍然挂——回填走的是勾选袋，不是重录
+    await gotoStep(wrapper, '目标用户原话')
+    expect(wrapper.find('.brief-intake__skip').text()).toContain('客户未提供')
+    await gotoStep(wrapper, '信任锚点')
+    expect(wrapper.findAllComponents(CheckboxGroup)[0].props('value')).toEqual(['numbers'])
+    expect(wrapper.find('.brief-intake__skip').exists()).toBe(false)
+    // 页面清单读回一行，标识格带着库里的值；区块顺序读回两行（各自那一屏）
+    await gotoStep(wrapper, '页面清单')
     expect(wrapper.findAll('.brief-intake__page-row')).toHaveLength(1)
     expect((wrapper.find('.brief-intake__page-key').element as HTMLInputElement).value).toBe('home')
+    await gotoStep(wrapper, '首页区块顺序')
     expect(wrapper.findAll('.brief-intake__layout .brief-intake__block-row')).toHaveLength(2)
     wrapper.unmount()
   })
@@ -937,7 +1084,7 @@ describe('锁了单的一单：编辑入口不撒谎', () => {
 })
 
 describe('这一页不许长出 P3 的按钮', () => {
-  it('全部按钮只有导航、词表重试、参考站增删、行编辑器和保存：没有任何生成/预估/出方案入口', async () => {
+  it('全部按钮只有进度条、词表重试、参考站增删、行编辑器和保存：没有任何生成/预估/出方案入口', async () => {
     const wrapper = await mountView({ vocab: VOCAB_D1 })
     wrapper.findAllComponents(Select)[0].vm.$emit('update:value', 15)
     await flushPromises()
@@ -945,6 +1092,9 @@ describe('这一页不许长出 P3 的按钮', () => {
     expect(labels.filter(label => /生成|预估|估算|出方案|预览/.test(label))).toEqual([])
     expect(labels).toContain('保存')
     expect(labels).toContain('返回列表')
+    // 进度条上多出来的那些格是排版不是新嘴：一格一题 + 尽头那一屏核对
+    expect(wrapper.findAll('.brief-intake__rail-chip')).toHaveLength(VOCAB_D1.questions.length)
+    expect(wrapper.findAll('.brief-intake__rail-review')).toHaveLength(1)
     click(byText('返回列表')[0])
     expect(pushSpy).toHaveBeenCalledWith({ name: 'workspace-portal-briefs' })
     wrapper.unmount()

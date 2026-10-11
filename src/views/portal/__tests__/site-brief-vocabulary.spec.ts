@@ -172,8 +172,12 @@ describe('I-1：需求单这一族文件没有第二份词表', () => {
     expect(detail).toMatch(/briefAnswerRows\(/)
     expect(detail).toMatch(/:data-source="answerRows"/)
     expect(detail, '页面自己拼答案就等于抄第二份词表').not.toMatch(/readBriefSelections|briefOptionLabel\(/)
-    // 摘要一律原话照抄后端那一份，页面不另拼一句、也不调 preview
-    expect(detail).toMatch(/\{\{\s*brief\.requirementsSummary\s*\}\}/)
+    // 摘要一律原话照抄后端那一份，页面不另拼一句、也不调 preview。
+    // 断言的对象从「模板里出现 `{{ brief.requirementsSummary }}`」换成「后端那一串字逐字进 FoldedText 的 raw」：
+    // 1871 字那面墙按拍板改成「人话一句话 + 原文折进展开」，直插整个字段才是这次要改掉的东西，
+    // 而「不许自己拼一句、不许调 preview」这两条判据一个字没松。
+    expect(detail).toMatch(/:raw="brief\.requirementsSummary"/)
+    expect(detail, '原文只许逐字带着，页面自己截一句等于第二份说法').not.toMatch(/requirementsSummary\.(slice|substring)/)
     expect(detail).not.toMatch(/summaryPreview\(/)
   })
 

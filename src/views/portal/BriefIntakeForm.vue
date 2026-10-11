@@ -11,6 +11,7 @@ import {
   emptyPagePlanEntry,
   HOME_LAYOUT_MAX,
   intakeLoopQuestions,
+  intakeStaticCard,
   isIntakeStaticKey,
   PAGE_PLAN_MAX,
   PAGE_PRIORITY_CODES,
@@ -22,6 +23,7 @@ import {
   vocabularyApi,
   type BriefPagePlanEntry,
   type BriefVocabularyQuestion,
+  type IntakeStaticCard,
   type SiteBrief,
   type SiteBriefForm,
   type SiteBriefVocabulary
@@ -32,25 +34,30 @@ import { siteApi, tenantApi } from '@/api/workspace'
 import type { Tenant } from '@/types/workspace'
 
 /**
- * 前采录入表单（Spec-D D1 起：24 题「四组分区」；Spec-M P4 起：**分区 = 分步**，一屏一段）。
+ * 前采录入表单（Spec-D D1 起：24 题「四组分区」；Spec-M P4 起分区=分步，P8 起 **一屏一题**）。
  *
  * 这一份是**唯一的前采实现**：`BriefIntakeView.vue`（独立路由页）与新建网站向导的第一步都渲染它，
  * 差别只在 `embedded` 与 `briefId`/`tenantId` 从哪儿来（props 优先，独立页仍读地址）。
  *
  * 这一页的四条纪律（每条都对应过一次的真实事故）：
  * 1. **题目、选项、分段名全部按词表循环渲染**——`GET /admin/site-briefs/vocabulary` 一份为准
- *    （`site-brief-vocabulary.spec.ts` 扫源码守着）；四段段名与「哪题属哪段」也是后端下发
- *    （`groups` + 每题 `group`），界面一个字都不抄。**分步只是把「一屏四段」改成「一段一屏」，
- *    提交形状没变**：仍然一次交整张表单，段与段之间不拦人（步序不是权限，拦人没意义）。
- *    词表没下发 `groups`（或只有一段）时**退回一段平铺**，不硬造分段。
+ *    （`site-brief-vocabulary.spec.ts` 扫源码守着）；段名与「哪题属哪段」也是后端下发
+ *    （`groups` + 每题 `group`），界面一个字都不抄。**步序就是把「一屏摊 24 题」改成「一屏一题」，
+ *    提交形状没变**：仍然一次交整张表单，题与题之间不拦人（步序不是权限，拦人没意义），
+ *    进度条点任意一格就回到那一题（回改不必从头再走）。词表没下发 `groups` 时只是没有段名页眉，
+ *    一屏一题照旧——把 24 题重新摊回一页正是这一条要改掉的东西。
  * 2. **必填只剩词表打了星的题**（D1 起：品牌或公司全称、最希望访客做完哪一件事）。星号来自
  *    `q.required`，界面不自编第二份必填名单；其余一律可跳过。
  * 3. **「跳过」要说人话**：没填的格子显式挂一句「客户未提供」——后端摘要段就是这么如实写给模型看的
  *    （省略那一行会让模型分不清「客户没偏好」与「我们没问」），界面因此不许留一个看着像填好的空框。
+ *    序列尽头那一屏「还空哪几题」把这条摊开给人核对，每行给一条回到那一题的路。
  * 4. **page_plan / home_layout 的本地提示不是闸**：`pagePlanLocalHints` 那组判据镜像自后端
  *    `SiteBriefIntake`，只为少跑几回后端；保存那一闸永远在服务端，被拒时它的中文原因
  *    （`BusinessException.message`，逐页点名）经 `Error.message` 原样列在页面底部，
  *    一个字不改、一条不吞——这页不摆点不动的死链，也不摆一个「本地说可以存」的假闸。
+ *
+ * 参考站与补充说明这两块专用控件**也是词表里的题**：它们按后端下发的位置各占一屏，
+ * 题干与那句说明取自 `q.label`/`q.evidence`（界面原来自己写的那两句是第二份说法，已删）。
  *
  * 区块与栏目的名字不抄第二份：区块目录读 `GET /portal/blocks`（含后端现算的 notWired 标志，
  * 未接线的空壳不进候选），栏目词表读 `GET /portal/sections`（别的 view 的取法，照旧）。
@@ -223,77 +230,96 @@ function cascaderOptions(question: BriefVocabularyQuestion) {
   }))
 }
 
-// ---------------- 四组分区与锚点导航（段名只认词表 `groups` 那一份） ----------------
+// ---------------- 一屏一题的步进（题序与段名都只认词表那一份） ----------------
 
-/** 词表声明顺序即分段顺序（后端 LinkedHashMap 保序下发），界面不重排也不猜 */
-const sectionAnchors = computed(() => {
-  const groups = vocabulary.value?.groups
-  if (!groups) return []
-  const seen: Array<{ code: string; label: string }> = []
-  questions.value.forEach(question => {
-    const code = question.group
-    if (!code || seen.some(entry => entry.code === code)) return
-    seen.push({ code, label: groups[code] || code })
-  })
-  return seen
+/**
+ * 走查序列＝词表下发顺序的全部题目，**含参考站与补充说明这两块专用控件**：
+ * 它们在后端题表里也是题，所以一屏一题时各占一格，位置仍由词表决定（界面不把它们挪到末尾，也不另排一遍）。
+ */
+const stepQuestions = computed<BriefVocabularyQuestion[]>(() => vocabulary.value?.questions ?? [])
+
+/** 一屏一题（拍板「问题要一个一个地过，不能把所有问题摆在一页里」）；0/1 题时没得翻，也就不摆进度条 */
+const isStepped = computed(() => stepQuestions.value.length > 1)
+
+/** 停在第几题；`atReview` 是序列尽头多出来的那一屏「还空哪几题」——回改不必走到底，点进度条任意一格就回去 */
+const activeIndex = ref(0)
+const atReview = ref(false)
+
+const currentStep = computed<BriefVocabularyQuestion | null>(() => {
+  if (atReview.value) return null
+  const last = Math.max(stepQuestions.value.length - 1, 0)
+  return stepQuestions.value[Math.min(Math.max(activeIndex.value, 0), last)] ?? null
 })
 
-/** 每题只在「本段第一题」前渲染一条段标题：分段只是渲染范围，题目循环仍是那一个 v-for */
-const sectionStartKeys = computed(() => {
-  const seen = new Set<string>()
-  const starts = new Set<string>()
-  loopQuestions.value.forEach(question => {
-    const code = question.group || ''
-    if (!code || seen.has(code)) return
-    seen.add(code)
-    starts.add(question.key)
-  })
-  return starts
+/** 模板循环的那一撮题：一屏一题 ⇒ 最多一道；那两块专用控件各占一屏，不走这个循环 */
+const loopQuestions = computed(() => {
+  const step = currentStep.value
+  if (!step || isIntakeStaticKey(step.key)) return []
+  return [step]
 })
 
-// ---------------- 分步（Spec-M P4：一屏一段；段序与段名仍只认词表那一份） ----------------
-
-/** 段数 >1 才分步；词表没下发 groups（老回包/只有一段）时退回一段平铺，不硬造分段 */
-const isStepped = computed(() => sectionAnchors.value.length > 1)
-const activeSection = ref('')
-const activeIndex = computed(() => {
-  const index = sectionAnchors.value.findIndex(section => section.code === activeSection.value)
-  return index < 0 ? 0 : index
-})
-const activeAnchor = computed(() => sectionAnchors.value[activeIndex.value] || null)
-
-/** 模板循环的那一撮题：分步时只摆当前这段，平铺时还是全部 */
-const loopQuestions = computed(() =>
-  isStepped.value ? questions.value.filter(question => (question.group || '') === activeSection.value) : questions.value
+/** 当前这一屏该摆哪一张专用控件卡（不是那两题就回 null） */
+const activeStaticCard = computed<IntakeStaticCard | null>(() =>
+  currentStep.value && isIntakeStaticKey(currentStep.value.key) ? intakeStaticCard(currentStep.value.key) : null
 )
 
-/** 那两块专用控件（参考站 / 补充说明）属于哪一段，问词表不问记忆：它们在后端题表里就带 group */
-const staticSectionCode = computed(() => {
-  const raw = vocabulary.value?.questions ?? []
-  const found = raw.find(question => isIntakeStaticKey(question.key))
-  return found?.group || sectionAnchors.value[sectionAnchors.value.length - 1]?.code || ''
-})
-const showStaticCards = computed(() => !isStepped.value || activeSection.value === staticSectionCode.value)
+/** 「跳过」那句话只有这一处（通用题与两张专用控件卡共用）：必填与可跳过两种写法都跟着词表的星走 */
+function skipText(q: BriefVocabularyQuestion | null): string {
+  if (q?.required === true) return '必填：这一题还空着，保存会被后端拒（理由以它回的中文为准）'
+  return '客户未提供——摘要里会照实写这一格没给，不留一个看着像填好的空框'
+}
 
-const unansweredInSection = computed(() => loopQuestions.value.filter(question => isUnanswered(question)).length)
-const requiredUnansweredInSection = computed(() =>
-  loopQuestions.value.filter(question => question.required === true && isUnanswered(question)).map(question => question.label)
+/** 段名那一行（跑在题干上面的页眉）：词表没带 `groups` 就没有这一行，界面不编一个段名 */
+const activeSectionLabel = computed(() => (currentStep.value ? sectionLabelOf(currentStep.value) : ''))
+const activeSectionId = computed(() => (currentStep.value ? sectionDomId(currentStep.value.group || '') : ''))
+
+/**
+ * 进度条与「还空哪几题」的判据：两块专用控件的值不在勾选袋里（它们存表单头部），
+ * 按卡片身份各看各的，别按「勾选项有没有」判——那样参考站永远看着像没填、或永远看着像填了。
+ */
+function isStepUnanswered(q: BriefVocabularyQuestion): boolean {
+  const card = intakeStaticCard(q.key)
+  if (card === 'references') return cleanReferenceUrls().length === 0
+  if (card === 'remarks') return !String(form.notes ?? '').trim()
+  return isUnanswered(q)
+}
+
+const unansweredSteps = computed(() => stepQuestions.value.filter(question => isStepUnanswered(question)))
+const answeredStepCount = computed(() => stepQuestions.value.length - unansweredSteps.value.length)
+const requiredUnansweredLabels = computed(() =>
+  unansweredSteps.value.filter(question => question.required === true).map(question => question.label)
 )
 
-function goToSection(code: string) {
-  if (!sectionAnchors.value.some(section => section.code === code)) return
-  activeSection.value = code
-  // 换段等于换一屏：滚动位置归零，否则人以为自己还在上一段的第 7 题
+/** 进度条上一格的状态：只报填了没，判据就是上面那一处，界面无第二份口径 */
+function railMark(q: BriefVocabularyQuestion): string {
+  if (!isStepUnanswered(q)) return '已答'
+  return q.required === true ? '必填·空' : '空'
+}
+
+/** 翻到第 index 题；index 走到序列尽头就是核对那一屏 */
+function goToIndex(index: number) {
+  const last = Math.max(stepQuestions.value.length - 1, 0)
+  const review = index >= stepQuestions.value.length
+  activeIndex.value = review ? last : Math.min(Math.max(index, 0), last)
+  atReview.value = review && stepQuestions.value.length > 0
+  // 换一题等于换一屏：滚动位置归零，否则人以为自己还站在上一题
   if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-function stepSection(offset: number) {
-  const target = sectionAnchors.value[activeIndex.value + offset]
-  if (target) goToSection(target.code)
+/** 从「还空哪几题」那一屏跳回某一道题（回改的那条路） */
+function goToQuestion(key: string) {
+  const index = stepQuestions.value.findIndex(question => question.key === key)
+  if (index >= 0) goToIndex(index)
 }
 
-function isSectionStart(q: BriefVocabularyQuestion): boolean {
-  return sectionStartKeys.value.has(q.key)
+function stepQuestion(delta: number) {
+  goToIndex(atReview.value ? stepQuestions.value.length - 1 + delta : activeIndex.value + delta)
+}
+
+/** 载入一份词表、或换一单：回到第一题。步序只是排版不是权限——进度条上任何一题都能直接点回去改 */
+function resetStepping() {
+  activeIndex.value = 0
+  atReview.value = false
 }
 
 function sectionLabelOf(q: BriefVocabularyQuestion): string {
@@ -303,12 +329,6 @@ function sectionLabelOf(q: BriefVocabularyQuestion): string {
 
 function sectionDomId(code: string): string {
   return `brief-intake-section-${code || 'none'}`
-}
-
-/** 段间导航上露的那两个短字：段名全称挂在段标题那一行，导航条只取「：」前的短名，不另起一名 */
-function sectionShortName(label: string): string {
-  const cut = label.split('：')[0]
-  return cut || label
 }
 
 // ---------------- page_plan 行编辑器（上下移动代替拖拽：点了就真的会动） ----------------
@@ -433,11 +453,6 @@ function isUnanswered(q: BriefVocabularyQuestion): boolean {
   }
   return String(value ?? '').trim() === ''
 }
-
-/** 缺的必填题（星来自词表；今天两题，词表变了界面跟着变，不写死名单） */
-const missingRequiredLabels = computed(() =>
-  questions.value.filter(question => question.required === true && isUnanswered(question)).map(question => question.label)
-)
 
 function clampCandidate(value: number): number {
   const safe = Number.isFinite(value) && value > 0 ? Math.trunc(value) : 1
@@ -692,9 +707,11 @@ async function save() {
     message.warning('先选这一单给哪个租户')
     return
   }
-  if (missingRequiredLabels.value.length) {
+  if (requiredUnansweredLabels.value.length) {
     // 星号来自词表 q.required；这一句只是让人少跑一趟，真正的拒单理由仍以服务端回的那句为准
-    message.warning(`还有打星的必填题没填：${missingRequiredLabels.value.join('、')}——其余题可以空着，摘要会按「客户未提供」如实写`)
+    message.warning(`还有打星的必填题没填：${requiredUnansweredLabels.value.join('、')}——其余题可以空着，摘要会按「客户未提供」如实写`)
+    // 挡下来之后直接把人带到「还空哪几题」那一屏：他此刻要看的正是这份名单，不必自己翻进度条
+    goToIndex(stepQuestions.value.length)
     return
   }
   saving.value = true
@@ -811,7 +828,7 @@ async function boot() {
   // 词表必须先于存量单到手：D1 的 24 题里新栏（pagePlan/homeLayout/trustAnchors…）要按题目回填，
   // 先取单的话 questions 还是空的，读回来的勾选袋一道题都挂不上——「改一个字重录整张单」就是这么来的
   await loadVocabulary()
-  activeSection.value = sectionAnchors.value[0]?.code || ''
+  resetStepping()
   if (id !== null) await loadBrief(id)
   // 栏目词表排在取单之后：绑了站点的单要按那一单的站点回覆盖态，先取就只能拿到纯词表默认
   await loadSections()
@@ -843,7 +860,7 @@ watch(() => [props.briefId, props.tenantId], async () => {
   else ensureShape()
   // 换一单＝换一份栏目词表：绑没绑站点决定这一份是覆盖态还是纯词表
   await loadSections()
-  activeSection.value = sectionAnchors.value[0]?.code || ''
+  resetStepping()
   await nextTick()
   booting.value = false
 })
@@ -857,10 +874,10 @@ onMounted(boot)
       <div>
         <h3>{{ briefId ? '编辑前采需求单' : '新建前采需求单' }}</h3>
         <p class="brief-intake__sub">
-          这条头上定三件事：这单给哪个租户、出几套候选、演示内容哪一档。下面按后端词表分
-          {{ sectionAnchors.length || 1 }} 段收客户的原话（共 {{ questions.length }} 题，一屏一段），
-          必填只有打了星的题（星来自词表，不是界面自造的名单），其余一律可跳过——没填的格子会显式写成「客户未提供」，
-          摘要段就是这么如实喂给模型的。分屏只是排版，保存仍然一次交整张表单。
+          这条头上定三件事：这单给哪个租户、出几套候选、演示内容哪一档。下面按后端词表一屏一题
+          （共 {{ stepQuestions.length }} 题，题序就是词表下发的那一份），必填只有打了星的题（星来自词表，不是界面自造的名单），
+          其余一律可跳过——没填的格子会显式写成「客户未提供」，摘要段就是这么如实喂给模型的。
+          进度条上点哪一格就回到哪一题；分屏只是排版，保存仍然一次交整张表单。
         </p>
       </div>
       <a-space wrap>
@@ -941,53 +958,70 @@ onMounted(boot)
       </template>
     </a-alert>
 
-    <!-- 分步导航：段名与段序只认词表 groups 下发的那一份；取不到的段名宁可露码也不编一个 -->
-    <nav v-if="isStepped" class="brief-intake__anchors" aria-label="分段导航">
+    <!-- 进度条：一格一题（题干只认词表那一份），点哪一格就翻到哪一题——回改不必从头再走一遍 -->
+    <nav v-if="isStepped" class="brief-intake__rail" aria-label="题目进度">
       <a-button
-        v-for="(section, index) in sectionAnchors"
-        :key="section.code"
+        v-for="(step, index) in stepQuestions"
+        :key="step.key"
         size="small"
-        :type="section.code === activeSection ? 'primary' : 'default'"
-        @click="goToSection(section.code)"
+        class="brief-intake__rail-chip"
+        :class="{ 'is-current': !atReview && index === activeIndex, 'is-blank': isStepUnanswered(step) }"
+        :type="!atReview && index === activeIndex ? 'primary' : 'default'"
+        @click="goToIndex(index)"
       >
-        {{ index + 1 }}. {{ sectionShortName(section.label) }}
+        {{ index + 1 }}. {{ step.label }}
+        <span class="brief-intake__rail-mark">{{ railMark(step) }}</span>
+      </a-button>
+      <a-button
+        size="small"
+        class="brief-intake__rail-review"
+        :class="{ 'is-current': atReview }"
+        :type="atReview ? 'primary' : 'default'"
+        @click="goToIndex(stepQuestions.length)"
+      >
+        还空 {{ unansweredSteps.length }} 题
       </a-button>
     </nav>
 
-    <!-- 这一段走到哪儿了：题数与空题数都从当前这段的循环里数，不抄词表里的固定题数 -->
+    <!-- 走到哪儿了：题数与空题数都从上面那一份走查序列里数，界面无一处写死题数 -->
     <div v-if="isStepped" class="brief-intake__stepper">
       <span class="brief-intake__step-hint">
-        第 {{ activeIndex + 1 }} / {{ sectionAnchors.length }} 段「{{ activeAnchor ? sectionShortName(activeAnchor.label) : '' }}」：
-        本段 {{ loopQuestions.length }} 题，
-        {{ unansweredInSection ? `还有 ${unansweredInSection} 题空着` : '本段没有空格子' }}
-        <template v-if="showStaticCards && isStepped">
-          （这一屏另挂参考站与补充说明两张固定卡，它们是表单的固定字段、不在词表题数里）
+        <template v-if="atReview">
+          第 {{ stepQuestions.length + 1 }} / {{ stepQuestions.length + 1 }} 屏（核对）：共 {{ stepQuestions.length }} 题，
+          已答 {{ answeredStepCount }} 题，还空 {{ unansweredSteps.length }} 题
+          <template v-if="requiredUnansweredLabels.length">
+            （其中打星必填的：{{ requiredUnansweredLabels.join('、') }}——保存会被后端要这一题）
+          </template>
+          。
         </template>
-        <template v-if="requiredUnansweredInSection.length">
-          （其中打星必填的：{{ requiredUnansweredInSection.join('、') }}——保存会被后端要这一题）
+        <template v-else-if="currentStep">
+          第 {{ activeIndex + 1 }} / {{ stepQuestions.length }} 题「{{ currentStep.label }}」：
+          {{ currentStep.required ? '这一题打星必填' : '这一题可跳过' }}，
+          {{ isStepUnanswered(currentStep) ? '现在还是空的' : '已经有答案' }}。
+          全部 {{ stepQuestions.length }} 题里已答 {{ answeredStepCount }} 题、还空 {{ unansweredSteps.length }} 题
+          <template v-if="requiredUnansweredLabels.length">
+            （必填还空的：{{ requiredUnansweredLabels.join('、') }}——保存会被后端要这一题）
+          </template>
+          。
         </template>
-        。
       </span>
       <a-space>
-        <a-button size="small" :disabled="activeIndex === 0" @click="stepSection(-1)">上一段</a-button>
-        <a-button size="small" :disabled="activeIndex >= sectionAnchors.length - 1" @click="stepSection(1)">下一段</a-button>
+        <a-button size="small" :disabled="activeIndex === 0 && !atReview" @click="stepQuestion(-1)">上一题</a-button>
+        <a-button size="small" :disabled="atReview" @click="stepQuestion(1)">下一题</a-button>
       </a-space>
     </div>
 
     <div class="brief-intake__body">
       <div class="brief-intake__form">
-        <p v-if="!questions.length && !vocabularyFailed" class="brief-intake__muted">词表加载中…</p>
+        <p v-if="!stepQuestions.length && !vocabularyFailed" class="brief-intake__muted">词表加载中…</p>
 
-        <!-- 一个 v-for 走完这一段的全部题：分段只是在「本段第一题」前插一条段标题，分屏不改提交形状 -->
+        <!-- 段名当页眉：一屏一题时它仍是词表 `groups` 里那一整句；词表没带 groups 就没这一行，界面不编一段名 -->
+        <div v-if="activeSectionLabel" :id="activeSectionId" class="brief-intake__section-head">
+          {{ activeSectionLabel }}
+        </div>
+
+        <!-- 一屏一题：这个循环每趟最多一道（分屏只是排版，提交形状没动——保存仍一次交整张表单） -->
         <template v-for="q in loopQuestions" :key="q.key">
-          <div
-            v-if="isSectionStart(q)"
-            :id="sectionDomId(q.group || '')"
-            class="brief-intake__section-head"
-          >
-            {{ sectionLabelOf(q) }}
-          </div>
-
           <div class="brief-intake__question">
             <div class="brief-intake__q-label">
               {{ q.label }}
@@ -1202,16 +1236,21 @@ onMounted(boot)
 
             <!-- 「跳过」要说人话：没填的格子不许看着像填好了（后端摘要段同样会照实写这一格没给） -->
             <p v-if="isUnanswered(q)" class="brief-intake__skip" :class="{ 'brief-intake__skip--required': q.required }">
-              {{ q.required ? '必填：这一题还空着，保存会被后端拒（理由以它回的中文为准）' : '客户未提供——摘要里会照实写这一格没给，不留一个看着像填好的空框' }}
+              {{ skipText(q) }}
             </p>
           </div>
         </template>
 
-        <!-- 参考站与补充说明这两块专用控件跟着它们在后端题表里的 group 走，不在每段都摆一遍 -->
-        <template v-if="showStaticCards">
-        <div class="brief-intake__question brief-intake__static">
-          <div class="brief-intake__q-label">参考站（最多 {{ REFERENCE_MAX }} 个 URL，可空）</div>
-          <div class="brief-intake__q-hint">有参考站就填地址；摄取与喂给模型是后链路的事，这一页不调用。</div>
+        <!-- 参考站与补充说明各占一屏：题干与那句说明都取自词表里那一行——
+             原来这两句「参考站（最多 3 个 URL，可空）」「补充说明（兜底的自由文本，可空）」是界面自己写的第二份说法 -->
+        <div v-if="activeStaticCard === 'references' && currentStep" class="brief-intake__question brief-intake__static">
+          <div class="brief-intake__q-label">
+            {{ currentStep.label }}
+            <span v-if="currentStep.required" class="brief-intake__req">必填</span>
+            <span v-else class="brief-intake__opt">可跳过</span>
+          </div>
+          <div v-if="currentStep.evidence" class="brief-intake__q-hint">{{ currentStep.evidence }}</div>
+          <div class="brief-intake__muted">这一页只把地址记在单上：摄取与喂给模型是后链路的事，这里不调用。</div>
           <div v-for="(_, index) in form.referenceRows" :key="index" class="brief-intake__ref-row">
             <a-input
               :value="form.referenceRows[index]"
@@ -1228,10 +1267,16 @@ onMounted(boot)
           >
             添加参考站
           </a-button>
+          <p v-if="isStepUnanswered(currentStep)" class="brief-intake__skip">{{ skipText(currentStep) }}</p>
         </div>
 
-        <div class="brief-intake__question brief-intake__static">
-          <div class="brief-intake__q-label">补充说明（兜底的自由文本，可空）</div>
+        <div v-else-if="activeStaticCard === 'remarks' && currentStep" class="brief-intake__question brief-intake__static">
+          <div class="brief-intake__q-label">
+            {{ currentStep.label }}
+            <span v-if="currentStep.required" class="brief-intake__req">必填</span>
+            <span v-else class="brief-intake__opt">可跳过</span>
+          </div>
+          <div v-if="currentStep.evidence" class="brief-intake__q-hint">{{ currentStep.evidence }}</div>
           <a-textarea
             v-model:value="form.notes"
             :maxlength="NOTES_MAX"
@@ -1239,8 +1284,28 @@ onMounted(boot)
             :rows="3"
             placeholder="词表盖不住的那一句话才写在这里；能勾的别打字"
           />
+          <p v-if="isStepUnanswered(currentStep)" class="brief-intake__skip">{{ skipText(currentStep) }}</p>
         </div>
-        </template>
+
+        <!-- 最后一屏「还空哪几题」：点名只列词表里的题干，每一行给一条回到那一题的路（回改不用重录别的格子） -->
+        <div v-if="atReview" class="brief-intake__review">
+          <div class="brief-intake__review-head">
+            共 {{ stepQuestions.length }} 题：已答 {{ answeredStepCount }} 题，还空 {{ unansweredSteps.length }} 题
+          </div>
+          <p v-if="!unansweredSteps.length" class="brief-intake__muted">一题都没空着。保存就在页脚，交的是这一整张表单。</p>
+          <ul v-else class="brief-intake__review-list">
+            <li v-for="step in unansweredSteps" :key="step.key" class="brief-intake__review-row">
+              <span class="brief-intake__review-label">{{ step.label }}</span>
+              <span v-if="step.required" class="brief-intake__req">必填</span>
+              <span v-else class="brief-intake__opt">可跳过</span>
+              <a-button size="small" @click="goToQuestion(step.key)">回到这一题</a-button>
+            </li>
+          </ul>
+          <p class="brief-intake__muted">
+            空着的格子分两种：打星必填的会被后端拒；可跳过的不挡保存——摘要里照实写这一格没给，
+            模型因此分得清「客户没偏好」与「我们没问」。
+          </p>
+        </div>
       </div>
 
       <aside class="brief-intake__side">
@@ -1303,8 +1368,9 @@ onMounted(boot)
 .brief-intake__alert {
   margin-bottom: 16px;
 }
-/* 锚点导航：吸顶在录入区上方，段名是词表下发的那一份 */
-.brief-intake__anchors {
+/* 题目进度条：一格一题（题干是词表下发的那一份），吸顶在录入区上方；
+   点格子即翻题，所以它同时是「回改」的入口——不必从第一题再走一遍 */
+.brief-intake__rail {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -1317,7 +1383,30 @@ onMounted(boot)
   border: 1px solid #f0f0f0;
   border-radius: 6px;
 }
-/* 分步那一行的进度与翻页：题数从当前这段的循环里数，界面无一处写死 */
+.brief-intake__rail-chip {
+  /* 题干长短不一（词表改了就得跟着变）：格子按内容长，宁可换行也不裁字 */
+  width: fit-content;
+  max-width: 100%;
+  height: auto;
+  padding: 2px 8px;
+  white-space: normal;
+  text-align: left;
+}
+.brief-intake__rail-chip.is-blank {
+  border-style: dashed;
+}
+.brief-intake__rail-mark {
+  margin-left: 4px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+.brief-intake__rail-review {
+  width: fit-content;
+  height: auto;
+  padding: 2px 8px;
+  font-weight: 600;
+}
+/* 分步那一行的进度与翻页：题数从上面那一份走查序列里数，界面无一处写死 */
 .brief-intake__stepper {
   display: flex;
   align-items: center;
@@ -1341,6 +1430,33 @@ onMounted(boot)
   color: #111827;
   border-bottom: 2px solid #e5e7eb;
   scroll-margin-top: 64px;
+}
+/* 最后一屏「还空哪几题」：点名只列词表题干，每一行给一条回到那一题的路 */
+.brief-intake__review {
+  padding: 12px;
+  margin-top: 8px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+.brief-intake__review-head {
+  margin-bottom: 8px;
+  font-weight: 700;
+  color: #111827;
+}
+.brief-intake__review-list {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+.brief-intake__review-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+.brief-intake__review-label {
+  font-weight: 600;
 }
 .brief-intake__body {
   display: flex;

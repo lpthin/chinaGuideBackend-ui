@@ -4,6 +4,7 @@ import { Button } from 'ant-design-vue'
 import SiteWizardView from '../SiteWizardView.vue'
 import { siteBriefsApi, briefGenerationApi, vocabularyApi, type SiteBrief } from '../../../api/siteBriefs'
 import { siteSpecApi, type SpecDocumentView } from '../../../api/siteSpec'
+import { siteBriefDeliveryApi } from '../../../api/siteBriefDelivery'
 import type { BriefCandidateSite } from '../../../api/siteBriefs'
 
 /**
@@ -54,7 +55,16 @@ vi.mock('../../../api/siteBriefs', async importOriginal => {
       sectionCatalogue: vi.fn().mockResolvedValue([])
     },
     vocabularyApi: { adminVocabulary: vi.fn() },
-    briefGenerationApi: { candidates: vi.fn() }
+    briefGenerationApi: { candidates: vi.fn(), progress: vi.fn(), estimate: vi.fn() }
+  }
+})
+
+// 第 5 步的客户答复留痕是纯 GET：桩里只给读口，转正/重跑那两口在这一页根本不该被摸到
+vi.mock('../../../api/siteBriefDelivery', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../../api/siteBriefDelivery')>()
+  return {
+    ...actual,
+    siteBriefDeliveryApi: { decisions: vi.fn(), promote: vi.fn(), regenerate: vi.fn() }
   }
 })
 
@@ -220,7 +230,12 @@ function mounted() {
         'a-table': {
           name: 'a-table',
           props: ['dataSource', 'columns'],
-          template: '<div class="table-stub"><span v-for="row in dataSource" :key="row.candidateId" class="row">{{ row.siteName }}|{{ row.previewIssued ? \'issued\' : \'none\' }}</span></div>'
+          // 桩也要真走 #bodyCell：第 3、4 步摆的就是格子里那些读数，不渲就等于测试没读过它们。
+          // 行首那一串 `站点|有没有发过地址` 是这几条用例的把手，单独一个类，不跟格子混
+          template: '<div class="table-stub"><div v-for="row in dataSource" :key="row.candidateId ?? row.siteId" class="row">'
+            + '<span class="row-summary">{{ row.siteName }}|{{ row.previewIssued ? \'issued\' : \'none\' }}</span>'
+            + '<span v-for="(col, i) in columns || []" :key="col.key ?? i" class="cell"><slot name="bodyCell" :column="col" :record="row" /></span>'
+            + '</div></div>'
         },
         'a-steps': STEPS_STUB,
         'a-step': STEP_STUB,
@@ -236,7 +251,10 @@ function mounted() {
         'a-checkbox-group': PASS_THROUGH('a-checkbox-group'),
         'a-checkbox': PASS_THROUGH('a-checkbox'),
         'a-switch': PASS_THROUGH('a-switch'),
-        'a-cascader': PASS_THROUGH('a-cascader')
+        'a-cascader': PASS_THROUGH('a-cascader'),
+        // FoldedText 的展开壳：桩只把插槽里的原文渲出来，测试才读得到「后端原话一字没丢」
+        'a-collapse': PASS_THROUGH('a-collapse'),
+        'a-collapse-panel': PASS_THROUGH('a-collapse-panel')
       }
     }
   })
@@ -293,6 +311,11 @@ beforeEach(() => {
   vi.mocked(vocabularyApi.adminVocabulary).mockReset()
   vi.mocked(siteSpecApi.read).mockReset()
   vi.mocked(briefGenerationApi.candidates).mockReset()
+  vi.mocked(briefGenerationApi.progress).mockReset()
+  vi.mocked(briefGenerationApi.estimate).mockReset()
+  vi.mocked(siteBriefDeliveryApi.decisions).mockReset()
+  vi.mocked(siteBriefDeliveryApi.promote).mockReset()
+  vi.mocked(siteBriefDeliveryApi.regenerate).mockReset()
 })
 
 describe('新建网站向导', () => {
@@ -336,14 +359,14 @@ describe('新建网站向导', () => {
     mountAt('spec')
     await flushPromises()
     expect(siteSpecApi.read).not.toHaveBeenCalled()
-    expect(buttonThat('去写这一份说明书')?.disabled).toBe(true)
+    expect(buttonThat('去这一页出初稿')?.disabled).toBe(true)
     // 没有单号时那一步只说「要先有需求单」，不许把说明书的空态承诺念出来
     expect(bodyText()).toContain('要先有需求单')
     expect(bodyText()).not.toContain('这一单还没有说明书')
 
     mountAt('generate')
     await flushPromises()
-    expect(buttonThat('去需求单详情估价')?.disabled).toBe(true)
+    expect(buttonThat('去需求单详情按')?.disabled).toBe(true)
 
     mountAt('candidates')
     await flushPromises()
@@ -381,10 +404,10 @@ describe('新建网站向导', () => {
 
     expect(steps()[1].dataset.status).toBe('process')
     expect(bodyText()).toContain('第 2 段「战略分析」还是空的')
-    expect(bodyText()).toContain('还有 1 段空着')
+    expect(bodyText()).toContain('空着 1 段')
   })
 
-  it('七段都填了字时不许念成「还有 0 段空着」，也不许提前说已确认', async () => {
+  it('七段都填了字时不许念成「空着 0 段」，也不许提前说已确认', async () => {
     // 现场那一单（需求单 #59）就是这个形状：statusLabel「草稿（人编辑中，未确认）」+ 无空段
     vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
@@ -397,7 +420,7 @@ describe('新建网站向导', () => {
     await flushPromises()
 
     expect(bodyText()).toContain('签字才能放行生成')
-    expect(bodyText()).not.toContain('还有 0 段空着')
+    expect(bodyText()).not.toContain('空着 0 段')
     // 没签字就绝不算走完：这一步顶多是 process
     expect(steps()[1].dataset.status).toBe('process')
   })
@@ -455,7 +478,7 @@ describe('新建网站向导', () => {
 
     // 表里只摆建出了站的那两套（第 2 套 siteId 还是 null，不许混进来充数），
     // 预览那一格照后端回包念：一套没发过、一套已发放
-    expect([...document.body.querySelectorAll('.row')].map(node => node.textContent)).toEqual(['候选 A|none', '候选 A|issued'])
+    expect([...document.body.querySelectorAll('.row-summary')].map(node => node.textContent)).toEqual(['候选 A|none', '候选 A|issued'])
     expect(bodyText()).toContain('已发放预览地址 1 / 2 套')
     expect(bodyText()).toContain('其中 1 套带「待人工」措辞')
   })
@@ -497,7 +520,7 @@ describe('新建网站向导', () => {
 
     mountAt('spec', '7')
     await flushPromises()
-    await click(buttonThat('去写这一份说明书'))
+    await click(buttonThat('去这一页出初稿'))
     expect(pushSpy).toHaveBeenCalledWith({ name: 'workspace-portal-brief-spec', params: { brief: '7' } })
     pushSpy.mockClear()
 
@@ -576,10 +599,13 @@ describe('新建网站向导', () => {
     const wrapper = mounted()
     await flushPromises()
 
-    // 题真的挂在这一格：段进度行说「第 1 / 2 段」，本段只渲属于本段的那一题
+    // 题真的挂在这一格：步进行说「第 1 / 2 题」并点名当前这一题的题干
     expect(document.body.querySelector('.brief-intake__question')).toBeTruthy()
-    expect(bodyText()).toContain('第 1 / 2 段')
-    expect(bodyText()).not.toContain('页面清单')
+    expect(bodyText()).toContain('第 1 / 2 题「品牌全称」')
+    // 进度条把每一题的题干都摆出来（那是导航），但别题的控件不许在这一屏上渲
+    expect(bodyText()).toContain('页面清单')
+    expect(document.querySelector('.brief-intake__page-row')).toBeNull()
+    expect(document.querySelector('.brief-intake__question .brief-intake__q-label')!.textContent).toContain('品牌全称')
 
     const brand = inputOfQuestion(wrapper, '品牌全称')
     expect(brand, '词表里那题的输入格应挂在向导第一步上').toBeTruthy()
@@ -618,7 +644,7 @@ describe('新建网站向导', () => {
 
     await click(buttonThat('录一份新需求单')!)
     await flushPromises()
-    expect(bodyText()).toContain('第 1 / 2 段')
+    expect(bodyText()).toContain('第 1 / 2 题')
 
     const brand = inputOfQuestion(wrapper, '品牌全称')
     brand!.vm.$emit('update:value', '新的一单')
@@ -632,4 +658,269 @@ describe('新建网站向导', () => {
     expect(payload.demoContentMode).toBe('full')
     expect(payload.brandName).toBe('新的一单')
   })
+
+  // ---- M-P8：读数搬进向导（他拍板那条「一步只摊开一步的事」），下面这些用例钉的是「摆在这一屏」而不是「跳了页」 ----
+
+  /** 进度行最小形状：只给这一屏真读的那几格，多余字段一律不编（后端没回的就得念「没取到」） */
+  function progressRow(overrides: Record<string, any> = {}) {
+    return {
+      candidateId: 11,
+      candidateNo: 1,
+      siteId: 52,
+      stage: 'done',
+      stageLabel: '建完了',
+      status: 'success',
+      statusLabel: '成功',
+      errorMessage: null,
+      notices: [],
+      ...overrides
+    } as any
+  }
+
+  it('第 2 步把每一段的现状摊在这一格里：空着的段直接点名，段数只认后端回的那份', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+
+    mountAt('spec', '7')
+    await flushPromises()
+
+    // 段名与顺序是后端那份（这里两份段：第 2 段是空的）
+    expect(bodyText()).toContain('1 项目概述')
+    expect(bodyText()).toContain('2 战略分析')
+    expect(bodyText()).toContain('空着')
+    // 「七段」这种界面自己数的数不许出现：桩里只有 2 段，念成七段就是谎报
+    expect(bodyText()).toContain('2 段里写了 1 段、空着 1 段')
+    expect(bodyText()).not.toContain('七段')
+  })
+
+  it('第 3 步的价签只由人点：进这一屏一次 POST 都不发，点了那一颗才发并摆出凭据', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED' }))
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([])
+    vi.mocked(briefGenerationApi.estimate).mockResolvedValue({
+      briefId: 7,
+      attempt: 2,
+      estimateId: 'est-abc',
+      estimate: {
+        candidateCount: 3,
+        pagesPerCandidate: 5,
+        estimatedTokens: 120000,
+        aiEnabled: true,
+        tenantBearsCost: false,
+        breakdown: ['3 套 × 每套 5 页', '演示内容 8 篇 / 3 条'],
+        missingSwitches: [],
+        notice: '实测大约是估算的 0.83 倍'
+      }
+    } as any)
+
+    mountAt('generate', '7')
+    await flushPromises()
+
+    // 进屏只发了那几发 GET：估算虽然是零模型调用，但它是 POST，界面不许替人按
+    expect(briefGenerationApi.estimate).not.toHaveBeenCalled()
+    const http = (await import('../../../api/http')).default as Record<string, any>
+    expect(http.post).not.toHaveBeenCalled()
+
+    await click(buttonThat('在这一屏算一次价'))
+    expect(briefGenerationApi.estimate).toHaveBeenCalledTimes(1)
+    expect(briefGenerationApi.estimate).toHaveBeenCalledWith(7)
+    // 花的凭据与那句「不是最终账单」摆在屏上：那一发花钱要同时带这两个值
+    expect(bodyText()).toContain('est-abc')
+    expect(bodyText()).toContain('3 套、每套 5 页，预估 120000 token')
+    expect(bodyText()).toContain('这只是预估，不是最终账单')
+    expect(bodyText()).toContain('不扣这个租户的配额')
+    // 明细与那句关于偏差的话是后端拼的，界面上原样摆
+    expect(bodyText()).toContain('实测大约是估算的 0.83 倍')
+  })
+
+  it('第 3 步：出方案开关没开时不念成一张可以花的价签', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([])
+    vi.mocked(briefGenerationApi.estimate).mockResolvedValue({
+      briefId: 7,
+      estimateId: 'est-off',
+      estimate: {
+        candidateCount: 0,
+        pagesPerCandidate: 0,
+        estimatedTokens: 0,
+        aiEnabled: false,
+        breakdown: [],
+        missingSwitches: ['候选站生成开关没开'],
+        notice: null
+      }
+    } as any)
+
+    mountAt('generate', '7')
+    await flushPromises()
+    await click(buttonThat('在这一屏算一次价'))
+
+    expect(bodyText()).toContain('出方案开关没开')
+    expect(bodyText()).not.toContain('预估 0 token')
+    expect(bodyText()).toContain('候选站生成开关没开')
+  })
+
+  it('第 3 步把失败那套的原因摆在明面上：那是这一发失败了，不是「还在跑」', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([
+      progressRow({ status: 'failed', statusLabel: '失败', errorMessage: '文案没通过极限用语闸：最好 / 第一' })
+    ])
+
+    mountAt('generate', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('文案没通过极限用语闸')
+    expect(bodyText()).toContain('建出站 1 套')
+    expect(bodyText()).toContain('其中 1 套有失败记录')
+  })
+
+  it('第 3 步进度读挂了：报「没读到」，不许念成「还在跑」', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockRejectedValue(new Error('502 网关没通'))
+
+    mountAt('generate', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('逐套进度没读到')
+    expect(bodyText()).toContain('502 网关没通')
+    // 读挂了就一格进度都不摆：没有读数还画出「跑到哪一步了」那张表，才是真把界面念成还在跑
+    expect(bodyText()).not.toContain('每一套跑到哪一步了')
+  })
+
+  it('第 4 步：每一套的账不用点开这一行就看得见，取不到念「没取到」不念 0', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([
+      candidate({ candidateNo: 1 }),
+      candidate({ candidateId: 12, candidateNo: 2, siteId: 53, siteName: '候选 B' })
+    ])
+    // 只有第 1 套读得到进度：第 2 套那些格子必须念「没取到」，念 0 是说「一张图都没出」
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([
+      progressRow({ demoArticles: 8, demoCases: 3, imageDone: 2, imageFailed: 0, imageSkipped: 1, promptTokens: 900, completionTokens: 4000 })
+    ])
+
+    mountAt('candidates', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('每一套的账')
+    expect(bodyText()).toContain('第 1 套')
+    expect(bodyText()).toContain('文章 8 篇 / 案例 3 条')
+    expect(bodyText()).toContain('成功 2 张、失败 0 张、跳过 1 张')
+    expect(bodyText()).toContain('跳过不等于失败')
+    expect(bodyText()).toContain('实耗 900 + 4000 token')
+    expect(bodyText()).toContain('文章 没取到 篇')
+    // 这三本账不许再藏在「点开这一行」里
+    expect(document.body.querySelectorAll('.ant-table-row-expand-icon').length).toBe(0)
+  })
+
+  it('第 4 步：待人工那一套把话摊开，并说清它跟失败是两件事', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate({ needsHuman: true })])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([
+      progressRow({ notices: ['这句措辞没过极限用语闸，改完再发预览链接'] })
+    ])
+
+    mountAt('candidates', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('这一套带着要人过目的话')
+    expect(bodyText()).toContain('这句措辞没过极限用语闸')
+    expect(bodyText()).toContain('「待人工」与「失败」是两件事')
+    // 令牌明文在这一屏一个都不出现：它只在签发那一刻存在过
+    expect(bodyText()).toContain('预览令牌绑站不绑页')
+  })
+
+  it('第 5 步：客户留痕摊在这一格里，选定了也只说「还等人按」，这一屏不代转正', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief({ siteId: null })])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED' }))
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([])
+    vi.mocked(siteBriefDeliveryApi.decisions).mockResolvedValue([
+      { id: 3, sessionId: 9, chosenSiteId: 52, chosenSiteName: '候选 A', candidateNo: 1, clientNote: '就要第一套，谢谢', createdAt: '2026-10-10T09:00:00' }
+    ] as any)
+
+    mountAt('deliver', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('客户在这条预览链接上答过什么')
+    expect(bodyText()).toContain('就要第一套，谢谢')
+    expect(bodyText()).toContain('客户已经选定了某一套，转正那一发还等人按')
+    // 转正与重跑收口都在各自那一页，由人按：这一屏一口都没发
+    expect(siteBriefDeliveryApi.promote).not.toHaveBeenCalled()
+    expect(siteBriefDeliveryApi.regenerate).not.toHaveBeenCalled()
+    const http = (await import('../../../api/http')).default as Record<string, any>
+    expect(http.post).not.toHaveBeenCalled()
+  })
+
+  it('第 5 步留痕读挂了：报那一发的原话，不许念成「客户没答复」', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([])
+    vi.mocked(siteBriefDeliveryApi.decisions).mockRejectedValue(new Error('接口 500'))
+
+    mountAt('deliver', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('客户答复留痕没读到')
+    expect(bodyText()).toContain('不是「客户没答复」')
+    expect(bodyText()).not.toContain('一条留痕都没有')
+  })
+
+  it('换到别的一步不替人把别步的读数也发了：逐套进度只在前两步读，留痕只在第 5 步读', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([])
+    vi.mocked(siteBriefDeliveryApi.decisions).mockResolvedValue([])
+
+    mountAt('spec', '7')
+    await flushPromises()
+    // 第 2 步：说明书那一发读的是顶那条步序条，进度与留痕这两发一步都不该发
+    expect(briefGenerationApi.progress).not.toHaveBeenCalled()
+    expect(siteBriefDeliveryApi.decisions).not.toHaveBeenCalled()
+
+    // 第 4 步：进度要读（这一屏摆的就是这几本账），留痕仍不读
+    routeState.query = { step: 'candidates', briefId: '7' }
+    document.body.innerHTML = ''
+    mounted()
+    await flushPromises()
+    expect(briefGenerationApi.progress).toHaveBeenCalled()
+    expect(siteBriefDeliveryApi.decisions).not.toHaveBeenCalled()
+  })
+
+  it('第 1 步读不到说明书时不许把「读挂了」念成「还没有说明书」（同族纪律，第 2 步也守）', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockRejectedValue(new Error('403 没这一单的权限'))
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+
+    mountAt('spec', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('说明书没读到')
+    expect(bodyText()).toContain('403 没这一单的权限')
+    expect(bodyText()).not.toContain('这一单还没有说明书')
+    // 段清单在这一屏因此一格都不摆：没有后端那份清单，界面不抄第二份
+    expect(bodyText()).not.toContain('1 项目概述')
+  })
 })
+
