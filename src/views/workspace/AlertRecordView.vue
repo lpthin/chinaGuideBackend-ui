@@ -166,6 +166,9 @@
       :width="600"
     >
       <a-descriptions v-if="currentRecord" :column="1" bordered>
+        <a-descriptions-item label="归属">
+          {{ currentRecord.tenantLabel || '-' }}
+        </a-descriptions-item>
         <a-descriptions-item label="标题">
           {{ currentRecord.title }}
         </a-descriptions-item>
@@ -289,6 +292,13 @@ const pagination = reactive<TablePaginationConfig>({
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
+  {
+    title: '归属',
+    dataIndex: 'tenantLabel',
+    key: 'tenantLabel',
+    width: 140,
+    customRender: ({ text }: { text: string }) => text || '-'
+  },
   { title: '标题', dataIndex: 'title', key: 'title', ellipsis: true },
   { title: '严重级别', key: 'severity', dataIndex: 'severity', width: 100 },
   { title: '状态', key: 'status', dataIndex: 'status', width: 100 },

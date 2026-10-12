@@ -367,6 +367,8 @@ export interface AlertRuleQuery {
 export interface AlertRecord {
   id: number
   tenantId: number
+  /** 归属的人话名字，后端读路径拼出来的：0 念「平台级」，认不出来的号念「未知租户 #号」 */
+  tenantLabel?: string
   ruleId: number
   title: string
   content: string
