@@ -138,10 +138,10 @@ async function handleLogin() {
     localStorage.setItem('access_token', accessToken)
     localStorage.setItem('user_info', JSON.stringify(baseUserInfo))
 
-    // 同步更新 geocms 旧版 key（兼容 v1 代码）
+    // 同步更新 geocms 旧版 key（兼容 v1 代码）：令牌、用户、自家租户码。
+    // 租户「范围」不再落 geocms_tenant_id——普通用户的租户以 store 的 tenantId 为唯一来源（#233）。
     localStorage.setItem('geocms_token', accessToken)
     localStorage.setItem('geocms_user', JSON.stringify(baseUserInfo))
-    localStorage.setItem('geocms_tenant_id', String(baseUserInfo.tenantId))
     localStorage.setItem('geocms_tenant_code', baseUserInfo.tenantName)
 
     // 拉取真实用户信息（含 avatar/email/phone/roles/permissions）
@@ -157,10 +157,8 @@ async function handleLogin() {
         // 持久化到 localStorage，确保刷新后头像仍生效
         localStorage.setItem('user_info', JSON.stringify(userInfo))
         localStorage.setItem('geocms_user', JSON.stringify(userInfo))
-        // 同步 tenantId/tenantCode（避免从 token 解出的租户与真实租户不一致）
-        if (userInfo.tenantId) {
-          localStorage.setItem('geocms_tenant_id', String(userInfo.tenantId))
-        }
+        // 自家租户码同步一份（普通用户的 X-Tenant-Code 读它）；
+        // 租户号本身以 store 的 user.tenantId 为唯一来源，不再另存 geocms_tenant_id。
         if (userInfo.tenantCode) {
           localStorage.setItem('geocms_tenant_code', userInfo.tenantCode)
         }

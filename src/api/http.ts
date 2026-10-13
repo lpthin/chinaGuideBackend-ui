@@ -19,7 +19,6 @@ function handleUnauthorized() {
   localStorage.removeItem('user_info')
   localStorage.removeItem('geocms_token')
   localStorage.removeItem('geocms_user')
-  localStorage.removeItem('geocms_tenant_id')
   localStorage.removeItem('geocms_tenant_code')
   message.warning('登录状态已失效，请重新登录')
   const redirect = window.location.pathname + window.location.search
@@ -90,34 +89,45 @@ export function currentAuthToken(): string | null {
     || localStorage.getItem('geocms_token')
 }
 
+/**
+ * 「我在替哪家租户做事」这件事只有 auth store 一个来源（#233）。
+ *
+ * 超管看的是选中的那家（selectedTenantId / selectedTenantCode），普通用户看的是自己
+ * 登录态里那家（tenantId）。抽成一支函数是为了让 axios 拦截器与 knowledge 那条绕过拦截器
+ * 的 SSE 共用同一份算法——以前两处各读一遍 geocms_tenant_id，切了租户后那条 SSE 仍拿旧号，
+ * 读回来的是别家的数据，而界面上看不出任何原因。
+ *
+ * 普通用户这侧的 X-Tenant-Code 仍读 geocms_tenant_code：那是登录时随账号写死的自家租户码，
+ * 一个人只有一个租户，不存在「切了不刷新」的串号；要收成单一来源的是超管那侧的范围。
+ */
+export function tenantScopeHeaders(): Record<string, string> {
+  const auth = useAuthStore()
+  const headers: Record<string, string> = {}
+  if (auth.isSuperAdmin) {
+    if (auth.selectedTenantId !== null) {
+      headers['X-Tenant-Id'] = String(auth.selectedTenantId)
+      if (auth.selectedTenantCode) {
+        headers['X-Tenant-Code'] = auth.selectedTenantCode
+      }
+    }
+  } else {
+    headers['X-Tenant-Id'] = String(auth.tenantId)
+    const tenantCode = localStorage.getItem('geocms_tenant_code')
+    if (tenantCode) {
+      headers['X-Tenant-Code'] = tenantCode
+    }
+  }
+  return headers
+}
+
 http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const auth = useAuthStore()
     const token = currentAuthToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
 
-    const tenantCode = localStorage.getItem('geocms_tenant_code')
-    if (auth.isSuperAdmin) {
-      if (auth.selectedTenantId !== null) {
-        config.headers['X-Tenant-Id'] = String(auth.selectedTenantId)
-        const code = auth.selectedTenantCode || tenantCode
-        if (code) {
-          config.headers['X-Tenant-Code'] = code
-        }
-      }
-    } else {
-      const tenantId = auth.tenantId !== null
-        ? auth.tenantId
-        : localStorage.getItem('geocms_tenant_id')
-      if (tenantId) {
-        config.headers['X-Tenant-Id'] = String(tenantId)
-      }
-      if (tenantCode) {
-        config.headers['X-Tenant-Code'] = tenantCode
-      }
-    }
+    Object.assign(config.headers, tenantScopeHeaders())
 
     return config
   },

@@ -1,5 +1,5 @@
 // 知识库模块 API
-import http from './http'
+import http, { currentAuthToken, tenantScopeHeaders } from './http'
 import type {
   KnowledgeCategory,
   KnowledgeCard,
@@ -249,9 +249,10 @@ export interface StreamQACallbacks {
 
 export const smartQAApi = {
   streamQA: (tenantId: number, question: string, topK: number = 5, callbacks: StreamQACallbacks = {}): () => void => {
-    const token = localStorage.getItem('geocms_token')
-    const tenantIdHeader = localStorage.getItem('geocms_tenant_id')
-    const tenantCode = localStorage.getItem('geocms_tenant_code')
+    // 这条 SSE 走原生 fetch，绕开了 axios 拦截器，所以令牌与租户范围都要自己拼——
+    // 一律从 auth store 取（#233），不再手读 geocms_tenant_id，免得切了租户后仍发旧号读到别家的数据。
+    const token = currentAuthToken()
+    const tenantHeaders = tenantScopeHeaders()
 
     const params = new URLSearchParams()
     params.append('question', question)
@@ -271,12 +272,8 @@ export const smartQAApi = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
-    if (tenantIdHeader) {
-      headers['X-Tenant-Id'] = tenantIdHeader
-    }
-    if (tenantCode) {
-      headers['X-Tenant-Code'] = tenantCode
-    }
+    // 租户头一律由 store 推导（tenantScopeHeaders），这里不再自己读 geocms_tenant_id
+    Object.assign(headers, tenantHeaders)
 
     fetch(url, {
       method: 'GET',

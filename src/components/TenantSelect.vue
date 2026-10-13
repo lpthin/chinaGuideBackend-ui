@@ -98,10 +98,8 @@ const getCurrentTenant = (id: number): Tenant | undefined => {
 
 const handleChange = (value: number) => {
   const tenant = getCurrentTenant(value)
-  if (tenant) {
-    localStorage.setItem('geocms_tenant_id', String(tenant.id))
-    localStorage.setItem('geocms_tenant_code', tenant.code)
-  }
+  // 这一栏选的是「这条站内信发给哪家」，是表单里的收件人，不是「我在替哪家看数据」的范围。
+  // 范围只有 auth store 一个来源（#233），所以这里不再往任何地方写租户号，只回传给表单。
   emit('update:modelValue', value)
   emit('change', tenant || null)
 }
@@ -118,14 +116,11 @@ onMounted(() => {
     if (issue.value) {
       return
     }
-    if (selectedValue.value === undefined) {
-      const storedTenantId = localStorage.getItem('geocms_tenant_id')
-      if (storedTenantId) {
-        const id = Number(storedTenantId)
-        const tenant = getCurrentTenant(id)
-        if (tenant) {
-          selectedValue.value = id
-        }
+    // 收件人默认落在当前正在看的那家租户：范围只认 store，不再读旧的 geocms_tenant_id。
+    if (selectedValue.value === undefined && auth.selectedTenantId !== null) {
+      const tenant = getCurrentTenant(auth.selectedTenantId)
+      if (tenant) {
+        selectedValue.value = auth.selectedTenantId
       }
     }
   })

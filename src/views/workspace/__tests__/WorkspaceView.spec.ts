@@ -718,3 +718,20 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(text).toContain('平台工单队列')
   })
 })
+
+/**
+ * #233：超管那把「换租户」的把手，挂在所有后台页共用的这个外壳顶栏上。
+ * 因为每一个鉴权后台页都是 /workspace 的 children（见 router/__tests__/tenant-scope-reachability.spec.ts
+ * 钉住的那条不变式），所以「外壳有把手」就等于「每一个后台页都够得着把手」。这里直接按身份验渲染结果。
+ */
+describe('换租户把手按身份出现在外壳顶栏', () => {
+  it('超管：外壳渲染 TenantSwitcher（他才有换租户看数据的资格）', () => {
+    const wrapper = mountView({ username: 'admin', roles: ['SUPER_ADMIN'], permissions: TENANT_CODES })
+    expect(wrapper.findComponent({ name: 'TenantSwitcher' }).exists()).toBe(true)
+  })
+
+  it('普通租户：这把把手不出现（他的租户由登录态定，不该被界面上的下拉改动）', () => {
+    const wrapper = mountView({ username: 'siteadmin', roles: ['SITE_ADMIN'], permissions: TENANT_CODES })
+    expect(wrapper.findComponent({ name: 'TenantSwitcher' }).exists()).toBe(false)
+  })
+})
