@@ -100,6 +100,17 @@ export interface SpecDiffView {
   notices: string[]
 }
 
+/**
+ * 「AI 出初稿」这一发的浏览器预算：330 秒。
+ *
+ * <p>出处不是拍脑袋。后端那一发被 `app.ai.chat-timeout-seconds`（application.yml 默认 300 秒）卡着，
+ * 界面只有等得过它才可能看见后端的真话；而 http.ts 的全局预算是 30 秒。
+ * 现场实测两趟模型分别跑了 163 秒与 212 秒（ai_call_log id 320 / 321，两趟都 success、钱都扣了），
+ * 浏览器却在第 31.7 秒弹「初稿没有生成（后端原话：请求超时，服务处理时间较长，请稍后重试）」——
+ * 同一次动作两套结论，而且报的那句失败是假的。</p>
+ */
+export const SITE_SPEC_DRAFT_TIMEOUT = 330000
+
 export const siteSpecApi = {
   /** GET：只读，零模型调用 */
   read: (briefId: number) => http.get<SpecDocumentView>(`/admin/site-briefs/${briefId}/spec`),
@@ -111,9 +122,14 @@ export const siteSpecApi = {
   /**
    * POST：AI 出初稿。整份覆盖，所以七段里已经有字时必须带 overwrite=true。
    * 这一发会真调模型、真花配额，前端不许在任何自动路径里调它。
+   *
+   * <p>超时单独放宽（{@link SITE_SPEC_DRAFT_TIMEOUT}）：这一发是同步等模型的一次 chat，
+   * 而全局 30 秒比后端那一道闸短得多，跟着全局走等于「界面必然先报失败、后端照旧写完并扣钱」。</p>
    */
   draft: (briefId: number, overwrite: boolean) =>
-    http.post<SpecDocumentView>(`/admin/site-briefs/${briefId}/spec/draft`, { overwrite }),
+    http.post<SpecDocumentView>(`/admin/site-briefs/${briefId}/spec/draft`, { overwrite }, {
+      timeout: SITE_SPEC_DRAFT_TIMEOUT
+    }),
 
   /** POST：签字放行。只有签过字的版本才会被拿去生成（Spec-M §3 闸一） */
   confirm: (briefId: number) => http.post<SpecDocumentView>(`/admin/site-briefs/${briefId}/spec/confirm`),

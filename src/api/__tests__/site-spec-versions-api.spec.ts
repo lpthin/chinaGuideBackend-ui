@@ -18,7 +18,7 @@ const httpMock = vi.hoisted(() => ({
 
 vi.mock('../http', () => ({ default: httpMock }))
 
-import { siteSpecApi } from '../siteSpec'
+import { siteSpecApi, SITE_SPEC_DRAFT_TIMEOUT } from '../siteSpec'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -56,5 +56,30 @@ describe('逐段差异', () => {
     expect(httpMock.get).toHaveBeenLastCalledWith('/admin/site-briefs/12/spec/diff', {
       params: { from: 1, to: 3 }
     })
+  })
+})
+
+/**
+ * 「AI 出初稿」这一发单独放宽超时（M-P13 现场实测：模型 163 秒与 212 秒各成一发、两发都 success 并扣了钱，
+ * 浏览器却在第 31.7 秒按全局 30 秒掐断，弹出一句「初稿没有生成」——同一次动作两套结论，报的那句还是假的）。
+ * 预算必须长过后端那道 `app.ai.chat-timeout-seconds`（默认 300 秒），否则界面永远看不见后端的真话。
+ */
+describe('花钱那一发的浏览器预算', () => {
+  it('初稿带上了比后端 chat 闸还长的预算', async () => {
+    await siteSpecApi.draft(12, true)
+    expect(httpMock.post).toHaveBeenLastCalledWith(
+      '/admin/site-briefs/12/spec/draft', { overwrite: true }, { timeout: SITE_SPEC_DRAFT_TIMEOUT }
+    )
+    expect(SITE_SPEC_DRAFT_TIMEOUT).toBeGreaterThan(300000)
+  })
+
+  it('读、写一段、签字这三发不跟着放宽：它们不调模型，放宽只会把真慢也演成正常', async () => {
+    await siteSpecApi.read(12)
+    await siteSpecApi.saveSection(12, 'overview', '字')
+    await siteSpecApi.confirm(12)
+
+    expect(httpMock.get).toHaveBeenLastCalledWith('/admin/site-briefs/12/spec')
+    expect(httpMock.put).toHaveBeenLastCalledWith('/admin/site-briefs/12/spec/overview', { content: '字' })
+    expect(httpMock.post).toHaveBeenLastCalledWith('/admin/site-briefs/12/spec/confirm')
   })
 })
