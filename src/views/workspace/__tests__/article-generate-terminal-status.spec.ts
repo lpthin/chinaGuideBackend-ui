@@ -90,4 +90,18 @@ describe('E2E-BUGFIX：任务终态词表与到终态后的回读', () => {
     const poll = view.slice(view.indexOf('function pollTaskStatus'), view.indexOf('async function trySSE'))
     expect(poll).toMatch(/if \(isTerminal\(res\.status\)\) await handleTaskComplete/)
   })
+
+  it('「字数」这一格接文章读口的读数，不在浏览器里自己数字符', () => {
+    // 10-13 16:2x 复跑：判拒与成功两行的「字数」列都念「-」，而同行的文章状态已经是「草稿」。
+    // 后端 `GET /api/workspace/articles/{id}` 本来就回 wordCount（按 ArticleVersions 选中那一版的
+    // 正文字数算，与「文章管理」列表同一个出处），回读时只拿了 status，这一格因此永远空着。
+    const refresh = view.slice(view.indexOf('async function refreshArticleStatus'),
+      view.indexOf('async function loadStats'))
+    expect(refresh).toContain('article.wordCount')
+    expect(refresh).toMatch(/task\.wordCount = article\.wordCount/)
+    expect(refresh).toMatch(/task\.articleStatus = article\?\.status/)
+    // 字数只许念后端那一个数：不许出现 content.length / slice 之类的浏览器侧计数
+    expect(refresh).not.toMatch(/\.content!?\.length/)
+    expect(refresh).not.toMatch(/\.contentMd!?\.length/)
+  })
 })

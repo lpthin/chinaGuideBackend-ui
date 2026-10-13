@@ -858,6 +858,9 @@ async function refreshArticleStatus(task: GenerationTask) {
   try {
     const article = await articleApi.get(task.articleId, tenantId.value)
     task.articleStatus = article?.status
+    // 字数与标题走文章那一个读口（和「文章管理」列表同一处算法），不在这里自己数一遍
+    if (article?.wordCount !== undefined) task.wordCount = article.wordCount
+    if (!task.title && article?.title) task.title = article.title
   } catch (error) {
     logError('workspace/article-generate-panel', error)
     message.error('获取文章状态失败')

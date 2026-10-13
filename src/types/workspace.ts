@@ -106,6 +106,8 @@ export interface GeneratedContent {
   geoCitationSummary?: string | null
   schemaJson?: string | null
   faqJson?: string | null
+  /** 后端按 ArticleVersions 选中的那一版正文字数算出来的读数（列表与详情同一个出处） */
+  wordCount?: number
 }
 
 // 审核项目（GET /workspace/reviews/pending 返回的就是文章，字段与后端一致）
