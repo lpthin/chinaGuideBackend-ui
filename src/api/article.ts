@@ -89,6 +89,13 @@ export const articleManageApi = {
     http.get<ArticleLocaleVersion[]>(`/articles/${id}/versions`),
 
   /**
+   * 这一篇 AI 稿引用了哪几份企业资料（M-P13 走查 #232）。
+   * 位次与生成时注入提示词的先后同一口径，界面照 quoteIndex 摆，不再自己排一遍。
+   */
+  knowledgeSources: (id: number) =>
+    http.get<ArticleKnowledgeSource[]>(`/articles/${id}/sources`),
+
+  /**
    * 改某一档语言的标题/摘要/正文（Q-P3 定稿 a）。
    * 写的是点名的那一行，不动整篇状态位——发布仍然按整篇走、公开口仍只出源语言。
    */

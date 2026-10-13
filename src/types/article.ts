@@ -78,6 +78,23 @@ export interface Article {
 }
 
 /**
+ * 这一篇 AI 稿引用过的一份企业资料（M-P13 走查 #232）。
+ *
+ * <p>{@code quoteIndex} 从 1 起，就是当初注入提示词时的先后，界面照它排、别再自己排一遍。
+ * {@code documentTitle} 是生成那一刻抄下的快照：资料后来被删也仍然念得出这一行，
+ * 所以「这一篇用了 3 份」不会因为删资料变成「用了 2 份」。</p>
+ */
+export interface ArticleKnowledgeSource {
+  documentId: number
+  documentTitle?: string | null
+  chunkId?: number | null
+  chunkIndex?: number | null
+  quoteIndex: number
+  /** vector（向量命中的分块）/ like（向量不可用时降级按整份文档检索） */
+  sourceType: string
+}
+
+/**
  * 一档语言（article_version 的一行）。源语言与译稿是同一张表里的不同行，
  * 靠 locale 分家；Q-P3 定稿 (a) 让租户在后台看得见并改得动译稿那一档。
  */

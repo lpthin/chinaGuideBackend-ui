@@ -99,6 +99,41 @@
               </template>
             </div>
           </a-card>
+
+          <!-- M-P13 走查 #232：这一篇凭什么这么写，得能翻回当初喂给模型的那几份资料 -->
+          <a-card
+            v-if="article"
+            title="用了哪几份资料"
+            :bordered="false"
+            style="margin-top: 16px"
+          >
+            <a-alert
+              type="info"
+              show-icon
+              message="顺序就是当初喂给模型的顺序"
+              description="第 1 份是模型看到的第一个段落，改稿子要核的是「这一句凭什么」，不是资料现在还在不在库里。题名是生成那一刻抄下的快照，所以资料后来被删也仍然念得出这一行。"
+              style="margin-bottom: 12px"
+            />
+            <div v-for="source in knowledgeSources" :key="source.quoteIndex" class="source-row">
+              <a-tag color="blue">第 {{ source.quoteIndex }} 份</a-tag>
+              <span class="source-title">{{ source.documentTitle || `资料 #${source.documentId}（题名未记录）` }}</span>
+              <span class="source-meta">
+                {{ source.chunkId ? `分块 ${source.chunkIndex != null ? source.chunkIndex + 1 : '-'}` : '整份文档' }}
+                · {{ source.sourceType === 'like' ? '向量不可用时降级检索' : '向量检索命中' }}
+              </span>
+            </div>
+            <a-empty
+              v-if="!knowledgeSources.length && !sourcesLoadFailed"
+              description="这一篇没有资料引用留痕——生成时没勾「引用企业资料」（手工新建的文章本来就没有这一栏）"
+            />
+            <a-alert
+              v-else-if="!knowledgeSources.length && sourcesLoadFailed"
+              type="warning"
+              show-icon
+              message="这一栏没读到，不代表这一篇没引用资料"
+              description="上面那句话是「真的没有留痕」才说的；读失败时这里不摆任何一份，也别拿空的清单当证据。"
+            />
+          </a-card>
         </a-col>
 
         <a-col :span="6">
@@ -151,7 +186,7 @@ import {
 import { articleManageApi } from '../../api/article'
 import { describeHttpError } from '../../api/http'
 import { formatTime } from '../../utils/format'
-import type { Article, ArticleLocaleEdit, ArticleLocaleVersion } from '../../types/article'
+import type { Article, ArticleKnowledgeSource, ArticleLocaleEdit, ArticleLocaleVersion } from '../../types/article'
 import { marked } from 'marked'
 
 const router = useRouter()
@@ -159,6 +194,9 @@ const route = useRoute()
 const loading = ref(false)
 const article = ref<Article | null>(null)
 const versions = ref<ArticleLocaleVersion[]>([])
+const knowledgeSources = ref<ArticleKnowledgeSource[]>([])
+/** 读失败与「真的没有留痕」是两件事：失败了不许念成后者 */
+const sourcesLoadFailed = ref(false)
 
 /**
  * 源语言那一档：后端写库时把它的 translation_status 记成 source，上面的正文卡摆的也是它。
@@ -253,6 +291,19 @@ async function loadVersions(id: number) {
   }
 }
 
+async function loadKnowledgeSources(id: number) {
+  try {
+    const data = await articleManageApi.knowledgeSources(id)
+    knowledgeSources.value = Array.isArray(data) ? (data as ArticleKnowledgeSource[]) : []
+    sourcesLoadFailed.value = false
+  } catch (error) {
+    // 读失败不许念成「这一篇没引用资料」：那一格的话只在真的读通了且是空的时候说
+    knowledgeSources.value = []
+    sourcesLoadFailed.value = true
+    message.warning(`资料引用读取失败：${describeHttpError(error)}`)
+  }
+}
+
 function startEditLocale(version: ArticleLocaleVersion) {
   editingLocaleId.value = version.id
   localeDraft.value = {
@@ -297,6 +348,7 @@ async function loadArticle() {
     article.value = data as Article
     loadRelated(data as Article)
     loadVersions(Number(id))
+    loadKnowledgeSources(Number(id))
   } catch (error) {
     message.error(`加载文章详情失败：${describeHttpError(error)}`)
   } finally {
@@ -357,6 +409,29 @@ onMounted(() => {
     line-height: 1.7;
     white-space: pre-wrap;
     color: #434343;
+  }
+}
+
+.source-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid #f0f0f0;
+  font-size: 13px;
+
+  &:first-of-type {
+    border-top: none;
+  }
+
+  .source-title {
+    flex: 1;
+    color: #1a1a1a;
+  }
+
+  .source-meta {
+    color: #8c8c8c;
+    font-size: 12px;
   }
 }
 
