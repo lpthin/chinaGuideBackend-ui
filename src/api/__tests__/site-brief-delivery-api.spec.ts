@@ -102,20 +102,41 @@ describe('预览地址与差异说明（拍板 1A / 5A 的前端那一半）', (
   })
 
   function candidate(overrides: Partial<ClientBriefCandidate> = {}): ClientBriefCandidate {
-    return { siteId: 1, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', previewUrl: '/?reviewToken=a', ...overrides }
+    return {
+      siteId: 1,
+      candidateNo: 1,
+      name: '甲',
+      skeletonKey: 'lead-gen',
+      focus: null,
+      tone: null,
+      previewUrl: '/?reviewToken=a',
+      ...overrides
+    }
   }
 
-  it('后端给了差异原话就一个字不改用它的', () => {
+  it('后端给了 focus 原话就一个字不改用它的（这一句读的是 site_proposal_candidate.focus）', () => {
     const result = clientCandidatesDifference([
-      candidate({ differentiation: '这一套把留资表单摆第一屏' }),
-      candidate({ siteId: 2, candidateNo: 2, skeletonKey: 'content-first', differentiation: '这一套先讲案例与实力' })
+      candidate({ focus: '这一套把留资表单摆第一屏', tone: 'direct' }),
+      candidate({ siteId: 2, candidateNo: 2, skeletonKey: 'content-first', focus: '这一套先讲案例与实力', tone: 'warm' })
     ])
     expect(result.visible).toBe(true)
     expect(result.text).toContain('这一套把留资表单摆第一屏')
     expect(result.text).toContain('这一套先讲案例与实力')
+    expect(result.text).not.toContain('另外')
   })
 
-  it('没给差异原话时只用响应真有的字段（骨架各不相同才算看得出差异）', () => {
+  it('有几套没跑到 plan（focus 是 null）就把缺的数量念出来，不许看起来像三套都齐了', () => {
+    const result = clientCandidatesDifference([
+      candidate({ focus: '这一套把留资表单摆第一屏' }),
+      candidate({ siteId: 2, candidateNo: 2, skeletonKey: 'content-first' }),
+      candidate({ siteId: 3, candidateNo: 3, skeletonKey: 'blog-first' })
+    ])
+    expect(result.visible).toBe(true)
+    expect(result.text).toContain('这一套把留资表单摆第一屏')
+    expect(result.text).toContain('另外 2 套没有这句')
+  })
+
+  it('没给 focus 时只用响应真有的字段（骨架各不相同才算看得出差异）', () => {
     const distinct = clientCandidatesDifference([candidate(), candidate({ siteId: 2, candidateNo: 2, skeletonKey: 'corporate-base' })])
     expect(distinct.visible).toBe(true)
     expect(distinct.text).toContain('lead-gen')

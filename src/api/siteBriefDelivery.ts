@@ -19,19 +19,26 @@ import http from './http';
 
 /**
  * `ClientBriefView.Candidate`：一套候选在一屏对比里的样子。
- * 后端注释明确**故意没有**缩略图/截图字段（§6.7 内部预览域截不了图），也故意没有差异说明那一格
- * （差异原话在 P3 的 plan JSON 里，`site` 表上没列）——`differentiation` 是我为拍板 5A 预留的
- * **可选**读取口，后端没回时界面照实说「这一份响应里没有」，绝不本地编一句。
+ * 后端注释明确**故意没有**缩略图/截图字段（§6.7 内部预览域截不了图）。
+ *
+ * <p>`focus` / `tone` 是 2026-10-13 现场对账时补上的两根：后端 `ClientBriefView.Candidate`
+ * 早就带这两列（读自 `site_proposal_candidate`，拍板 5A 要客户看得见门禁的依据），
+ * 而这一头写的是当年猜的 `differentiation`——那个名字在响应里从来不存在，于是客户那一屏
+ * 永远走「后端没随这条链接下发差异说明」那条文案，而现场真回包里有两句 focus 原话。
+ * 界面因此念了一句假话（现场截图见 scratch/m-p13-e2e-p7/p7-01-client-page.png）。
+ * 现在只认后端真有的这两个键，取不到（那一套在 plan 之前就被门禁拦下）就照实少一句。</p>
  */
 export interface ClientBriefCandidate {
   siteId: number;
   candidateNo: number | null;
   name: string | null;
   skeletonKey: string | null;
+  /** plan 落库的「这套侧重什么」原话；那一套没跑到 plan 时后端回 null */
+  focus: string | null;
+  /** 这一套的语气档位（门禁按「语气不重复」拦三套） */
+  tone: string | null;
   /** 这一套自己的预览地址（令牌绑站不绑页）；未配 preview-base-url 时是相对路径，由前端按当前 origin 拼 */
   previewUrl: string | null;
-  /** 猜测字段（后端今天没有）：plan 落库的「这套侧重什么」原话，有就一个字不改地显示 */
-  differentiation?: string | null;
 }
 
 /** `ClientBriefView`：所有失败场景都是「同一个形状 + 空 candidates」（§9-7），所以这里没有 error 字段 */
@@ -78,19 +85,28 @@ export function resolvePreviewUrl(url: string | null | undefined, origin?: strin
 /**
  * 三套「看得出差异」那句话的唯一拼法（拍板 5A）。
  *
- * 只用响应里真有的字段：骨架 key 是 P2 给得到的差异证据（后端注释原话「P2 只给了我 skeletonKey」）；
- * plan 的差异原话若哪天随 `differentiation` 下来，就原话显示，界面一个字都不改写。
- * 两套骨架同名时不许说「各不相同」——那正是客户看不出差别的那种场合。
+ * 只用响应里真有的字段：`focus` 是 plan 落库的「这套侧重什么」原话，有就一个字不改地念；
+ * 骨架 key 是它没落库时唯一看得见的差异证据。两套骨架同名时不许说「各不相同」——
+ * 那正是客户看不出差别的那种场合。
+ * 有几套就是没这句 focus（那一套在 plan 之前被门禁拦下）时，把「缺几套」也念出来，
+ * 不许让这一句看起来像三套都齐了。
  */
 export function clientCandidatesDifference(candidates: ClientBriefCandidate[]): {
   text: string;
-  /** 差异是否真的看得出来（骨架各不相同，或后端给了差异原话） */
+  /** 差异是否真的看得出来（有 focus 原话，或骨架各不相同） */
   visible: boolean;
 } {
   const lines = candidates
-    .filter(candidate => candidate.differentiation && candidate.differentiation.trim())
-    .map(candidate => `${candidate.candidateNo ?? '?'}：${(candidate.differentiation || '').trim()}`);
-  if (lines.length) return { text: `这套侧重什么（后端原话）：${lines.join(' ｜ ')}`, visible: true };
+    .filter(candidate => (candidate.focus || '').trim())
+    .map(candidate => `${candidate.candidateNo ?? '?'}：${(candidate.focus || '').trim()}`);
+  if (lines.length) {
+    const missing = candidates.length - lines.length;
+    return {
+      text: `这套侧重什么（后端原话）：${lines.join(' ｜ ')}`
+        + (missing ? ` ｜ 另外 ${missing} 套没有这句：那一套在出方案的第一步就被拦下，focus 还没落库` : ''),
+      visible: true
+    };
+  }
 
   const skeletonKeys = candidates.map(candidate => (candidate.skeletonKey || '').trim());
   const known = skeletonKeys.filter(key => key);
@@ -215,8 +231,9 @@ export function hasChosenDecision(rows: BriefDecisionView[] | null | undefined):
  * 视图里出现任何一处「补字段」都算越界——要改先改这里。
  */
 export const GUESSED_SHAPES = [
-  'ClientBriefView.Candidate.differentiation —— 后端今天的 record 里没有这一列（类注释写明故意不给，留给 P3 补读取口）。'
-    + '界面按可选读取：有就原话显示，没有就写「这一份响应里没有」。',
+  'ClientBriefView.Candidate 的 focus / tone 两根已改成后端真回的那两个键名（2026-10-13 现场用免鉴权读口对账：'
+    + '回包里每套都带 focus 原话与 tone 档位）。这一头以前猜的是 `differentiation`——响应里从来没这个名字，'
+    + '于是客户那一屏永远念「后端没随这条链接下发差异说明」，是一句假话。',
   '公开两口的前端地址形态 —— 后端只定义了 API 路径；选择页自身的路由（/brief/:token，令牌在路径里）是本前端定的。',
   'previewUrl 的相对路径退化 —— 按「未配 app.portal.candidate.preview-base-url 时由前端按当前 origin 拼」的注释实现；'
     + '若门户与管理前端不同源，必须后端配那一项，前端拼不出来也不该拼。',

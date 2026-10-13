@@ -115,7 +115,7 @@ function candidateLabel(candidate: ClientBriefCandidate, index: number): string 
 
 /** 这一份响应里有没有「这套侧重什么」的原话（拍板 5A 要的那句）；没有就照实说没有 */
 const hasDifferentiationCopy = computed(() =>
-  candidates.value.some(candidate => !!(candidate.differentiation || '').trim())
+  candidates.value.some(candidate => !!(candidate.focus || '').trim())
 )
 
 // ------------------------------------------------------------------
@@ -237,8 +237,11 @@ async function submit() {
         >
           <h2>{{ candidateLabel(candidate, index) }}</h2>
           <p class="client-decision__line"><b>这一套是什么骨架：</b>{{ (candidate.skeletonKey || '').trim() || '这条链接没带骨架名' }}</p>
-          <p v-if="(candidate.differentiation || '').trim()" class="client-decision__line">
-            <b>这套侧重什么：</b>{{ candidate.differentiation }}
+          <p v-if="(candidate.focus || '').trim()" class="client-decision__line">
+            <b>这套侧重什么：</b>{{ candidate.focus }}
+          </p>
+          <p v-if="(candidate.tone || '').trim()" class="client-decision__line">
+            <b>这一套的语气：</b>{{ candidate.tone }}
           </p>
           <p v-if="previewHref(candidate)" class="client-decision__line">
             <!-- 每套各用自己的预览令牌：令牌绑站不绑页，点进去就是完整的一套站（含演示内容） -->

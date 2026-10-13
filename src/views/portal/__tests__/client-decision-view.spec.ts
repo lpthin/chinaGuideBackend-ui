@@ -52,9 +52,9 @@ function briefView(overrides: Record<string, unknown> = {}) {
     title: '甲租户',
     candidateCount: 3,
     candidates: [
-      { siteId: 31, candidateNo: 1, name: '稳一稳', skeletonKey: 'corporate-base', previewUrl: '/?reviewToken=t31' },
-      { siteId: 32, candidateNo: 2, name: '先留资', skeletonKey: 'lead-gen', previewUrl: '/?reviewToken=t32' },
-      { siteId: 33, candidateNo: 3, name: '讲案例', skeletonKey: 'content-first', previewUrl: 'https://demo.preview.internal/?reviewToken=t33' }
+      { siteId: 31, candidateNo: 1, name: '稳一稳', skeletonKey: 'corporate-base', focus: null, tone: null, previewUrl: '/?reviewToken=t31' },
+      { siteId: 32, candidateNo: 2, name: '先留资', skeletonKey: 'lead-gen', focus: null, tone: null, previewUrl: '/?reviewToken=t32' },
+      { siteId: 33, candidateNo: 3, name: '讲案例', skeletonKey: 'content-first', focus: null, tone: null, previewUrl: 'https://demo.preview.internal/?reviewToken=t33' }
     ],
     demoNotice: '演示内容由 AI 生成，交付后可替换（后端原话）',
     previewNotice: '候选阶段只有可点开的预览链接（后端原话）',
@@ -241,18 +241,45 @@ describe('三套并排（拍板 5A + 1A：每套各用自己的预览令牌）',
     wrapper.unmount()
   })
 
-  it('后端给了差异原话就一个字不改地显示（界面不替它写一句）', async () => {
+  it('后端给了 focus 原话就一个字不改地显示，并顶掉那句「没下发」的说明', async () => {
     const data = briefView({
       candidates: [
-        { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', previewUrl: '/?reviewToken=t31', differentiation: '这一套把留资表单摆第一屏' },
-        { siteId: 32, candidateNo: 2, name: '乙', skeletonKey: 'content-first', previewUrl: '/?reviewToken=t32', differentiation: '这一套先讲案例与实力' }
+        { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', focus: '这一套把留资表单摆第一屏', tone: '务实、直接', previewUrl: '/?reviewToken=t31' },
+        { siteId: 32, candidateNo: 2, name: '乙', skeletonKey: 'content-first', focus: '这一套先讲案例与实力', tone: '稳重、专业', previewUrl: '/?reviewToken=t32' }
       ]
     })
     const wrapper = await mountView({ token: 'tok', data })
     const text = wrapper.text()
-    expect(text).toContain('这一套把留资表单摆第一屏')
-    expect(text).toContain('这一套先讲案例与实力')
+    expect(text).toContain('这套侧重什么：这一套把留资表单摆第一屏')
+    expect(text).toContain('这套侧重什么：这一套先讲案例与实力')
+    expect(text).toContain('这一套的语气：务实、直接')
     expect(text).not.toContain('这里宁可空着也不替它写一句')
+    expect(text).not.toContain('后端没随这条链接下发差异说明')
+    wrapper.unmount()
+  })
+
+  it('只有一部分套带 focus：缺的那几套照实说缺，卡片上也不给它们编一句', async () => {
+    const data = briefView({
+      candidates: [
+        { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', focus: '这一套把留资表单摆第一屏', tone: '务实、直接', previewUrl: '/?reviewToken=t31' },
+        { siteId: 32, candidateNo: 2, name: '乙', skeletonKey: 'content-first', focus: null, tone: null, previewUrl: '/?reviewToken=t32' }
+      ]
+    })
+    const wrapper = await mountView({ token: 'tok', data })
+    const cards = [...document.querySelectorAll('.client-decision__card')]
+    expect(cards).toHaveLength(2)
+    expect(cards[0].textContent).toContain('这套侧重什么')
+    expect(cards[1].textContent).not.toContain('这套侧重什么')
+    expect(wrapper.text()).toContain('另外 1 套没有这句')
+    wrapper.unmount()
+  })
+
+  it('界面不许自己造出 focus 那一行：响应里只有骨架名时卡片就只念骨架名', async () => {
+    const wrapper = await mountView({ token: 'tok' })
+    const cards = [...document.querySelectorAll('.client-decision__card')]
+    expect(cards).toHaveLength(3)
+    expect(cards.every(node => !node.textContent?.includes('这套侧重什么'))).toBe(true)
+    expect(cards[0].textContent).toContain('这一套是什么骨架：corporate-base')
     wrapper.unmount()
   })
 
