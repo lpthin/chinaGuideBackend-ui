@@ -223,6 +223,14 @@
               <a-space size="small">
                 <a-button type="link" size="small" @click="previewMediaFile(record)">预览</a-button>
                 <a-button type="link" size="small" @click="downloadMediaFile(record)">下载</a-button>
+                <a-button
+                  v-if="record.vectorStatus === 'FAILED' || record.vectorStatus === 'PARTIAL'"
+                  type="link"
+                  size="small"
+                  @click="reVectorize(record.id)"
+                >
+                  重新向量化
+                </a-button>
                 <a-popconfirm title="确认删除？" @confirm="deleteMediaFile(record.id)">
                   <a-button type="link" size="small" danger>删除</a-button>
                 </a-popconfirm>
@@ -749,7 +757,7 @@ async function handleBatchUpload(file: File): Promise<boolean> {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    await knowledgeDocumentApi.upload(auth.selectedTenantId!, formData)
+    await knowledgeDocumentApi.upload(auth.selectedTenantId!, formData, undefined, currentCategoryId.value)
     message.success(`${file.name} 上传成功`)
     await loadDocuments()
   } catch (e) {
@@ -785,6 +793,28 @@ async function deleteMediaFile(id: number) {
   } catch (e) {
     logError('knowledge/knowledge-document-view', '删除失败:', e)
     message.error('删除失败')
+  }
+}
+
+/**
+ * 向量化失败/只成了一半时的那根重跑把手。
+ *
+ * <p>后端的 {@code POST /knowledge/documents/{id}/vectorize} 一直就有，但界面上以前没有任何地方调它：
+ * 现场给新租户传了一份企业资料，解析成功、向量化失败（本地模型冷启那一次外呼被断开，
+ * ai_call_log 两行 embedding 都是 success=0），那一行就永远停在「失败」——唯一的出路是删了重传，
+ * 而删了重传还会撞上同一个模型。失败不可怕，可怕的是界面上一根重跑的手指头都不给。</p>
+ */
+async function reVectorize(id: number) {
+  try {
+    const result = await knowledgeDocumentApi.vectorize(id) as any
+    const taskId = result?.taskId
+    message.success(taskId
+      ? `已重新排队向量化（任务 ${taskId}），这一行的状态会自己往下走`
+      : '已重新排队向量化（后端没回任务号），这一行的状态会自己往下走')
+    await loadDocuments()
+  } catch (e: any) {
+    logError('knowledge/knowledge-document-view', '重新向量化失败:', e)
+    message.error(`重新向量化没排队成功：${e?.message || e?.response?.data?.message || '后端没给原因'}`)
   }
 }
 

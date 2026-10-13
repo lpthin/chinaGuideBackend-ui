@@ -146,10 +146,22 @@ export const knowledgeDocumentApi = {
   get: (id: number) =>
     http.get<KnowledgeDocument>(`/knowledge/documents/${id}`),
 
-  // 上传文档
-  upload: (tenantId: number, formData: FormData, onUploadProgress?: (progressEvent: any) => void) =>
+  /**
+   * 上传文档。`categoryId` 必须跟着走——后端的写口是 `@RequestParam(required = false) Long categoryId`
+   * 并把它落进 `knowledge_document.category_id`，而这一头以前只发 `tenantId`：
+   * 现场跑过一次「新建项目 → 进项目 → 批量上传」，回包 200、toast 报「上传成功」、库里也确实多了一行
+   * （doc id 8、taskId 17），但那一行 `category_id` 是 NULL，于是项目列表按 categoryId 过滤永远滤不到它——
+   * 用户看见的是「上传成功了，项目里却还是暂无数据」，资料实际成了无主行。
+   * 不给人家项目（没选项目那一格本就进不来）时整个键都不带，别发 `categoryId=`：空串会被后端绑成 400。
+   */
+  upload: (
+    tenantId: number,
+    formData: FormData,
+    onUploadProgress?: (progressEvent: any) => void,
+    categoryId?: number | null
+  ) =>
     http.post<KnowledgeDocument>('/knowledge/documents/upload', formData, {
-      params: { tenantId },
+      params: categoryId == null ? { tenantId } : { tenantId, categoryId },
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress
     }),
