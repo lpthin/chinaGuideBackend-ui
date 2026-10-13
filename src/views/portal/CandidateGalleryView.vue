@@ -165,10 +165,18 @@ const briefStatusText = computed(() =>
   briefStatusLabel(vocabulary.value, brief.value?.status, brief.value?.statusLabel)
 )
 
-/** 卡上的站名：站点行优先，其次进度行报的 siteId，都没有就是还没建出来 */
+/** 站 id 对着那一行的候选列表口数据：套号相同不算数（重跑一轮会有两套同号） */
+function candidateRowById(slot: CandidateSlot): BriefCandidateSite | null {
+  const id = slot.row?.siteId ?? null
+  return id === null ? null : candidateSites.value.find(item => item.siteId === id) ?? null
+}
+
+/** 卡上的站名：站点行优先，其次候选列表口按站 id 认到的站名，再退到 siteId，都没有就是还没建出来 */
 function slotSiteLabel(slot: CandidateSlot): string {
   if (slot.site) return slot.site.name || slot.site.code || `站点 #${slot.site.id ?? '?'}`
-  if (slot.row?.siteId) return `站点 #${slot.row.siteId}（站点列表里没这行）`
+  const row = candidateRowById(slot)
+  if (row?.siteName || row?.siteCode) return row?.siteName || row?.siteCode || ''
+  if (slot.row?.siteId) return `站点 #${slot.row.siteId}`
   return '还没建出来'
 }
 
@@ -176,7 +184,9 @@ function slotSiteLabel(slot: CandidateSlot): string {
 function slotStatusText(slot: CandidateSlot): string {
   const status = slot.site?.status
   if (status) return siteStatusText(status)
-  if (slot.row?.siteId) return '站点行没取到（列表分页没 cover 到，或这一行已被删）'
+  // 「分页没 cover」「这一行已被删」是我先前的两个猜测，现场都不是真因：租户态的站点列表口按设计
+  // 不摆候选站（SiteService 那条口径），切进这家租户看画廊时就必然取不到站点行。要念的是事实本身。
+  if (slot.row?.siteId) return `站点状态没读到（站点 #${slot.row.siteId} 不在这条站点列表里）`
   if (slot.row) return '没有站点状态（子任务在跑，站还没落库）'
   return '没建出来'
 }

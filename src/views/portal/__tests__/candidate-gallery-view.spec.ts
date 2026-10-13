@@ -317,6 +317,39 @@ describe('槽位排满与每格只转述后端给的', () => {
     expect(text).not.toContain('已归档候选')
     wrapper.unmount()
   })
+
+  /**
+   * 现场那一趟（2026-10-13，租户 180 的画廊）：`GET /api/admin/sites` 带 `X-Tenant-Id` 时按设计
+   * 不摆候选站（`SiteService` 那条口径），于是卡上永远取不到站点行。界面先前把原因**猜**成
+   * 「列表分页没 cover 到」或「这一行已被删」——两句当场被现场读数证伪。现在念事实本身。
+   */
+  it('站点列表里没有候选站那一行：站名接候选列表口那份，状态只说没读到，不猜原因', async () => {
+    const wrapper = await mountView({
+      sites: [],
+      progressData: [row()],
+      candidateData: [candidateSite()]
+    })
+    const text = wrapper.text()
+    expect(text).toContain('第 1 套 · 候选站 31')
+    expect(text).toContain('站点状态没读到（站点 #31 不在这条站点列表里）')
+    expect(text).not.toContain('分页')
+    expect(text).not.toContain('已被删')
+    wrapper.unmount()
+  })
+
+  /** 站名也不按套号乱配：候选列表口里同号的另一轮不能顶成本轮那套的名字 */
+  it('候选列表口只有上一轮那行时：卡上露站 id，不把上一轮的站名当成本轮', async () => {
+    const wrapper = await mountView({
+      sites: [],
+      progressData: [row({ siteId: 41 })],
+      candidateData: [candidateSite({ siteId: 31, candidateNo: 1 })]
+    })
+    const text = wrapper.text()
+    expect(text).toContain('第 1 套 · 站点 #41')
+    expect(text).not.toContain('候选站 31')
+    expect(text).toContain('站点状态没读到（站点 #41 不在这条站点列表里）')
+    wrapper.unmount()
+  })
 })
 
 describe('配图三本账与演示内容', () => {
