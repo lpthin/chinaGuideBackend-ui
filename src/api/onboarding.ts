@@ -6,14 +6,23 @@ import http from './http'
 
 export type DemoMode = 'skip' | 'overwrite'
 
+/** 演示内容包按类型逐行落库，后端回的是「每种类型各几条」，不是一个总数 */
+export type DemoTypeKey = 'categories' | 'articles' | 'cases' | 'banners' | 'jobs'
+
+/**
+ * 后端那三个计数（以及转正式时的 converted）都是 `Map<String, Integer>`，
+ * 只装这次真的动过的类型，所以哪一类一条没动就不在对象里出现（现场见过回 `{}`）。
+ */
+export type DemoTypeCounts = Partial<Record<DemoTypeKey, number>>
+
 export interface DemoBootstrapResult {
   tenantId: number
   siteId: number
   pack: string
   mode: DemoMode
-  created: number
-  updated: number
-  skipped: number
+  created: DemoTypeCounts
+  updated: DemoTypeCounts
+  skipped: DemoTypeCounts
   /** 与租户已有内容标识冲突、被跳过的条目说明（真实内容优先，不会被演示包覆盖） */
   conflicts: string[]
   nextSteps: string[]
@@ -23,7 +32,7 @@ export interface DemoBootstrapResult {
 export interface DemoPublishResult {
   tenantId: number
   siteId: number
-  converted: number
+  converted: DemoTypeCounts
   nextSteps: string[]
   notice: string
 }

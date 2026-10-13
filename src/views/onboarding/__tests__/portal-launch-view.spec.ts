@@ -203,3 +203,88 @@ describe('第 1 格 · 站点', () => {
     expect(wrapper.find('.aspin-stub').attributes('data-spinning')).toBe('false')
   })
 })
+
+/**
+ * 第 3 格「演示内容」那行结果（M-P13 现场，scratch/m-p13-e2e/p2.json 判据 #5）。
+ *
+ * 后端 bootstrap-demo 回的 created/updated/skipped 是「每种内容各几条」的 Map，
+ * 界面以前当数字直接拼进句子，浏览器就照着念了出来：
+ * 「演示内容已生成：新增 [object Object] 条、更新 [object Object] 条、跳过 [object Object] 条」。
+ * 客户看完这一行，对「到底灌进去了什么」一个字都不知道。
+ */
+describe('第 3 格 · 演示内容结果行', () => {
+  const EMPTY_DEMO = { categories: 0, articles: 0, cases: 0, banners: 0, jobs: 0 }
+
+  function asSuperAdminOnTenant180(): void {
+    authState.isSuperAdmin = true
+    authState.selectedTenantId = 180
+    authState.permissions = ['portal:siteinfo:manage', 'portal:build:manage']
+    vi.mocked(demoSiteApi.status).mockResolvedValue({
+      tenantId: 180,
+      siteCount: 1,
+      siteId: 190,
+      siteCode: 'walkthrough1013',
+      siteName: '走查租户',
+      domain: null,
+      demo: EMPTY_DEMO,
+      published: { articles: 0, cases: 0 },
+    } as any)
+  }
+
+  function resultLine(wrapper: Awaited<ReturnType<typeof mountView>>): string {
+    const node = wrapper.findAllComponents({ name: 'AAlert' })
+      .find(n => String(n.attributes('class') ?? '').includes('result'))
+    if (!node) {
+      throw new Error('点完按钮没摆出结果行')
+    }
+    return String(node.props('message') ?? '')
+  }
+
+  async function clickDemoButton(wrapper: Awaited<ReturnType<typeof mountView>>): Promise<void> {
+    const button = wrapper.findAll('.abutton-stub').find(n => n.text().includes('演示'))
+    if (!button) {
+      throw new Error('找不到生成/补齐演示内容那个按钮')
+    }
+    await button.trigger('click')
+    await flushPromises()
+  }
+
+  it('skip 模式下内容早已在了：念「没有新增也没有更新」，并报出跳过的是哪几类各几条', async () => {
+    asSuperAdminOnTenant180()
+    vi.mocked(demoSiteApi.bootstrap).mockResolvedValue({
+      created: {},
+      updated: {},
+      skipped: { categories: 4, articles: 5, cases: 3, banners: 3, jobs: 2 },
+      conflicts: [],
+      notice: '',
+    } as any)
+    const wrapper = await mountView()
+    await clickDemoButton(wrapper)
+
+    const line = resultLine(wrapper)
+    expect(line).not.toContain('[object Object]')
+    expect(line).toContain('这一趟没有新增也没有更新')
+    expect(line).toContain('新增 0 条')
+    expect(line).toContain('跳过 17 条（分类 4、文章 5、案例 3、首页 Banner 3、岗位 2）')
+  })
+
+  it('真的灌了新内容：按类型念出新增几条，不再是一个对象', async () => {
+    asSuperAdminOnTenant180()
+    vi.mocked(demoSiteApi.bootstrap).mockResolvedValue({
+      created: { categories: 4, articles: 5 },
+      updated: { banners: 1 },
+      skipped: {},
+      conflicts: [],
+      notice: '',
+    } as any)
+    const wrapper = await mountView()
+    await clickDemoButton(wrapper)
+
+    const line = resultLine(wrapper)
+    expect(line).not.toContain('[object Object]')
+    expect(line).toContain('演示内容已生成')
+    expect(line).toContain('新增 9 条（分类 4、文章 5）')
+    expect(line).toContain('更新 1 条（首页 Banner 1）')
+    expect(line).toContain('跳过 0 条')
+  })
+})

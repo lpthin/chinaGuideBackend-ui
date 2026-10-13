@@ -160,7 +160,7 @@ import { useAuthStore } from '../../stores/auth'
 import { companyInfoApi } from '../../api'
 import { portalSitesApi } from '../../api/portalSites'
 import { backendFileUrl, demoSiteApi, portalVisibilityApi } from '../../api/onboarding'
-import type { DemoMode, DemoStatusResult } from '../../api/onboarding'
+import type { DemoMode, DemoStatusResult, DemoTypeCounts } from '../../api/onboarding'
 import type { CompanyInfo } from '../../types'
 import type { MySite } from '../../api/portalSites'
 
@@ -187,6 +187,28 @@ const MODE_OPTIONS = [
   { label: '只补缺（skip）', value: 'skip' },
   { label: '覆盖同名演示内容（overwrite）', value: 'overwrite' },
 ]
+
+/** 后端回的是「每种内容各几条」，界面上念成人话：总数 + 逐类（词与第 3 步那张卡一致） */
+const DEMO_TYPE_LABELS: Record<string, string> = {
+  categories: '分类',
+  articles: '文章',
+  cases: '案例',
+  banners: '首页 Banner',
+  jobs: '岗位',
+}
+
+function demoCountTotal(counts: DemoTypeCounts | undefined): number {
+  return Object.values(counts || {}).reduce((sum, n) => sum + Number(n || 0), 0)
+}
+
+function demoCountsText(counts: DemoTypeCounts | undefined): string {
+  const detail = Object.entries(counts || {})
+    .filter(([, n]) => Number(n) > 0)
+    .map(([key, n]) => `${DEMO_TYPE_LABELS[key] ?? key} ${Number(n)}`)
+    .join('、')
+  const total = demoCountTotal(counts)
+  return total ? `${total} 条${detail ? `（${detail}）` : ''}` : '0 条'
+}
 
 const authStore = useAuthStore()
 
@@ -410,12 +432,16 @@ async function runBootstrap(): Promise<void> {
   try {
     const result = await demoSiteApi.bootstrap(requireSelectedTenantId(), bootstrapMode.value)
     demoConflicts.value = result.conflicts || []
-    actionResult.value = `演示内容已生成：新增 ${result.created} 条、更新 ${result.updated} 条、跳过 ${result.skipped} 条`
+    const changed = demoCountTotal(result.created) + demoCountTotal(result.updated)
+    actionResult.value = `${changed ? '演示内容已生成' : '演示内容已经在，这一趟没有新增也没有更新'}：`
+      + `新增 ${demoCountsText(result.created)}、更新 ${demoCountsText(result.updated)}、跳过 ${demoCountsText(result.skipped)}`
       + (demoConflicts.value.length ? `；有 ${demoConflicts.value.length} 条与已有内容标识冲突被跳过` : '')
-    if (!demoConflicts.value.length) {
+    if (demoConflicts.value.length) {
+      message.warning(`有 ${demoConflicts.value.length} 条演示内容与已有内容标识冲突，已跳过`)
+    } else if (changed) {
       message.success('演示内容已生成')
     } else {
-      message.warning(`有 ${demoConflicts.value.length} 条演示内容与已有内容标识冲突，已跳过`)
+      message.info('演示内容已经在，这一趟没有新增')
     }
     await loadDemoStatus()
   } catch (error) {
