@@ -2,6 +2,7 @@
 import http from './http'
 import type { AxiosProgressEvent } from 'axios'
 import type {
+  ArticleKnowledgeSource,
   ArticleCategory,
   Article,
   ImageLibrary,
