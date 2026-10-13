@@ -395,7 +395,9 @@
               <span>{{ record.title || record.topic || '-' }}</span>
             </template>
             <template v-else-if="column.key === 'status'">
-              <a-tag :color="taskStatusMeta(record.status).color">{{ taskStatusMeta(record.status).label }}</a-tag>
+              <a-tag :color="taskStatusMeta(record.status).color" :title="record.status">
+                {{ taskStatusMeta(record.status).label }}
+              </a-tag>
               <div v-if="record.errorMessage" class="task-error">{{ record.errorMessage }}</div>
               <!-- 降级放行：稿子已存为草稿，缺口要点名到行，不能只写在后端日志里 -->
               <div v-for="(note, noteIndex) in record.qualityNotes || []" :key="noteIndex" class="task-note">
@@ -625,7 +627,11 @@ type GenerationTask = {
   articleStatus?: ArticleStatus
 }
 
-/** 生成任务状态来自 getGenerationStatus / SSE，取值是大写字符串，不属于文章状态词表 */
+/**
+ * 生成任务状态来自 getGenerationStatus / SSE，取值是大写字符串，不属于文章状态词表。
+ * 这份名单要对齐 ArticleGenerationService 里 updateTaskStatus 实际写过的每一个码——
+ * 少认一个，界面就把英文码原样念出来，并且那一趟永远停在「生成中 + 取消」。
+ */
 const TASK_STATUS_META: Record<string, { label: string; color: string }> = {
   PENDING: { label: '排队中', color: 'default' },
   PROCESSING: { label: '生成中', color: 'processing' },
@@ -633,11 +639,15 @@ const TASK_STATUS_META: Record<string, { label: string; color: string }> = {
   COMPLETED: { label: '已完成', color: 'success' },
   FAILED: { label: '失败', color: 'error' },
   CANCELLED: { label: '已取消', color: 'default' },
+  TIMEOUT: { label: '超时', color: 'error' },
+  CONTENT_REJECTED: { label: '内容审核不通过', color: 'warning' },
 }
 
 function taskStatusMeta(status?: string) {
   if (!status) return { label: '-', color: 'default' }
-  return TASK_STATUS_META[status.toUpperCase()] ?? { label: status, color: 'default' }
+  // 认不出来的码不许把英文原样念给人看（现场：任务状态格 = CONTENT_REJECTED，同行「当前阶段」是中文）；
+  // 但也不能编一个中文词盖过去，所以退成「未识别状态」，原文挂在 title 上
+  return TASK_STATUS_META[status.toUpperCase()] ?? { label: '未识别状态', color: 'default' }
 }
 
 const DRIVER_LABELS: Record<string, string> = {
@@ -793,7 +803,8 @@ function handleDocumentChange(info: any) {
   else if (info.file.status === 'error') message.error(`${info.file.name} 上传失败`)
 }
 
-const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED']
+/** RETRYING 不算终态：重试调度器还会把它推回生成中，这里停了轮询就永远看不到结果 */
+const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED', 'TIMEOUT', 'CONTENT_REJECTED']
 
 function isTerminal(status?: string) {
   return !!status && TERMINAL_STATUSES.includes(status.toUpperCase())
@@ -908,8 +919,8 @@ async function handleTaskComplete(taskId: number, res: TaskUpdate) {
   applyTaskUpdate(taskId, res)
   resetGenerationState()
   const status = (res.status || '').toUpperCase()
+  const task = findTask(taskId)
   if (status === 'COMPLETED') {
-    const task = findTask(taskId)
     const notes = task?.qualityNotes ?? []
     if (notes.length > 0) {
       // 不许在这里只报「成功」：质检放行是有缺口的，人要知道缺的是哪一项、去哪儿补
@@ -917,13 +928,20 @@ async function handleTaskComplete(taskId: number, res: TaskUpdate) {
     } else {
       message.success('文章生成成功')
     }
-    if (task) await refreshArticleStatus(task)
-    await loadStats()
   } else if (status === 'FAILED') {
     message.error(res.errorMessage || '生成失败')
   } else if (status === 'CANCELLED') {
     message.info('已取消生成任务')
+  } else if (status === 'TIMEOUT') {
+    message.error(res.errorMessage || '生成超时')
+  } else if (status === 'CONTENT_REJECTED') {
+    // 稿子已经按 Q-P7-5a 留成草稿了，这一发要的是人去审，不是「任务失败了请重来」
+    message.warning(res.errorMessage || '内容审核不通过，稿子已存为草稿', 8)
   }
+  // 到终态的不管哪一档都可能动过文章（草稿落库、判拒留档都算），统计卡与文章状态都要回读；
+  // 只有 COMPLETED 才回读的话，判拒那一趟界面就永远停在进页面时那份读数
+  if (task) await refreshArticleStatus(task)
+  await loadStats()
 }
 
 function pollTaskStatus(taskId: number) {
@@ -963,6 +981,15 @@ async function trySSE(taskId: number): Promise<boolean> {
           generateProgress.value = data.progress ?? 0
           progressText.value = data.stage || '处理中...'
           applyTaskUpdate(taskId, data)
+          // 终态自己认，不等对岸发哪一种事件：现场那趟判拒（task 5）后端把 CONTENT_REJECTED 只写在
+          // progress 里、complete 从不发出，界面就永远停在 80% 还摆着「取消」，统计卡也不回读。
+          if (isTerminal(data.status) && !resolved) {
+            resolved = true
+            if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null }
+            clearSSE()
+            handleTaskComplete(taskId, data)
+            resolve(true)
+          }
         } catch (e) { logError('workspace/article-generate-panel', '解析 SSE progress 失败', e) }
       })
       source.addEventListener('complete', (event: Event) => {
