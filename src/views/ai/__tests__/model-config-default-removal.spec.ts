@@ -42,6 +42,8 @@ vi.mock('../../../api/ai-model', () => ({
     imageProbe: vi.fn(),
     checkAllHealth: vi.fn(),
     setPrice: vi.fn(),
+    // 「限定用途」那一份清单由后端给（V182）；这里给一条真的，页面才按生产那副样子渲染
+    purposeScopeOptions: vi.fn().mockResolvedValue([{ code: 'reference_block_mapping', label: '参考站区块映射' }]),
   },
   usageApi: { today: vi.fn() },
 }))

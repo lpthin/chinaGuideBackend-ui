@@ -109,6 +109,11 @@ export interface ModelConfig {
    * 单价清成「未定价」时后端会把它一起清掉——出处不能比它活的久。
    */
   priceNote?: string | null
+  /**
+   * 限定用途（V182）：空串＝通用行，所有用途都选得到；非空＝只服务这一个用途的专用行，别的用途借不走。
+   * 能填的那几个取值由后端那一支 {@code purpose-scope-options} 给，前端不抄词表（见 {@link PurposeScopeOption}）。
+   */
+  purposeScope?: string | null
   sortOrder?: number
   healthStatus?: 'unknown' | 'passed' | 'failed' | string
   lastHealthCheckAt?: string
@@ -218,6 +223,12 @@ export interface ModelQueryParams {
   size?: number
 }
 
+// 「限定用途」那一个下拉的选项：由后端 purpose-scope-options 那支口给，前端不自己抄词表
+export interface PurposeScopeOption {
+  code: string
+  label: string
+}
+
 // 模型配置表单
 export interface ModelConfigForm {
   name: string
@@ -225,6 +236,8 @@ export interface ModelConfigForm {
   provider?: string
   modelName?: string
   modelType?: string
+  /** 限定用途：空串＝清回通用行（这一列 NOT NULL DEFAULT ''，空串是一个真值，不是「没填」） */
+  purposeScope?: string
   apiKey: string
   baseUrl?: string
   apiEndpoint?: string

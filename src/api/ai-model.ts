@@ -15,6 +15,7 @@ import type {
   ArticleTemplate,
   ArticleTemplateForm,
   ArticleTemplateQueryParams,
+  PurposeScopeOption,
 } from '../types/ai-model'
 
 // 模型 API (复用 modelConfigApi)
@@ -97,6 +98,16 @@ export const modelConfigApi = {
   // 立即巡检全部模型（与每日定时任务同一逻辑，不通过会写健康列并报警）
   checkAllHealth: () =>
     http.post<ModelHealthCheckSummary>('/ai/model-configs/health/check-all'),
+
+  /**
+   * 「限定用途」那个下拉能填什么：清单只写在后端 {@code AiModelScopes} 一处。
+   *
+   * <p>为什么由后端给而不是前端抄一份：这一列的取值等于「哪一支用途真的走文本补全那一路」，
+   * 那是后端选路的事。前端抄一份，加第三个用途时就会变成界面摆着一个选了没用的选项
+   * ——正是 M-P21-A 那轮「假杠杆」普查点名的形状。</p>
+   */
+  purposeScopeOptions: () =>
+    http.get<PurposeScopeOption[]>('/ai/model-configs/purpose-scope-options'),
 }
 
 // 向量数据库配置 API

@@ -90,7 +90,7 @@
                 <template #icon><SafetyCertificateOutlined /></template>
                 立即巡检
               </a-button>
-              <a-button type="primary" @click="showAddModal = true">
+              <a-button type="primary" @click="openAddModal">
                 <template #icon><PlusOutlined /></template>
                 添加配置
               </a-button>
@@ -130,6 +130,11 @@
                   style="width: 130px"
                   @blur="savePrice(record)"
                 />
+              </a-tooltip>
+            </template>
+            <template v-if="column.key === 'purposeScope'">
+              <a-tooltip :title="purposeScopeTooltip(record)">
+                <a-tag class="purpose-scope-tag" :color="isDedicatedRow(record) ? 'orange' : 'default'">{{ purposeScopeText(record) }}</a-tag>
               </a-tooltip>
             </template>
             <template v-if="column.key === 'priority'">
@@ -301,7 +306,7 @@
         </a-row>
 
         <a-row :gutter="16">
-          <a-col :span="12">
+          <a-col :span="8">
             <a-form-item label="优先级" extra="一次外呼取的是「已启用」里优先级最高的那一行同类模型：想让这一行被用上，就启用它并把优先级调高">
               <a-select v-model:value="configForm.priority" style="width: 100%">
                 <a-select-option :value="1">P1 (最高)</a-select-option>
@@ -311,7 +316,20 @@
               </a-select>
             </a-form-item>
           </a-col>
-          <a-col :span="12">
+          <a-col :span="8">
+            <a-form-item
+              label="限定用途"
+              :extra="scopeFormExtra"
+            >
+              <a-select
+                v-model:value="configForm.purposeScope"
+                :options="scopeSelectOptions"
+                :disabled="!scopeOptionsReady"
+                style="width: 100%"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
             <a-form-item label="启用状态">
               <a-switch v-model:checked="configForm.isActive" />
             </a-form-item>
@@ -432,24 +450,111 @@ function isImageRow(record: ModelConfig) {
   return record.modelType === 'image'
 }
 
-const configForm = reactive({
-  name: '',
-  provider: '',
-  modelName: '',
-  modelType: 'chat',
-  apiKey: '',
-  baseUrl: '',
-  apiProtocol: '',
-  apiVersion: '',
-  temperature: 0.7,
-  maxTokens: 2000,
-  topP: 0.9,
-  enableRetry: true,
-  maxRetryTimes: 3,
-  retryDelay: 1000,
-  priority: 3,
-  isActive: true,
+/**
+ * 「限定用途」那一格的候选由后端 {@code purpose-scope-options} 给：这一列的取值等于「哪一支用途真的
+ * 走文本补全那一路」，那是后端选路的事，前端抄一份词表就会在加第三个用途时变成界面摆着一个选了没用的
+ * 选项（M-P21-A 那轮「假杠杆」普查点名的形状）。读不到时这一格禁用并当场说清，不假装只有一个选项。
+ */
+const purposeScopeOptions = ref<{ value: string; label: string }[]>([])
+const scopeOptionsReady = ref(false)
+
+/**
+ * 选路真的按「限定用途」挑行的只有聊天/文本那一路——判据与后端
+ * {@code DynamicAiClient.pickChatModel} 里那一句是同一个（含 chat 或 text）。
+ */
+function isChatRoutedType(modelType?: string) {
+  const type = (modelType || '').toLowerCase()
+  return type.includes('chat') || type.includes('text')
+}
+
+function scopeValueOf(record: ModelConfig) {
+  return (record.purposeScope || '').trim()
+}
+
+/** 这一行是不是「专门为某一个用途开的那一行」 */
+function isDedicatedRow(record: ModelConfig) {
+  return scopeValueOf(record) !== ''
+}
+
+function scopeLabel(scope: string) {
+  return purposeScopeOptions.value.find(option => option.value === scope)?.label
+    || `限定给「${scope}」（这一支不在当前支持的用途清单里）`
+}
+
+/** 表格里那一格念短的那半句，整句（带解释）在 tooltip 里 */
+function scopeShortLabel(scope: string) {
+  return scopeLabel(scope).split('（')[0]
+}
+
+function purposeScopeText(record: ModelConfig) {
+  const scope = scopeValueOf(record)
+  if (!isChatRoutedType(record.modelType)) {
+    return scope ? '不生效' : '不适用'
+  }
+  return scope ? scopeShortLabel(scope) : '通用'
+}
+
+function purposeScopeTooltip(record: ModelConfig) {
+  const scope = scopeValueOf(record)
+  if (!isChatRoutedType(record.modelType)) {
+    const typeName = getModelTypeName(record.modelType || '')
+    return scope
+      ? `这一行是「${typeName}」，按用途挑行只读聊天模型的行；这里记着的「${scopeLabel(scope)}」不会让任何用途用上这一行`
+      : `这一格只对聊天模型的行有意义：这一行是「${typeName}」，按用途挑行读不到它`
+  }
+  if (scope) {
+    return `专用行：只有「${scopeLabel(scope)}」这一支外呼会优先用它（同一用途有多行时取优先级最高的那一行启用中的），其它用途选不到这一行`
+  }
+  return '通用行：所有用途都选得到它——某一支外呼没有对应的专用行时，才在通用行里按优先级挑'
+}
+
+const scopeSelectOptions = computed(() => {
+  const base = [{ value: '', label: '通用（所有用途都选得到这一行）' }, ...purposeScopeOptions.value]
+  const current = (configForm.purposeScope || '').trim()
+  // 库里那一行带着一个后端已不认识的用途时，原样念出来，不在保存时顺手抹掉它
+  if (current && !base.some(option => option.value === current)) {
+    return [...base, { value: current, label: scopeLabel(current) }]
+  }
+  return base
 })
+
+const scopeFormExtra = computed(() => {
+  if (!scopeOptionsReady.value) {
+    return '可选的用途清单没从后端读到，这一格先不能改'
+  }
+  if (!isChatRoutedType(configForm.modelType)) {
+    return `这一列只有聊天模型的行会被读到：现在填的是「${getModelTypeName(configForm.modelType)}」，改它不会让任何用途用上这一行`
+  }
+  return '留空＝通用行，所有用途都选得到；选定一个用途＝这一行只给那一支外呼优先用，别的用途选不到它'
+})
+
+/**
+ * 表单那一份初值。新建与编辑都从它出发：
+ * 上一行的值不该出现在「添加模型配置」里，更不该跟着新建那一发被提交成一个专用行。
+ */
+function formDefaults() {
+  return {
+    name: '',
+    provider: '',
+    modelName: '',
+    modelType: 'chat',
+    purposeScope: '',
+    apiKey: '',
+    baseUrl: '',
+    apiProtocol: '',
+    apiVersion: '',
+    temperature: 0.7,
+    maxTokens: 2000,
+    topP: 0.9,
+    enableRetry: true,
+    maxRetryTimes: 3,
+    retryDelay: 1000,
+    priority: 3,
+    isActive: true,
+  }
+}
+
+const configForm = reactive(formDefaults())
 
 const columns = [
   { title: '配置名称', dataIndex: 'name', key: 'name', width: 200 },
@@ -457,6 +562,7 @@ const columns = [
   { title: '模型', dataIndex: 'modelName', key: 'modelName', width: 140 },
   { title: '接口协议', key: 'apiProtocol', width: 130 },
   { title: '单价（元/1k token）', key: 'pricePer1kTokens', width: 170 },
+  { title: '限定用途', key: 'purposeScope', width: 170 },
   { title: '优先级', key: 'priority', width: 100, align: 'center' as const },
   { title: '状态', key: 'isActive', width: 100, align: 'center' as const },
   { title: '测试结果', key: 'healthStatus', width: 170 },
@@ -583,18 +689,32 @@ function getPriorityColor(priority: number) {
 /**
  * 「默认」那一格从这一页摘掉了：选路只读「已启用 + 优先级」，`is_default` 运行时没人看
  * （M-P18-9 现场实测：切了默认行，外呼照旧走原来那一行）。摆一个按下去什么都不改的按钮比不摆更坏。
+ *
+ * <p>后半句是 V182 那一列带来的：同一批启用中的行现在先按「限定用途」分两轮挑，
+ * 只念优先级会把这一列漏掉，改这一格的人就该看见完整的规则。</p>
  */
 function priorityTooltip() {
-  return '一次外呼取的是「已启用」里优先级最高（P 数最小）的那一行同类模型；想让这一行被用上：启用它，并把优先级调高'
+  return '一次外呼取的是「已启用」里优先级最高（P 数最小）的那一行同类模型；'
+    + '若另有专门限定给这一支用途的行，它会先于通用行被选中（见「限定用途」那一格）。'
+    + '想让这一行被用上：启用它，并把优先级调高'
+}
+
+/** 新建：从初值出发，上一行编辑的内容不该跟着进来（尤其「限定用途」——带着它新建会多出一行没人要的专用行） */
+function openAddModal() {
+  editingConfig.value = null
+  Object.assign(configForm, formDefaults())
+  showAddModal.value = true
 }
 
 function editConfig(config: ModelConfig) {
   editingConfig.value = config
-  Object.assign(configForm, {
+  Object.assign(configForm, formDefaults(), {
     name: config.name,
     provider: config.provider,
     modelName: config.modelName || '',
     modelType: config.modelType || 'chat',
+    // 空串与「没带」在这一列上是两件事，所以带回来的只能是库里那一个值（没有就当通用行）
+    purposeScope: (config.purposeScope || '').trim(),
     apiKey: '',
     baseUrl: config.apiEndpoint || config.baseUrl || '',
     apiProtocol: config.apiProtocol || '',
@@ -745,6 +865,9 @@ function formToPayload() {
     provider: configForm.provider,
     modelName: configForm.modelName,
     modelType: configForm.modelType,
+    // 空串也照样提交：这一列 NOT NULL DEFAULT ''，「清回通用行」只有显式给空串才落得下去
+    // （请求里根本不带这一键时后端按「这次不动它」处理，那不是清除）
+    purposeScope: (configForm.purposeScope || '').trim(),
     apiEndpoint: configForm.baseUrl,
     // 留空也照样提交：编辑时把「自动」改回留空，得能把之前显式填的协议清掉
     apiProtocol: configForm.apiProtocol || '',
@@ -819,9 +942,23 @@ async function loadTodayUsage() {
   }
 }
 
+/** 那个下拉的清单：读不到就把这一格禁用（scopeOptionsReady），不摆一个只有「通用」的假下拉 */
+async function loadPurposeScopeOptions() {
+  try {
+    const list = await modelConfigApi.purposeScopeOptions()
+    purposeScopeOptions.value = (list || []).map(option => ({ value: option.code, label: option.label }))
+    scopeOptionsReady.value = purposeScopeOptions.value.length > 0
+  } catch (error) {
+    logError('ai/model-config-view', error)
+    purposeScopeOptions.value = []
+    scopeOptionsReady.value = false
+  }
+}
+
 onMounted(() => {
   loadData()
   loadTodayUsage()
+  loadPurposeScopeOptions()
 })
 </script>
 
