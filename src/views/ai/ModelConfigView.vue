@@ -133,19 +133,9 @@
               </a-tooltip>
             </template>
             <template v-if="column.key === 'priority'">
-              <a-tag :color="getPriorityColor(record.priority)">P{{ record.priority }}</a-tag>
-            </template>
-            <template v-if="column.key === 'isDefault'">
-              <a-badge v-if="record.isDefault" status="success" text="默认" />
-              <a-button
-                v-else
-                type="link"
-                size="small"
-                @click="setDefaultConfig(record)"
-                :loading="settingDefaultId === record.id"
-              >
-                设为默认
-              </a-button>
+              <a-tooltip :title="priorityTooltip()">
+                <a-tag :color="getPriorityColor(record.priority)">P{{ record.priority }}</a-tag>
+              </a-tooltip>
             </template>
             <template v-if="column.key === 'isActive'">
               <a-switch
@@ -311,8 +301,8 @@
         </a-row>
 
         <a-row :gutter="16">
-          <a-col :span="8">
-            <a-form-item label="优先级">
+          <a-col :span="12">
+            <a-form-item label="优先级" extra="一次外呼取的是「已启用」里优先级最高的那一行同类模型：想让这一行被用上，就启用它并把优先级调高">
               <a-select v-model:value="configForm.priority" style="width: 100%">
                 <a-select-option :value="1">P1 (最高)</a-select-option>
                 <a-select-option :value="2">P2 (高)</a-select-option>
@@ -321,14 +311,9 @@
               </a-select>
             </a-form-item>
           </a-col>
-          <a-col :span="8">
+          <a-col :span="12">
             <a-form-item label="启用状态">
               <a-switch v-model:checked="configForm.isActive" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="设为默认">
-              <a-switch v-model:checked="configForm.isDefault" />
             </a-form-item>
           </a-col>
         </a-row>
@@ -367,7 +352,6 @@ const testingId = ref<number | null>(null)
 const probingId = ref<number | null>(null)
 const checkingAll = ref(false)
 const togglingId = ref<number | null>(null)
-const settingDefaultId = ref<number | null>(null)
 
 /**
  * 单价的「库里现在是多少」快照，按配置 id 存。
@@ -465,7 +449,6 @@ const configForm = reactive({
   retryDelay: 1000,
   priority: 3,
   isActive: true,
-  isDefault: false,
 })
 
 const columns = [
@@ -475,7 +458,6 @@ const columns = [
   { title: '接口协议', key: 'apiProtocol', width: 130 },
   { title: '单价（元/1k token）', key: 'pricePer1kTokens', width: 170 },
   { title: '优先级', key: 'priority', width: 100, align: 'center' as const },
-  { title: '默认配置', key: 'isDefault', width: 100, align: 'center' as const },
   { title: '状态', key: 'isActive', width: 100, align: 'center' as const },
   { title: '测试结果', key: 'healthStatus', width: 170 },
   {
@@ -598,6 +580,14 @@ function getPriorityColor(priority: number) {
   return map[priority] || 'default'
 }
 
+/**
+ * 「默认」那一格从这一页摘掉了：选路只读「已启用 + 优先级」，`is_default` 运行时没人看
+ * （M-P18-9 现场实测：切了默认行，外呼照旧走原来那一行）。摆一个按下去什么都不改的按钮比不摆更坏。
+ */
+function priorityTooltip() {
+  return '一次外呼取的是「已启用」里优先级最高（P 数最小）的那一行同类模型；想让这一行被用上：启用它，并把优先级调高'
+}
+
 function editConfig(config: ModelConfig) {
   editingConfig.value = config
   Object.assign(configForm, {
@@ -617,7 +607,6 @@ function editConfig(config: ModelConfig) {
     retryDelay: (config as any).retryDelay ?? 1000,
     priority: (config as any).sortOrder ?? config.priority ?? 3,
     isActive: config.isActive,
-    isDefault: config.isDefault ?? false,
   })
   showAddModal.value = true
 }
@@ -633,20 +622,6 @@ async function toggleConfigStatus(config: ModelConfig) {
     message.error('状态切换失败')
   } finally {
     togglingId.value = null
-  }
-}
-
-async function setDefaultConfig(config: ModelConfig) {
-  settingDefaultId.value = config.id
-  try {
-    await modelConfigApi.setDefault(config.id)
-    message.success('已设为默认模型')
-    await loadData()
-  } catch (error) {
-    logError('ai/model-config-view', error)
-    message.error('设置失败')
-  } finally {
-    settingDefaultId.value = null
   }
 }
 
@@ -778,7 +753,6 @@ function formToPayload() {
     topP: configForm.topP,
     sortOrder: configForm.priority,
     isActive: configForm.isActive,
-    isDefault: configForm.isDefault,
   }
   if (configForm.apiKey) {
     payload.apiKey = configForm.apiKey
@@ -799,18 +773,12 @@ async function handleSaveConfig() {
   saving.value = true
   try {
     const payload = formToPayload()
-    let savedConfig: ModelConfig
     if (editingConfig.value) {
-      const result = await modelConfigApi.update(editingConfig.value.id, payload as any)
-      savedConfig = result
+      await modelConfigApi.update(editingConfig.value.id, payload as any)
       message.success('更新成功')
     } else {
-      const result = await modelConfigApi.create(getTenantId(), payload as any)
-      savedConfig = result
+      await modelConfigApi.create(getTenantId(), payload as any)
       message.success('创建成功')
-    }
-    if (configForm.isDefault && savedConfig && savedConfig.id) {
-      await modelConfigApi.setDefault(savedConfig.id)
     }
     showAddModal.value = false
     await loadData()
