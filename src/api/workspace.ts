@@ -1,5 +1,6 @@
 // Workspace 模块 API - 统一工作台接口
 import http, { currentAuthToken, AI_REQUEST_TIMEOUT } from './http'
+import type { ArticleKnowledgeSource } from '../types/article'
 import type {
   DashboardStats,
   DashboardCharts,
@@ -169,7 +170,11 @@ export const articleApi = {
       content?: string
       summary?: string
       wordCount?: number
-      knowledgeReferences?: string[]
+      /** 判拒那一档也念得出了（M-P15：状态口以前只在 COMPLETED 才合并 result_json） */
+      safetyCategories?: string[]
+      safetyReason?: string
+      /** 位次与留痕表 quote_index 同一个算法，界面不许自己排序 */
+      knowledgeReferences?: ArticleKnowledgeSource[]
     }>(`/workspace/articles/generate/${taskId}/status`),
 
   // SSE 流式获取生成任务进度（EventSource 不能带请求头，令牌只能走 ?token= 查询参数）

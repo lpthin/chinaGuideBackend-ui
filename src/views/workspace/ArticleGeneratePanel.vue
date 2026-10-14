@@ -347,7 +347,7 @@
             <a-button @click="loadTokenStats">Token 统计</a-button>
             <a-button @click="openAnalysisDrawer">质量分析</a-button>
           </a-space>
-          <a-button type="primary" size="large" :loading="generating" @click="generateArticle">
+          <a-button type="primary" size="large" :loading="generating" :disabled="generating" @click="generateArticle">
             <template #icon><RocketOutlined /></template>
             {{ generating ? '生成中...' : '开始生成' }}
           </a-button>
@@ -399,9 +399,18 @@
                 {{ taskStatusMeta(record.status).label }}
               </a-tag>
               <div v-if="record.errorMessage" class="task-error">{{ record.errorMessage }}</div>
+              <!-- 判拒那一档：闸判的是哪一类要点名（库里有这一格，改造前状态口不念） -->
+              <div v-if="record.safetyCategories && record.safetyCategories.length" class="task-note">
+                安全闸判的类别：{{ record.safetyCategories.join('、') }}
+              </div>
               <!-- 降级放行：稿子已存为草稿，缺口要点名到行，不能只写在后端日志里 -->
               <div v-for="(note, noteIndex) in record.qualityNotes || []" :key="noteIndex" class="task-note">
                 {{ note }}
+              </div>
+              <!-- 这一发引用了哪几份资料：判拒那一篇同样要念得出，编辑才知道该改稿还是该改资料 -->
+              <div v-if="record.knowledgeReferences && record.knowledgeReferences.length" class="task-note">
+                用了 {{ record.knowledgeReferences.length }} 份资料：
+                {{ record.knowledgeReferences.map((r: ArticleKnowledgeSource) => `第${r.quoteIndex}份《${r.documentTitle || `资料#${r.documentId}`}》`).join('、') }}
               </div>
             </template>
             <template v-else-if="column.key === 'progress'">
@@ -561,6 +570,7 @@ import { formatDate } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { articleStatusMeta, ARTICLE_STATUS } from '../../utils/contentStatus'
 import type { ArticleStatus } from '../../utils/contentStatus'
+import type { ArticleKnowledgeSource } from '../../types/article'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 import { logError } from '../../utils/errorLog'
 
@@ -624,6 +634,10 @@ type GenerationTask = {
   errorMessage?: string
   /** 质检降级放行时后端点名的缺口（QualityCheckStep → resultJson.qualityNotes） */
   qualityNotes?: string[]
+  /** 内容安全闸判的那几类（resultJson.safetyCategories），判拒那一档现在从状态口就念得到 */
+  safetyCategories?: string[]
+  /** 这一发引用了哪几份资料（resultJson.knowledgeReferences，位次与留痕表同一个算法） */
+  knowledgeReferences?: ArticleKnowledgeSource[]
   articleStatus?: ArticleStatus
 }
 
@@ -824,6 +838,7 @@ function addTask(taskId: number, driver: string, topic: string) {
 
 type TaskUpdate = Partial<Pick<GenerationTask,
   'status' | 'progress' | 'stage' | 'articleId' | 'title' | 'wordCount' | 'errorMessage' | 'qualityNotes'
+  | 'safetyCategories' | 'knowledgeReferences'
 >>
 
 function applyTaskUpdate(taskId: number, patch: TaskUpdate) {
@@ -837,6 +852,8 @@ function applyTaskUpdate(taskId: number, patch: TaskUpdate) {
   if (patch.wordCount !== undefined) task.wordCount = patch.wordCount
   if (patch.errorMessage !== undefined) task.errorMessage = patch.errorMessage
   if (patch.qualityNotes !== undefined) task.qualityNotes = patch.qualityNotes
+  if (patch.safetyCategories !== undefined) task.safetyCategories = patch.safetyCategories
+  if (patch.knowledgeReferences !== undefined) task.knowledgeReferences = patch.knowledgeReferences
 }
 
 function findTask(taskId: number) {
@@ -943,6 +960,14 @@ async function handleTaskComplete(taskId: number, res: TaskUpdate) {
   }
   // 到终态的不管哪一档都可能动过文章（草稿落库、判拒留档都算），统计卡与文章状态都要回读；
   // 只有 COMPLETED 才回读的话，判拒那一趟界面就永远停在进页面时那份读数
+  if (status === 'CONTENT_REJECTED' && !res.knowledgeReferences) {
+    // SSE 那一发只带进度，不带 result_json 里的引用清单；补一次状态口回读，行内那格不靠运气
+    try {
+      applyTaskUpdate(taskId, await articleApi.getGenerationStatus(taskId))
+    } catch (error) {
+      logError('workspace/article-generate-panel', error)
+    }
+  }
   if (task) await refreshArticleStatus(task)
   await loadStats()
 }
@@ -1021,6 +1046,9 @@ async function trySSE(taskId: number): Promise<boolean> {
 }
 
 async function generateArticle() {
+  // 把手上的 :loading 要等下一个 microtask 才落到 DOM，连点挡不住；这一道同步闸才顶用
+  // （10-13 走查现场：取证脚本一次提交造出 task 9/10 两笔逐字相同的单，两篇都真花了钱）
+  if (generating.value) return
   generating.value = true
   generateProgress.value = 0
   isCanceling.value = false
