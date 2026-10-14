@@ -364,12 +364,13 @@
         </div>
       </div>
 
-      <!-- 本次生成任务 -->
+      <!-- 生成任务：本会话提交的那几趟 + 最近 7 天的回填 -->
       <div class="list-card">
         <div class="toolbar">
           <a-space wrap size="middle" class="toolbar-fill">
             <span class="list-hint">
-              本页只负责生成：共 {{ generationTasks.length }} 个任务，已生成 {{ generatedArticleCount }} 篇。
+              本页只负责生成：最近 7 天的任务共 {{ generationTasks.length }} 个（本页最多念 {{ RECENT_TASK_LIMIT }} 个），
+              已生成 {{ generatedArticleCount }} 篇。
               审核请在「审核管理」处理，发布与删除请在「发布中心 / 文章管理」处理。
             </span>
             <a-space>
@@ -571,6 +572,7 @@ import { useAuthStore } from '../../stores/auth'
 import { articleStatusMeta, ARTICLE_STATUS } from '../../utils/contentStatus'
 import type { ArticleStatus } from '../../utils/contentStatus'
 import type { ArticleKnowledgeSource } from '../../types/article'
+import type { GenerationTaskView } from '../../api/workspace'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 import { logError } from '../../utils/errorLog'
 
@@ -619,7 +621,7 @@ const tokenStatColumns = [
   { title: '总Token', dataIndex: 'totalTokens', key: 'totalTokens' },
 ]
 
-// 本次生成任务（后端无任务列表接口，任务记录仅存在于当前会话）
+// 生成任务表：会话内提交的那几趟 + 进页面从后端回填的最近 7 天（M-P16 #249）
 type GenerationTask = {
   taskId: number
   driver: string
@@ -860,9 +862,10 @@ function findTask(taskId: number) {
   return generationTasks.value.find(t => t.taskId === taskId)
 }
 
-/** 文章状态只有后端知道，生成完成后回读一次，缺失就显示 '-' */
-async function refreshArticleStatus(task: GenerationTask) {
+/** 文章状态只有后端知道，生成完成后回读一次，缺失就显示 '-'；quiet 给回填那一路用（十几行一起刷失败不许刷屏） */
+async function refreshArticleStatus(task: GenerationTask, quiet = false) {
   if (!task.articleId) {
+    if (quiet) return
     // SSE 的 complete 负载不一定带 articleId，回读任务状态补齐
     try {
       applyTaskUpdate(task.taskId, await articleApi.getGenerationStatus(task.taskId))
@@ -880,8 +883,102 @@ async function refreshArticleStatus(task: GenerationTask) {
     if (!task.title && article?.title) task.title = article.title
   } catch (error) {
     logError('workspace/article-generate-panel', error)
-    message.error('获取文章状态失败')
+    if (!quiet) message.error('获取文章状态失败')
   }
+}
+
+/** 回填那一趟最多念这么多条、只看这么多天（与后端列表口的默认值同一档） */
+const RECENT_TASK_DAYS = 7
+const RECENT_TASK_LIMIT = 20
+/** 跑动中的回填行自己往下走：5s 一趟，最多 72 趟（现测单趟成文 210~267 秒，6 分钟够看完） */
+const FOLLOW_UP_INTERVAL_MS = 5000
+const FOLLOW_UP_MAX_ROUNDS = 72
+
+let followUpTimer: any = null
+let followUpRounds = 0
+
+/**
+ * 最近几趟任务从后端回填进这张表（M-P16 #249）。
+ *
+ * 改造前那张表只活在当前会话里：导航去「文章管理」再回来就念「共 0 个任务」，
+ * 那一行连带内那两格读数与「查看文章」把手一起没了——人关掉页面就找不到自己刚跑过什么。
+ * 会话内正在跟踪的那几趟以本地为准，回填只补本地没有的 id。
+ */
+async function loadRecentTasks() {
+  let rows: GenerationTaskView[]
+  try {
+    rows = (await articleApi.getGenerationTasks({
+      tenantId: tenantId.value, days: RECENT_TASK_DAYS, limit: RECENT_TASK_LIMIT,
+    })) ?? []
+  } catch (error) {
+    // 回填读不到只说一声：本会话提交的那几趟照常摆着，整页转圈比空表更坏
+    logError('workspace/article-generate-panel', error)
+    message.warning('最近生成任务读取失败，本次会话内提交的任务照常显示')
+    return
+  }
+  const tracked = new Set(generationTasks.value.map(t => t.taskId))
+  const hydrated = rows
+    .filter(r => !tracked.has(r.taskId))
+    .map(r => ({
+      taskId: r.taskId,
+      driver: r.driver || r.mode || '',
+      topic: r.topic || '',
+      status: r.status,
+      progress: r.progress ?? 0,
+      stage: r.stage || '',
+      createdAt: r.createdAt || '',
+      articleId: r.articleId,
+      title: r.title,
+      wordCount: r.wordCount,
+      errorMessage: r.errorMessage,
+      qualityNotes: r.qualityNotes,
+      safetyCategories: r.safetyCategories,
+      knowledgeReferences: r.knowledgeReferences,
+    }))
+  if (hydrated.length === 0) return
+  generationTasks.value.push(...hydrated)
+  // 必须从数组里把行取回来再改：push 进去的那份是裸对象，模板读的是数组里的响应式代理，
+  // 改裸对象界面一个字都不认（10-14 浏览器现场：回填那几行的「文章状态」「字数」全摆 '-'，
+  // 而十几发 GET /articles/{id} 明明全回 200）。
+  const pushed = hydrated.map(h => findTask(h.taskId) ?? h)
+  await Promise.all(pushed.map(t => refreshArticleStatus(t, true)))
+  followRunningTasks(pushed.filter(t => !isTerminal(t.status)))
+}
+
+/**
+ * 回填里那一趟还在跑，这一行得自己往下走，不能冻在离开时那一步
+ * （与 #246 补的向量化跟随同一个规矩：toast 不许承诺页面做不到的事）。
+ *
+ * 不碰进度条与取消把手——那两个只服务本会话刚提交的那一趟，这里的行只更新自己的读数。
+ */
+function followRunningTasks(running: GenerationTask[]) {
+  if (running.length === 0 || followUpTimer) return
+  followUpRounds = 0
+  followUpTimer = setInterval(async () => {
+    if (++followUpRounds > FOLLOW_UP_MAX_ROUNDS) {
+      clearFollowUp()
+      return
+    }
+    const alive = running.filter(t => !isTerminal(t.status))
+    if (alive.length === 0) {
+      clearFollowUp()
+      return
+    }
+    for (const task of alive) {
+      try {
+        const res = await articleApi.getGenerationStatus(task.taskId)
+        applyTaskUpdate(task.taskId, res)
+        if (isTerminal(res.status)) await refreshArticleStatus(task, true)
+      } catch (error) {
+        logError('workspace/article-generate-panel', error)
+      }
+    }
+  }, FOLLOW_UP_INTERVAL_MS)
+}
+
+function clearFollowUp() {
+  if (followUpTimer) { clearInterval(followUpTimer); followUpTimer = null }
+  followUpRounds = 0
 }
 
 async function loadStats() {
@@ -1386,6 +1483,7 @@ onMounted(() => {
   loadKeywords()
   loadCases()
   loadClusterList()
+  loadRecentTasks()
   const cid = route.query.clusterId
   if (cid) {
     selectedClusterId.value = Number(cid)
@@ -1394,7 +1492,7 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
 })
 
-// 租户切换时重新加载数据；生成任务与租户绑定，切换后必须清空
+// 租户切换时重新加载数据；生成任务与租户绑定，切换后清空再按新家回填
 watch(() => authStore.selectedTenantId, () => {
   loadStats()
   loadKeywords()
@@ -1403,8 +1501,10 @@ watch(() => authStore.selectedTenantId, () => {
   clusterInfo.value = null
   clusterSuggestions.value = []
   selectedClusterId.value = null
+  clearFollowUp()
   generationTasks.value = []
   selectedRowKeys.value = []
+  loadRecentTasks()
 })
 
 onUnmounted(() => {
@@ -1413,6 +1513,7 @@ onUnmounted(() => {
   templateChart?.dispose()
   qualityChart?.dispose()
   clearPolling()
+  clearFollowUp()
 })
 </script>
 

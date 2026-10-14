@@ -152,6 +152,38 @@ export const suggestionApi = {
 }
 
 // ==================== 文章生成 API ====================
+/**
+ * 一趟生成任务给界面的投影：单趟状态口与最近任务列表口同一个形状
+ * （后端一处拼：WorkspaceController.generationTaskView）。
+ */
+export type GenerationTaskView = {
+  taskId: number
+  status: string
+  progress: number
+  stage: string
+  articleId?: number
+  errorMessage?: string
+  createdAt?: string
+  startedAt?: string
+  finishedAt?: string
+  totalTimeMs?: number
+  modelName?: string
+  title?: string
+  content?: string
+  summary?: string
+  wordCount?: number
+  qualityNotes?: string[]
+  /** 判拒那一档也念得出了（M-P15：状态口以前只在 COMPLETED 才合并 result_json） */
+  safetyCategories?: string[]
+  safetyReason?: string
+  /** 位次与留痕表 quote_index 同一个算法，界面不许自己排序 */
+  knowledgeReferences?: ArticleKnowledgeSource[]
+  /** 只有最近任务列表口给：提交时那一趟走的哪个生成入口、人填的是什么 */
+  mode?: string
+  driver?: string
+  topic?: string
+}
+
 export const articleApi = {
   // 异步生成文章
   generateAsync: (params: any, query?: { tenantId?: number }) =>
@@ -159,23 +191,13 @@ export const articleApi = {
 
   // 获取生成任务状态
   getGenerationStatus: (taskId: number) =>
-    http.get<{
-      taskId: number
-      status: string
-      progress: number
-      stage: string
-      articleId?: number
-      errorMessage?: string
-      title?: string
-      content?: string
-      summary?: string
-      wordCount?: number
-      /** 判拒那一档也念得出了（M-P15：状态口以前只在 COMPLETED 才合并 result_json） */
-      safetyCategories?: string[]
-      safetyReason?: string
-      /** 位次与留痕表 quote_index 同一个算法，界面不许自己排序 */
-      knowledgeReferences?: ArticleKnowledgeSource[]
-    }>(`/workspace/articles/generate/${taskId}/status`),
+    http.get<GenerationTaskView>(`/workspace/articles/generate/${taskId}/status`),
+
+  /**
+   * 最近几趟生成任务（M-P16 #249）：那张表原先只活在当前会话里，导航离开再回来就念「共 0 个任务」。
+   */
+  getGenerationTasks: (query?: { tenantId?: number; days?: number; limit?: number }) =>
+    http.get<GenerationTaskView[]>('/workspace/articles/generate/tasks', { params: query }),
 
   // SSE 流式获取生成任务进度（EventSource 不能带请求头，令牌只能走 ?token= 查询参数）
   streamGenerationStatus: (taskId: number) => {
