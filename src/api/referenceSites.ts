@@ -328,11 +328,29 @@ export function referenceModeLabel(mode: string | null | undefined): string {
   return REFERENCE_MODE_LABELS[mode] || mode
 }
 
-/** 还没落地的中间态：只有这几种状态值得轮，done/failed/needs_human 停下来等人看 */
+/**
+ * 还没落地的中间态：只有这几种状态值得轮，done/failed/needs_human 停下来等人看。
+ *
+ * <p>{@code awaiting_ingest} <b>不</b>在里面（M-P18 拆出来的那一格）：那一格是「素材齐了，等人按
+ * 『开始 AI 摄取』」，没有任何东西在跑。把它算进来，界面就会对一个正常等人的任务转圈、
+ * 并把轮询的「这段时间没有推进」提示错报成故障；颜色也从灰（等人）变成蓝（在跑）。</p>
+ */
 export const REFERENCE_IN_FLIGHT = ['pending', 'crawling', 'analyzing', 'mapping']
 
 export function referenceIsRunning(status: string | null | undefined): boolean {
   return !!status && REFERENCE_IN_FLIGHT.includes(status)
+}
+
+/**
+ * 等在摄取那一格（M-P18 拆出来的）。它单独一个谓词而不是塞进 {@link REFERENCE_IN_FLIGHT}：
+ * 抽屉的「结束时间」要在「这趟真的结束了」时才摆，而这一格是抓取结束了、整个任务还没结束——
+ * 后端重跑时不清那一列，于一趟失败后的 T1 会跟着任务一路显示到摄取跑完，界面就拿上一次的结束时刻
+ * 说这一次「已经结束了」。
+ */
+export const REFERENCE_AWAITING_INGEST = 'awaiting_ingest'
+
+export function referenceIsAwaitingIngest(status: string | null | undefined): boolean {
+  return status === REFERENCE_AWAITING_INGEST
 }
 
 /**

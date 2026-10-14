@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   portalReferenceApi,
   referenceIsRunning,
+  referenceIsAwaitingIngest,
+  referenceStatusColor,
   referenceLabel,
   referenceModeLabel,
   designTokensOf,
@@ -241,6 +243,22 @@ describe('参考站任务的展示辅助', () => {
     expect(referenceIsRunning('failed')).toBe(false)
     expect(referenceIsRunning('needs_human')).toBe(false)
     expect(referenceIsRunning(null)).toBe(false)
+  })
+
+  /**
+   * M-P18 拆出来的那一格。这一发是整把刀的界面那一半：拆格之前「结构归纳中」同时表示
+   * 「抓取收尾了等人点按钮」和「模型正在跑」，于是这里对等待中的任务转圈、
+   * 轮询把「这段时间没有推进」报成故障、色也从灰变蓝——三样都是谎报。
+   */
+  it('等待开始 AI 摄取：不在跑、不转圈、染灰', () => {
+    expect(referenceIsAwaitingIngest('awaiting_ingest')).toBe(true)
+    expect(referenceIsAwaitingIngest('analyzing')).toBe(false)
+    expect(referenceIsAwaitingIngest(null)).toBe(false)
+    expect(referenceIsRunning('awaiting_ingest')).toBe(false)
+    expect(referenceStatusColor('awaiting_ingest')).toBe('default')
+    // 对照组：真的有人在跑的那两格仍然是蓝
+    expect(referenceStatusColor('analyzing')).toBe('blue')
+    expect(referenceStatusColor('done')).toBe('green')
   })
 
   it('不认识的模式原样显示，不替后端编中文名', () => {

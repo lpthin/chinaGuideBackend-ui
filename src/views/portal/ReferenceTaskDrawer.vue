@@ -11,10 +11,13 @@
           <a-descriptions-item label="来源网址" :span="2">{{ task.sourceUrl || '—' }}</a-descriptions-item>
           <a-descriptions-item label="robots.txt">{{ task.obeyRobots === false ? '不遵守' : '遵守' }}</a-descriptions-item>
           <a-descriptions-item label="创建人">{{ task.createdBy || '—' }}</a-descriptions-item>
-          <a-descriptions-item label="创建时间">{{ formatDateTime(task.createdAt) }}</a-descriptions-item>
+          <!-- 藏掉结束时间时那一行只剩两格，补齐三格：antd 的 Descriptions 会对着不齐的行报
+               「Sum of column span in a line not match column」（2026-10-14 浏览器控制台就是这么红的） -->
+          <a-descriptions-item label="创建时间" :span="showFinishedAt ? 1 : 2">{{ formatDateTime(task.createdAt) }}</a-descriptions-item>
           <!-- 重跑一趟时后端不会清掉上一趟的结束时间（那一列只在终态写）：还在跑就别显示它，
-               否则界面拿着上一次的结束时刻说这一趟「已经结束了」 -->
-          <a-descriptions-item v-if="!referenceIsRunning(task.status)" label="结束时间">
+               否则界面拿着上一次的结束时刻说这一趟「已经结束了」。<b>等待开始 AI 摄取</b> 也藏掉：
+               抓取那一趟确实结束了，但整个任务没有，而 finishedAt 可能是上一次失败的读数 -->
+          <a-descriptions-item v-if="showFinishedAt" label="结束时间">
             {{ formatDateTime(task.finishedAt) }}
           </a-descriptions-item>
           <a-descriptions-item v-if="task.errorMessage" label="最近一次结果" :span="3">
@@ -49,8 +52,9 @@
         <p class="reference-site-page__muted">
           停在「失败」或「需人工处理」的任务<b>不用新建一个重做</b>：已抓到的页面与已上传的截图都还在这个任务里，
           按「最近一次结果」那一栏说的补好料（起截图服务、去掉打不开的路由、或改地址），再点一次上面那两个按钮就行。
-          而「结构归纳中」「区块映射中」迟迟不动时，先确认后端有没有重启过——那一趟的执行者跟着进程一起没了，
-          界面只能等下一次启动把它收尾。
+          抓完料停在<b>「等待开始 AI 摄取」</b>也不是卡住：那一格的意思就是素材齐了、等你点按钮。
+          「结构归纳中」「区块映射中」才是真的有一趟在跑。它迟迟不动时先确认后端有没有重启过——进程重启会把
+          留在这一格的任务收尾成「失败」并写明「后端进程重启过」，那时候按上一句原地重跑就行。
         </p>
 
         <!-- 后端给了 notice 就是「这一轮跑不了 / 不该跑」，用 warning 而不是 info：
@@ -68,6 +72,15 @@
           show-icon
           style="margin-top: 8px"
           message="任务正在后台执行，这里每 5 秒自动刷新一次；关闭抽屉不影响它继续跑"
+        />
+        <!-- 这一格是 M-P18 拆出来的：抓取收尾就停在这里，没有任何东西在跑，也不会自己往下走。
+             以前它和「模型正在归纳」共用一格，于是「卡在结构归纳中」这句话有两种意思 -->
+        <a-alert
+          v-if="referenceIsAwaitingIngest(task.status)"
+          type="info"
+          show-icon
+          style="margin-top: 8px"
+          message="抓取已经结束，素材都在这个任务里。接下来不会自动往下走，要按「开始 AI 摄取」才会真的调用模型"
         />
 
         <a-tabs v-model:activeKey="tab" style="margin-top: 16px">
@@ -199,6 +212,7 @@ import ReferencePackageTab from './reference/ReferencePackageTab.vue'
 import {
   portalReferenceApi,
   referenceIsRunning,
+  referenceIsAwaitingIngest,
   referenceModeLabel,
   referenceStatusColor,
   unmatchedTrueGapCountOf,
@@ -324,6 +338,11 @@ const canDiscover = computed(
 )
 const canAddRoute = computed(() => task.value?.mode === 'url' && !!task.value?.sourceUrl)
 
+/** 「结束时间」只在真的到终态时摆：在跑的三格与「等待开始 AI 摄取」都不摆 */
+const showFinishedAt = computed(
+  () => !!task.value && !referenceIsRunning(task.value.status) && !referenceIsAwaitingIngest(task.value.status)
+)
+
 const crawledCount = computed(
   () => pages.value.filter(page => !page.crawlState || page.crawlState === 'ok').length
 )
@@ -390,14 +409,14 @@ function startPollIfNeeded() {
         emit('reload-tasks')
         return
       }
-      // 截图服务没起时后端会「降级不失败」：状态停在结构归纳中、原因写在 error_message 里，
-      // 之后不会再变。连着 6 次（30 秒）一模一样就别继续问了，把用户引去看那条原因。
+      // 能走到这一行的状态只剩「有一趟正在跑」那三格：抓取收尾停在「等待开始 AI 摄取」，
+      // 不在轮询名单里，早就在上一句停掉了。连着 6 次（30 秒）一模一样就别继续问了。
       if (signatureOf(latest) === previous) {
         stalledFor += 1
         if (stalledFor >= 6) {
           stopPoll()
-          message.warning('这段时间任务没有推进。如果它停在「结构归纳中」并带着「截图服务…」这类说明，'
-            + '那是它在等你补料或等服务上线，不是还在跑')
+          message.warning('这段时间任务没有推进。这一格表示后端进程还在跑这一趟；'
+            + '如果那个进程其实已经没了，重启后端会把它收尾成「失败」并写明理由，之后在这里原地重跑')
         }
       } else {
         previous = signatureOf(latest)

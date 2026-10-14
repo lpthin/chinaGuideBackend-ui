@@ -463,6 +463,7 @@ beforeEach(() => {
   vi.mocked(portalReferenceApi.statusLabels).mockResolvedValue({
     pending: '排队中',
     crawling: '抓取中',
+    awaiting_ingest: '等待开始 AI 摄取',
     analyzing: '结构归纳中',
     mapping: '映射整理中',
     needs_human: '需人工处理',
@@ -546,6 +547,31 @@ describe('两步走：先列清单，勾完再抓', () => {
     await openDrawer(wrapper, task('crawling', { pagesCrawled: 1, finishedAt: '2026-09-27T18:00:00' }))
 
     expect(wrapper.text()).not.toContain('2026-09-27 18:00')
+  })
+
+  /**
+   * M-P18 拆格：抓取收尾落到「等待开始 AI 摄取」，这一格没有任何东西在跑。
+   *
+   * 拆之前它是「结构归纳中」，于是三处一起谎报：转圈 +「任务正在后台执行」+ 轮询那句
+   * 「这段时间没有推进」的故障提示，外加一个后端只会拒的「开始抓取」。这里一次钉四条。
+   */
+  it('抓取收尾那一格：不转圈、不报故障、不摆抓取按钮，只说下一步按哪里', async () => {
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('awaiting_ingest', { pagesCrawled: 3 }))
+
+    expect(wrapper.text()).toContain('等待开始 AI 摄取')
+    expect(alerts(wrapper, 'warning').join(' ')).not.toContain('任务正在后台执行')
+    expect(alerts(wrapper, 'info').join(' ')).toContain('不会自动往下走')
+    expect(buttons(wrapper, '开始抓取')).toHaveLength(0)
+    expect(buttons(wrapper, '开始 AI 摄取')).toHaveLength(1)
+  })
+
+  /** 上一趟失败留下的结束时间，不许跟着重抓之后的等待状态一路显示 */
+  it('等待摄取时不显示上一次那趟的结束时间', async () => {
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('awaiting_ingest', { pagesCrawled: 2, finishedAt: '2026-09-28T11:00:00' }))
+
+    expect(wrapper.text()).not.toContain('2026-09-28 11:00')
   })
 
   it('勾选后按钮点名勾了几条，点下去交的是 pageIds 而不是整站重抓', async () => {    const wrapper = await mountView()
@@ -1016,7 +1042,7 @@ describe('成本闸的拒绝理由要念给看预估的那个人', () => {
         + '（app.portal.reference.max-tokens-per-task），这一轮不会受理。少喂几页再跑。'
     } as any)
     const wrapper = await mountView()
-    await openDrawer(wrapper, task('analyzing'))
+    await openDrawer(wrapper, task('awaiting_ingest'))
     await buttons(wrapper, '先估算消耗')[0].trigger('click')
     await flushPromises()
 
