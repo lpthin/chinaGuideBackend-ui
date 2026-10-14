@@ -14,9 +14,10 @@
           <!-- 藏掉结束时间时那一行只剩两格，补齐三格：antd 的 Descriptions 会对着不齐的行报
                「Sum of column span in a line not match column」（2026-10-14 浏览器控制台就是这么红的） -->
           <a-descriptions-item label="创建时间" :span="showFinishedAt ? 1 : 2">{{ formatDateTime(task.createdAt) }}</a-descriptions-item>
-          <!-- 重跑一趟时后端不会清掉上一趟的结束时间（那一列只在终态写）：还在跑就别显示它，
-               否则界面拿着上一次的结束时刻说这一趟「已经结束了」。<b>等待开始 AI 摄取</b> 也藏掉：
-               抓取那一趟确实结束了，但整个任务没有，而 finishedAt 可能是上一次失败的读数 -->
+          <!-- 还在跑就别显示结束时间，否则界面拿着上一次的结束时刻说这一趟「已经结束了」。
+               <b>等待开始 AI 摄取</b> 也藏掉：抓取那一趟确实结束了，但整个任务没有，而 finishedAt
+               可能是上一次失败的读数。<b>停下等人</b>（needs_human）这一格从 M-P19 起后端会当场盖时刻
+               （两个写手共用 ReferenceStatuses.stampsFinishedAt），所以它照旧显示且念的是这一趟的 -->
           <a-descriptions-item v-if="showFinishedAt" label="结束时间">
             {{ formatDateTime(task.finishedAt) }}
           </a-descriptions-item>
