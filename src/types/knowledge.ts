@@ -159,6 +159,8 @@ export interface KnowledgeStats {
 export interface KnowledgeDocumentQuery {
   tenantId: number
   categoryId?: number
+  /** 只要「没归到任何项目」的那些行（界面上项目列表永远按 categoryId 滤，这类行原本没有任何出口） */
+  unclassified?: boolean
   fileType?: KnowledgeFileType
   parseStatus?: ParseStatus
   vectorStatus?: VectorStatus

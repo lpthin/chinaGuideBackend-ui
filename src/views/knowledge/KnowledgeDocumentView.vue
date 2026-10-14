@@ -1,7 +1,7 @@
 <template>
   <div class="media-panel-page">
     <!-- 分类列表视图 -->
-    <template v-if="!currentCategoryId">
+    <template v-if="!currentCategoryId && !unclassifiedMode">
       <div class="panel-header">
         <div>
           <h2>资料库项目</h2>
@@ -29,6 +29,24 @@
               </a-card-meta>
             </a-card>
           </a-col>
+          <!-- 没归到任何项目的资料也要有路走：库里 category_id=NULL 的那几行，
+               项目列表按 categoryId 过滤时永远滤不到，界面上等于没有——
+               没有列表就没有「重新向量化」和「挪进项目」的把手（2026-10-13 走查缺口 (x)，doc 8 实测） -->
+          <a-col :span="6" v-if="unclassifiedCount !== 0">
+            <a-card class="project-card" hoverable @click="enterUnclassified">
+              <div class="project-cover">
+                <div class="cover-placeholder">
+                  <InboxOutlined />
+                </div>
+              </div>
+              <a-card-meta title="未归类">
+                <template #description>
+                  <span v-if="unclassifiedCount === null">没归到任何项目的资料，从这里找回</span>
+                  <span v-else>{{ unclassifiedCount }} 份资料没归到任何项目</span>
+                </template>
+              </a-card-meta>
+            </a-card>
+          </a-col>
           <a-col :span="24" v-if="categories.length === 0 && !loading">
             <a-empty description="暂无项目，点击新建项目创建" />
           </a-col>
@@ -48,7 +66,8 @@
             <template #icon><ArrowLeftOutlined /></template>
             返回
           </a-button>
-          <h3 style="margin: 0">{{ getCategoryName(currentCategoryId) }}</h3>
+          <h3 style="margin: 0">{{ unclassifiedMode ? '未归类' : getCategoryName(currentCategoryId) }}</h3>
+          <a-tag v-if="unclassifiedMode" color="orange">{{ pagination.total }} 份</a-tag>
         </a-space>
       </div>
 
@@ -84,7 +103,10 @@
                   删除选中 ({{ selectedIds.length }})
                 </a-button>
               </template>
+              <!-- 未归类这一档不许上传：新行必须有项目可落，handleBatchUpload 在
+                   currentCategoryId 为空时是直接 return false 的，摆着等于一根按了没反应的手指头 -->
               <a-upload
+                v-if="!unclassifiedMode"
                 :showUploadList="false"
                 :multiple="true"
                 :beforeUpload="handleBatchUpload"
@@ -535,7 +557,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   PlusOutlined,
@@ -549,6 +571,7 @@ import {
   DownloadOutlined,
   DeleteOutlined,
   FolderOpenOutlined,
+  InboxOutlined,
   ReloadOutlined,
   LeftOutlined,
   RightOutlined,
@@ -571,6 +594,10 @@ const uploading = ref(false)
 const categories = ref<KnowledgeCategory[]>([])
 const documents = ref<KnowledgeDocument[]>([])
 const currentCategoryId = ref<number | null>(null)
+/** 「未归类」那一档：看的是 category_id IS NULL 的行，跟任何项目都不是同一个查询 */
+const unclassifiedMode = ref(false)
+/** null = 还没读到数（卡照摆）；0 = 真读了且没有（卡撤下） */
+const unclassifiedCount = ref<number | null>(null)
 const viewMode = ref('grid')
 const searchText = ref('')
 const selectedIds = ref<number[]>([])
@@ -682,17 +709,44 @@ async function loadCategories() {
   } finally {
     loading.value = false
   }
+  await loadUnclassifiedCount()
+}
+
+/**
+ * 「未归类」那张卡上摆的数（走查缺口 (x)，2026-10-13）。
+ *
+ * <p>null = 这一趟没读到，卡照摆（读不到数不等于没有孤儿行，别把唯一的出口藏起来）；
+ * 0 = 真读了且一条都没有，卡撤下。</p>
+ */
+async function loadUnclassifiedCount() {
+  try {
+    const result = await knowledgeDocumentApi.list({
+      tenantId: auth.selectedTenantId!,
+      unclassified: true,
+      page: 1,
+      size: 1
+    }) as any
+    unclassifiedCount.value = result.total
+  } catch (e) {
+    logError('knowledge/knowledge-document-view', '加载未归类资料数失败:', e)
+    unclassifiedCount.value = null
+  }
 }
 
 async function loadDocuments() {
-  if (!currentCategoryId.value) return
+  if (!currentCategoryId.value && !unclassifiedMode.value) return
   loading.value = true
   try {
     const params: any = {
       tenantId: auth.selectedTenantId!,
-      categoryId: currentCategoryId.value,
       page: pagination.value.page,
       size: pagination.value.size
+    }
+    // 二选一：「未归类」那一档走后端 isNull(category_id)，不许两头都传
+    if (unclassifiedMode.value) {
+      params.unclassified = true
+    } else {
+      params.categoryId = currentCategoryId.value
     }
     if (searchText.value) {
       params.keyword = searchText.value
@@ -714,13 +768,23 @@ async function loadDocuments() {
 }
 
 function enterCategory(categoryId: number) {
+  unclassifiedMode.value = false
   currentCategoryId.value = categoryId
   selectedIds.value = []
   pagination.value.page = 1
   loadDocuments()
 }
 
+function enterUnclassified() {
+  currentCategoryId.value = null
+  unclassifiedMode.value = true
+  selectedIds.value = []
+  pagination.value.page = 1
+  loadDocuments()
+}
+
 function backToCategories() {
+  unclassifiedMode.value = false
   currentCategoryId.value = null
   documents.value = []
   selectedIds.value = []
@@ -811,11 +875,36 @@ async function reVectorize(id: number) {
     message.success(taskId
       ? `已重新排队向量化（任务 ${taskId}），这一行的状态会自己往下走`
       : '已重新排队向量化（后端没回任务号），这一行的状态会自己往下走')
-    await loadDocuments()
+    await followVectorization(id)
   } catch (e: any) {
     logError('knowledge/knowledge-document-view', '重新向量化失败:', e)
     message.error(`重新向量化没排队成功：${e?.message || e?.response?.data?.message || '后端没给原因'}`)
   }
+}
+
+/**
+ * 那句「会自己往下走」得真的有人去读（M-P15 (x) 收口时现场撞出来的）。
+ *
+ * <p>排队完只刷一次，读到的必然是刚写下的「向量化中」；库里那一行 7 秒后就翻成 COMPLETED，
+ * 界面上却一个字都不再动——运营只能凭猜等，或者整页刷新。这一趟按 5 秒一次回读，
+ * 落到终态（或读不到这一行）就停，最多两分钟。</p>
+ */
+let vectorFollowTimer: ReturnType<typeof setTimeout> | null = null
+
+function stopVectorFollow() {
+  if (vectorFollowTimer) {
+    clearTimeout(vectorFollowTimer)
+    vectorFollowTimer = null
+  }
+}
+
+async function followVectorization(id: number, attempt = 0) {
+  stopVectorFollow()
+  await loadDocuments()
+  const doc = documents.value.find((d: any) => d.id === id) as any
+  if (!doc || doc.vectorStatus !== 'PENDING' && doc.vectorStatus !== 'PROCESSING') return
+  if (attempt >= 24) return
+  vectorFollowTimer = setTimeout(() => followVectorization(id, attempt + 1), 5000)
 }
 
 async function batchDelete() {
@@ -1211,7 +1300,9 @@ function getOcrStatusText(status: string): string {
 watch(
   () => auth.selectedTenantId,
   async () => {
+    stopVectorFollow()
     currentCategoryId.value = null
+    unclassifiedMode.value = false
     documents.value = []
     selectedIds.value = []
     await loadCategories()
@@ -1223,6 +1314,8 @@ onMounted(async () => {
   await loadCategories()
   await loadTags()
 })
+
+onBeforeUnmount(stopVectorFollow)
 </script>
 
 <style lang="less" scoped>
