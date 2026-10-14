@@ -67,8 +67,8 @@ export const modelConfigApi = {
   delete: (id: number) =>
     http.delete(`/ai/model-configs/${id}`),
 
-  // 后端仍留着 /set-default 这一口，界面不再接它：选路只读「已启用 + 优先级」，
-  // `is_default` 没有任何运行时读点（M-P18-9 现场实测）——接上来只会让人以为按动了它。
+  // 后端那一支 /set-default 口已于 2026-10-14 连界面带后端一起摘掉（`is_default` 没有任何运行时读点，
+  // M-P18-9 现场实测；账在 Spec-M §10.30），所以这一族从此没有「设为默认」可接。
   // 切换启用状态：这一支才真的把一台模型放进/取出选路
   toggleStatus: (id: number) =>
     http.post<ModelConfig>(`/ai/model-configs/${id}/toggle-status`),
