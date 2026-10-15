@@ -21,6 +21,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import {
   briefStatusLabel,
   briefGenerationApi,
@@ -89,6 +90,33 @@ function createWizardStateWithStep(stepKey?: string): WizardState {
 }
 
 const currentBrief = computed(() => briefs.value.find(brief => brief.id === briefId.value) || null)
+
+const auth = useAuthStore()
+
+/**
+ * 右上角声明的那一家与这一单挂名的那一家不是同一户时给出的读数（两家都没得比时回 null）。
+ *
+ * <p>为什么向导要管这件事：后端只有需求单详情、发预览、转正那几发按右上角拦归属
+ * （`TenantGuard.checkOwnership` ⇒「无权限操作该需求单」），说明书与估价那几口是按这一单自己的租户解析的。
+ * 于是「站在 180 走 326 的单」前四屏一切正常，向导自己的那颗交接口按下去却 403（10-16 走查现场）。
+ * 界面不许把这一堵墙藏起来，也不许让人到了那一页才知道。</p>
+ */
+const scopeMismatch = computed(() => {
+  if (!auth.isSuperAdmin) return null
+  // 挂名那一家有两个出处：需求单列表那一行，和这一单自己的说明书读数。
+  // 站在别家时列表里根本没有这一行（后端列表按右上角那一户筛），只认第一个就查不出这件事。
+  const owner = currentBrief.value?.tenantId ?? spec.value?.tenantId ?? null
+  if (owner === null || owner === undefined) return null
+  const declared = auth.selectedTenantId
+  if (declared === null || declared === owner) return null
+  return { declared, owner }
+})
+
+/** 去那些按右上角拦归属的页面之前，先把声明的那一家对齐到这一单挂名的那一家 */
+function alignScopeToBrief() {
+  if (!scopeMismatch.value) return
+  auth.switchTenant(scopeMismatch.value.owner, null)
+}
 
 /** 地址里带了 briefId、但列表还没读到（或那一单被筛掉了）：这一格要能说出单号，不许念成「没选单」 */
 const briefLabel = computed(() => {
@@ -361,6 +389,20 @@ function statusText(brief: SiteBrief): string {
   return briefStatusLabel(vocabulary.value, brief.status)
 }
 
+/**
+ * 第 4 步「状态」那一格的中文：读的是逐套进度那一行带回的 `stageLabel`。
+ *
+ * <p>候选行（`CandidateSite`）现在自带 `stageLabel`/`statusLabel`（后端 10-16 补上，出处仍是
+ * `ProposalStages` 那份词表，第 3 步进度行用的也是同一份）——这是首选取值。
+ * 但旧版后端还没升级时这一格会是 undefined，这时候才退回借进度那一行（`progress` 是另一个端点，
+ * 不保证跟候选列表同时可用），都取不到才露原码：宁可露码，也不在前端抄第二份阶段词表（I-1）。</p>
+ */
+function candidateStageText(row: BriefCandidateSite): string {
+  if (row.stageLabel || row.statusLabel) return row.stageLabel || row.statusLabel || '状态未知'
+  const progressRow = progress.value.find(item => item.candidateId === row.candidateId)
+  return progressRow?.stageLabel || progressRow?.stage || row.stage || row.status || '状态未知'
+}
+
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '-'
   const date = new Date(value)
@@ -383,16 +425,19 @@ function onIntakeSaved(saved: SiteBrief) {
 
 function goBriefDetail() {
   if (!briefId.value) return
+  alignScopeToBrief()
   router.push({ name: 'workspace-portal-brief-detail', params: { id: String(briefId.value) } })
 }
 
 function goSpec() {
   if (!briefId.value) return
+  alignScopeToBrief()
   router.push({ name: 'workspace-portal-brief-spec', params: { brief: String(briefId.value) } })
 }
 
 function goCandidates() {
   if (!briefId.value) return
+  alignScopeToBrief()
   router.push({ name: 'workspace-portal-brief-candidates', params: { id: String(briefId.value) } })
 }
 
@@ -433,6 +478,19 @@ onMounted(async () => {
         </p>
       </div>
     </div>
+
+    <a-alert v-if="scopeMismatch" type="warning" show-icon class="site-wizard__row">
+      <template #message>
+        这一单挂在租户 #{{ scopeMismatch.owner }} 名下，右上角现在站的是 #{{ scopeMismatch.declared }}。
+        需求单详情、发预览与转正那几发按右上角那一户拦归属，照现在这样点过去会被后端当面拒
+        （原话「无权限操作该需求单」）。下面这几屏读的是按这一单自己的租户解析的那几口，照旧能读。
+      </template>
+      <template #description>
+        <a-button size="small" @click="alignScopeToBrief">
+          把右上角切到 #{{ scopeMismatch.owner }}（切完这一条就消失，不影响已经录下的东西）
+        </a-button>
+      </template>
+    </a-alert>
 
     <WizardSteps
       :steps="stepDefs"
@@ -639,7 +697,7 @@ onMounted(async () => {
             </template>
             <template v-else-if="column.key === 'status'">
               <a-tag :color="record.needsHuman ? 'orange' : 'blue'">
-                {{ record.stage || record.status || '状态未知' }}
+                {{ candidateStageText(record) }}
               </a-tag>
               <p v-if="record.needsHuman" class="site-wizard__hint">待人工：这一套已交付、能预览，但有措辞没过极限用语闸，先看文案再发链接。</p>
             </template>

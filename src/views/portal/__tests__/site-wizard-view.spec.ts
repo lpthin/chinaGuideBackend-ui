@@ -845,6 +845,48 @@ describe('新建网站向导', () => {
     expect(bodyText()).toContain('预览令牌绑站不绑页')
   })
 
+  it('第 4 步：候选行自己带中文标签就用自己的，不靠进度那一行（进度挂了也不露原码）', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([
+      candidate({ stage: 'done', stageLabel: '已完成', status: 'succeeded', statusLabel: '已产出' })
+    ])
+    // 进度这一端点这一次压根没读到：候选列表自己带标签，就不该因为进度缺位退回去露码
+    vi.mocked(briefGenerationApi.progress).mockRejectedValue(new Error('进度接口没通'))
+
+    mountAt('candidates', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('已完成')
+    expect(bodyText()).not.toContain('done')
+  })
+
+  it('第 4 步：候选行没带标签（后端还是旧版）时按 candidateId 借进度那一行，借不到才露原码', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([
+      candidate({ candidateId: 99, stage: 'demo', status: 'running' })
+    ])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([
+      progressRow({ candidateId: 99, stage: 'demo', stageLabel: '演示内容' })
+    ])
+
+    mountAt('candidates', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('演示内容')
+    expect(bodyText()).not.toContain('demo')
+
+    document.body.innerHTML = ''
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([])
+    mountAt('candidates', '7')
+    await flushPromises()
+    // 两处都借不到才露原码：宁可露码，也不在前端抄第二份词表
+    expect(bodyText()).toContain('demo')
+  })
+
   it('第 5 步：客户留痕摊在这一格里，选定了也只说「还等人按」，这一屏不代转正', async () => {
     vi.mocked(siteBriefsApi.list).mockResolvedValue([brief({ siteId: null })])
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
