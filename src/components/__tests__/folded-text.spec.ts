@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
+import { Collapse, CollapsePanel } from 'ant-design-vue'
 import FoldedText from '../FoldedText.vue'
 import { SENTENCE_MAX_CHARS, firstSentence, hasFoldableRaw, jsonMessageSentence } from '../foldedTextModel'
 
@@ -152,5 +154,31 @@ describe('FoldedText 组件', () => {
     const w = render({ raw: '配图那一步失败了', tone: 'error' })
     expect(w.find('.folded-text').classes()).toContain('folded-text--error')
     expect(line(w)).toBe('配图那一步失败了')
+  })
+
+  /**
+   * 真实 Collapse（不打桩）：这一条钉的是 10-16 走查现场那个死结。
+   * 当时写的是 `:active-key="[]"`——给了这个 prop 就是受控模式，点 header 只往外发
+   * `update:activeKey`、组件内部不改状态，而没有人接这个事件 ⇒ 后端原文在界面上永远打不开。
+   * 打桩的 a-collapse 把这件事测不出来（stub 自己会渲染 slot），所以这里挂真控件。
+   */
+  it('展开栏点得开：后端原话在点开之前不许出现在屏上，点开后一个字不少', async () => {
+    const raw = '这一套的结论是案例优先。\n理由是第二家样本的导航里只有一个入口。'
+    const w = mount(FoldedText, {
+      props: { raw, rawLabel: '后端原话（逐字）' },
+      global: {
+        stubs: { 'a-collapse': false, 'a-collapse-panel': false },
+        components: { 'a-collapse': Collapse, 'a-collapse-panel': CollapsePanel }
+      }
+    })
+    const header = w.find('.ant-collapse-header')
+    expect(header.exists()).toBe(true)
+    expect(w.text()).not.toContain('理由是第二家样本的导航里只有一个入口')
+
+    await header.trigger('click')
+    await nextTick()
+
+    expect(w.find('.ant-collapse-item').classes()).toContain('ant-collapse-item-active')
+    expect(w.find('.folded-text__raw').text()).toBe(raw)
   })
 })

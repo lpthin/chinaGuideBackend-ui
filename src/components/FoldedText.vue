@@ -11,7 +11,7 @@
  * 2. 原文走 `{{ }}` 插值，永不 `v-html`（接口原话里带什么都有可能）；
  * 3. 取不到读数时说「没填/没取到」，不许把空念成「无」或「已完成」。
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { firstSentence, hasFoldableRaw, jsonMessageSentence } from './foldedTextModel'
 
 const props = withDefaults(defineProps<{
@@ -46,6 +46,14 @@ const line = computed(() => {
 const foldable = computed(() => hasFoldableRaw(rawText.value, line.value))
 
 const shown = computed(() => line.value || props.emptyText)
+
+/**
+ * 展开栏自己的开关。
+ * 这里以前写死 `:active-key="[]"`：给了这个 prop 就是受控模式，而受控模式点 header 只发
+ * `update:activeKey`、组件内部不改状态（ant-design-vue Collapse `setActiveKey`），没人接这个事件
+ * ⇒ 后端原文在界面上永远打不开（10-16 走查现场：明细那一栏点了两回毫无动静）。
+ */
+const openKeys = ref<string[]>([])
 </script>
 
 <template>
@@ -55,7 +63,7 @@ const shown = computed(() => line.value || props.emptyText)
       v-if="foldable"
       class="folded-text__fold"
       :bordered="false"
-      :active-key="[]"
+      v-model:activeKey="openKeys"
       size="small"
     >
       <a-collapse-panel key="raw" :header="rawLabel">
