@@ -29,6 +29,10 @@ export interface ReferenceSite {
   createdBy: string | null
   createdAt: string | null
   finishedAt: string | null
+  ingestBatchIndex: number | null
+  ingestBatchTotal: number | null
+  ingestCallStartedAt: string | null
+  ingestElapsedSeconds: number | null
 }
 
 /**

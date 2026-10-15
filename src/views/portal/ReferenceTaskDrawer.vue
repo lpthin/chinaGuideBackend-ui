@@ -24,6 +24,9 @@
           <a-descriptions-item v-if="task.errorMessage" label="最近一次结果" :span="3">
             <span class="reference-site-page__error">{{ task.errorMessage }}</span>
           </a-descriptions-item>
+          <a-descriptions-item v-if="ingestProgressText" label="AI 摄取进度" :span="3">
+            {{ ingestProgressText }}
+          </a-descriptions-item>
         </a-descriptions>
 
         <a-space style="margin-top: 16px" wrap>
@@ -344,6 +347,19 @@ const showFinishedAt = computed(
   () => !!task.value && !referenceIsRunning(task.value.status) && !referenceIsAwaitingIngest(task.value.status)
 )
 
+const ingestProgressText = computed(() => {
+  const t = task.value
+  if (!t) return ''
+  if (t.status !== 'analyzing' && t.status !== 'mapping') return ''
+  if (!t.ingestCallStartedAt) return ''
+  const elapsed = t.ingestElapsedSeconds
+  const wait = elapsed != null ? ` · 已等待 ${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒` : ''
+  if (t.ingestBatchIndex != null && t.ingestBatchTotal != null) {
+    return `映射第 ${t.ingestBatchIndex}/${t.ingestBatchTotal} 批${wait}`
+  }
+  return `结构归纳中${wait}`
+})
+
 const crawledCount = computed(
   () => pages.value.filter(page => !page.crawlState || page.crawlState === 'ok').length
 )
@@ -432,7 +448,7 @@ function startPollIfNeeded() {
 
 /** 判断「有没有进展」看的三个字段：状态、已抓页数、后端写下的原因 */
 function signatureOf(task: ReferenceSite) {
-  return `${task.status}|${task.pagesCrawled ?? 0}|${task.errorMessage ?? ''}`
+  return `${task.status}|${task.pagesCrawled ?? 0}|${task.errorMessage ?? ''}|${task.ingestBatchIndex ?? ''}|${task.ingestCallStartedAt ?? ''}`
 }
 
 function stopPoll() {
