@@ -305,6 +305,23 @@ describe('逐段保存：提交的是输入框里的原话', () => {
     expect(document.body.innerHTML).not.toContain('未保存')
   })
 
+  /**
+   * 10-16 走查现场：老实现把「脏」记在 blur 事件上，人在框里打完字不去点别处，
+   * 「保存本段」就永远灭着——看上去像这一段根本不让存。脏要按值比，不按事件。
+   */
+  it('打完字不 blur 也算改了这一段：那颗按钮凭「值和库里不一样」亮起来', async () => {
+    const wrapper = mounted()
+    await flushPromises()
+
+    const box = wrapper.findAll('textarea')[1]
+    expect(buttonThat('保存本段')!.disabled).toBe(true)
+
+    await box.setValue('刚改完还没点别处')
+    const saveButtons = buttons(document.body).filter(node => (node.textContent || '').includes('保存本段'))
+    expect(saveButtons[1].disabled).toBe(false)
+    expect(wrapper.text()).toContain('未保存')
+  })
+
   it('保存被拒时输入框里的字一个字都不丢', async () => {
     vi.mocked(siteSpecApi.saveSection).mockRejectedValue(new Error('站点不存在'))
     const wrapper = mounted()

@@ -37,12 +37,12 @@
               {{ doc?.confirmedBy || '没人签过' }}
             </a-descriptions-item>
             <a-descriptions-item label="签字时间">
-              {{ doc?.confirmedAt || '—' }}
+              {{ formatDateTime(doc?.confirmedAt) || '—' }}
             </a-descriptions-item>
             <a-descriptions-item label="AI 初稿出处">
               {{ draftSource || '这一份没有用过 AI 初稿' }}
             </a-descriptions-item>
-            <a-descriptions-item label="初稿时间">{{ doc?.aiDraftAt || '—' }}</a-descriptions-item>
+            <a-descriptions-item label="初稿时间">{{ formatDateTime(doc?.aiDraftAt) || '—' }}</a-descriptions-item>
           </a-descriptions>
 
           <a-alert v-if="doc && !doc.exists" type="info" show-icon class="spec-page__notice">
@@ -108,7 +108,6 @@
             v-model:value="drafts[section.key]"
             :rows="6"
             :placeholder="placeholderFor(section)"
-            @blur="touch(section.key)"
           />
           <div class="spec-page__section-foot">
             <span :class="{ 'spec-page__over': section.overLimit }">
@@ -168,8 +167,6 @@ const confirming = ref(false)
 const savingKey = ref('')
 const loadError = ref('')
 const denied = ref('')
-/** 人动过但还没存的段：按 key 记，保存成功后由后端回包清掉 */
-const touched = ref<string[]>([])
 const drafts = reactive<Record<string, string>>({})
 /** 版本对比那一屏每次点开都重新挂载：它读的是历史表，与七段草稿是不是脏了没关系，不该长期驻留 */
 const diffOpen = ref(false)
@@ -213,19 +210,19 @@ function placeholderFor(section: SpecSection) {
   return section.blank ? `这一段还没有内容：确认时会被点名（第 ${section.order} 段）` : ''
 }
 
+/**
+ * 「改过没改过」只比一样东西：输入框里的字与后端那一份原文。
+ * 以前这里记的是一个「失焦时才打上」的名单，于是打字快、直接点保存的人按下去什么都不发（10-16 走查现场）。
+ */
 function isDirty(key: string) {
-  return touched.value.includes(key)
+  const original = sections.value.find(section => section.key === key)?.content ?? ''
+  return (drafts[key] ?? '') !== original
 }
 
-function touch(key: string) {
-  const original = sections.value.find(section => section.key === key)?.content ?? ''
-  const current = drafts[key] ?? ''
-  const dirty = isDirty(key)
-  if (current === original) {
-    touched.value = touched.value.filter(item => item !== key)
-  } else if (!dirty) {
-    touched.value = [...touched.value, key]
-  }
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false })
 }
 
 /** 后端回包 → 本地草稿：一个字都不加工，也不在这里比「人改过没改过」以外的任何事 */
@@ -234,8 +231,6 @@ function sync(next: SpecDocumentView) {
   for (const section of next.sections) {
     drafts[section.key] = section.content ?? ''
   }
-  // 写口回来的那一包就是最新真相：未保存标记随之清零（确认状态被落回草稿那句在 notices 里，不靠这里演）
-  touched.value = []
 }
 
 async function load() {
