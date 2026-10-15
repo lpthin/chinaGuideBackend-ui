@@ -121,14 +121,22 @@ const VOCAB = {
   statusLabels: { draft: '草稿', ready: '待出方案' }
 }
 
-async function mountView(options: { briefs?: any[]; listError?: string; vocabError?: string } = {}) {
+async function mountView(options: {
+  briefs?: any[]
+  listError?: string
+  vocabError?: string
+  /** 自己接管列表那一发（要盯「还在飞」那一档时把 resolve 留在用例手里） */
+  list?: () => Promise<any[]>
+} = {}) {
   vi.mocked(tenantApi.list).mockResolvedValue([{ id: 15, code: 't-a', name: '甲租户' }] as any)
   if (options.vocabError) {
     vi.mocked(vocabularyApi.adminVocabulary).mockRejectedValueOnce(new Error(options.vocabError))
   } else {
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue(VOCAB as any)
   }
-  if (options.listError) {
+  if (options.list) {
+    vi.mocked(siteBriefsApi.list).mockImplementation(options.list)
+  } else if (options.listError) {
     vi.mocked(siteBriefsApi.list).mockRejectedValueOnce(new Error(options.listError))
   } else {
     vi.mocked(siteBriefsApi.list).mockResolvedValue(options.briefs ?? [] as any)
@@ -296,6 +304,28 @@ describe('空态与新入口', () => {
     const wrapper = await mountView({ briefs: [brief()] })
     click(byText('新建需求单')[0])
     expect(pushSpy).toHaveBeenCalledWith({ name: 'workspace-portal-brief-new' })
+    wrapper.unmount()
+  })
+
+  it('第一次加载还在飞：列表天然是空的，这时候也不摆「还没有需求单」', async () => {
+    // 2026-10-16 走查现场：明明有 20 单的机器，进这一页会闪一句「还没有需求单」。
+    // 读失败那一档有上面那条用例守着，「还没取回来」这一档只在真浏览器里闪一下、手工点抓不稳，
+    // 所以把 resolve 留在用例手里钉在这里：空态那句话只留给「真的取回来了、真的没有单」。
+    let resolveList: (value: any[]) => void = () => {}
+    const wrapper = await mountView({
+      list: () => new Promise(resolve => {
+        resolveList = resolve
+      })
+    })
+
+    expect(siteBriefsApi.list).toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('还没有需求单')
+    expect(wrapper.find('.AEmpty-stub').exists()).toBe(false)
+
+    resolveList([brief({ status: 'ready' })])
+    await flushPromises()
+    expect(wrapper.text()).toContain('待出方案')
+    expect(wrapper.text()).not.toContain('还没有需求单')
     wrapper.unmount()
   })
 })
