@@ -120,6 +120,14 @@ const demoModeText = computed(() => briefDemoModeText(vocabulary.value, brief.va
 const answerRows = computed(() => (brief.value ? briefAnswerRows(vocabulary.value, brief.value) : []))
 const answeredCount = computed(() => answerRows.value.filter(row => row.value).length)
 
+/**
+ * 词表还在路上（既没回来也没失败）。
+ * 10-16 走查现场：这一页刚进来会闪一屏「共 0 题，其中 0 题有答案」和
+ * 「词表回包空了，刷新重试」，1.5 秒后才变成真的 24 题——把「还没取到」说成
+ * 「取到的是空的」是谎报，用户照那句去刷新只会更糊涂。
+ */
+const vocabularyPending = computed(() => vocabulary.value === null && !vocabularyFailed.value)
+
 function siteLabel(site: Site): string {
   return site.name || site.code || `站点 #${site.id ?? '?'}`
 }
@@ -300,6 +308,15 @@ const busy = computed(
 /** 那颗价签本体：后端把数字装在 `estimate` 这一层里，外层是「哪一单的哪一次估算 + 凭据」 */
 const quote = computed(() => estimate.value?.estimate ?? null)
 
+/**
+ * 最近一次后端下发的「这一趟算不算在租户头上」，按需求单 id 存着。
+ *
+ * 10-16 走查现场：按下「开始出方案」成功后这一格的 `estimate` 会被收回（下一趟要重新出价），
+ * 于是上面那句价签变成 null，计费那句话就退回默认档「扣这个租户的配额」——可这一单是售前的，
+ * 后端在三十秒前刚说过这一趟由平台承担。钱的方向被界面反过来念，等于给一次没发生的扣费背书。
+ */
+const bearsCostRead = ref<{ briefId: number; value: boolean } | null>(null)
+
 /** 预估要属于当前这一单才能当确认的依据：换单之后的旧报价不能拿来确认（组装页同一条口径） */
 const estimateFresh = computed(
   () => !!estimate.value && !!brief.value && estimate.value.briefId === brief.value.id
@@ -346,9 +363,15 @@ const imageAvailable = computed(() => quote.value?.imageAvailable !== false)
 
 /**
  * 这一次的钱算不算在该租户头上——只认后端 V142 下发的布尔值，界面不自己判交付态。
- * 后端没给这个字段时按「算他的」说：宁可多警告一句，也不许把在烧钱的趟说成免费。
+ * 价签被收回时（出方案一启动就收）退回这一单最近一次的后端读数；
+ * 这一单从来没出过价才按「算他的」说：宁可多警告一句，也不许把在烧钱的趟说成免费。
  */
-const tenantBearsCost = computed(() => quote.value?.tenantBearsCost !== false)
+const tenantBearsCost = computed(() => {
+  if (quote.value) return quote.value.tenantBearsCost !== false
+  const read = bearsCostRead.value
+  if (read && read.briefId === brief.value?.id) return read.value
+  return true
+})
 
 const generatingNow = computed(() => brief.value?.status === 'generating')
 
@@ -378,6 +401,9 @@ async function runEstimate() {
   estimate.value = null
   try {
     estimate.value = await briefGenerationApi.estimate(current.id)
+    if (estimate.value?.estimate) {
+      bearsCostRead.value = { briefId: current.id, value: estimate.value.estimate.tenantBearsCost !== false }
+    }
   } catch (error) {
     estimate.value = null
     message.error(errText(error))
@@ -630,7 +656,8 @@ onUnmounted(stopPolling)
         <template #title>前采 13 题答了什么（按词表读回）</template>
         <p v-if="vocabularyFailed" class="brief-detail__muted">词表没取到，这一格现在是空的：上面那条「重新取词表」修好它就回来了。</p>
         <template v-else>
-          <p class="brief-detail__muted">
+          <p v-if="vocabularyPending" class="brief-detail__muted">词表正在取，取回来才知道这 13 题答了什么。</p>
+          <p v-else class="brief-detail__muted">
             共 {{ answerRows.length }} 题，其中 {{ answeredCount }} 题有答案。空着的那一格就是当时没勾/没填，不是这里没显示出来。
           </p>
           <a-table
@@ -659,7 +686,11 @@ onUnmounted(stopPolling)
               </template>
             </template>
             <template #emptyText>
-              <a-empty description="词表里一道题都没有：那不是「这单没答题」，是词表回包空了，刷新重试" />
+              <a-empty
+                :description="vocabularyPending
+                  ? '词表还在路上，这一格还没填上——稍等一下它就回来了'
+                  : '词表里一道题都没有：那不是「这单没答题」，是词表回包空了，刷新重试'"
+              />
             </template>
           </a-table>
         </template>

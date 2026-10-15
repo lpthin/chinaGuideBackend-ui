@@ -173,6 +173,8 @@ interface MountOptions {
   decisions?: unknown[]
   /** ④ promote 的回执（D5-3 的交棒清单就挂在这一格里） */
   promoteData?: Record<string, unknown> | null
+  /** 词表那一发故意不回：用来抓「还在路上」那一屏界面上说了什么（10-16 走查现场） */
+  vocabularyPending?: boolean
 }
 
 /**
@@ -220,7 +222,12 @@ function estimateWith(overrides: Record<string, unknown>) {
 async function mountView(options: MountOptions = {}) {
   routeParams.current = { id: '12' }
   vi.mocked(siteBriefsApi.get).mockResolvedValue(brief({ status: options.status ?? 'ready' }) as any)
-  vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue(VOCAB as any)
+  if (options.vocabularyPending) {
+    // 永远不 resolve：这一屏就是「词表还在路上」那一刻的界面
+    vi.mocked(vocabularyApi.adminVocabulary).mockReturnValue(new Promise(() => {}) as any)
+  } else {
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue(VOCAB as any)
+  }
   vi.mocked(tenantApi.list).mockResolvedValue([{ id: 15, code: 't-a', name: '甲租户' }] as any)
   if (options.sitesError) {
     vi.mocked(siteApi.list).mockRejectedValueOnce(new Error(options.sitesError))
@@ -341,6 +348,36 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     wrapper.unmount()
   })
 
+  /**
+   * 10-16 走查现场：出方案那一发成功后 `runGenerate` 会把 `estimate` 清成 null（价签要重新看），
+   * 于是计费那句话退回默认档「扣这个租户的配额」——可后端在三十秒前刚说过这一趟由平台承担。
+   * 钱的方向被界面反过来念，等于给一次没发生的扣费背书。
+   */
+  it('出方案成功后价签被清掉，那句钱的话也不许翻回「扣租户配额」：售前的口径一路跟到回执', async () => {
+    const wrapper = await mountView({
+      generateData: { briefId: 12, attempt: 1 },
+      estimateData: estimateWith({
+        tenantBearsCost: false,
+        breakdown: [
+          '合计预估：260000 token（2 套 × 130000 token/套）',
+          '计费：该租户尚未交付（超管确定交付后才计入其额度），本次由平台承担，不进它的账单'
+        ]
+      })
+    })
+    click(byText('先估算消耗（不调模型）')[0])
+    await flushPromises()
+    checkbox()!.click()
+    await flushPromises()
+    click(byText('开始出方案（建2套候选）')[0])
+    await flushPromises()
+    expect(briefGenerationApi.generate).toHaveBeenCalled()
+    const text = wrapper.text()
+    expect(text).toContain('由平台承担')
+    expect(text).not.toContain('扣这个租户的 token 配额')
+    expect(text).not.toContain('确认出方案会消耗租户配额')
+    wrapper.unmount()
+  })
+
   it('后端给了 notice 就只显示那一份：界面不许在旁边再拼一遍本地常量（两处真相）', async () => {
     const backendNotice = '这是预估，不是账单：实测 0.83～1.13 倍，更早的样本低估过 1.23～4.2 倍'
     const wrapper = await mountView({
@@ -441,7 +478,31 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
   })
 })
 
+/**
+ * 10-16 走查现场：这一屏在词表回来的前一瞬间说过两句假话——
+ * 「共 0 题，其中 0 题有答案」和「词表里一道题都没有：…刷新重试」。
+ * 那一发请求还在路上，既不是「这单没答题」，也不是「词表空了」。
+ */
+describe('词表还在路上：不许把「还没取到」念成「这单没答题」或「词表空了」', () => {
+  it('那一发请求还没回：这一格说「正在取」，不报 0 题、也不报词表空', async () => {
+    const wrapper = await mountView({ vocabularyPending: true })
+    const text = wrapper.text()
+    expect(text).toContain('词表正在取')
+    expect(text).not.toContain('词表里一道题都没有')
+    expect(text).not.toMatch(/共 0 题/)
+    wrapper.unmount()
+  })
+
+  it('词表真回包空了（不是还在路上）才念那一句红字', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.text()).toContain('共 ')
+    expect(wrapper.text()).not.toContain('词表正在取')
+    wrapper.unmount()
+  })
+})
+
 describe('进度按套显示（§6.2：任一步失败只影响该套）', () => {
+
   it('每套各一行：阶段与状态用后端 label，label 没有就露原码；没有总百分比', async () => {
     const wrapper = await mountView({
       status: 'generating',
