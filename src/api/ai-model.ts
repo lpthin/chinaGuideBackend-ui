@@ -186,6 +186,7 @@ export interface AiStatsQuery {
 
 export const aiModelApi = {
   // 获取统计总览
+  // 响应带 tokenBasis（M-P27-B）：这一屏的 Token 数是流水表的字数尺估算，不是网关实报；话由后端发
   getStats: (params?: AiStatsQuery) =>
     http.get<any>('/ai/model/stats', { params }),
 
@@ -204,6 +205,8 @@ export const aiModelApi = {
       total: number
       windowFrom?: string
       windowTo?: string
+      /** 每行「Token」那一列的尺子说明（字数除以 4，是下界不是账单） */
+      tokenBasis?: string | null
     }>('/ai/model/logs', { params }),
 }
 

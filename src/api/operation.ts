@@ -38,6 +38,11 @@ export interface CaseDraftEstimate {
   /** 后端总开关。关掉时界面上说清楚「确认了也不会调用」，而不是让人点了才知道 */
   aiDraftEnabled: boolean
   notice: string | null
+  /**
+   * 这一个数是怎么量出来的（后端 `TokenYardstick` 一处给）：字数除以 4 的下界，不是账单。
+   * 与 `notice` 分两格：`notice` 非空 = 这一轮不受理。
+   */
+  tokenBasis?: string | null
 }
 
 /** 出稿结果：case 是写库之后的那一行，界面直接拿它覆盖自己，不自己拼一份 */

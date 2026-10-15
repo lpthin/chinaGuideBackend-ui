@@ -16,6 +16,7 @@ import PageShell from '../../components/PageShell.vue'
 import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
 import StateBlock from '../../components/StateBlock.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import MeasuredCount from '../geobrand/MeasuredCount.vue'
 import { geoCampaignApi, geoRunIsInFlight, type GeoCampaign, type GeoVocabulary } from '../../api/geoCampaign'
@@ -262,6 +263,9 @@ onMounted(async () => {
           </template>
         </template>
       </DataTable>
+
+      <!-- 「形状」那一列里那个预估 token 是字数除以 4 这把尺的下界；后端随每一行发回来这句话，界面只念一次 -->
+      <TokenBasisNote :text="campaigns[0]?.tokenBasis" />
 
       <p class="geo-workbench__note">
         这里没有「GEO 总分」那一格：多个模型的答案加权成一个数，就是把三种脾气压成一个假答案。

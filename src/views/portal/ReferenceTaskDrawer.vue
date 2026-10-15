@@ -70,6 +70,9 @@
           style="margin-top: 8px"
           :message="estimateMessage"
         />
+        <!-- 这一个数怎么算出来的，由后端一处给（api/referenceSites 的 tokenBasis），
+             不塞进上面那条 alert：那条按 notice 非空染 warning 色，混进去就成了「这一轮不受理」 -->
+        <TokenBasisNote :text="estimate?.tokenBasis" />
         <a-alert
           v-if="referenceIsRunning(task.status)"
           type="warning"
@@ -166,7 +169,9 @@
         预计消耗 <b>{{ estimate.estimatedTokens }}</b> token（结构归纳 + 区块映射两步加起来），
         这一族由平台承担、<b>不计入该租户的额度</b>。
       </p>
-      <p v-else class="reference-site-page__error">还没有取到预估，请先点「先估算消耗」。</p>
+      <!-- 点头之前要说清这一个数是怎么来的：它是字数尺的下界，真扣比它多 -->
+      <TokenBasisNote :text="estimate?.tokenBasis" />
+      <p v-if="!estimate" class="reference-site-page__error">还没有取到预估，请先点「先估算消耗」。</p>
       <p v-if="estimate && estimate.notice" class="reference-site-page__error">
         {{ estimate.notice }}
       </p>
@@ -230,6 +235,7 @@ import {
   type UnmatchedGroup
 } from '../../api/referenceSites'
 import { formatDateTime } from '../../utils/format'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import type { PortalBlockMeta } from '../../api/portalPages'
 
 /**

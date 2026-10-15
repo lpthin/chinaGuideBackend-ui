@@ -259,6 +259,12 @@ export interface ReferenceEstimate {
   aiEnabled: boolean
   /** 后端给的那句「当前未开启，确认也不会调用」原话，界面上不重写一遍 */
   notice: string | null
+  /**
+   * 那一个 token 数<b>怎么算出来的</b>：字数尺的下界、不是账单。每一次预估都带，与 {@link notice}
+   * 两件事——后者是「这一轮不受理」的理由，界面按它非空染 warning 色并禁用确认按钮，所以口径说明
+   * 不能塞进那一个字段里（M-P27-B）。话术的出处在后端 `TokenYardstick`，这里照念。
+   */
+  tokenBasis: string
 }
 
 export interface VerifyForm {

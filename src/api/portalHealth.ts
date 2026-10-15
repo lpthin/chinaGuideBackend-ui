@@ -92,6 +92,11 @@ export interface HealthEstimate {
   /** 后端那个总开关。关掉时这里就是 false，界面上按钮直接灰掉而不是点了报中文错 */
   aiFixEnabled: boolean
   notice: string | null
+  /**
+   * 这一个数是怎么量出来的（后端 `TokenYardstick` 一处给）：字数除以 4 的下界，不是账单。
+   * 真给不出数的那一支（走改版草稿 / 不是让 AI 写一句的那两类）这里是 null，界面不该念。
+   */
+  tokenBasis?: string | null
 }
 
 /**

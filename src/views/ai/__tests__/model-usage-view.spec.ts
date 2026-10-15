@@ -267,6 +267,26 @@ describe('接口没回的那几项，界面上不许出现假 0', () => {
     expect(cell.text()).toBe('¥0.001742')
     expect(cell.classes()).not.toContain('stat-value--none')
   })
+
+  /**
+   * M-P27-B：这一屏那几个 Token 数加的是流水表的 token_estimate（提示词字数除以 4），不是网关实报。
+   * 后端把这句话随数发回来（AiStatsController → TokenYardstick.callLog），界面只原样念：
+   * 念数字不念尺，看的人就会把 345 读成「真花了 345」。
+   */
+  it('后端随统计发回那把尺的说明时，界面原样念出来', async () => {
+    const wrapper = await mountView({
+      ...STATS,
+      tokenBasis: '这里的 token 数取的是流水表的字数尺估算（提示词字数除以 4），不是网关实报',
+    })
+    expect(wrapper.text()).toContain('字数除以 4')
+    expect(wrapper.find('.token-basis-note').exists()).toBe(true)
+  })
+
+  /** 没这句话就不许凭空摆一格（旧接口、或统计口读失败时那一屏本来就没有尺） */
+  it('后端没回这句话时不渲染空的说明块', async () => {
+    const wrapper = await mountView(STATS)
+    expect(wrapper.find('.token-basis-note').exists()).toBe(false)
+  })
 })
 
 describe('接口回了就照念，包括真 0', () => {

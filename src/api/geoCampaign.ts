@@ -36,6 +36,7 @@ export interface GeoCampaign {
   platformCount: number
   repeatTimes: number
   costEstimateCalls: number
+  /** 字数除以 4 那把尺估出来的下界（M-P27-B）；那句话由下面的 tokenBasis 随行发回来 */
   costEstimateTokens: number
   confirmState: string
   confirmStateLabel: string
@@ -45,6 +46,8 @@ export interface GeoCampaign {
   createdAt: string | null
   updatedAt: string | null
   latestRun: GeoRun | null
+  /** 上面那个预估用的是哪把尺（与 GeoEstimate.tokenBasis 同一出处，后端 TokenYardstick） */
+  tokenBasis?: string | null
 }
 
 export interface GeoEstimate {
@@ -104,6 +107,13 @@ export interface GeoEstimate {
    * 这一句和 `docs/GEO_COMMERCIAL_TERMS.md` 是同一份口径——抄一份到前端就是下一次对不上的来源。
    */
   billingNotice: string | null
+  /**
+   * 这几段 token 数是用哪把尺量的（后端 `TokenYardstick` 一处给）：字数除以 4 的下界，不是账单。
+   *
+   * 与 `notice` 分两格：`notice` 非空 ⇒ 这一轮不受理、按钮要禁用；这一句说的只是「数怎么来的」，
+   * 合并进去就把一句算术说明染成了一条拒收。
+   */
+  tokenBasis?: string | null
 }
 
 export interface GeoRun {
@@ -374,6 +384,8 @@ export interface GeoOpportunityEstimate {
   draftEnabled: boolean
   accounting: string | null
   notice: string | null
+  /** 这一族数的尺子（字数除以 4 的下界，不是账单）。与 `notice` 分格，理由见 {@link GeoEstimate} */
+  tokenBasis?: string | null
 }
 
 /**

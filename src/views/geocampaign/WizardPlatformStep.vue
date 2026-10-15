@@ -14,6 +14,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { notification } from 'ant-design-vue'
 import CampaignRunPanel from './CampaignRunPanel.vue'
 import StateBlock from '../../components/StateBlock.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { geoCampaignApi, type GeoCampaign, type GeoPlatformOption } from '../../api/geoCampaign'
 import { geoBrandApi, type GeoBrandQuestion, type GeoQuestionKind } from '../../api/geoBrand'
 import { describeHttpError } from '../../api/http'
@@ -252,6 +253,8 @@ onMounted(async () => {
             </a-button>
           </li>
         </ul>
+        <!-- 上面每一行的「预估 N token」是字数除以 4 这把尺的下界；这句话后端随每一行发回来，这里只念一次 -->
+        <TokenBasisNote :text="campaigns[0]?.tokenBasis" />
         <a-button size="small" @click="startNewPlan">另建一个计划</a-button>
       </section>
 

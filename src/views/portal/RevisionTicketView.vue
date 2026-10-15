@@ -141,6 +141,8 @@
             :message="`预计 ${estimate.estimatedTokens} token，${costOwner}`"
             :description="estimate.notice || (estimate.aiEnabled ? null : 'AI 起草当前未开启，确认也不会调用模型')"
           />
+          <!-- 这一个数怎么量出来的（后端 TokenYardstick 一处给）：字数尺的下界，不是账单 -->
+          <TokenBasisNote v-if="estimate" :text="estimate.tokenBasis" />
 
           <a-divider>AI 草稿</a-divider>
           <a-empty v-if="!drafts.length" description="这条工单还没有草稿" />
@@ -231,6 +233,8 @@
       <p v-if="estimate">
         预计消耗 <b>{{ estimate.estimatedTokens }}</b> token，{{ costOwner }}。
       </p>
+      <!-- 点头之前要说清这一个数是怎么来的：它是字数尺的下界，真扣比它多 -->
+      <TokenBasisNote v-if="estimate" :text="estimate.tokenBasis" />
       <p v-else class="revision-ticket-page__error">还没有取到预估，请先点「先估算消耗」。</p>
       <p class="revision-ticket-page__muted">
         产出的是草稿，要点「应用到页面」才会对访客生效；被门禁拦下的草稿只留档、不能应用，但 token 已经花掉了。
@@ -257,6 +261,7 @@ import {
 } from '../../api/portalTickets'
 import { portalPagesApi, type PortalPage } from '../../api/portalPages'
 import DraftReviewCard from './builder/DraftReviewCard.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 

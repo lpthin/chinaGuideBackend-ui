@@ -134,6 +134,8 @@
           <a-descriptions-item label="预估 token">{{ runTarget.estimatedTokens ?? PH_DASH }}</a-descriptions-item>
           <a-descriptions-item label="本租户剩余">{{ runTarget.remainingTokens ?? PH_DASH }}</a-descriptions-item>
         </a-descriptions>
+        <!-- 这串数是字数除以 4 的下界，不是账单：这一句单独摆，不塞进下面那条 notice（那条 = 不受理） -->
+        <TokenBasisNote :text="runTarget.tokenBasis" />
         <a-alert
           v-if="runTarget.notice"
           type="warning"
@@ -280,6 +282,7 @@ import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import StatusTag from '../../components/StatusTag.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { required } from '../../utils/rules'
 import { PH_DASH, PH_NOT_RUN } from '../../utils/display'
 import { logError } from '../../utils/errorLog'

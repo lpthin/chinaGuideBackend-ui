@@ -51,6 +51,11 @@ export interface CitationEstimate {
   remainingTokens: number
   probeEnabled: boolean
   notice: string | null
+  /**
+   * 这一个数是怎么量出来的（后端 `TokenYardstick` 一处给）：字数除以 4 的下界，不是账单。
+   * 与 `notice` 分两格：`notice` 非空 = 这一轮不受理。
+   */
+  tokenBasis?: string | null
 }
 
 /** 可探的模型：清单只能来自库里的 ai_model_config 行，界面不许自己写「支持哪几家」 */

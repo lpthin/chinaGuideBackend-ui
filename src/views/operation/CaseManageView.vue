@@ -231,6 +231,8 @@
             :message="`预计 ${estimate.estimatedTokens} token，本站剩余配额 ${estimate.remainingTokens} token`"
             :description="estimate.notice || (estimate.aiDraftEnabled ? null : '案例 AI 起草当前未开启（后端配置），确认也不会调用模型')"
           />
+          <!-- 这一个数怎么量出来的（后端 TokenYardstick 一处给）：字数尺的下界，不是账单 -->
+          <TokenBasisNote :text="estimate.tokenBasis" />
           <p class="draft-scope">
             确定后会覆盖这一条的<b>标题、摘要、正文与 SEO 三件套</b>；已发布的案例在门户上立刻换成新文案。
             状态、对外时间与浏览量都不动，所以草稿不会因为按了这个按钮就自己上线。
@@ -305,6 +307,7 @@ import { formatDate, formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 

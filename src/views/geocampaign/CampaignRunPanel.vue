@@ -15,6 +15,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { notification } from 'ant-design-vue'
 import StateBlock from '../../components/StateBlock.vue'
 import StatusTag from '../../components/StatusTag.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import {
   geoCampaignApi,
   geoRunIsInFlight,
@@ -204,6 +205,9 @@ defineExpose({ loadEstimate, loadRuns, reset })
         </tbody>
       </table>
       <p v-else class="geo-run-panel__empty-estimate">还没有取到预估：按上面那个按钮先看价。</p>
+
+      <!-- 上面那几行 token 是字数除以 4 这把尺量出来的下界；它和「这一轮受不受理」是两件事，各占一行 -->
+      <TokenBasisNote :text="estimate?.tokenBasis" />
 
       <p v-if="estimate" class="geo-run-panel__billing">{{ billingLine(estimate) }}</p>
 

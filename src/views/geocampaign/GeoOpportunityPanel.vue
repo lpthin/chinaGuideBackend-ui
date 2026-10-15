@@ -19,6 +19,7 @@ import { computed, ref, watch } from 'vue'
 import { notification } from 'ant-design-vue'
 import StateBlock from '../../components/StateBlock.vue'
 import StatusTag from '../../components/StatusTag.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import GeoOpportunityDrawer from './GeoOpportunityDrawer.vue'
 import {
   geoCampaignApi,
@@ -309,6 +310,8 @@ watch(includeResolved, () => void load())
       <p v-if="estimate && !estimate.notice" class="geo-opp__panel-note">
         预估与按下去真跑的是同一处算出来的：这一屏不自己乘 token，也不猜哪条流水线更贵。
       </p>
+      <!-- 「预计 token」那一行是字数除以 4 这把尺的下界，不是账单；上面那句 notice 讲的是受不受理 -->
+      <TokenBasisNote :text="estimate?.tokenBasis" />
       <p v-if="notice" class="geo-opp__notice">{{ notice }}</p>
 
       <div class="geo-opp__confirm">

@@ -90,6 +90,11 @@ export interface TicketEstimate {
   tenantBearsCost?: boolean
   aiEnabled: boolean
   notice: string | null
+  /**
+   * 这一个数是怎么量出来的（后端 `TokenYardstick` 一处给）：字数除以 4 的下界，不是账单。
+   * 与 `notice` 分两格：`notice` 非空 = 这一轮不受理。
+   */
+  tokenBasis?: string | null
 }
 
 /** 采集器上报的字段，白名单与后端 TicketForm 逐字对齐，多写的键后端一律丢弃 */

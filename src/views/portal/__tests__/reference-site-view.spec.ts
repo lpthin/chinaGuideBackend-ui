@@ -1039,7 +1039,8 @@ describe('成本闸的拒绝理由要念给看预估的那个人', () => {
       remainingTokens: 900_000,
       aiEnabled: true,
       notice: '这个任务按预估一轮要烧 420000 token，超过了单任务上限 120000 token'
-        + '（app.portal.reference.max-tokens-per-task），这一轮不会受理。少喂几页再跑。'
+        + '（app.portal.reference.max-tokens-per-task），这一轮不会受理。少喂几页再跑。',
+      tokenBasis: '这个预估按提示词字数除以 4 估输入，是下界、不是账单'
     } as any)
     const wrapper = await mountView()
     await openDrawer(wrapper, task('awaiting_ingest'))
@@ -1062,7 +1063,8 @@ describe('成本闸的拒绝理由要念给看预估的那个人', () => {
       estimatedTokens: 12_000,
       remainingTokens: 900_000,
       aiEnabled: true,
-      notice: null
+      notice: null,
+      tokenBasis: '这个预估按提示词字数除以 4 估输入，是下界、不是账单：真扣以逐笔落账的实报为准'
     } as any)
     const wrapper = await mountView()
     await openDrawer(wrapper, task('analyzing'))
@@ -1071,6 +1073,35 @@ describe('成本闸的拒绝理由要念给看预估的那个人', () => {
 
     expect(alerts(wrapper, 'info').join(' ')).toContain('预计 12000 token')
     expect(alerts(wrapper, 'warning').join(' ')).not.toContain('超过了单任务上限')
+  })
+
+  /**
+   * M-P27-B：那一个 token 数是「字数 ÷ 4」的下界，界面必须把它念出来——念数字不念尺，
+   * 看的人就会把 12000 当成最多花 12000。同时钉住这条话术<b>没有</b>把 info 染成 warning：
+   * 后端把它放在 `tokenBasis` 而不是 `notice`，正是因为后者非空＝「这一轮不会受理」。
+   */
+  it('预估下面念得出这把尺是下界，而且不因此变成警告色', async () => {
+    vi.mocked(portalReferenceApi.analyzeEstimate).mockResolvedValue({
+      referenceId: 7,
+      estimatedTokens: 12_000,
+      remainingTokens: 900_000,
+      aiEnabled: true,
+      notice: null,
+      tokenBasis: '这个预估按提示词字数除以 4 估输入，是下界、不是账单：真扣以逐笔落账的实报为准'
+    } as any)
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('awaiting_ingest'))
+    await buttons(wrapper, '先估算消耗')[0].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('字数除以 4')
+    // 这句是「这一族不会受理」那一格的邻居，不许自己挤进 warning 色：那里念的是闸
+    expect(alerts(wrapper, 'warning').join(' ')).not.toContain('字数除以 4')
+
+    // 点头那一格也要念到：抽屉里看过不等于确认框里看过
+    await buttons(wrapper, '开始 AI 摄取')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('是下界、不是账单')
   })
 })
 

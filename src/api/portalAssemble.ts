@@ -78,6 +78,11 @@ export interface AssembleEstimate {
   aiEnabled: boolean
   /** 后端给的那句「当前未开启，确认也不会调用」原话，界面上不重写一遍 */
   notice: string | null
+  /**
+   * 这一个数是怎么量出来的（后端 `TokenYardstick` 一处给）：字数除以 4 的下界，不是账单。
+   * 与 `notice` 分两格：`notice` 非空 = 这一轮不受理，把尺子的事塞进去就等于宣布拒收。
+   */
+  tokenBasis?: string | null
 }
 
 export interface AssembleCreateForm {

@@ -230,6 +230,8 @@
           <a-descriptions-item label="产出形态">{{ outputShape }}</a-descriptions-item>
         </a-descriptions>
         <a-alert v-if="estimate?.notice" type="warning" show-icon class="portal-health-page__warning" :message="estimate.notice" />
+        <!-- 上面那个「预计消耗」是字数除以 4 的下界；notice 那条讲的是受不受理，两件事不合并 -->
+        <TokenBasisNote :text="estimate?.tokenBasis" />
         <a-form layout="vertical" class="portal-health-page__confirm">
           <a-form-item>
             <a-checkbox v-model:checked="aiFixForm.confirmed">
@@ -265,6 +267,7 @@ import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import StatusTag from '../../components/StatusTag.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
 
 /**

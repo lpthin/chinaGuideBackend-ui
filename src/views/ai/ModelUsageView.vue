@@ -166,6 +166,10 @@
         </a-col>
       </a-row>
 
+      <!-- M-P27-B：这一屏的 Token 数加的是流水表的字数尺估算（提示词字数除以 4），不是网关实报。
+           这句话由 /ai/model/stats 随数发回来，界面不抄第二份。 -->
+      <TokenBasisNote v-if="!statsError" :text="statsTokenBasis" />
+
       <a-row v-if="!statsError" :gutter="16" style="margin-bottom: 16px">
         <a-col :span="12">
           <a-card title="今日用量" :bordered="false">
@@ -467,6 +471,9 @@
               </template>
             </filter-bar>
 
+            <!-- 表里「Token」那一列取的是每行的字数尺估算（token_estimate），同样不是网关实报 -->
+            <TokenBasisNote :text="logsTokenBasis" />
+
             <a-table
               :scroll="{ x: 'max-content' }"
               :columns="logColumns"
@@ -531,6 +538,7 @@ import FilterBar from '../../components/FilterBar.vue'
 import { statsApi } from '../../api/billing'
 import { geoQuotaApi, type GeoQuotaStatus } from '../../api/geoQuota'
 import StateBlock from '../../components/StateBlock.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { PH_DASH } from '../../utils/display'
@@ -922,6 +930,18 @@ function hasStat(key: string): boolean {
 }
 
 /**
+ * 这一屏那几个 Token 数是用哪把尺量的（M-P27-B）：加的是流水表的 token_estimate（提示词字数除以 4），
+ * 不是网关实报。这句话由 /ai/model/stats 随数一起发回来，界面不许抄第二份。
+ */
+const statsTokenBasis = computed<string | null>(() => {
+  const value = statsPayload.value?.tokenBasis
+  return typeof value === 'string' ? value : null
+})
+
+/** 流水表那一张的「Token」列同样是这把尺，话跟着 /ai/model/logs 那一份响应走 */
+const logsTokenBasis = ref<string | null>(null)
+
+/**
  * 费用的念法。三位一体：null = 「未统计」（这一台没定价），0 = 「¥0.00」（真免费），有数就报数。
  *
  * <p>为什么要专门写这个而不是 `toFixed(2)`：真跑 P9-A2 时接口回的是 totalCost=0.001742，
@@ -1040,11 +1060,13 @@ const loadLogs = async () => {
     const result = await aiModelApi.getLogs(params)
     logList.value = result.records ?? []
     logPagination.total = result.total ?? 0
+    logsTokenBasis.value = result.tokenBasis ?? null
   } catch (error) {
     message.error('加载调用日志失败')
     logError('ai/model-usage-view', 'Failed to load logs:', error)
     logList.value = []
     logPagination.total = 0
+    logsTokenBasis.value = null
   }
 }
 

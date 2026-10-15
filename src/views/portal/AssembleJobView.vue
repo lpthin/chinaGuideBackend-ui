@@ -169,6 +169,9 @@
         </p>
 
         <a-alert v-if="estimate" type="info" show-icon class="assemble-job-page__notice" :message="estimateMessage" />
+        <!-- 这一个数怎么算出来的（后端 TokenYardstick 一处给），不塞进上面那条 notice：
+             那条按「不受理」染警告色，混进去就成了宣布这一轮不跑 -->
+        <TokenBasisNote v-if="estimate" :text="estimate.tokenBasis" />
         <a-alert
           v-if="estimate && !estimate.aiEnabled"
           type="warning"
@@ -274,6 +277,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import PageTitle from '../../components/PageTitle.vue'
+import TokenBasisNote from '../../components/TokenBasisNote.vue'
 
 /**
  * AI 整站组装任务视图（Spec §6.3，Q3；N4：只有平台能发起）。
