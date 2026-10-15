@@ -22,7 +22,7 @@
             {{ formatDateTime(task.finishedAt) }}
           </a-descriptions-item>
           <a-descriptions-item v-if="task.errorMessage" label="最近一次结果" :span="3">
-            <span class="reference-site-page__error">{{ task.errorMessage }}</span>
+            <span class="reference-site-page__error-block">{{ task.errorMessage }}</span>
           </a-descriptions-item>
           <a-descriptions-item v-if="ingestProgressText" label="AI 摄取进度" :span="3">
             {{ ingestProgressText }}
@@ -62,10 +62,12 @@
         </p>
 
         <!-- 后端给了 notice 就是「这一轮跑不了 / 不该跑」，用 warning 而不是 info：
-             它念的是拒绝理由，用信息色等于把闸说成提示 -->
+             它念的是拒绝理由，用信息色等于把闸说成提示。
+             有确认过的行也算这一类（M-P28）：那两个数本身是读数，但 existingHumanVerified>0
+             落的正是后端那道硬拒，按钮已经是死的，还染 info 就等于把闸说成提示 -->
         <a-alert
           v-if="estimate"
-          :type="estimate.notice ? 'warning' : 'info'"
+          :type="estimate.notice || blockedByVerifiedRows ? 'warning' : 'info'"
           show-icon
           style="margin-top: 8px"
           :message="estimateMessage"
@@ -161,8 +163,8 @@
     <a-modal
       v-model:open="analyzeOpen"
       title="确认让 AI 读这个参考站？"
-      :ok-text="estimate?.notice ? '这一轮不会受理' : confirmChecked ? '确认并开始摄取' : '请先勾选确认'"
-      :ok-button-props="{ disabled: !confirmChecked || !!estimate?.notice, loading: analyzing }"
+      :ok-text="analyzeOkText"
+      :ok-button-props="{ disabled: !canStartAnalyze, loading: analyzing }"
       @ok="runAnalyze"
     >
       <p v-if="estimate">
@@ -171,10 +173,29 @@
       </p>
       <!-- 点头之前要说清这一个数是怎么来的：它是字数尺的下界，真扣比它多 -->
       <TokenBasisNote :text="estimate?.tokenBasis" />
-      <p v-if="!estimate" class="reference-site-page__error">还没有取到预估，请先点「先估算消耗」。</p>
-      <p v-if="estimate && estimate.notice" class="reference-site-page__error">
+      <p v-if="!estimate" class="reference-site-page__error-block">还没有取到预估，请先点「先估算消耗」。</p>
+      <p v-if="estimate && estimate.notice" class="reference-site-page__error-block">
         {{ estimate.notice }}
       </p>
+      <!-- 这一行已经有映射行时的两形（M-P28，#297 拍板「放开闸、原地重跑整轮」）。
+           两个数都读后端预估回包，前端不自己数 mappings.value——那一份是按页拼出来的列表，
+           和受理那一道用的谓词不是同一次读数 -->
+      <p v-if="blockedByVerifiedRows" class="reference-site-page__error-block">
+        这 {{ estimate?.existingMappings ?? 0 }} 行里有 {{ estimate?.existingHumanVerified ?? 0 }}
+        行是<b>人工确认过</b>的，而这一轮会把它们整批删掉——映射表没有回收站，删了找不回来。
+        这一轮不会受理：要重跑，先在「区块映射」那一栏把确认过的行按「不认」打回未映射；
+        只想补缺的那几格，就留在「暂未对上现有区块」那一栏逐条人工处理。
+      </p>
+      <template v-else-if="hasExistingMappings">
+        <p class="reference-site-page__error-block">
+          这一行已经有 <b>{{ estimate?.existingMappings ?? 0 }}</b> 行映射结果（都还没人工确认）。
+          再点一次是<b>整轮重跑</b>：先把这 {{ estimate?.existingMappings ?? 0 }} 行删掉，
+          再按模型这一轮的结果重建——不是只补缺的那几格。
+        </p>
+        <a-checkbox v-model:checked="discardChecked">
+          替换掉这 {{ estimate?.existingMappings ?? 0 }} 行映射并重建
+        </a-checkbox>
+      </template>
       <p class="reference-site-page__muted">
         这一步产出的是「观察到的结构 + 映射建议」，还要你逐条确认，最后按「生成草稿页」才会出现一份草稿；
         草稿不发布，访客看不到。
@@ -292,6 +313,8 @@ const estimate = ref<ReferenceEstimate | null>(null)
 
 const analyzeOpen = ref(false)
 const confirmChecked = ref(false)
+/** 「替换掉这些行」那一句点头（M-P28）：只有这一行已有映射行时才起作用，每次开弹窗从零开始 */
+const discardChecked = ref(false)
 const applyOpen = ref(false)
 const applyForm = reactive<ApplyForm>({
   referencePageId: null,
@@ -374,7 +397,35 @@ const estimateMessage = computed(() => {
   if (!estimate.value) return ''
   // 「本站剩余配额」这一句 V142 起撤掉：这一族压根不落租户账单，念一个不会被扣的数字等于让人以为在花钱
   const base = `预计 ${estimate.value.estimatedTokens} token，平台承担、不计入该租户额度`
-  return estimate.value.notice ? `${base}。${estimate.value.notice}` : base
+  const rows =
+    estimate.value.existingHumanVerified > 0
+      ? `。这一行已有 ${estimate.value.existingMappings} 行映射、其中 ${estimate.value.existingHumanVerified} 行人工确认过，这一轮不会受理`
+      : estimate.value.existingMappings > 0
+        ? `。这一行已有 ${estimate.value.existingMappings} 行映射，再点一次是整轮替换（先删后建）`
+        : ''
+  return `${base}${rows}${estimate.value.notice ? `。${estimate.value.notice}` : ''}`
+})
+
+/**
+ * 「这一轮会动到已有映射行」的三档读数（M-P28，#297 拍板：放开闸、原地重跑整轮）。
+ * 两个数都读后端预估回包，不在这里数 mappings 那份列表——那是按页拼出来的，
+ * 与受理那一道用的谓词不是同一次读数。
+ */
+const hasExistingMappings = computed(() => (estimate.value?.existingMappings ?? 0) > 0)
+/** 有确认过的行时这一轮怎么点都会被后端硬拒：按钮提前禁用，而不是让人吃一次 400 */
+const blockedByVerifiedRows = computed(() => (estimate.value?.existingHumanVerified ?? 0) > 0)
+const canStartAnalyze = computed(
+  () =>
+    confirmChecked.value &&
+    !blockedByVerifiedRows.value &&
+    (!hasExistingMappings.value || discardChecked.value)
+)
+const analyzeOkText = computed(() => {
+  if (estimate.value?.notice) return '这一轮不会受理'
+  if (blockedByVerifiedRows.value) return '有确认过的行，这一轮不会受理'
+  if (!confirmChecked.value) return '请先勾选确认'
+  if (hasExistingMappings.value && !discardChecked.value) return '请先勾选「替换掉这些行」'
+  return hasExistingMappings.value ? '确认并替换重跑' : '确认并开始摄取'
 })
 
 function statusLabel(status: string | null | undefined) {
@@ -650,16 +701,22 @@ function openAnalyzeModal() {
     return
   }
   confirmChecked.value = false
+  discardChecked.value = false
   analyzeOpen.value = true
 }
 
 async function runAnalyze() {
-  if (!currentId.value || !confirmChecked.value) return
+  if (!currentId.value || !canStartAnalyze.value) return
   analyzing.value = true
   try {
-    task.value = await portalReferenceApi.analyze(currentId.value, true)
+    task.value = await portalReferenceApi.analyze(currentId.value, true, discardChecked.value)
     analyzeOpen.value = false
-    message.success('AI 摄取已受理，正在后台跑两步模型')
+    message.success(
+      discardChecked.value ? 'AI 摄取已受理，旧的映射行已丢弃，正在后台重跑两步模型' : 'AI 摄取已受理，正在后台跑两步模型'
+    )
+    // 受理之后「这一行已有 N 行映射」那两个数就换了意思（旧行已经删掉）。预估是只读、零外呼的，
+    // 所以重取一次；留着旧的读数等于界面上继续念一句上一轮的数
+    await runEstimate()
     startPollIfNeeded()
     emit('reload-tasks')
   } catch (error) {
@@ -676,6 +733,9 @@ async function runAnalyze() {
 async function afterVerify() {
   if (!currentId.value) return
   await loadMappings()
+  // 「其中几行人工确认过」是那一格能否点重跑的依据，改完确认状态要跟着重取（只在用户已经看过预估时：
+  // 决策 D4 不许界面自己替人把预估取来好让按钮变可用）
+  if (estimate.value) await runEstimate()
   emit('reload-tasks')
   task.value = await portalReferenceApi.get(currentId.value)
 }
@@ -729,6 +789,14 @@ defineExpose({ open: openTask })
     text-overflow: ellipsis;
     white-space: nowrap;
     vertical-align: bottom;
+  }
+
+  /* 抽屉与弹窗里「一整句必须说全」的红字用这一支，不用上面那一支：
+     上面那支是给列表某一格用的（240px + 不换行 + 省略号），搬进弹窗就把
+     「会删掉这 12 行、不是只补缺的那几格」这种关键句截成半句
+     （2026-10-15 浏览器截图现场发现，正档 §10.39） */
+  &__error-block {
+    color: #cf1322;
   }
 }
 </style>

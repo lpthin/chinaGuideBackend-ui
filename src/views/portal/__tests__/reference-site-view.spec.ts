@@ -134,13 +134,25 @@ const SELECT_STUB = {
 
 const MODAL_STUB = {
   name: 'AModal',
-  props: ['title', 'open', 'okText', 'confirmLoading'],
+  props: ['title', 'open', 'okText', 'confirmLoading', 'okButtonProps'],
   emits: ['update:open', 'ok'],
   template: `<div class="a-modal-stub">
     <h1 class="modal-title">{{ title }}</h1>
     <slot />
-    <button class="modal-ok" @click="$emit('ok')">{{ okText || '确定' }}</button>
+    <button class="modal-ok" :disabled="okButtonProps && okButtonProps.disabled" @click="$emit('ok')">{{ okText || '确定' }}</button>
   </div>`
+}
+
+/**
+ * 真能勾的复选框：M-P28 那条「整轮替换要一句显式点头」就写在这一个勾选框上，
+ * 用只画 slot 的 stub 等于把闸测成了摆设——勾不动，按钮死活也就量不出来。
+ */
+const CHECKBOX_STUB = {
+  name: 'ACheckbox',
+  props: ['checked'],
+  emits: ['update:checked'],
+  template: `<label class="a-checkbox-stub"><input type="checkbox" :checked="checked"
+    @change="$emit('update:checked', $event.target.checked)"><slot /></label>`
 }
 
 const ALERT_STUB = {
@@ -209,7 +221,7 @@ async function mountView() {
         'a-switch': { name: 'ASwitch', props: ['checked'], emits: ['update:checked'], template: '<i />' },
         'a-radio-group': PASS_THROUGH('ARadioGroup'),
         'a-radio': PASS_THROUGH('ARadio'),
-        'a-checkbox': PASS_THROUGH('ACheckbox'),
+        'a-checkbox': CHECKBOX_STUB,
         'a-textarea': PASS_THROUGH('ATextarea'),
         'a-input': INPUT_STUB,
         'a-input-number': NUMBER_STUB,
@@ -441,6 +453,28 @@ function inputByPlaceholder(wrapper: any, placeholder: string) {
     .find((node: any) => node.attributes('placeholder') === placeholder)
   if (!found) {
     throw new Error(`找不到 placeholder 为「${placeholder}」的输入框`)
+  }
+  return found
+}
+
+/** 按标签文字取复选框：确认框里同时摆着「我已看过预估」和「替换掉这几行」，按索引取会拿错那一个 */
+function checkboxByLabel(wrapper: any, needle: string) {
+  const found = wrapper
+    .findAll('.a-checkbox-stub')
+    .find((node: any) => (node.text() || '').includes(needle))
+  if (!found) {
+    throw new Error(`找不到标签含「${needle}」的复选框`)
+  }
+  return found.find('input')
+}
+
+/** 摄取确认框那一个确定按钮：弹窗里还挂着「补录路由」「生成草稿页」，只认 ok-text 改过的那一个 */
+function analyzeOkButton(wrapper: any) {
+  const found = wrapper
+    .findAll('.modal-ok')
+    .find((node: any) => /摄取|重跑|不会受理|请先勾选/.test(node.text()))
+  if (!found) {
+    throw new Error('找不到 AI 摄取确认框的确定按钮')
   }
   return found
 }
@@ -1102,6 +1136,135 @@ describe('成本闸的拒绝理由要念给看预估的那个人', () => {
     await buttons(wrapper, '开始 AI 摄取')[0].trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('是下界、不是账单')
+  })
+})
+
+/**
+ * M-P28 / #297 拍板「放开 ALREADY_MAPPED 闸、原地重跑整轮」的界面那一半。
+ *
+ * <p>这一批最容易骗人的地方是：闸改成了「要一句点头」，而那句点头管的是<b>删行</b>——
+ * 映射表没有回收站。所以判据不是「按钮会亮」，而是没点头时那一发 POST 一定发不出去、
+ * 点了头才带 discardMappings=true，以及有确认行时连点头都不给（后端硬拒，界面提前说死）。</p>
+ */
+describe('原地重跑整轮：会删掉几行要先摆出来，那句点头勾不上时按钮是死的', () => {
+  /** 预估回包的两个新读数由后端给：这一行已有几行映射、其中几行人工确认过 */
+  function estimateWith(existingMappings: number, existingHumanVerified: number) {
+    return {
+      referenceId: 7,
+      estimatedTokens: 12_000,
+      remainingTokens: 900_000,
+      aiEnabled: true,
+      notice: null,
+      tokenBasis: '这个预估按提示词字数除以 4 估输入，是下界、不是账单：真扣以逐笔落账的实报为准',
+      existingMappings,
+      existingHumanVerified
+    } as any
+  }
+
+  /** 停在「需人工处理」（部分入库那一形）并把预估取到手，然后打开确认框 */
+  async function mountWithEstimate(estimate: any, openModal = true) {
+    vi.mocked(portalReferenceApi.analyzeEstimate).mockResolvedValue(estimate)
+    const wrapper = await mountView()
+    await openDrawer(wrapper, task('needs_human', { pagesCrawled: 2 }))
+    await buttons(wrapper, '先估算消耗')[0].trigger('click')
+    await flushPromises()
+    if (openModal) {
+      await buttons(wrapper, '开始 AI 摄取')[0].trigger('click')
+      await flushPromises()
+    }
+    return wrapper
+  }
+
+  it('有旧映射行时：只勾「我已看过预估」按下去不发请求，补上「替换掉这 6 行」才交 discardMappings', async () => {
+    const wrapper = await mountWithEstimate(estimateWith(6, 0))
+
+    await checkboxByLabel(wrapper, '我已看过预估').setValue(true)
+    await flushPromises()
+    const waiting = analyzeOkButton(wrapper)
+    expect(waiting.text()).toContain('请先勾选「替换掉这些行」')
+    expect((waiting.element as HTMLButtonElement).disabled).toBe(true)
+    await waiting.trigger('click')
+    await flushPromises()
+    expect(portalReferenceApi.analyze).not.toHaveBeenCalled()
+
+    await checkboxByLabel(wrapper, '替换掉这 6 行映射并重建').setValue(true)
+    await flushPromises()
+    const ready = analyzeOkButton(wrapper)
+    expect(ready.text()).toContain('确认并替换重跑')
+    await ready.trigger('click')
+    await flushPromises()
+    expect(portalReferenceApi.analyze).toHaveBeenCalledWith(7, true, true)
+  })
+
+  /** 那句点头管的是删行，所以「删几行、不是只补缺」必须写在它旁边 */
+  it('整轮替换要说清删掉几行，而不是让人以为只补缺的那几格', async () => {
+    const wrapper = await mountWithEstimate(estimateWith(6, 0))
+    const text = wrapper.text()
+    expect(text).toContain('这一行已经有 6 行映射结果')
+    expect(text).toContain('不是只补缺的那几格')
+    expect(text).toContain('替换掉这 6 行映射并重建')
+  })
+
+  /**
+   * 有确认过的行是硬拒（后端带 discard=true 也照样拒）：界面不给可点的按钮，
+   * 只指「先把确认行打回未映射」那一条路——摆一个勾得动、按下去吃 400 的入口比没有入口更糟。
+   */
+  it('有确认过的行时这一轮不会受理，勾了确认也发不出去', async () => {
+    const wrapper = await mountWithEstimate(estimateWith(6, 2))
+
+    expect(wrapper.text()).toContain('行是人工确认过的')
+    expect(wrapper.text()).toContain('打回未映射')
+    expect(wrapper.text()).not.toContain('替换掉这 6 行映射并重建')
+
+    await checkboxByLabel(wrapper, '我已看过预估').setValue(true)
+    await flushPromises()
+    const okButton = analyzeOkButton(wrapper)
+    expect(okButton.text()).toContain('有确认过的行，这一轮不会受理')
+    expect((okButton.element as HTMLButtonElement).disabled).toBe(true)
+    await okButton.trigger('click')
+    await flushPromises()
+    expect(portalReferenceApi.analyze).not.toHaveBeenCalled()
+  })
+
+  /** 没有旧行时不许摆那句删行警告：摆一句用不上的「会删掉 0 行」本身就是谎报 */
+  it('这一行还没有映射结果时不摆替换那一句，点头就是直接开始摄取', async () => {
+    const wrapper = await mountWithEstimate(estimateWith(0, 0))
+
+    expect(wrapper.text()).not.toContain('替换掉这')
+    await checkboxByLabel(wrapper, '我已看过预估').setValue(true)
+    await flushPromises()
+    expect(analyzeOkButton(wrapper).text()).toContain('确认并开始摄取')
+
+    await analyzeOkButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(portalReferenceApi.analyze).toHaveBeenCalledWith(7, true, false)
+  })
+
+  /**
+   * 读数不是闸：两个数走 existingMappings/existingHumanVerified，notice 仍为空，
+   * 所以抽屉顶部那条 alert 必须是 info 色。染成 warning 等于宣布「这一轮不受理」，
+   * 而 6 行没确认过的旧行这一轮本来能重跑（M-P27-B 那条纪律的同一族）。
+   */
+  it('有旧映射行但没超预算时，顶部那条仍是 info，念得出「整轮替换」', async () => {
+    const wrapper = await mountWithEstimate(estimateWith(6, 0), false)
+
+    expect(alerts(wrapper, 'warning').join(' ')).not.toContain('这一行已有 6 行映射')
+    expect(alerts(wrapper, 'info').join(' ')).toContain('这一行已有 6 行映射，再点一次是整轮替换（先删后建）')
+  })
+
+  /** 有确认行时顶部那句要一起念「不会受理」：那是闸，不是读数 */
+  it('顶部那条把「其中几行人工确认过、这一轮不会受理」念全', async () => {
+    const wrapper = await mountWithEstimate(estimateWith(6, 2), false)
+
+    expect(alerts(wrapper, 'warning').join(' ')).toContain('其中 2 行人工确认过，这一轮不会受理')
+  })
+
+  /** 估算口没有写语义：前置判定全在 analyze 那一步，这里多带一个都算界面替后端多做决定 */
+  it('先估算消耗只发 estimate 一口，不碰 analyze', async () => {
+    const wrapper = await mountWithEstimate(estimateWith(6, 0), false)
+
+    expect(portalReferenceApi.analyzeEstimate).toHaveBeenCalledWith(7)
+    expect(portalReferenceApi.analyze).not.toHaveBeenCalled()
   })
 })
 

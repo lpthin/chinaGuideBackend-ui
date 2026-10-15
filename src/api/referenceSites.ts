@@ -265,6 +265,13 @@ export interface ReferenceEstimate {
    * 不能塞进那一个字段里（M-P27-B）。话术的出处在后端 `TokenYardstick`，这里照念。
    */
   tokenBasis: string
+  /**
+   * 这一行已有的映射行数，以及其中人工确认过的行数（M-P28，#297 拍板）。界面上「这一轮会替换掉 N 行」
+   * 那句就念这两个数。它们是<b>读数不是闸</b>：不许当 notice 用——notice 非空会禁用确认按钮，
+   * 而「有旧行」在勾掉那一句点头之后是可受理的。
+   */
+  existingMappings: number
+  existingHumanVerified: number
 }
 
 export interface VerifyForm {
@@ -500,9 +507,15 @@ export const portalReferenceApi = {
   analyzeEstimate: (id: number) =>
     http.post<ReferenceEstimate>(`/portal/reference-sites/${id}/analyze-estimate`),
 
-  /** 同样是异步受理；confirm 必须是用户勾过的那个值，false 时后端直接报中文错 */
-  analyze: (id: number, confirm: boolean) =>
-    http.post<ReferenceSite>(`/portal/reference-sites/${id}/analyze`, { confirm }),
+  /**
+   * 同样是异步受理；confirm 必须是用户勾过的那个值，false 时后端直接报中文错。
+   *
+   * <p>{@code discardMappings} 只在这一行已有映射行时才起作用：不带它（或 false）时后端拒
+   * {@code PORTAL_REFERENCE_ALREADY_MAPPED}，带它时受理那一步先删旧行再重跑整轮（M-P28）。
+   * 人工确认过的行是另一回事——那一形后端无论如何都拒，界面上得提前禁用按钮并把去处说清。</p>
+   */
+  analyze: (id: number, confirm: boolean, discardMappings = false) =>
+    http.post<ReferenceSite>(`/portal/reference-sites/${id}/analyze`, { confirm, discardMappings }),
 
   verify: (id: number, mappingId: number, data: VerifyForm) =>
     http.post<ReferenceMapping>(`/portal/reference-sites/${id}/mappings/${mappingId}/verify`, data),

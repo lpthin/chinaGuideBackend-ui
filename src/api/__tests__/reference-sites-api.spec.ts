@@ -138,7 +138,29 @@ describe('portalReferenceApi', () => {
     expect(http.post).toHaveBeenLastCalledWith('/portal/reference-sites/5/analyze-estimate')
 
     await portalReferenceApi.analyze(5, true)
-    expect(http.post).toHaveBeenLastCalledWith('/portal/reference-sites/5/analyze', { confirm: true })
+    expect(http.post).toHaveBeenLastCalledWith('/portal/reference-sites/5/analyze', {
+      confirm: true,
+      discardMappings: false
+    })
+  })
+
+  /**
+   * M-P28 / #297：「整轮重跑会删掉已有映射行」是一句单独的点头，不许跟 confirm 混成一格。
+   * 默认发 false 是关键那一条——省略参数就等于替用户点头删行。
+   */
+  it('重跑那一句点头是独立的一个字段：不传就是 false，传了才带 discardMappings', async () => {
+    const http = await httpMock()
+    await portalReferenceApi.analyze(5, true)
+    expect(http.post).toHaveBeenLastCalledWith('/portal/reference-sites/5/analyze', {
+      confirm: true,
+      discardMappings: false
+    })
+
+    await portalReferenceApi.analyze(5, true, true)
+    expect(http.post).toHaveBeenLastCalledWith('/portal/reference-sites/5/analyze', {
+      confirm: true,
+      discardMappings: true
+    })
   })
 
   /**
@@ -190,7 +212,10 @@ describe('portalReferenceApi', () => {
   it('AI 摄取不带 confirm 时原样发 false，让后端去拒', async () => {
     const http = await httpMock()
     await portalReferenceApi.analyze(5, false)
-    expect(http.post).toHaveBeenLastCalledWith('/portal/reference-sites/5/analyze', { confirm: false })
+    expect(http.post).toHaveBeenLastCalledWith('/portal/reference-sites/5/analyze', {
+      confirm: false,
+      discardMappings: false
+    })
   })
 
   it('截图上传带 viewport 与可选的归属页，走 multipart', async () => {
