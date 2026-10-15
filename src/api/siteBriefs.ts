@@ -474,8 +474,33 @@ export function briefAnswerRows(
       row.value = urls.length ? urls.join('、') : String(brief.notes ?? '');
       return row;
     }
-    if (question.select === 'text') {
+    if (question.select === 'text' || question.select === 'textarea' || question.select === 'color') {
       row.value = String(readBriefSelections([question], brief)[question.key] ?? '');
+      return row;
+    }
+    if (question.select === 'block-order') {
+      // 首页区块顺序：库里存的是一串区块 key，词表在这道题上【没有】options
+      // （区块名来自组件库那一格，不是这道题的勾选袋）。拿它去查本题选项必然查不到，
+      // 于是每单都被标一句「词表里已经没有这个码了」——那是假报警（10-16 走查现场）。
+      // 顺序本身是这一格的意思，所以按「 → 」连，不重排、不翻译。
+      const picked = readBriefSelections([question], brief)[question.key];
+      const keys = Array.isArray(picked) ? picked.map(String) : picked ? [String(picked)] : [];
+      row.value = keys.filter(Boolean).join(' → ');
+      return row;
+    }
+    if (question.select === 'pages') {
+      // 页面清单是对象数组，String() 出来是「[object Object]」三行（10-16 走查现场）：
+      // 逐页取「标题（/网址段）」，标题没填就退回 key——这两个字段都在这一行里，不是新造的事实。
+      const raw = (brief as unknown as Record<string, unknown>)[snakeToCamel(question.key)];
+      const pages = Array.isArray(raw) ? (raw as Array<Record<string, unknown>>) : [];
+      row.value = pages
+        .map(page => {
+          const title = String(page?.title ?? '').trim() || String(page?.key ?? '').trim();
+          const slug = String(page?.slug ?? '').trim();
+          return title ? (slug ? `${title}（/${slug}）` : title) : '';
+        })
+        .filter(Boolean)
+        .join('、');
       return row;
     }
     const picked = readBriefSelections([question], brief)[question.key];
@@ -963,7 +988,10 @@ export interface BriefCandidateSite {
   focus?: string | null;
   tone?: string | null;
   stage?: string | null;
+  /** 中文说法只来自后端的 ProposalStages 词表（同 BriefCandidateProgress），界面不许抄第二份阶段词表 */
+  stageLabel?: string | null;
   status?: string | null;
+  statusLabel?: string | null;
   /** 读口恒为 null：令牌明文只在签发那一刻存在过，这里留着这一格是为了和后端字段逐字对齐，不是给界面当链接渲 */
   previewToken: string | null;
   /** 同上，恒为 null */

@@ -19,7 +19,7 @@ vi.mock('../http', () => ({
   }
 }))
 
-import { siteBriefsApi, vocabularyApi, findProfileQuestion, type SiteBriefForm, type SiteBriefVocabulary } from '../siteBriefs'
+import { siteBriefsApi, vocabularyApi, findProfileQuestion, briefAnswerRows, type SiteBrief, type SiteBriefForm, type SiteBriefVocabulary } from '../siteBriefs'
 
 function lastCall(): { method: string; url: string; rest: unknown[] } {
   const entry = calls[calls.length - 1]
@@ -131,5 +131,72 @@ describe('axios 实例 baseURL 已是 /api', () => {
     expect(offenders).toEqual([])
     // 反向自验：这条正则认得出旧毛病
     expect(/['"]\/api\/[^'"]*['"]/g.test("http.get('/api/admin/site-briefs')")).toBe(true)
+  })
+})
+
+/**
+ * 详情读回那一族（10-16 走查现场）：这四种格子在词表里【没有】选项码，
+ * 一旦被扔进「按选项码翻名」那一条路，界面上就是
+ * 「[object Object]、[object Object]」和每行尾巴一句「（词表里已经没有这个码了）」——
+ * 客户的原话被念坏，还顺手报警说码丢了。
+ */
+describe('briefAnswerRows：自由文本 / 颜色 / 区块顺序 / 页面清单逐字读回', () => {
+  const vocabulary = {
+    questions: [
+      { key: 'audience_note', label: '目标用户是谁（客户原话）', select: 'textarea', required: false, options: [] },
+      { key: 'brand_color', label: '品牌主色', select: 'color', required: false, options: [{ code: 'ai', label: '交给 AI 定' }] },
+      { key: 'home_layout', label: '首页区块顺序', select: 'block-order', required: false, options: [] },
+      { key: 'page_plan', label: '页面清单（客户点名要哪些页）', select: 'pages', required: false, options: [] },
+      { key: 'audiences', label: '主要客户', select: 'multi', required: false, options: [{ code: 'distributor', label: '经销商' }] }
+    ],
+    siteProfile: [],
+    candidateMaxCount: 3,
+    demoContentModes: [],
+    statusLabels: {}
+  } as unknown as SiteBriefVocabulary
+
+  const brief = {
+    id: 462,
+    tenantId: 326,
+    audienceNote: '欧美中小型五金经销商的采购负责人，习惯先查官网再发询盘',
+    brandColor: '#1B3A5C',
+    homeLayout: ['case-grid', 'cta-band', 'inquiry-form'],
+    pagePlan: [
+      { key: 'home', slug: 'home', title: '纳欣精密制造 · 精密冲压件出口' },
+      { key: 'contact', slug: 'contact', title: '联系我们' },
+      { key: 'cases', slug: 'cases', title: '', purpose: '案例页' }
+    ],
+    audiences: ['distributor']
+  } as unknown as SiteBrief
+
+  function row(key: string) {
+    return briefAnswerRows(vocabulary, brief).find(item => item.key === key)!
+  }
+
+  it('textarea 与 color：库里存什么就念什么，且不报警「码丢了」', () => {
+    expect(row('audience_note').value).toBe('欧美中小型五金经销商的采购负责人，习惯先查官网再发询盘')
+    expect(row('audience_note').unknown).toBe(false)
+    expect(row('brand_color').value).toBe('#1B3A5C')
+    expect(row('brand_color').unknown).toBe(false)
+  })
+
+  it('block-order：按顺序用箭头连，不查本题选项（区块名不在词表这一格）', () => {
+    expect(row('home_layout').value).toBe('case-grid → cta-band → inquiry-form')
+    expect(row('home_layout').unknown).toBe(false)
+  })
+
+  it('pages：逐页念「标题（/网址段）」，标题空了退回 key，不许冒出 [object Object]', () => {
+    const value = row('page_plan').value
+    expect(value).toBe('纳欣精密制造 · 精密冲压件出口（/home）、联系我们（/contact）、cases（/cases）')
+    expect(value).not.toContain('[object Object]')
+    expect(row('page_plan').unknown).toBe(false)
+  })
+
+  it('反向自验：勾选题照旧要翻名，没翻到才报警——这条闸不是给所有格子开的', () => {
+    expect(row('audiences').value).toBe('经销商')
+    expect(row('audiences').unknown).toBe(false)
+    const bad = { ...brief, audiences: ['ghost'] } as unknown as SiteBrief
+    const rows = briefAnswerRows(vocabulary, bad)
+    expect(rows.find(item => item.key === 'audiences')?.unknown).toBe(true)
   })
 })
