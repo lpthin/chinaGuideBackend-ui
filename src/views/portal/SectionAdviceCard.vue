@@ -81,9 +81,7 @@
             : '点了「填进下面的草稿」只是把值搬到卡片里，仍然要在下面那条「保存到站点」按一次才落库。'
         }}
       </p>
-      <p v-else-if="siteId === null" class="advice-card__muted">
-        这一单还没有绑定站点：建议可以先看，但没有可写的站点，所以「保存到站点」是灭的。
-      </p>
+      <p v-else-if="saveHint" class="advice-card__muted">{{ saveHint }}</p>
 
       <p v-if="generateNotice" class="advice-card__notice-text">{{ generateNotice }}</p>
       <a-alert v-if="saveError" type="error" show-icon class="advice-card__notice">
@@ -168,6 +166,27 @@ const canApply = computed(() =>
 const canSave = computed(() =>
   props.mode === 'save' && hasAdvice.value && adviceItems.value.length > 0 && props.siteId !== null
 )
+
+/**
+ * 「保存到站点」灭着的时候必须当场说清灭在哪一条。
+ *
+ * <p>以前只讲「没绑定站点」那一种（10-16 走查现场：单已转正、站点都回填了，建议却一颗没生成过，
+ * 按钮照旧是灭的，那行解释跟着 `siteId` 一起消失——一颗没人解释的灰按钮）。</p>
+ * <p>读口没成功时一句都不说：那时连「有没有建议」都不知道，编出来的理由就是谎话。</p>
+ */
+const saveHint = computed(() => {
+  if (props.mode !== 'save' || !view.value) return ''
+  if (props.siteId === null) {
+    return '这一单还没有绑定站点：建议可以先看，但没有可写的站点，所以「保存到站点」是灭的。'
+  }
+  if (!view.value.generated) {
+    return '这颗是灭的，因为还没有可保存的建议（后端回的是 generated=false）：先点左边那颗「生成一版建议」，建议出来了这里才有东西可写。'
+  }
+  if (adviceItems.value.length === 0) {
+    return '这颗是灭的，因为后端这次回的是 0 条建议：没有行可写。'
+  }
+  return ''
+})
 
 async function load() {
   if (props.briefId === null) {

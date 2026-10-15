@@ -282,6 +282,35 @@ describe('建议怎么落地（AI 只出建议，写库那一下是人按的）'
     expect(portalSectionsApi.adminBulkUpdate).not.toHaveBeenCalled()
   })
 
+  it('单已绑定站点、建议一颗没生成：按钮灭着也得说清灭在「没有可保存的建议」（10-16 走查现场）', async () => {
+    mounted({ mode: 'save', siteId: 343 })
+    await flushPromises()
+    expect(buttonThat('保存到站点')!.disabled).toBe(true)
+    expect(bodyText()).toContain('还没有可保存的建议')
+    expect(bodyText()).toContain('生成一版建议')
+    // 站点已经有了，那句「还没有绑定站点」就不许再挂
+    expect(bodyText()).not.toContain('还没有绑定站点')
+  })
+
+  it('后端回 generated=true 但 0 条：灭的理由是「没有行可写」，不是没绑定站点', async () => {
+    vi.mocked(portalSectionsApi.advice).mockResolvedValueOnce({ generated: true, items: [], generatedAt: '2026-09-01' } as any)
+    mounted({ mode: 'save', siteId: 343 })
+    await flushPromises()
+    expect(buttonThat('保存到站点')!.disabled).toBe(true)
+    expect(bodyText()).toContain('0 条建议：没有行可写')
+    expect(bodyText()).not.toContain('还没有可保存的建议')
+  })
+
+  it('读口本身没成功（404/500/缺码）时不许编理由：连有没有建议都不知道', async () => {
+    vi.mocked(portalSectionsApi.advice).mockRejectedValueOnce(new Error('请求的内容不存在或已被删除'))
+    mounted({ mode: 'save', siteId: 343 })
+    await flushPromises()
+    expect(buttonThat('保存到站点')!.disabled).toBe(true)
+    expect(bodyText()).not.toContain('还没有可保存的建议')
+    expect(bodyText()).not.toContain('还没有绑定站点')
+    expect(bodyText()).not.toContain('没有行可写')
+  })
+
   it('栏目页上那种（apply）：点「填进下面的草稿」只把值交回父组件，一条写请求都不发', async () => {
     const wrapper = await withAdvice({ mode: 'apply' })
     await click(buttonThat('填进下面的草稿'))
