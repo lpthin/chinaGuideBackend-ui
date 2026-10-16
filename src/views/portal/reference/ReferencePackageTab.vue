@@ -52,7 +52,7 @@
                 · {{ label('requiredSignal', slot.requiredSignal) }}
               </span>
             </div>
-            <div v-if="record.slotNote" class="reference-site-page__error">{{ record.slotNote }}</div>
+            <div v-if="record.slotNote" class="reference-site-page__slot-note">{{ record.slotNote }}</div>
           </template>
         </template>
         <template #emptyText>
@@ -201,14 +201,11 @@ const vocabularyRows = computed(() =>
     font-size: 12px;
   }
 
-  &__error {
+  /* 这句讲的就是「后面那些没显示」，自己再被省略号截半等于把那两个数也藏起来；列表页那格的截断有 tooltip 兜着，这一格没有 */
+  &__slot-note {
     color: #cf1322;
-    display: inline-block;
-    max-width: 240px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: bottom;
+    font-size: 12px;
+    line-height: 1.6;
   }
 
   &__slot {
