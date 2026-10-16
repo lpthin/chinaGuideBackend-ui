@@ -186,7 +186,7 @@ describe('进页面只读列表，正文等人点', () => {
     expect(bodyText()).toContain('左栏点一份')
   })
 
-  it('八份按后端回的顺序与标题摆出来，界面上一个 purpose 都不自己编', async () => {
+  it('清单按后端回的顺序与标题摆出来，界面上一个 purpose 都不自己编', async () => {
     mounted()
     await flushPromises()
 

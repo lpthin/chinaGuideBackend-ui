@@ -180,7 +180,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // 原「建站交付」2 项 + 原「参考与样式」3 项 + 骨架库；Spec-C §7：「建站流水线」整页删除，
   // 主线收进需求单详情。骨架库跟着它服务的「造一个站」走，不再单列一组）
   'workspace-portal-wizard': 'build',
-  // 平台默认提示词（Spec-M D2/P1）：建站那一族八份的写口。跟着「造一个站」那一组，
+  // 平台默认提示词（Spec-M D2/P1）：建站那一族的写口。跟着「造一个站」那一组，
   // 不与系统管理里那颗「提示词」（article 那条链的 prompt 表）混在同一组——两页读的不是同一张表。
   'workspace-portal-prompts': 'build',
   'workspace-portal-reference-sites': 'build',
