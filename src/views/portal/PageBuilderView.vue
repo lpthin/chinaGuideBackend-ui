@@ -53,6 +53,8 @@
                 >
                   <a-space direction="vertical" size="0" style="width: 100%">
                     <span>{{ item.title || item.slug || '未命名页面' }}</span>
+                    <!-- 只有「全部站点」这一档需要它：单站口径下列表里本来就只有一家站的页 -->
+                    <span v-if="siteId === null" class="page-builder__muted">站点：{{ siteLabel(item) }}</span>
                     <a-space size="4">
                       <a-tag>{{ statusLabels[item.status] || item.status }}</a-tag>
                       <span class="page-builder__muted">v{{ item.version }}</span>
@@ -372,6 +374,20 @@ const statusOptions = computed(() =>
 )
 
 const siteOptions = computed(() => sites.value.map(site => ({ value: site.id, label: site.name })))
+
+/**
+ * 「全部站点」那一档必须说出每一行属于哪一家。
+ *
+ * <p>2026-10-16 走查：一个租户同时有开通站与交付站时，页面列表里两行的标题都叫「首页」，
+ * 界面不写站点就分不出改的是哪一座——点错一行，保存下去改的就是另一座站的页。</p>
+ */
+const siteNames = computed(() => new Map(sites.value.map(site => [site.id, site.name])))
+
+/** 名字读不进来时摆 id，不摆空：空着看着像「这页不属于任何站」，而真相是那一行站点记录没在下拉里 */
+function siteLabel(page: PortalPage): string {
+  if (page.siteId == null) return '未归属站点'
+  return siteNames.value.get(page.siteId) ?? `站点 #${page.siteId}`
+}
 
 const blockGroups = computed(() => {
   const groups = new Map<string, PortalBlockMeta[]>()

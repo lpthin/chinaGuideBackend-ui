@@ -295,3 +295,43 @@ describe('页面搭建：另持建设码的平台侧', () => {
     wrapper.unmount()
   })
 })
+
+describe('页面搭建：「全部站点」那一档得说清每一行属于哪一家', () => {
+  /**
+   * 2026-10-16 走查第 11 条。
+   *
+   * 一个租户同时有开通站与交付站时，页面列表里两行的标题都叫「首页」，界面上又没有站点那一列——
+   * 点错一行，保存下去改的就是另一座站的页。服务端已按站点列表那道闸把候选/归档站的页面圈掉
+   * （`PortalPageListSiteScopeTest`），这一档钉的是剩下的那半：留在列表里的每一行要报得出站名。
+   */
+  const OPEN_SITE = { id: 339, code: 'site-339', name: '滨江开通站', domain: null }
+  const DELIVERY_SITE = { id: 343, code: 'site-343', name: 'walk1016 交付站', domain: null }
+  const DELETED_SITE_PAGE = {
+    ...PAGE, id: 88, siteId: 341, title: '首页', slug: 'home'
+  } as unknown as PortalPage
+  const OPEN_HOME = { ...PAGE, id: 77, siteId: 339, title: '首页', slug: 'home' } as unknown as PortalPage
+  const DELIVERY_HOME = { ...PAGE, id: 99, siteId: 343, title: '首页', slug: 'home' } as unknown as PortalPage
+
+  beforeEach(() => {
+    vi.mocked(portalSitesApi.listMine).mockResolvedValue([OPEN_SITE, DELIVERY_SITE])
+    vi.mocked(portalPagesApi.list).mockResolvedValue([OPEN_HOME, DELIVERY_HOME, DELETED_SITE_PAGE])
+  })
+
+  it('两行同名的「首页」各带自己的站名，且页面清单发的是不带 siteId 的那一发', async () => {
+    const wrapper = await mountView(['portal:page:manage'])
+    // 两家站 ⇒ 下拉不自动选中，列表就是「全部站点」那一档
+    expect(portalPagesApi.list).toHaveBeenCalledWith(expect.objectContaining({ siteId: null }))
+    const rows = wrapper.findAll('.list-item').map(node => node.text())
+    expect(rows).toHaveLength(3)
+    expect(rows.filter(row => row.includes('站点：滨江开通站'))).toHaveLength(1)
+    expect(rows.filter(row => row.includes('站点：walk1016 交付站'))).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('站点行读不进下拉时摆 id，不摆空', async () => {
+    const wrapper = await mountView(['portal:page:manage'])
+    expect(wrapper.text()).toContain('站点：站点 #341')
+    expect(wrapper.text()).not.toContain('站点：undefined')
+    wrapper.unmount()
+  })
+})
