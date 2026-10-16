@@ -68,6 +68,16 @@
               <a-button type="link" size="small" @click="handleAssignRoles(record)">
                 <SettingOutlined /> 角色
               </a-button>
+              <a-tooltip :title="isSelf(record) ? '这是你自己的账号，请去用户中心带当前密码修改' : ''">
+                <a-button
+                  type="link"
+                  size="small"
+                  :disabled="isSelf(record)"
+                  @click="handleResetPassword(record)"
+                >
+                  <KeyOutlined /> 重置密码
+                </a-button>
+              </a-tooltip>
               <a-button
                 type="link"
                 size="small"
@@ -148,6 +158,47 @@
         </a-space>
       </a-checkbox-group>
     </a-modal>
+
+    <!-- 重置密码弹窗：只有平台超管拿得到这条口（后端 requireSuperAdmin），本行是自己的账号时按钮置灰 -->
+    <a-modal
+      v-model:open="pwdModalVisible"
+      :title="`重置密码：${pwdForm.displayName}`"
+      width="520px"
+      :confirm-loading="pwdSubmitting"
+      ok-text="确认重置"
+      @ok="handlePwdSubmit"
+      @cancel="handlePwdCancel"
+    >
+      <a-alert type="warning" show-icon>
+        <template #message>这一步不看对方的当前密码，重置完请当面把新密码交给本人。</template>
+        <template #description>
+          重置不会把对方已经登录的会话踢下线——登录令牌是无状态的，没有「密码变更时刻」可以比，
+          对方要用新密码登录得等他这一次会话自己过期或主动退出。
+        </template>
+      </a-alert>
+      <a-form
+        ref="pwdFormRef"
+        :model="pwdForm"
+        :rules="pwdRules"
+        layout="vertical"
+        style="margin-top: 16px"
+      >
+        <a-form-item label="新密码" name="newPassword">
+          <a-input-password
+            v-model:value="pwdForm.newPassword"
+            placeholder="6-32 个字符"
+            autocomplete="new-password"
+          />
+        </a-form-item>
+        <a-form-item label="确认新密码" name="confirmPassword">
+          <a-input-password
+            v-model:value="pwdForm.confirmPassword"
+            placeholder="再输入一遍"
+            autocomplete="new-password"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -157,6 +208,7 @@ import { message } from 'ant-design-vue'
 import {
   PlusOutlined,
   EditOutlined,
+  KeyOutlined,
   SettingOutlined,
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
@@ -179,6 +231,16 @@ const currentUserId = ref<number | null>(null)
 const users = ref<any[]>([])
 const roleList = ref<Role[]>([])
 const selectedRoleIds = ref<number[]>([])
+
+const pwdModalVisible = ref(false)
+const pwdSubmitting = ref(false)
+const pwdFormRef = ref()
+const pwdForm = reactive({
+  id: null as number | null,
+  displayName: '',
+  newPassword: '',
+  confirmPassword: '',
+})
 
 const pagination = reactive({
   current: 1,
@@ -217,6 +279,23 @@ const rules = {
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, max: 32, message: '密码长度为 6-32 个字符', trigger: 'blur' },
+  ],
+}
+
+const pwdRules = {
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 32, message: '新密码长度为 6-32 个字符', trigger: 'blur' },
+  ],
+  confirmPassword: [
+    { required: true, message: '请再输入一遍新密码', trigger: 'blur' },
+    {
+      validator: (_rule: unknown, value: string) =>
+        !value || value === pwdForm.newPassword
+          ? Promise.resolve()
+          : Promise.reject(new Error('两次输入的新密码不一致')),
+      trigger: 'blur',
+    },
   ],
 }
 
@@ -412,6 +491,42 @@ async function handleToggleStatus(record: any) {
     loadUsers()
   } catch (error) {
     message.error(`操作失败：${describeHttpError(error)}`)
+  }
+}
+
+function isSelf(record: any) {
+  return record?.id != null && record.id === authStore.user?.id
+}
+
+function handleResetPassword(record: any) {
+  pwdForm.id = record.id
+  pwdForm.displayName = record.nickname || record.username
+  pwdForm.newPassword = ''
+  pwdForm.confirmPassword = ''
+  pwdModalVisible.value = true
+}
+
+function handlePwdCancel() {
+  pwdFormRef.value?.clearValidate()
+  pwdModalVisible.value = false
+}
+
+async function handlePwdSubmit() {
+  if (!pwdForm.id) return
+  try {
+    await pwdFormRef.value?.validate()
+  } catch {
+    return
+  }
+  pwdSubmitting.value = true
+  try {
+    await adminApi.users.resetPassword(pwdForm.id, pwdForm.newPassword)
+    message.success(`已重置「${pwdForm.displayName}」的密码，请当面把新密码交给本人`)
+    pwdModalVisible.value = false
+  } catch (error) {
+    message.error(`重置密码失败：${describeHttpError(error)}`)
+  } finally {
+    pwdSubmitting.value = false
   }
 }
 

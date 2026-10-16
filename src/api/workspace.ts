@@ -468,6 +468,9 @@ export const adminApi = {
       http.delete<void>(`/admin/users/${id}`),
     updateStatus: (id: number, status: string) =>
       http.patch<void>(`/admin/users/${id}/status`, { status }),
+    // 超管代别人重置密码：不需要也不接受「当前密码」。这一支只给平台超管用，改自己走 /user/password。
+    resetPassword: (id: number, newPassword: string) =>
+      http.put<void>(`/admin/users/${id}/password`, { newPassword }),
     getRoles: (id: number) =>
       http.get<number[]>(`/admin/users/${id}/roles`),
     assignRoles: (id: number, roleIds: number[]) =>

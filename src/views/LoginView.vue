@@ -45,7 +45,7 @@
 
         <a-form-item>
           <a-space class="form-options" :size="16">
-            <span class="form-hint">请联系管理员重置密码</span>
+            <span class="form-hint">忘记密码请联系平台管理员在「用户管理」里重置</span>
           </a-space>
         </a-form-item>
 
