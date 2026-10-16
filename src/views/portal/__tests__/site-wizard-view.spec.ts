@@ -964,5 +964,124 @@ describe('新建网站向导', () => {
     // 段清单在这一屏因此一格都不摆：没有后端那份清单，界面不抄第二份
     expect(bodyText()).not.toContain('1 项目概述')
   })
+
+  /**
+   * M-P33 拍板 6：价签说「这一趟要花多少」，旁边那一份说「到这一刻已经花了多少」。
+   * 两份并排、不合成一句；句子全来自后端 `WorkbenchBurnLedger`，界面只负责摆。
+   */
+  it('第 3 步把「这一家已经烧了多少」与价签并排摆着，两份数字各说各的口径', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED' }))
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([])
+    vi.mocked(briefGenerationApi.estimate).mockResolvedValue({
+      briefId: 7,
+      estimateId: 'est-burn',
+      estimate: {
+        candidateCount: 3,
+        pagesPerCandidate: 5,
+        estimatedTokens: 120000,
+        aiEnabled: true,
+        tenantBearsCost: false,
+        breakdown: ['3 套 × 每套 5 页'],
+        missingSwitches: [],
+        notice: '这是预估，不是账单'
+      },
+      platformBurn: {
+        calls: 5,
+        successCalls: 4,
+        failedCalls: 1,
+        tokenEquivalents: 8000,
+        cost: null,
+        lines: [
+          '这条建站链在这一家名下已经跑过 5 发外呼（成功 4 发、失败 1 发），流水表记的 token 合计 8000。',
+          '失败那 1 发没有 token 数（那一行落库时留空），所以上面那个合计里没有它们。',
+          '钱：这一族用到的模型行到今天一条都没定过价，这里是「未配价」，不是一个 0 元。',
+          '这些钱没有一分进过他的额度：交付没确定之前，这条链由平台承担，系统不设硬闸。',
+          '口径：只认 ai_call_log 里建站那一族 purpose 的行。'
+        ],
+        tokenBasis: '这一份是 ai_call_log 那把字数尺（提示词字数 ÷ 4）'
+      }
+    } as any)
+
+    mountAt('generate', '7')
+    await flushPromises()
+    await click(buttonThat('在这一屏算一次价'))
+
+    expect(bodyText()).toContain('已经跑过 5 发外呼')
+    expect(bodyText()).toContain('失败那 1 发没有 token 数')
+    expect(bodyText()).toContain('未配价')
+    expect(bodyText()).toContain('系统不设硬闸')
+    expect(bodyText()).toContain('口径：只认 ai_call_log')
+    expect(bodyText()).toContain('这一份是 ai_call_log 那把字数尺')
+    // 两份数字各说各的：价签那一句仍然单独在，已烧量不吞进价格里
+    expect(bodyText()).toContain('预估 120000 token')
+  })
+
+  /** 后端没下发这一份读数时念「没回读数」，不替它编 0（0 说的是「一次都没跑过」，那是另一档真话） */
+  it('第 3 步：后端没回已烧读数时念「没回读数」，不念成 0 发', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED' }))
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([])
+    vi.mocked(briefGenerationApi.estimate).mockResolvedValue({
+      briefId: 7,
+      estimateId: 'est-noburn',
+      estimate: {
+        candidateCount: 1,
+        pagesPerCandidate: 2,
+        estimatedTokens: 3000,
+        aiEnabled: true,
+        tenantBearsCost: true,
+        breakdown: [],
+        missingSwitches: [],
+        notice: '这是预估，不是账单'
+      }
+      // 故意不给 platformBurn：老后端、或后端那一发读挂了都长这样
+    } as any)
+
+    mountAt('generate', '7')
+    await flushPromises()
+    await click(buttonThat('在这一屏算一次价'))
+
+    expect(bodyText()).toContain('后端这一发没回读数')
+    expect(bodyText()).not.toContain('0 发外呼')
+    expect(bodyText()).not.toContain('跑过 0 发')
+    // 只读数不设闸：这一格读不到，确认与报价那两句照旧摆着
+    expect(bodyText()).toContain('est-noburn')
+  })
+
+  /**
+   * 拍板 4：那句「重跑只补失败的那一套」被源码证伪（`archivePreviousCandidates` 归档整轮、
+   * 全仓没有单套补跑的口）⇒ 界面改成说整轮，并把这一轮的实测代价摆出来让人自己掂量。
+   */
+  it('「重跑只补失败的那一套」那句已经改口：重来是整轮，且这一轮实测代价摆在旁边', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([
+      candidate({ candidateNo: 1 }),
+      candidate({ candidateId: 12, candidateNo: 2, siteId: 53, siteName: '候选 B' })
+    ])
+    // 只有第 1 套回实耗：第 2 套那一行整个没回，也要算进「没回实耗」的套数，不能从合计里悄悄消失
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([
+      progressRow({ promptTokens: 900, completionTokens: 4000 })
+    ])
+
+    mountAt('generate', '7')
+    await flushPromises()
+
+    expect(bodyText()).not.toContain('重跑只补失败的那一套')
+    expect(bodyText()).toContain('要重来是')
+    expect(bodyText()).toContain('整轮')
+    expect(bodyText()).toContain('会再烧一趟')
+    expect(bodyText()).toContain('那个口今天还没有')
+    expect(bodyText()).toContain('这一轮实测：900 + 4000 = 4900 token')
+    expect(bodyText()).toContain('另有 1 套这一发没回实耗')
+    // 套数只认价签那一格：第 4 步没人点过算价，界面不许拿进度行数冒充配置
+    expect(bodyText()).toContain('后端这一发没回套数')
+  })
 })
 

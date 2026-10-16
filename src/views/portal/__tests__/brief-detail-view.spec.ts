@@ -328,6 +328,64 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     wrapper.unmount()
   })
 
+  /**
+   * M-P33 拍板 6：这一屏在价签下面并排摆「到这一刻已经花了多少」。
+   * 钉两件事：句子逐字来自后端那一份（`WorkbenchBurnLedger`），以及**这一份读数不拦确认**——
+   * 钱多、未配价、读不到，都不许变成第七道闸。
+   */
+  it('需求单详情把「已替平台烧了多少」逐行摆出来：只读数，不因为读不到就拦确认', async () => {
+    const wrapper = await mountView({
+      estimateData: {
+        ...DEFAULT_ESTIMATE,
+        platformBurn: {
+          calls: 5,
+          successCalls: 4,
+          failedCalls: 1,
+          tokenEquivalents: 8000,
+          cost: null,
+          lines: [
+            '这条建站链在这一家名下已经跑过 5 发外呼（成功 4 发、失败 1 发），流水表记的 token 合计 8000。',
+            '失败那 1 发没有 token 数（那一行落库时留空），所以上面那个合计里没有它们。',
+            '钱：这一族用到的模型行到今天一条都没定过价，这里是「未配价」，不是一个 0 元。',
+            '这些钱没有一分进过他的额度：交付没确定之前，这条链由平台承担，系统不设硬闸。'
+          ],
+          tokenBasis: '这一份是 ai_call_log 那把字数尺（提示词字数 ÷ 4）'
+        }
+      } as any
+    })
+    click(byText('先估算消耗（不调模型）')[0])
+    await flushPromises()
+    const text = wrapper.text()
+
+    expect(text).toContain('已经跑过 5 发外呼')
+    expect(text).toContain('失败那 1 发没有 token 数')
+    expect(text).toContain('未配价')
+    expect(text).toContain('系统不设硬闸')
+    expect(text).toContain('这一份是 ai_call_log 那把字数尺')
+    // 价签那一句仍然单独在：已烧与待烧是两个口径，界面不合成一句
+    expect(text).toContain('合计预估：260000 token')
+    // 门禁还是那六道：这一份读数缺席、难看、未配价，都不许多拦一道
+    expect(checkbox()).toBeTruthy()
+    expect(checkbox()!.disabled).toBe(false)
+    wrapper.unmount()
+  })
+
+  /** 后端没下发这一份：念「这一发没回读数」，不许界面自己补一个 0（0 是「一次都没跑过」那句真话） */
+  it('需求单详情：后端没回已烧读数时念「没回读数」，不念成 0 发', async () => {
+    const wrapper = await mountView()
+    click(byText('先估算消耗（不调模型）')[0])
+    await flushPromises()
+    const text = wrapper.text()
+
+    expect(text).toContain('后端这一发没回读数')
+    expect(text).not.toContain('跑过 0 发')
+    // 这一格读不到不动别的格：价签照念、确认照勾（这一页从来不渲染 estimateId 原串，别拿它当把手）
+    expect(text).toContain('预计 260000 token')
+    expect(checkbox()).toBeTruthy()
+    expect(checkbox()!.disabled).toBe(false)
+    wrapper.unmount()
+  })
+
   it('未交付（售前）的那一趟不许说「扣这个租户的配额」：V142 起这一趟由平台承担', async () => {
     const wrapper = await mountView({
       estimateData: estimateWith({

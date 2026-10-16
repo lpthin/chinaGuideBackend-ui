@@ -786,6 +786,31 @@ export interface BriefEstimateQuote {
 }
 
 /**
+ * `EstimateView.platformBurn`：这一家在这条建站链上<b>已经</b>烧掉的那一份账（M-P33 拍板 6）。
+ *
+ * <p>与价签的区别要说死：`estimate` 是「这一趟要花多少」，这一份是「到这一刻已经花了多少」。
+ * 后端的数取 `ai_call_log` 那把<b>字数尺</b>，所以每一份额度都跟着 `tokenBasis` 那句原话——
+ * 界面上不许把它念成网关实报，也不许自己拼第二份中文（句子唯一出处 `WorkbenchBurnLedger`）。</p>
+ *
+ * <p>这一条链上<b>没有闸</b>：这一份读数的用处只有「摆出来给人看见」，
+ * 前端不许因为 `cost == null` 或次数多就拦住确认按钮。</p>
+ */
+export interface BriefPlatformBurn {
+  /** 这一族 purpose 的外呼次数 */
+  calls?: number | null;
+  successCalls?: number | null;
+  failedCalls?: number | null;
+  /** 流水表那把字数尺的合计（`ai_call_log.token_estimate`），不是账单实扣数 */
+  tokenEquivalents?: number | null;
+  /** 钱：这一族一条都没定过价时后端回 null（界面上是那句「未配价」的原话），不是 0 */
+  cost?: number | string | null;
+  /** 后端逐行拼好的中文原话，界面原样列 */
+  lines?: string[] | null;
+  /** 那句尺的原话，唯一出处 `TokenYardstick.callLog()` */
+  tokenBasis?: string | null;
+}
+
+/**
  * `POST /admin/site-briefs/{id}/estimate` 的回包（后端 `EstimateView`，零模型调用）。
  *
  * 外层是「这是哪一单的第几次估算 + 确认凭据」，里层 {@link estimate} 才是价签。
@@ -798,6 +823,8 @@ export interface BriefEstimate {
   /** 喂给模型的那句需求原话（后端渲染，界面只转述） */
   requirementsSummary?: string | null;
   estimate: BriefEstimateQuote;
+  /** 已经烧掉的那一份（只读账，不进 `estimateId` 的散列） */
+  platformBurn?: BriefPlatformBurn | null;
 }
 
 /**

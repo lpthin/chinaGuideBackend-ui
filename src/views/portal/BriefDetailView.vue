@@ -358,6 +358,19 @@ const estimateText = computed(() => {
 /** 开关缺口（缺哪个开关、为什么这次没图）：后端原话逐条列，只说明不门禁（拍板 8B） */
 const missingSwitchLines = computed(() => quote.value?.missingSwitches ?? [])
 
+/**
+ * 「这一家在这条链上已经烧了多少」那几行（M-P33 拍板 6）：后端原话逐条列 + 那句尺。
+ *
+ * <p>与 `missingSwitchLines` 同一族纪律——<b>只摆读数，不门禁</b>：这一条链上门禁只有那六道
+ * （确认、开关、规格、同租户在飞、凭据、配额），拿「已经烧得多」再拦一道是反着实现一遍拍板。
+ * 句子全在后端那一处（`WorkbenchBurnLedger`），界面上不拼第二个数字。</p>
+ */
+const burnLines = computed(() => {
+  const burn = estimate.value?.platformBurn
+  if (!burn) return []
+  return [...(burn.lines ?? []), ...(burn.tokenBasis ? [burn.tokenBasis] : [])]
+})
+
 /** 这一档今天到底能不能出图：false 不是失败，图位会留空并由人补（拍板 8B） */
 const imageAvailable = computed(() => quote.value?.imageAvailable !== false)
 
@@ -738,6 +751,13 @@ onUnmounted(stopPolling)
             tenantBearsCost ? '并扣配额' : '（这一趟由平台承担，不进该租户的账单）' }}。要收手先把勾去掉。
         </p>
         <a-alert v-if="estimate" type="info" show-icon class="brief-detail__alert" :message="estimateText" />
+        <!-- 已经烧掉的那一本账（M-P33 拍板 6）：与上面那句「这一趟要花多少」并排摆着，只读数不设闸 -->
+        <ul v-if="burnLines.length" class="brief-detail__progress-list">
+          <li v-for="line in burnLines" :key="line" class="brief-detail__muted">{{ line }}</li>
+        </ul>
+        <p v-else-if="estimate" class="brief-detail__muted">
+          这一家在这条链上已经烧掉多少，后端这一发没回读数（不是「0」，是这一格我没读到）。
+        </p>
         <!-- 缺口只说明、不门禁：配图缺了照样出一套纯文字候选（拍板 8B），拿它当闸就是反着实现一遍 -->
         <ul v-if="missingSwitchLines.length" class="brief-detail__progress-list">
           <li v-for="line in missingSwitchLines" :key="line" class="brief-detail__locked">{{ line }}</li>

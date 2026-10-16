@@ -156,7 +156,8 @@ function progressOf(candidate: BriefCandidateSite): BriefCandidateProgress | nul
 /**
  * 这一套的账：三本账拼成一句人话，直接摆在屏上。
  * 取不到读数的项念「没取到」，不许念成 0——0 是「一张都没出」，没取到是「这一格我没读到」，
- * 两者在「重跑只补失败那一套」这条判据上是两件事。
+ * 两者在「这一轮的实测代价要加进哪一头」这条判据上是两件事（M-P33-B 订正：本仓<b>没有</b>
+ * 「只补失败那一套」那个口，重跑是整轮，见下面 {@link roundActualLine} 那一句）。
  */
 function setLedger(candidate: BriefCandidateSite): string {
   const row = progressOf(candidate)
@@ -166,6 +167,48 @@ function setLedger(candidate: BriefCandidateSite): string {
     `实耗 ${row?.promptTokens ?? '没取到'} + ${row?.completionTokens ?? '没取到'} token`
   ].join('；')
 }
+
+/**
+ * 这一轮的<b>实测</b>代价（网关实报那一把尺，逐套相加）。
+ *
+ * <p>它只为下面那句「重跑是整轮」服务：说「会再烧一趟」而不摆这一趟的数，等于让人凭感觉点头。</p>
+ *
+ * <p>没回实耗的套数单独念、<b>不并进合计</b>：把「这一套的账我还没读到」加成 0 就是把总数说小，
+ * 而这一轮还在跑时每一套都可能暂时没有数（那是常态，不是缺陷）。
+ * 尺的口径跟着候选行那两列走（{@code prompt_tokens}/{@code completion_tokens} 是模型实报），
+ * 与价签那把字数尺是两把尺，不许互相套用。</p>
+ */
+const roundActualTokens = computed(() => {
+  // 以「这一轮真有几套」为分母：进度接口少回一行，那一套就是「没回实耗」，而不是从合计里悄悄消失
+  const rows = candidates.value.length
+    ? candidates.value.map(candidate => progressOf(candidate))
+    : progress.value.map(row => row as BriefCandidateProgress | null)
+  let prompt = 0
+  let completion = 0
+  let unread = 0
+  rows.forEach(row => {
+    const p = typeof row?.promptTokens === 'number' ? row.promptTokens : null
+    const c = typeof row?.completionTokens === 'number' ? row.completionTokens : null
+    if (p === null || c === null) unread += 1
+    prompt += p ?? 0
+    completion += c ?? 0
+  })
+  return { sets: rows.length, prompt, completion, total: prompt + completion, unread }
+})
+
+const roundActualLine = computed(() => {
+  const round = roundActualTokens.value
+  if (!round.sets) return '这一轮还没有进度行，所以也没有实测代价可读（不是 0）。'
+  return `这一轮实测：${round.prompt} + ${round.completion} = ${round.total} token（模型实报那一把尺，逐套相加）`
+    + (round.unread ? `；另有 ${round.unread} 套这一发没回实耗，没算进上面那个数——不是当成 0` : '')
+    + '。'
+})
+
+/** 下一趟会重生成几套：只认价签那一格，读不到就明说读不到（不拿进度行数冒充这一单的套数配置） */
+const roundSetsLine = computed(() => {
+  const sets = quote.value?.estimate?.candidateCount
+  return sets ? `${sets} 套全部` : '这一单的几套（后端这一发没回套数）'
+})
 
 /** 这一套有没有单独要说的话：待人工、失败记录、后端那几条原话，任一样都算 */
 function hasSetWords(candidate: BriefCandidateSite): boolean {
@@ -385,6 +428,24 @@ const quoteBearer = computed(() => {
 /** 价签下面那几行明细：后端逐行拼好的原话，界面上只折起来，不重写 */
 const quoteBreakdown = computed(() => (quote.value?.estimate?.breakdown ?? []).join('\n'))
 
+/**
+ * 「这一家在这条链上已经烧了多少」的第一行（M-P33 拍板 6）。
+ *
+ * <p>后端没回这一份读数时念「没回读数」，<b>不念成 0</b>：0 说的是「一次都没跑过」，
+ * 那一档后端自己会拼出中文行（`WorkbenchBurnLedger`），前端替它编就等于把两件事说成一件。
+ * 句子全部来自后端，前端只做取第一行这一件事——它同时也是一个闸：
+ * 后端哪天把「次数」那行挪了位置，这里会当场露出原话而不是悄悄少摆一档。</p>
+ */
+const burnHeadline = computed(() => {
+  if (!quote.value) return ''
+  const burn = quote.value.platformBurn
+  if (!burn) return '这一家已经烧掉多少，后端这一发没回读数（不是「0」，是这一格我没读到）。'
+  return burn.lines?.[0] || '后端回了读数，但第一行是空的：这句按原样摆着，前端不替它编。'
+})
+
+/** 除第一行以外的那几行（钱、口径、那两条「不含」），折起来给愿意看的人 */
+const burnRest = computed(() => (quote.value?.platformBurn?.lines ?? []).slice(1).join('\n'))
+
 function statusText(brief: SiteBrief): string {
   return briefStatusLabel(vocabulary.value, brief.status)
 }
@@ -600,6 +661,17 @@ onMounted(async () => {
           <template v-if="quote">
             <p class="site-wizard__reading site-wizard__row">{{ quoteSummary }}</p>
             <p v-if="quoteBearer" class="site-wizard__hint">{{ quoteBearer }}</p>
+            <!-- 已经烧掉的那一份（M-P33 拍板 6：只把读数摆出来，这一条链上没有闸，读不到也不拦确认） -->
+            <div class="site-wizard__burn">
+              <p class="site-wizard__reading">{{ burnHeadline }}</p>
+              <p v-if="quote.platformBurn?.tokenBasis" class="site-wizard__hint">{{ quote.platformBurn.tokenBasis }}</p>
+              <FoldedText
+                v-if="burnRest"
+                :raw="burnRest"
+                summary="这份账是怎么算出来的（钱那一档、口径与那两条「不含」都在展开里）"
+                raw-label="后端逐行拼的原话（逐字）"
+              />
+            </div>
             <p v-if="quote.estimate.missingSwitches?.length" class="site-wizard__hint">
               缺的开关：{{ quote.estimate.missingSwitches.join('、') }}（缺一样，确认框就不该能勾）
             </p>
@@ -653,8 +725,12 @@ onMounted(async () => {
               <template v-else>{{ record[column.dataIndex as string] ?? '-' }}</template>
             </template>
           </a-table>
+          <p class="site-wizard__hint">{{ roundActualLine }}</p>
           <p class="site-wizard__hint">
-            哪一套失败只影响那一套：其它照跑，重跑只补失败的那一套（拍板里那条「逐套子任务」口径）。
+            同一轮里哪一套失败只影响那一套：其它套照跑，系统不会在这一轮里替失败那一套重试。
+            但要重来是<b>整轮</b>——去这一单的详情页按「收口重跑」（那一步只把上一轮的候选转成「已归档」、
+            撤销预览令牌，不调模型、不花钱），再按一次「开始出方案」就是{{ roundSetsLine }}重新生成一遍，
+            <b>会再烧一趟上面那个数这个量级的钱</b>。「只补失败那一套」那个口今天还没有（M-P34 的活，不是话术）。
           </p>
         </div>
 
@@ -845,5 +921,12 @@ onMounted(async () => {
   padding: 12px;
   border: 1px solid #eef0f3;
   border-radius: 6px;
+}
+
+/* 价签里那一格「已经烧掉的」：与「这一趟要花的」同屏但要看得出是两本账 */
+.site-wizard__burn {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #e3e6eb;
 }
 </style>
