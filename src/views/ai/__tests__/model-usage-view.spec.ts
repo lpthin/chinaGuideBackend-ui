@@ -229,18 +229,22 @@ describe('接口没回的那几项，界面上不许出现假 0', () => {
   /**
    * Q-P7-6a：「总费用 ¥0.00」以前一直在报一本不存在的账——SQL 里那层 COALESCE 把
    * 「这一列从来没写过数」兜成了「0 元」。后端在全 NULL 时回 null，这一条钉的是界面那一半：
-   * 念「未统计」，而不是留一个看起来像读数的 0。
+   * 不许多数出一个看起来像读数的 0。
    *
    * <p>P9-A 起 {@code cost_estimate} 有了写入点（ModelPricing 按模型单价算），所以今天这一格
-   * 的三态是：数字 = 定价模型的真账，0 = 那些模型定价就是 0，「未统计」= 这一段窗口里的调用
+   * 的三态是：数字 = 定价模型的真账，0 = 那些模型定价就是 0，「未配价」= 这一段窗口里的调用
    * 全落在没定价的模型上。三态不许互换，所以这里仍然不许念 ¥0.00。</p>
+   *
+   * <p>2026-10-16 走查第 10 条把第三个词从「未统计」换成「未配价」，并且断言钉在**那一格本身**：
+   * 这一屏的环比与那两率本来就叫「未统计」，整页文本断言 {@code toContain('未统计')} 在两格里
+   * 哪一格绿都能过——上一条改动把费用页换成「未配价」之后，那份旧断言仍然是绿的（假绿）。</p>
    */
-  it('费用那一列后端回 null：念「未统计」并指回额度，不念 ¥0.00', async () => {
+  it('费用那一格后端回 null：只念「未配价」，不占「未统计」那个词，也不念 ¥0.00', async () => {
     const wrapper = await mountView({ ...STATS, totalCost: null })
-    const text = wrapper.text()
-    expect(text).toContain('未统计')
-    expect(wrapper.find('.stat-value--none').exists()).toBe(true)
-    expect(text).not.toContain('¥0.00')
+    const cell = wrapper.find('.stat-value--none')
+    expect(cell.exists()).toBe(true)
+    expect(cell.text()).toBe('未配价')
+    expect(wrapper.text()).not.toContain('¥0.00')
     expect(wrapper.find('.stat-note').text()).toContain('扣费流水')
   })
 

@@ -82,18 +82,20 @@
                   Q-P7-6a 起这一格不再恒念「¥0.00」；P9-A 起它有真来源：ModelPricing 按
                   「这一笔当时那台模型的单价」把 cost_estimate 算死再落库。
                   于是这里的三态是准的：数字 = 窗口里定价模型的钱；¥0.00 = 那些模型真免费；
-                  「未统计」= 窗口里全是没定价的模型（一行 NULL 都没有），不是「花费为 0」。
+                  「未配价」= 窗口里全是没定价的模型（一行 NULL 都没有），不是「花费为 0」。
                   0 是一个数，而真相是「没有这个数」，两者不许互换（§9.6 同一条纪律）。
+                  「未配价」这个词 2026-10-16 换的：这一屏另有一批正经的「未统计」（环比、那两率后端
+                  没有口径），钱这一路要是也念「未统计」，客户就分不清是没测还是没配价。
                 -->
                 <div class="stat-value" :class="{ 'stat-value--none': !hasStat('totalCost') }">
-                  {{ hasStat('totalCost') ? formatYuan(totalCost) : '未统计' }}
+                  {{ hasStat('totalCost') ? formatYuan(totalCost) : '未配价' }}
                 </div>
                 <div class="stat-title">{{ rangeLabel }}总费用</div>
                 <div v-if="hasStat('costGrowth')" class="stat-trend up">
                   <ArrowUpOutlined /> {{ costGrowth }}% 较上月
                 </div>
                 <p v-if="!hasStat('totalCost')" class="stat-note">
-                  这一段窗口里的调用全落在没定价的模型上，所以费用不念 ¥0。
+                  这一段窗口里的调用全落在没定价的模型上，所以这一格念「未配价」而不报钱，也不念 ¥0。
                   去「模型配置」那一页给这些模型填每 1000 token 的单价，之后的调用就开始计钱
                   （已经落库的那些不回填——单价改一次，历史账就跟着变一次）。
                   额度与扣费流水在下方那块，按 token 记，要在右上角选定租户才读得到。
@@ -491,7 +493,7 @@
                   <div class="tokens-badge">{{ record.tokens ? record.tokens.toLocaleString() : '-' }}</div>
                 </template>
                 <template v-if="column.key === 'cost'">
-                  <!-- 0 与 null 是两个答案：「真免费」和「这一台模型没定价、没统计」。`record.cost ? …` 会把它们并成一个「-」 -->
+                  <!-- 0 与 null 是两个答案：「定过价、真免费」和「这一台模型没配价，所以不报钱」。`record.cost ? …` 会把它们并成一个「-」 -->
                   <span class="cost-value">{{ formatYuan(record.cost) }}</span>
                 </template>
                 <template v-if="column.key === 'duration'">
@@ -942,7 +944,13 @@ const statsTokenBasis = computed<string | null>(() => {
 const logsTokenBasis = ref<string | null>(null)
 
 /**
- * 费用的念法。三位一体：null = 「未统计」（这一台没定价），0 = 「¥0.00」（真免费），有数就报数。
+ * 费用的念法。三位一体：null = 「未配价」（这一台模型没定价，钱这个数压根不存在），
+ * 0 = 「¥0.00」（定过价、就是免费），有数就报数。
+ *
+ * <p>为什么这一档不叫「未统计」（2026-10-16 走查第 10 条拍板「先只念 token，费用页明说未配价」）：
+ * 这一屏上「未统计」还有另一处正经用法——环比、成功率那几格后端压根没有口径（见 hasStat 那一段），
+ * 两处共用一个词，客户分不清到底是「没测」还是「没配价」。钱这一路的真相是「没配价，所以不报钱」，
+ * 界面就直接这么念。</p>
  *
  * <p>为什么要专门写这个而不是 `toFixed(2)`：真跑 P9-A2 时接口回的是 totalCost=0.001742，
  * 卡片按两位小数一舍就成了「¥0.00」——那一眼看上去正是「真免费」，把 P9-A 立起来要区分的
@@ -950,7 +958,7 @@ const logsTokenBasis = ref<string | null>(null)
  * 直接换成科学计数法，宁可念得难看，也不许念成一个看起来像读数的 0。</p>
  */
 function formatYuan(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return '未统计'
+  if (value === null || value === undefined || Number.isNaN(value)) return '未配价'
   if (value === 0) return '¥0.00'
   const abs = Math.abs(value)
   if (abs >= 0.01) return `¥${value.toFixed(2)}`
@@ -1217,7 +1225,7 @@ onMounted(() => {
     line-height: 1.2;
   }
 
-  // 「未统计」不是一个数，不许长得像读数：褪成灰、不加重，免得这一眼扫过去仍当成 ¥ 的额度
+  // 「未配价」不是一个数，不许长得像读数：褪成灰、不加重，免得这一眼扫过去仍当成 ¥ 的额度
   .stat-value--none {
     color: #8c8c8c;
     font-weight: 400;

@@ -100,7 +100,8 @@ export interface ModelConfig {
   /** 接口协议：留空表示由后端按接口地址推断（语义只写在后端 AiProtocols，前端不重复实现） */
   apiProtocol?: string
   /**
-   * 每 1000 token 的单价（元）。null = 没定过价 ⇒ 这一笔的钱「未统计」；0 = 真免费 ⇒ 费用是 ¥0.00。
+   * 每 1000 token 的单价（元）。null = 没定过价 ⇒ 这一笔的钱界面念「未配价」（不报钱，也不报 ¥0.00）；
+   * 0 = 真免费 ⇒ 费用是 ¥0.00。这两个词分工写死：「未统计」只留给后端压根没有口径的格子（环比、那两率）。
    * 这一格只由 setPrice 那个口写（整表单那条 PUT 走 updateById，null 不进 SET，清不掉旧价）。
    */
   pricePer1kTokens?: number | null
