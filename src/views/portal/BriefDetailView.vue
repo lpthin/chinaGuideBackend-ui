@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
+  briefAllowsProposalRerun,
   briefAnswerRows,
   briefDemoModeText,
   briefIsEditable,
@@ -17,6 +18,7 @@ import {
   vocabularyApi,
   type BriefCandidateProgress,
   type BriefEstimate,
+  type BriefEstimateQuote,
   type SiteBrief,
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
@@ -302,7 +304,9 @@ const loadingProgress = ref(false)
 const generateNotice = ref('')
 
 const busy = computed(
-  () => estimating.value || generating.value || loadingProgress.value
+  () => estimating.value || generating.value
+    || rerunEstimating.value || rerunning.value
+    || loadingProgress.value
 )
 
 /** 那颗价签本体：后端把数字装在 `estimate` 这一层里，外层是「哪一单的哪一次估算 + 凭据」 */
@@ -341,8 +345,13 @@ const canEstimate = computed(() => !!brief.value && !busy.value)
 
 const canGenerate = computed(() => canConfirm.value && confirmChecked.value && !busy.value)
 
-const estimateText = computed(() => {
-  const current = quote.value
+/**
+ * 一份价签的中文：数字、逐行明细、那句关于偏差的话全部来自后端，界面只拼接不改写。
+ *
+ * <p>整轮与补跑共用这一支：两趟的价格算给不同的套数，但<b>那份明细的口径只有一份出处</b>
+ * （{@code SiteProposalEstimator}）。界面若给补跑另拼一份「大约是多少」，就是第二套算价逻辑。</p>
+ */
+function priceText(current: BriefEstimateQuote | null): string {
   if (!current) return ''
   const parts = [`预计 ${current.estimatedTokens} token`]
   // 逐行口径（套数/文字/演示内容/配图/合计，以及已交付时的「当月剩余配额」）全来自后端 breakdown：
@@ -353,7 +362,12 @@ const estimateText = computed(() => {
   // 就成了两处真相——后端更新了样本、界面还在说旧倍数。所以只在后端没给时兜底。
   parts.push(current.notice || ESTIMATE_UNDERESTIMATE_DISCLAIMER)
   return parts.join('。')
-})
+}
+
+const estimateText = computed(() => priceText(quote.value))
+
+/** 补跑那一张价签：同一支拼法，只是后端算的是失败那几套的钱 */
+const rerunEstimateText = computed(() => priceText(rerunQuote.value))
 
 /** 开关缺口（缺哪个开关、为什么这次没图）：后端原话逐条列，只说明不门禁（拍板 8B） */
 const missingSwitchLines = computed(() => quote.value?.missingSwitches ?? [])
@@ -459,8 +473,145 @@ async function runGenerate() {
 }
 
 // ------------------------------------------------------------------
-// P4：客户答复留痕 → 转正交棒 → 重跑收口（Spec-C §5 后三行；三口都在 api/siteBriefDelivery）
+// M-P34：只补这一轮里失败的那几套（另一张价签、另一道确认，不是「收口重跑」也不是整轮）
 // ------------------------------------------------------------------
+//
+// 这一族与上面整轮那一族<b>并排放着、各自一套状态</b>，理由不是排版：
+// - 凭据不通用。后端把「mode=rerunFailed|sets=第几套」盖进了 `estimateId` 的散列，
+//   整轮那张价签来补跑会被 9A 拒，反过来也一样——所以这里必须有<b>第二支 estimate</b>，
+//   界面上也就必须有第二个勾。共用一个 `confirmChecked` 等于让一次看图替两趟不同的活签字。
+// - 价格不是一个数：只数失败的那几套（实测是整轮的 1/N），摆在同一行会让人拿整轮的数点头。
+// - 后果不一样：补跑不动成功那几套的站、页面、内容与已发预览链接；整轮重来会把它们重新生成一遍。
+// 判据与写口同源（`briefAllowsProposalRerun` 镜像后端那两档 + 进度里真有 failed 的行），
+// 所以界面不摆一个必被拒的把手；但真正的闸仍在服务端。
+
+const rerunEstimate = ref<BriefEstimate | null>(null)
+const rerunEstimating = ref(false)
+const rerunChecked = ref(false)
+const rerunning = ref(false)
+const rerunNotice = ref('')
+/** 受理回执里后端那几句原话（只补哪几套、截图那一格为什么不动）：逐字列，界面不复述 */
+const rerunReceiptNotices = ref<string[]>([])
+
+/** 这一轮里真失败的那几套：只认后端 `status`，界面不拿「看着像失败」当判据 */
+const failedRows = computed(() => (progress.value ?? []).filter(row => row.status === 'failed'))
+
+const rerunQuote = computed(() => rerunEstimate.value?.estimate ?? null)
+
+/** 补跑的报价也要属于当前这一单：换单之后的旧价签不能拿来确认（与整轮同一条口径） */
+const rerunEstimateFresh = computed(
+  () => !!rerunEstimate.value && !!brief.value && rerunEstimate.value.briefId === brief.value.id
+    && !!rerunQuote.value && !!rerunEstimate.value.estimateId
+)
+
+/**
+ * 能不能出价：状态在那两档里、这一轮确实有失败的那一套、进度读到了。
+ *
+ * <p>「进度还没读到」是<b>不知道</b>，不是「没有失败的」：所以这时不给按钮，
+ * 但理由要说成「没读到」，不能说成「这一轮没有要补的」。</p>
+ */
+const canRerunEstimate = computed(
+  () => !!brief.value && briefAllowsProposalRerun(brief.value?.status)
+    && !!progress.value && failedRows.value.length > 0 && !busy.value
+)
+
+const canRerunConfirm = computed(
+  () => rerunEstimateFresh.value && rerunQuote.value?.aiEnabled === true && !busy.value
+    && failedRows.value.length > 0
+)
+
+const canRerun = computed(() => canRerunConfirm.value && rerunChecked.value && !busy.value)
+
+/** 这一发会重生成第几套：编号只从进度行里取，界面不猜也不写「第 2 套」这种硬编码 */
+const rerunTargetLine = computed(() => {
+  const nos = failedRows.value.map(row => row.candidateNo).filter(no => typeof no === 'number')
+  return nos.length ? nos.map(no => `第 ${no} 套`).join('、') : '这一轮失败的那几套'
+})
+
+/** 按钮灭着的时候说一句人话：到底是哪一格不满足，只从这三份读数里判，不编第四种说法 */
+const rerunBlockedLine = computed(() => {
+  if (!brief.value) return ''
+  if (!briefAllowsProposalRerun(brief.value.status)) {
+    return `这一单现在是「${statusText.value}」，补跑只在「待出方案」与「等客户确认」两档开放：`
+      + '客户已经选定或已经转正交付的单子再补一套候选，会跟交付凭证打架。要整单重来走下面的「收口重跑」。'
+  }
+  if (!progress.value) {
+    return '进度还没读到，所以「这一轮有没有失败的那一套」界面不知道（这不是「没有」）：先点上面的「刷新进度」。'
+  }
+  if (!failedRows.value.length) {
+    return '这一轮的进度里没有失败的那一套：这里不给按钮。对哪一套都不满意要重新出，'
+      + '走下面的「收口重跑」再跑整轮，那会再烧一趟整轮的钱。'
+  }
+  if (!rerunEstimateFresh.value) {
+    return '还没看过补跑这一趟的价格：先按「只补失败的那几套：先估算」。那是一份零模型调用的报价，不花钱。'
+  }
+  if (!rerunChecked.value) {
+    return '确认框还没勾上：这一发会真的调模型，看过价格并亲手勾了才轮得到点执行。'
+  }
+  return ''
+})
+
+async function runRerunEstimate() {
+  const current = brief.value
+  if (!current || !canRerunEstimate.value) return
+  rerunEstimating.value = true
+  rerunChecked.value = false
+  rerunEstimate.value = null
+  try {
+    rerunEstimate.value = await briefGenerationApi.rerunEstimate(current.id)
+    // 钱的方向也从这一份读数落一份：整轮那张没出过时，补跑这张是这一屏唯一一份后端计费读数。
+    // 不记就等于让「会消耗租户配额 / 由平台承担」那句话退回默认档——那是界面在猜钱的方向。
+    if (rerunEstimate.value?.estimate) {
+      bearsCostRead.value = {
+        briefId: current.id,
+        value: rerunEstimate.value.estimate.tenantBearsCost !== false
+      }
+    }
+  } catch (error) {
+    rerunEstimate.value = null
+    rerunNotice.value = errText(error)
+    message.error(errText(error))
+  } finally {
+    rerunEstimating.value = false
+  }
+}
+
+async function runRerunFailed() {
+  const current = brief.value
+  const priced = rerunEstimate.value
+  const price = rerunQuote.value
+  // 与整轮同一道二次守卫：没勾确认或凭据不全就连函数层面都不发——把一次注定被拒的调用发出去不是「门禁」
+  if (!current || !rerunChecked.value || !canRerun.value || !priced || !price) {
+    message.warning('没看过补跑的预估、或没亲手勾确认，这一发不会发出：花钱的调用不接受默认确认')
+    return
+  }
+  rerunning.value = true
+  rerunNotice.value = ''
+  try {
+    const receipt = await briefGenerationApi.rerunFailed(current.id, true, {
+      estimateId: priced.estimateId,
+      expectedTokens: price.estimatedTokens
+    })
+    rerunChecked.value = false
+    rerunEstimate.value = null
+    rerunNotice.value = '补跑已受理：' + rerunTargetLine.value
+      + '重新从「建候选站」那一步开始跑。成功的那几套一个字不动，客户手里的预览链接照旧能用。'
+      + (receipt?.notices?.length ? '（后端那几句原话在下面逐字列着）' : '')
+    rerunReceiptNotices.value = receipt?.notices ?? []
+    message.success('已提交，流水线在跑：这一单进入「生成中」，进度按套看')
+    await load()
+    await loadProgress()
+    await loadAux()
+  } catch (error) {
+    rerunNotice.value = errText(error)
+    message.error(errText(error))
+  } finally {
+    rerunning.value = false
+  }
+}
+
+// ------------------------------------------------------------------
+
 //
 // 这一段的纪律只有一条：**界面上不声称响应没说过的状态**。
 // - 转正按钮的判据是 `GET /admin/site-briefs/{id}/decisions` 真回了一条 `chosenSiteId` 非空的留痕，
@@ -809,6 +960,36 @@ onUnmounted(stopPolling)
             </ul>
           </div>
         </template>
+
+        <!-- M-P34：只补失败那一套。与上面的整轮那一族并排、各自一套确认，因为后端给的是两张不同的价签 -->
+        <div class="brief-detail__progress">
+          <p class="brief-detail__line"><b>只补这一轮里失败的那几套（成功的那几套一个字不动）</b></p>
+          <p class="brief-detail__muted">
+            这一发不是「收口重跑」，也不是整轮重来：{{ rerunTargetLine }}
+            重新从「建候选站」那一步跑，而交付了的那几套的站、页面、内容与<b>已经发出去的预览链接原样保留</b>
+            （客户手里的链接不会因为这一趟失效）。价格另算一张——它只数这一趟真会跑的那几套，
+            所以整轮那张价签在这里<b>不能</b>用，反之亦然。
+          </p>
+          <a-space wrap class="brief-detail__actions">
+            <a-button :disabled="!canRerunEstimate" :loading="rerunEstimating" @click="runRerunEstimate">
+              只补失败的那几套：先估算（不调模型）
+            </a-button>
+            <a-checkbox v-model:checked="rerunChecked" :disabled="!canRerunConfirm">
+              我已看过补跑这一趟的预估，确认只重跑失败的那几套{{
+                tenantBearsCost ? '会消耗租户配额' : '的这次消耗由平台承担' }}
+            </a-checkbox>
+            <a-button type="primary" danger :disabled="!canRerun" :loading="rerunning" @click="runRerunFailed">
+              只补失败的那几套：开始跑（{{ rerunTargetLine }}）
+            </a-button>
+          </a-space>
+          <p v-if="rerunBlockedLine" class="brief-detail__muted">{{ rerunBlockedLine }}</p>
+          <a-alert v-if="rerunEstimate" type="info" show-icon class="brief-detail__alert"
+                   :message="`这张价签只算补跑这一趟：${rerunEstimateText}`" />
+          <ul v-if="rerunReceiptNotices.length" class="brief-detail__progress-list">
+            <li v-for="line in rerunReceiptNotices" :key="line" class="brief-detail__muted">{{ line }}</li>
+          </ul>
+          <p v-if="rerunNotice" class="brief-detail__muted">{{ rerunNotice }}</p>
+        </div>
       </a-card>
 
       <a-card size="small" class="brief-detail__panel">

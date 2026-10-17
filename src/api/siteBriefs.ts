@@ -375,6 +375,23 @@ export function briefIsEditable(status: string | null | undefined): boolean {
 }
 
 /**
+ * 后端「补跑只在哪几档开放」的前端镜像（`SiteProposalOrchestrator.refuseIfNothingToRerun`）：
+ * ready（待出方案）与 awaiting_client（等客户确认）。
+ *
+ * <p>为什么要有这一份而不是让按钮永远亮着等后端拒：客户已经选定（decided）或已经转正交付
+ * （promoted）的单子上再补一套候选，会跟交付凭证打架——后端那一刀是明令的。界面摆一个
+ * <b>必被拒</b>的把手，等于让超管亲手去撞一次门禁再拿回一句红字。</p>
+ *
+ * <p>这里只镜像状态码这一件事。「这一轮里到底有没有失败的那一套」不在这里判，
+ * 由调用方按 `progress` 真回的那几行判（同一份读数，不是第二份真相）；真正的闸仍在服务端。</p>
+ */
+export const RERUN_ALLOWED_BRIEF_STATUSES = ['ready', 'awaiting_client'] as const;
+
+export function briefAllowsProposalRerun(status: string | null | undefined): boolean {
+  return !!status && (RERUN_ALLOWED_BRIEF_STATUSES as readonly string[]).includes(status);
+}
+
+/**
  * 需求单状态的中文：词表有这一码就用，没有就**把原码原样露出来**。
  * 录入页头部那一格用它（那里宁可露码也不要多一句「状态未知」）。
  */
@@ -1159,6 +1176,23 @@ export interface BriefWorkbenchOverview {
   note?: string | null;
 }
 
+/**
+ * `POST /admin/site-briefs/{id}/generate`（以及补跑那一支）的回执：后端 `RoundStart`。
+ *
+ * <p>`candidates` 的每一项就是 {@link BriefCandidateProgress} 那一份形状，与 `GET /progress`
+ * 同源；受理那一刻它们都在「排队中」。界面拿这一份是为了<b>立刻</b>列出这一轮开了几套，
+ * 后续刷新仍走 `progress`（或批 C 那条 SSE），不许在这份快照上自己往前推状态。</p>
+ */
+export interface BriefRoundStart {
+  briefId?: number | null;
+  /** 第几轮：补跑是「同一轮原地」，所以这一格等于上一轮，不会 +1 */
+  attempt?: number | null;
+  candidates?: BriefCandidateProgress[] | null;
+  estimatedTokens?: number | null;
+  /** 受理时就定下来的那几句原话（补跑只补哪几套、截图那一格为什么不动…），界面逐字列 */
+  notices?: string[] | null;
+}
+
 export const briefGenerationApi = {
   /** 零模型调用的预估：只算不花，所以它不需要 confirm，也不该被省掉 */
   estimate: (id: number) => http.post<BriefEstimate>(`/admin/site-briefs/${id}/estimate`),
@@ -1171,7 +1205,37 @@ export const briefGenerationApi = {
    * `{confirm}`，所以界面上「开始出方案」点了必被拒（同一发用 curl 带上凭据就真跑成了）。</p>
    */
   generate: (id: number, confirm: boolean, quote: { estimateId: string; expectedTokens: number }) =>
-    http.post<{ briefId?: number }>(`/admin/site-briefs/${id}/generate`, {
+    http.post<BriefRoundStart>(`/admin/site-briefs/${id}/generate`, {
+      confirm,
+      estimateId: quote.estimateId,
+      expectedTokens: quote.expectedTokens,
+    }),
+
+  /**
+   * 「只补失败那一套」的那张<b>价签</b>（M-P34，`POST /admin/site-briefs/{id}/rerun-failed/estimate`）。
+   *
+   * <p>零模型调用、零写库，与 {@link estimate} 同一条纪律；差别在价格算给谁：这一张只数这一轮里
+   * <b>失败的那几套</b>，成功的那几套一套都不计。所以 `estimateId` 与整轮那张<b>天然不是一个串</b>
+   * （后端在散列里加了「mode=rerunFailed|sets=…」），拿整轮的凭据来授权补跑会被 9A 那道闸拒——
+   * 反过来也一样。这不是形式，是「你看过的那张价签就是你点头的那趟活」。</p>
+   *
+   * <p>回执形状与 {@link estimate} 完全一致（{@link BriefEstimate}），所以界面复用那一套渲染；
+   * 没有可补的那一套时后端回中文拒（`SITE_PROPOSAL_NOTHING_TO_RERUN` 等），错误原文照抄上屏。</p>
+   */
+  rerunEstimate: (id: number) =>
+    http.post<BriefEstimate>(`/admin/site-briefs/${id}/rerun-failed/estimate`),
+
+  /**
+   * 真正花钱的那一发补跑（`POST /admin/site-briefs/{id}/rerun-failed`）：
+   * 与 {@link generate} 一样只接受<b>人亲手勾过</b>的 `confirm`，而且必须带着
+   * {@link rerunEstimate} 那张价签的 `estimateId` 与 `estimatedTokens`，缺一样后端一句中文拒、模型一次都不调。
+   *
+   * <p>后端那一手做的事：把这一轮里失败的那几行推回「排队中」并归零计数，成功的那几套
+   * 站、页面、内容、已发的预览链接<b>一个字都不动</b>（所以客户手里的链接不会因为这趟补跑失效）。
+   * 它不是「收口重跑」：收口重跑只归档、不花钱，这一发是真的再烧一趟——只是只烧失败那几套的量。</p>
+   */
+  rerunFailed: (id: number, confirm: boolean, quote: { estimateId: string; expectedTokens: number }) =>
+    http.post<BriefRoundStart>(`/admin/site-briefs/${id}/rerun-failed`, {
       confirm,
       estimateId: quote.estimateId,
       expectedTokens: quote.expectedTokens,

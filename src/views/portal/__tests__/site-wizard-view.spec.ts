@@ -1150,10 +1150,14 @@ describe('新建网站向导', () => {
   })
 
   /**
-   * 拍板 4：那句「重跑只补失败的那一套」被源码证伪（`archivePreviousCandidates` 归档整轮、
-   * 全仓没有单套补跑的口）⇒ 界面改成说整轮，并把这一轮的实测代价摆出来让人自己掂量。
+   * 拍板 4 那一串的两头：先（M-P33-B）那句「重跑只补失败的那一套」被源码证伪 ⇒ 界面改成说整轮；
+   * 后（M-P34）单套补跑真的落了口 ⇒ 这一句再改回来，并摆出<b>两条路各自的价格与后果</b>。
+   *
+   * <p>所以这一条同时判三件事：旧的「今天还没有」不许留着（那是已经交付了的东西说没有），
+   * 「重来就是整轮」也不许留着（那会让人多烧两趟的钱），而两条路的差别必须由
+   * 「成功那几套不动 + 价签只数真跑的那几套」这句真话撑着。</p>
    */
-  it('「重跑只补失败的那一套」那句已经改口：重来是整轮，且这一轮实测代价摆在旁边', async () => {
+  it('重来那一句摆的是两条路：补跑已经有了，整轮仍然要再烧一趟整轮的钱', async () => {
     vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
@@ -1170,10 +1174,16 @@ describe('新建网站向导', () => {
     await flushPromises()
 
     expect(bodyText()).not.toContain('重跑只补失败的那一套')
-    expect(bodyText()).toContain('要重来是')
+    // 补跑落了口，那句「今天还没有」必须一起消失（留着它，超管就照着这句话去烧整轮的钱）
+    expect(bodyText()).not.toContain('今天还没有')
+    expect(bodyText()).toContain('要重来有')
+    expect(bodyText()).toContain('两条路')
+    expect(bodyText()).toContain('只补这一轮里失败的那几套')
+    expect(bodyText()).toContain('成功的那几套')
+    expect(bodyText()).toContain('预览链接原样保留')
+    expect(bodyText()).toContain('价签也只数这一趟真会跑的那几套')
     expect(bodyText()).toContain('整轮')
     expect(bodyText()).toContain('会再烧一趟')
-    expect(bodyText()).toContain('那个口今天还没有')
     expect(bodyText()).toContain('这一轮实测：900 + 4000 = 4900 token')
     expect(bodyText()).toContain('另有 1 套这一发没回实耗')
     // 套数只认价签那一格：第 4 步没人点过算价，界面不许拿进度行数冒充配置

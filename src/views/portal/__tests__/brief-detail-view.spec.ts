@@ -66,7 +66,13 @@ vi.mock('../../../api/siteBriefs', async (importOriginal) => {
       summaryPreview: vi.fn()
     },
     vocabularyApi: { adminVocabulary: vi.fn(), portalVocabulary: vi.fn() },
-    briefGenerationApi: { estimate: vi.fn(), generate: vi.fn(), progress: vi.fn() }
+    briefGenerationApi: {
+      estimate: vi.fn(),
+      generate: vi.fn(),
+      progress: vi.fn(),
+      rerunEstimate: vi.fn(),
+      rerunFailed: vi.fn()
+    }
   }
 })
 
@@ -175,6 +181,12 @@ interface MountOptions {
   promoteData?: Record<string, unknown> | null
   /** 词表那一发故意不回：用来抓「还在路上」那一屏界面上说了什么（10-16 走查现场） */
   vocabularyPending?: boolean
+  /** M-P34 补跑那张价签的回包；不给就是「这一屏还没出过补跑的价」，两个把手都该是灭的 */
+  rerunEstimateData?: Record<string, unknown> | null
+  /** 补跑受理那一发的回执（后端 `RoundStart`：整轮读数 + notices） */
+  rerunData?: unknown
+  /** 补跑那两支里任意一支出错时后端那句中文 */
+  rerunError?: string
 }
 
 /**
@@ -219,6 +231,59 @@ function estimateWith(overrides: Record<string, unknown>) {
   return { ...DEFAULT_ESTIMATE, estimate: { ...DEFAULT_QUOTE, ...overrides } }
 }
 
+/**
+ * M-P34 补跑那张价签的缺省：数字**故意与整轮那张不一样**（只数失败那一套 ⇒ 130000 而不是 260000），
+ * 凭据号也不同。这样「执行那一发带回去的是哪张价签」才是一次真判据——
+ * 两份一样的数测不出串用。
+ */
+const RERUN_ESTIMATE = {
+  briefId: 12,
+  attempt: 1,
+  estimateId: 'est-rerun-a1-sets2',
+  requirementsSummary: '后端渲染的那句需求原话',
+  estimate: {
+    ...DEFAULT_QUOTE,
+    candidateCount: 1,
+    estimatedTokens: 130000,
+    breakdown: [
+      '套数：1 套（每套一条独立进度，一套失败不影响其余）',
+      '合计预估：130000 token（1 套 × 130000 token/套）'
+    ]
+  }
+}
+
+function failedProgressRow(overrides: Record<string, unknown> = {}) {
+  return {
+    candidateId: 502,
+    siteId: 201,
+    attempt: 1,
+    candidateNo: 2,
+    stage: 'copy',
+    stageLabel: '逐页文案',
+    status: 'failed',
+    statusLabel: '失败',
+    errorMessage: '第 2 套在「逐页文案」这一步失败：模型没有回答。',
+    notices: [] as string[],
+    ...overrides
+  }
+}
+
+function succeededProgressRow(overrides: Record<string, unknown> = {}) {
+  return {
+    candidateId: 501,
+    siteId: 200,
+    attempt: 1,
+    candidateNo: 1,
+    stage: 'done',
+    stageLabel: '已完成',
+    status: 'succeeded',
+    statusLabel: '已交付',
+    errorMessage: null,
+    notices: [] as string[],
+    ...overrides
+  }
+}
+
 async function mountView(options: MountOptions = {}) {
   routeParams.current = { id: '12' }
   vi.mocked(siteBriefsApi.get).mockResolvedValue(brief({ status: options.status ?? 'ready' }) as any)
@@ -249,6 +314,15 @@ async function mountView(options: MountOptions = {}) {
     vi.mocked(briefGenerationApi.generate).mockRejectedValue(new Error(options.generateError))
   } else {
     vi.mocked(briefGenerationApi.generate).mockResolvedValue((options.generateData ?? { briefId: 12 }) as any)
+  }
+  // M-P34 补跑那两支：默认「没出过价、没受理过」，用例用自己的回包顶掉
+  if (options.rerunError) {
+    vi.mocked(briefGenerationApi.rerunEstimate).mockRejectedValue(new Error(options.rerunError))
+    vi.mocked(briefGenerationApi.rerunFailed).mockRejectedValue(new Error(options.rerunError))
+  } else {
+    vi.mocked(briefGenerationApi.rerunEstimate)
+      .mockResolvedValue((options.rerunEstimateData ?? RERUN_ESTIMATE) as any)
+    vi.mocked(briefGenerationApi.rerunFailed).mockResolvedValue((options.rerunData ?? null) as any)
   }
   // 留痕默认是空的（没有客户真选定的记录 → 没有转正按钮）；要走到 ④ 的用例走 options 传自己的回包
   vi.mocked(siteBriefDeliveryApi.decisions).mockResolvedValue((options.decisions ?? []) as any)
@@ -294,6 +368,26 @@ function click(node: Element) {
 function checkbox() {
   return document.querySelector('input[type="checkbox"]') as HTMLInputElement | null
 }
+
+/**
+ * 补跑那一族自己的勾：按**它自己那句确认话**找，不按 DOM 序号。
+ *
+ * <p>这一屏的 `a-space` / `a-card` 桩件把默认槽渲了两遍（`<slot />` 与 `<slot name="default" />`），
+ * 所以 DOM 里每颗勾都存在两份——序号 1 是「整轮那颗的第二份」，拿它当补跑那颗会一路假红。
+ * 判据要落在文字上：这颗勾的签名对象是第二张价签，不是整轮那张。</p>
+ */
+function rerunCheckbox() {
+  const wrapper = [...document.querySelectorAll('label')].find(
+    node => (node.textContent || '').includes('我已看过补跑这一趟的预估')
+  )
+  return wrapper?.querySelector('input[type="checkbox"]') as HTMLInputElement | undefined
+}
+
+const RERUN_ESTIMATE_BUTTON = '只补失败的那几套：先估算（不调模型）'
+const RERUN_RUN_BUTTON = '只补失败的那几套：开始跑（第2套）'
+
+/** 这一单名下有站：`onMounted` 才会真去拉进度（ready 且没站时这一屏根本不发那一发 GET） */
+const LINKED_SITES = [site(200, { candidateNo: 1 }), site(201, { candidateNo: 2 })]
 
 beforeEach(() => {
   document.body.innerHTML = ''
@@ -706,6 +800,191 @@ describe('④ 转正交棒：回执里的交棒清单原样上屏（D5-3）', ()
     expect(wrapper.text()).toContain('已交付')
     expect(wrapper.text()).not.toContain('交棒清单')
     expect(document.querySelectorAll('.brief-detail__handover').length).toBe(0)
+    wrapper.unmount()
+  })
+})
+
+/**
+ * M-P34：「只补这一轮里失败的那几套」这一族门禁。
+ *
+ * <p>这一族与整轮那一族<b>必须各带一套确认</b>：后端把 `mode=rerunFailed|sets=第几套` 盖进了
+ * `estimateId` 的散列，两张价签互不通用（拿整轮那张来补跑会被 9A 拒，反过来也一样）。
+ * 所以这里的判据不是「多一个按钮」，而是四件事：</p>
+ * <ol>
+ *   <li>把手只在<b>进度里真有失败行</b>且状态在那两档时才亮；不亮的时候要说是哪一格不满足，
+ *       而且「进度没读到」要说成<b>不知道</b>，不许念成「这一轮没有要补的」；</li>
+ *   <li>价格这一发走的是<b>第二支</b> estimate 口，上屏的是这一趟真会跑的那几套的数；</li>
+ *   <li>执行那一发带回去的凭据是<b>补跑那张</b>（130000 / est-rerun-a1-sets2），
+ *       不是整轮那张（260000 / est-2026-09-26-a1）——两份数故意不一样，串用了才测得出来；</li>
+ *   <li>回执里后端那几句原话（只补哪几套、成功那几套不动）逐字上屏，且这一发之后勾与价签收回：
+ *       要再补一次得重新看过价格。</li>
+ * </ol>
+ */
+describe('M-P34：只补失败那一套（第二张价签、第二道确认）', () => {
+  it('进度里有失败的那一套：把手摆出来，但没看过这一趟的价格之前勾与执行都是灭的', async () => {
+    const wrapper = await mountView({
+      sites: LINKED_SITES,
+      progressData: [succeededProgressRow(), failedProgressRow()]
+    })
+    const text = wrapper.text()
+    expect(text).toContain('只补这一轮里失败的那几套（成功的那几套一个字不动）')
+    // 第几套只从进度行取：这一屏没在猜「第 2 套」
+    expect(text).toContain('第 2 套')
+    const estimateButton = byText(RERUN_ESTIMATE_BUTTON)[0] as HTMLButtonElement | undefined
+    expect(estimateButton).toBeTruthy()
+    expect(estimateButton!.disabled).toBe(false)
+    expect(rerunCheckbox()!.disabled).toBe(true)
+    const runButton = byText(RERUN_RUN_BUTTON)[0] as HTMLButtonElement | undefined
+    expect(runButton).toBeTruthy()
+    expect(runButton!.disabled).toBe(true)
+    expect(text).toContain('还没看过补跑这一趟的价格')
+    expect(briefGenerationApi.rerunFailed).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('这一轮的进度里没有失败的那一套：不给能点的把手，并说清去走「收口重跑」', async () => {
+    const wrapper = await mountView({ sites: LINKED_SITES, progressData: [succeededProgressRow()] })
+    const text = wrapper.text()
+    expect(byText(RERUN_ESTIMATE_BUTTON)[0]!.hasAttribute('disabled')).toBe(true)
+    expect(text).toContain('这一轮的进度里没有失败的那一套')
+    expect(text).toContain('收口重跑')
+    // 这一条是「真没有」，不是「没读到」：两句不许互换
+    expect(text).not.toContain('这不是「没有」')
+    wrapper.unmount()
+  })
+
+  it('进度没读到：那句是「界面不知道」，不是「这一轮没有要补的」', async () => {
+    const wrapper = await mountView({ progressError: 'Request failed with status code 503' })
+    expect(byText(RERUN_ESTIMATE_BUTTON)[0]!.hasAttribute('disabled')).toBe(true)
+    const text = wrapper.text()
+    expect(text).toContain('这不是「没有」')
+    expect(text).toContain('先点上面的「刷新进度」')
+    expect(text).not.toContain('这一轮的进度里没有失败的那一套')
+    wrapper.unmount()
+  })
+
+  it('客户已选定（decided）：这一档不开放补跑，理由说清只有那两档', async () => {
+    const wrapper = await mountView({
+      status: 'decided',
+      sites: LINKED_SITES,
+      progressData: [succeededProgressRow(), failedProgressRow()]
+    })
+    expect(byText(RERUN_ESTIMATE_BUTTON)[0]!.hasAttribute('disabled')).toBe(true)
+    const text = wrapper.text()
+    expect(text).toContain('补跑只在「待出方案」与「等客户确认」两档开放')
+    expect(text).toContain('会跟交付凭证打架')
+    expect(briefGenerationApi.rerunEstimate).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('点补跑的「先估算」打的是第二张口：上屏这一趟的数，整轮那张一个都不出现', async () => {
+    const wrapper = await mountView({
+      sites: LINKED_SITES,
+      progressData: [succeededProgressRow(), failedProgressRow()]
+    })
+    click(byText(RERUN_ESTIMATE_BUTTON)[0])
+    await flushPromises()
+    expect(briefGenerationApi.rerunEstimate).toHaveBeenCalledWith(12)
+    // 这一发不该顺带把整轮那张也算了一遍：两支口各自独立
+    expect(briefGenerationApi.estimate).not.toHaveBeenCalled()
+    const text = wrapper.text()
+    expect(text).toContain('这张价签只算补跑这一趟：预计 130000 token')
+    expect(text).toContain('合计预估：130000 token（1 套 × 130000 token/套）')
+    expect(text).not.toContain('260000')
+    expect(rerunCheckbox()!.disabled).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('执行那一发带回的是补跑那张凭据（130000 / est-rerun-a1-sets2），不是整轮那张', async () => {
+    const wrapper = await mountView({
+      sites: LINKED_SITES,
+      progressData: [succeededProgressRow(), failedProgressRow()]
+    })
+    click(byText(RERUN_ESTIMATE_BUTTON)[0])
+    await flushPromises()
+    // 先只出价不勾：这一发不会发出去（花钱的调用不接受默认确认）
+    click(byText(RERUN_RUN_BUTTON)[0])
+    await flushPromises()
+    expect(briefGenerationApi.rerunFailed).not.toHaveBeenCalled()
+    rerunCheckbox()!.click()
+    await flushPromises()
+    expect(byText(RERUN_RUN_BUTTON)[0]!.hasAttribute('disabled')).toBe(false)
+    click(byText(RERUN_RUN_BUTTON)[0])
+    await flushPromises()
+    expect(briefGenerationApi.rerunFailed).toHaveBeenCalledWith(12, true, {
+      estimateId: 'est-rerun-a1-sets2',
+      expectedTokens: 130000
+    })
+    // 整轮那一发一次都没被带走：补跑不是「再来一轮」
+    expect(briefGenerationApi.generate).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('回执里后端那几句原话逐字上屏；这一发之后勾与价签收回，要再补得重新看过价格', async () => {
+    const wrapper = await mountView({
+      sites: LINKED_SITES,
+      progressData: [succeededProgressRow(), failedProgressRow()],
+      rerunData: {
+        briefId: 12,
+        attempt: 1,
+        estimatedTokens: 130000,
+        notices: [
+          '本次只补这一轮里失败的 1 套（第 2 套），成功的那 1 套不动：站、页面、内容与已发的预览链接原样保留。',
+          '截图那一步不重跑：已有截图沿用上一趟。'
+        ]
+      }
+    })
+    click(byText(RERUN_ESTIMATE_BUTTON)[0])
+    await flushPromises()
+    rerunCheckbox()!.click()
+    await flushPromises()
+    click(byText(RERUN_RUN_BUTTON)[0])
+    await flushPromises()
+    const text = wrapper.text()
+    // 界面不复述后端的口径，只逐字列它说的话
+    expect(text).toContain('本次只补这一轮里失败的 1 套（第 2 套），成功的那 1 套不动：站、页面、内容与已发的预览链接原样保留。')
+    expect(text).toContain('截图那一步不重跑：已有截图沿用上一趟。')
+    expect(text).toContain('补跑已受理')
+    expect(text).toContain('成功的那几套一个字不动')
+    // 价签收回：这一屏回到「没看过价格」那一档，两颗确认都灭
+    expect(rerunCheckbox()!.disabled).toBe(true)
+    expect(byText(RERUN_RUN_BUTTON)[0]!.hasAttribute('disabled')).toBe(true)
+    expect(text).toContain('还没看过补跑这一趟的价格')
+    wrapper.unmount()
+  })
+
+  it('补跑那张价签读不到时后端那句中文原样挂着：不翻译、不改写，也不给勾', async () => {
+    const wrapper = await mountView({
+      sites: LINKED_SITES,
+      progressData: [succeededProgressRow(), failedProgressRow()],
+      rerunError: 'SITE_PROPOSAL_RERUN_INFLIGHT：这一轮还有 1 套没跑完，现在补跑会和它抢同一批页面对象'
+    })
+    click(byText(RERUN_ESTIMATE_BUTTON)[0])
+    await flushPromises()
+    const text = wrapper.text()
+    expect(text).toContain('这一轮还有 1 套没跑完，现在补跑会和它抢同一批页面对象')
+    expect(vi.mocked(message.error).mock.calls.flat().join()).toContain('SITE_PROPOSAL_RERUN_INFLIGHT')
+    expect(rerunCheckbox()!.disabled).toBe(true)
+    expect(briefGenerationApi.rerunFailed).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('补跑那张价签也带「钱算在谁头上」的读数：平台承担那一档不许被界面念成消耗租户配额', async () => {
+    const wrapper = await mountView({
+      sites: LINKED_SITES,
+      progressData: [succeededProgressRow(), failedProgressRow()],
+      rerunEstimateData: {
+        ...RERUN_ESTIMATE,
+        estimate: { ...RERUN_ESTIMATE.estimate, tenantBearsCost: false }
+      }
+    })
+    click(byText(RERUN_ESTIMATE_BUTTON)[0])
+    await flushPromises()
+    const labels = [...document.querySelectorAll('label')].map(node => (node.textContent || '').replace(/\s+/g, ''))
+    const confirm = labels.find(label => label.includes('我已看过补跑这一趟的预估'))
+    expect(confirm).toBeTruthy()
+    expect(confirm).toContain('由平台承担')
+    expect(confirm).not.toContain('会消耗租户配额')
     wrapper.unmount()
   })
 })
