@@ -19,7 +19,7 @@ vi.mock('../http', () => ({
   }
 }))
 
-import { siteBriefsApi, vocabularyApi, findProfileQuestion, briefAnswerRows, type SiteBrief, type SiteBriefForm, type SiteBriefVocabulary } from '../siteBriefs'
+import { siteBriefsApi, vocabularyApi, findProfileQuestion, briefAnswerRows, showcaseBatchLineOf, type SiteBrief, type SiteBriefForm, type SiteBriefVocabulary } from '../siteBriefs'
 
 function lastCall(): { method: string; url: string; rest: unknown[] } {
   const entry = calls[calls.length - 1]
@@ -198,5 +198,39 @@ describe('briefAnswerRows：自由文本 / 颜色 / 区块顺序 / 页面清单�
     const bad = { ...brief, audiences: ['ghost'] } as unknown as SiteBrief
     const rows = briefAnswerRows(vocabulary, bad)
     expect(rows.find(item => item.key === 'audiences')?.unknown).toBe(true)
+  })
+})
+
+/**
+ * 「演示内容这一格里正在写第几批」那一句人话（Spec-M M-P35-2）。
+ *
+ * 这一句是等待面三处（向导第 3/4 步、候选画廊、总览页）共用的<b>唯一出处</b>——同一趟在两个页面上
+ * 一个说「第 3/7 批」一个不说，就等于界面上两句话打架（I-1）。所以这里钉的是形状本身：
+ * 后端那四种「不该念」的情况回的是 null，界面拿到 null 就整行不摆，不许兜「第 ? 批」也不许兜 0。
+ */
+describe('showcaseBatchLineOf：分批那一格只有一份句子，读不到就返回 null', () => {
+  it('批号、总批数、类别名、这一批的等待都在：拼成一句带四个读数的话', () => {
+    const line = showcaseBatchLineOf({
+      showcaseBatchIndex: 3,
+      showcaseBatchTotal: 7,
+      showcaseBatchLabel: '资质荣誉',
+      showcaseBatchWaitMs: 40_000
+    })
+    expect(line).toBe('这一格里分批在写：第 3/7 批 · 资质荣誉 · 这一批已经等了 约 40 秒')
+  })
+
+  it('没回批号就是「这一趟没在分批写」：整句返回 null，界面那一格不摆', () => {
+    expect(showcaseBatchLineOf({})).toBeNull()
+    // 终态/别的阶段时后端那四格回 null；这里造出「第 ? 批」就是把没在跑说成在跑
+    expect(showcaseBatchLineOf({ showcaseBatchIndex: null, showcaseBatchTotal: 7, showcaseBatchLabel: '资质荣誉' })).toBeNull()
+    expect(showcaseBatchLineOf({ showcaseBatchTotal: 7 })).toBeNull()
+  })
+
+  it('只有批号时其余三格各说各的「没回」，不兜 0 也不留空白', () => {
+    const line = showcaseBatchLineOf({ showcaseBatchIndex: 2 }) as string
+    expect(line).toContain('第 2/? 批')
+    expect(line).toContain('后端这一发没回这一类叫什么')
+    expect(line).toContain('后端这一发没回时长读数（不是 0 秒）')
+    expect(line).not.toContain('约 0 秒')
   })
 })

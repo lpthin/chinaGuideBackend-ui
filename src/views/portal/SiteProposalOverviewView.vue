@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { briefGenerationApi, formatWaitMs, type BriefOverviewRound, type BriefWorkbenchOverview } from '@/api/siteBriefs'
+import { briefGenerationApi, formatWaitMs, showcaseBatchLineOf, type BriefOverviewRound, type BriefWorkbenchOverview } from '@/api/siteBriefs'
 import FoldedText from '@/components/FoldedText.vue'
 import PageTitle from '@/components/PageTitle.vue'
 
@@ -186,7 +186,12 @@ onBeforeUnmount(stopTimer)
               <td>{{ row.candidateNo ?? '?' }}</td>
               <td>{{ row.stageLabel || row.stage || '-' }}</td>
               <td>{{ row.statusLabel || row.status }}</td>
-              <td>{{ waitOf(row) }}</td>
+              <td>
+                {{ waitOf(row) }}
+                <!-- 分批那一格的话也只有一份出处（`showcaseBatchLineOf`），这一页不另拼一句；
+                     后端没回批号就整行不摆，不许摆成「第 ? 批」 -->
+                <div v-if="showcaseBatchLineOf(row)" class="proposal-overview__batch">{{ showcaseBatchLineOf(row) }}</div>
+              </td>
               <td class="proposal-overview__muted">{{ row.stageLatencyNote || '后端这一发没回区间' }}</td>
               <td>{{ (row.promptTokens ?? 0) + (row.completionTokens ?? 0) }}</td>
             </tr>
@@ -281,5 +286,10 @@ onBeforeUnmount(stopTimer)
   margin-top: 12px;
   color: rgba(0, 0, 0, 0.45);
   font-size: 12px;
+}
+.proposal-overview__batch {
+  margin-top: 2px;
+  color: #08979c;
+  font-size: 11px;
 }
 </style>

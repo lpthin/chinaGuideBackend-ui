@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { briefGenerationApi } from '@/api/siteBriefs'
+import { briefGenerationApi, showcaseBatchLineOf } from '@/api/siteBriefs'
 import {
   PROGRESS_POLL_MS,
   createProposalProgressFollower
@@ -141,6 +141,36 @@ describe('出方案进度的等待机', () => {
 
     await vi.advanceTimersByTimeAsync(PROGRESS_POLL_MS * 2)
     expect(briefGenerationApi.progress).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * 「演示内容」那一格里面的批号四格走的是<b>同一条腿</b>（M-P35-2）：后端在流里推的还是
+   * `progress` 那一份数组，等待机只许原样换上屏——它自己裁字段或另算一套批号，向导与画廊
+   * 就会对同一趟念出两个不同的「第几批」。这里钉的是这一趟没有第二把读数。
+   */
+  it('②b 流里推来的批号四格原样落进读数，等待机一个字段都不裁', async () => {
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([running()] as never)
+    const { follower } = setup()
+    await follower.load()
+    const source = FakeEventSource.opened[0]
+
+    source.emit('progress', [running({
+      stage: 'demo',
+      stageLabel: '演示内容',
+      showcaseBatchIndex: 5,
+      showcaseBatchTotal: 7,
+      showcaseBatchLabel: '经营指标',
+      showcaseBatchWaitMs: 26_000
+    })])
+
+    const row = follower.rows.value[0]
+    expect(row.showcaseBatchIndex).toBe(5)
+    expect(row.showcaseBatchTotal).toBe(7)
+    expect(row.showcaseBatchLabel).toBe('经营指标')
+    expect(row.showcaseBatchWaitMs).toBe(26_000)
+    // 「这一批等了多久」与「这一步等了多久」是两个数，谁也不许顶替谁
+    expect(follower.waitLineOf(row)).toBe('约 1 分 35 秒')
+    expect(showcaseBatchLineOf(row)).toBe('这一格里分批在写：第 5/7 批 · 经营指标 · 这一批已经等了 约 26 秒')
   })
 
   it('③ complete 一到就收流，并且把外围读数重读一次（画廊的预览状态、向导的步序条都靠这一下）', async () => {

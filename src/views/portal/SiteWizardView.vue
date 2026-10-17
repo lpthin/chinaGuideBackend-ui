@@ -38,7 +38,7 @@ import {
   siteBriefDeliveryApi,
   type BriefDecisionView
 } from '@/api/siteBriefDelivery'
-import { previewLinkStateColor, previewLinkStateHint, previewLinkStateOf, previewLinkStateText } from '@/api/siteBriefs'
+import { previewLinkStateColor, previewLinkStateHint, previewLinkStateOf, previewLinkStateText, showcaseBatchLineOf } from '@/api/siteBriefs'
 import { siteSpecApi, type SpecDocumentView } from '@/api/siteSpec'
 import BriefIntakeForm from '@/views/portal/BriefIntakeForm.vue'
 import FoldedText from '@/components/FoldedText.vue'
@@ -713,7 +713,7 @@ onUnmounted(stopFollowingProgress)
             :columns="[
               { title: '第几套', dataIndex: 'candidateNo', key: 'candidateNo', width: 80 },
               { title: '阶段', key: 'stage', width: 150 },
-              { title: '这一步已经等了', key: 'wait', width: 170 },
+              { title: '这一步已经等了', key: 'wait', width: 260 },
               { title: '这一套的状态', key: 'status', width: 150 },
               { title: '这一步说的话', key: 'detail' }
             ]"
@@ -728,6 +728,9 @@ onUnmounted(stopFollowingProgress)
               </template>
               <template v-else-if="column.key === 'wait'">
                 <span>{{ waitLineOf(record) }}</span>
+                <!-- 「演示内容」这一格里分批在写第几类：句子只有 `showcaseBatchLineOf` 这一份出处，
+                     后端没回批号（不在这一步、或这一趟根本没分批）就整行露空，不兜「第 ? 批」 -->
+                <p v-if="showcaseBatchLineOf(record)" class="site-wizard__hint">{{ showcaseBatchLineOf(record) }}</p>
                 <p v-if="record.stageLatencyNote" class="site-wizard__hint">{{ record.stageLatencyNote }}</p>
               </template>
               <template v-else-if="column.key === 'status'">

@@ -430,6 +430,42 @@ describe('配图三本账与演示内容', () => {
     wrapper.unmount()
   })
 
+  /**
+   * 「演示内容」那一格<em>里面</em>在写第几批（M-P35-2）。
+   *
+   * 阶段那一格只到「演示内容」，答不出七类里现在写到哪一类，所以这一行是那一格里面的读数。
+   * 两边都要钉：批号在才摆，且这句话与向导、总览<b>同一份出处</b>（`showcaseBatchLineOf`）——
+   * 三个页面各拼一句，同一趟就会一个说「第 2/7 批」一个不说（I-1）。
+   * 后端那四格在非那一步/终态时回 null，卡上不许凭空摆出一行「第 ? 批」。
+   */
+  it('卡上摆出这一格里正在写第几类；后端没回批号时那一行整行不摆', async () => {
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row({
+        status: 'running',
+        statusLabel: '进行中',
+        stage: 'demo',
+        stageLabel: '演示内容',
+        stageWaitMs: 30_000,
+        showcaseBatchIndex: 2,
+        showcaseBatchTotal: 7,
+        showcaseBatchLabel: '发展历程',
+        showcaseBatchWaitMs: 8_000
+      })]
+    })
+    expect(wrapper.text()).toContain('这一格里分批在写：第 2/7 批 · 发展历程 · 这一批已经等了 约 8 秒')
+    wrapper.unmount()
+
+    const other = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row({
+        status: 'running', statusLabel: '进行中', stage: 'copy', stageLabel: '逐页文案', stageWaitMs: 30_000
+      })]
+    })
+    expect(other.text()).not.toContain('分批在写')
+    other.unmount()
+  })
+
   it('演示内容：档位取词表原话，进度回了实际落库数就一并说；§9-4 标注每张卡都挂', async () => {
     const wrapper = await mountView({
       sites: [site(31, 1), site(32, 2)],

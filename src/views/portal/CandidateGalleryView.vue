@@ -19,6 +19,7 @@ import {
   previewLinkStateHint,
   previewLinkStateOf,
   previewLinkStateText,
+  showcaseBatchLineOf,
   siteStatusColor,
   siteStatusText,
   type BriefCandidateProgress,
@@ -579,6 +580,11 @@ onUnmounted(() => progressFollow.stop())
         <p v-if="slot.row" class="candidate-gallery__line">
           这一步已经等了：{{ waitLineOf(slot.row) }}
           <template v-if="slot.row.stageLatencyNote">（{{ slot.row.stageLatencyNote }}）</template>
+        </p>
+        <!-- 「演示内容」这一格里分批在写第几类：一句话，出处与向导那一页同一个 `showcaseBatchLineOf`；
+             后端没回批号（不在这一步、或这一趟没分批）就整行不摆，不摆「第 ? 批」 -->
+        <p v-if="slot.row && showcaseBatchLineOf(slot.row)" class="candidate-gallery__line">
+          {{ showcaseBatchLineOf(slot.row) }}
         </p>
         <p v-if="needsHumanOf(slot)" class="candidate-gallery__line">
           <b>{{ CANDIDATE_NEEDS_HUMAN_TEXT }}：</b>{{ CANDIDATE_NEEDS_HUMAN_HINT }}

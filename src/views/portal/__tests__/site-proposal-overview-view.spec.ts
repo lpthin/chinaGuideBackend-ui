@@ -255,6 +255,39 @@ describe('建站任务总览（批 D 只读页）', () => {
     expect(wrapper.text()).toContain('27786')
   })
 
+  /**
+   * 「演示内容」那一格<em>里面</em>正在写第几批（M-P35-2）。
+   *
+   * 这一页摆的这句话与向导、候选画廊是<b>同一份出处</b>（`showcaseBatchLineOf`）——同一趟在两个页面上
+   * 一个说「第 3/7 批」一个不说，就是界面自己跟自己打架（I-1）。判据两边都要钉：批号在才摆，
+   * 批号没回（终态那套、以及已受理还没开跑那一单）不许凭空摆出一行「第 ? 批」。
+   */
+  it('分批那一格：批号在就照那一份共享的句子摆，批号没回就不摆', async () => {
+    ;(briefGenerationApi.overview as any).mockResolvedValue({
+      ...OVERVIEW,
+      rounds: [{
+        ...ROUND,
+        candidates: [{
+          ...CANDIDATE_RUNNING,
+          stage: 'demo',
+          stageLabel: '演示内容',
+          showcaseBatchIndex: 3,
+          showcaseBatchTotal: 7,
+          showcaseBatchLabel: '资质荣誉',
+          showcaseBatchWaitMs: 40_000
+        }, CANDIDATE_DONE]
+      }, ROUND_WAITING]
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('这一格里分批在写：第 3/7 批 · 资质荣誉 · 这一批已经等了 约 40 秒')
+    // 手上只有一套真在分批：终态那一套与「还没开跑」那一单都不许跟着冒出一句
+    expect(wrapper.text().match(/分批在写/g)).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('/? 批')
+  })
+
   it('进度那一口没回行时说的是没回，而不是「没有候选」', async () => {
     ;(briefGenerationApi.overview as any).mockResolvedValue({
       ...OVERVIEW,

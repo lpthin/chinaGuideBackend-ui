@@ -1232,6 +1232,53 @@ describe('新建网站向导', () => {
   })
 
   /**
+   * 「演示内容」那一格里面的分批读数进了向导这一屏（M-P35-2）。
+   *
+   * 两条都要钉：① 推送换上一批时这一句<b>跟着换</b>，不许停在上一批那一句（那等于界面在念一件
+   * 已经过去了的事）；② 不在那一步（这一形后端四格回 null）时那一行整行不摆——向导上凭空多出一句
+   * 「第 ? 批」就是把没在分批写的那一趟演成在写。
+   */
+  it('推送里的批号跟着换屏：这一格里写到第几类看得见，不在那一步就不摆那一行', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue(
+      [runningRow({ stage: 'demo', stageLabel: '演示内容' })])
+    followWithFakeStream()
+
+    mountAt('generate', '7')
+    await flushPromises()
+
+    // 进门这一眼：阶段是「演示内容」，但后端还没回批号（那一发还没发问）——这一行不摆
+    expect(bodyText()).not.toContain('分批在写')
+
+    const stream = WizardStreamStub.instances[0]
+    stream.emit('progress', [runningRow({
+      stage: 'demo',
+      stageLabel: '演示内容',
+      showcaseBatchIndex: 4,
+      showcaseBatchTotal: 7,
+      showcaseBatchLabel: '服务客户',
+      showcaseBatchWaitMs: 65_000
+    })])
+    await flushPromises()
+    expect(bodyText()).toContain('这一格里分批在写：第 4/7 批 · 服务客户 · 这一批已经等了 约 1 分 5 秒')
+
+    stream.emit('progress', [runningRow({
+      stage: 'demo',
+      stageLabel: '演示内容',
+      showcaseBatchIndex: 5,
+      showcaseBatchTotal: 7,
+      showcaseBatchLabel: '经营指标',
+      showcaseBatchWaitMs: 12_000
+    })])
+    await flushPromises()
+    expect(bodyText()).toContain('第 5/7 批 · 经营指标 · 这一批已经等了 约 12 秒')
+    expect(bodyText()).not.toContain('第 4/7 批')
+  })
+
+  /**
    * `complete` 一到：流关掉（不留一条挂着已结束的流），外围读数重读一发（否则人看见的是一条不动的步序条），
    * 绿只给后端的 `succeeded`，等待那一格明说不再念了。
    */

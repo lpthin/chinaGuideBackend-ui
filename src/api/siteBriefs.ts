@@ -900,6 +900,40 @@ export interface BriefCandidateProgress {
   stageLatencyMaxMs?: number | null;
   /** 那一句区间的中文原话（{@code StageLatencyRanges} 唯一出处，只报区间不报点估计）；界面一字不改地摆 */
   stageLatencyNote?: string | null;
+  /**
+   * 「演示内容」这一格<em>里面</em>正在写第几批（M-P35 把展示条目拆成一批一类，最多七批七发）。
+   *
+   * <p>阶段那一格只到「演示内容」，答不出「七类里现在写到哪一类」——所以这一格与下面三格是那一格
+   * 里面的读数。后端只在 `status=running` 且 `stage=demo` 时给值，其余一律 null（库里 V189 那四列
+   * 进终态不清，「不念」写在读侧）：界面拿 null 就当「这一趟没跑到要分批的那一步」，不许兜 0。</p>
+   */
+  showcaseBatchIndex?: number | null;
+  /** 一共几批（一批一类，批数由词表与需求单的信任锚点决定）；与报价那条明细用的是同一份判据 */
+  showcaseBatchTotal?: number | null;
+  /** 这一批在写哪一类：后端回的是词表里的中文显示名，界面不许自己映射第二份词表 */
+  showcaseBatchLabel?: string | null;
+  /** 这一批<em>发问那一刻</em>起算的等待（毫秒）；不是整阶段也不是整趟，null 同样不许念成 0 秒 */
+  showcaseBatchWaitMs?: number | null;
+}
+
+/**
+ * 把「这一腿正在写第几批」说成一句人话；读不到批号就返回 null（那一格什么都不摆）。
+ *
+ * <p>为什么这是唯一出处：等待面有三处在读这一趟的进度（向导第 3/4 步、候选画廊、总览页），
+ * 这一句话要是各写各的，同一趟在两个页面上就会一个说「第 3/7 批」一个不说（I-1）。
+ * 后端在那四种「不该念」的情况下回的是 null，所以这里不加闸也不兜底——null 就是没在写。</p>
+ */
+export function showcaseBatchLineOf(row: {
+  showcaseBatchIndex?: number | null;
+  showcaseBatchTotal?: number | null;
+  showcaseBatchLabel?: string | null;
+  showcaseBatchWaitMs?: number | null;
+}): string | null {
+  if (row.showcaseBatchIndex == null) return null;
+  const total = row.showcaseBatchTotal == null ? '?' : row.showcaseBatchTotal;
+  const label = row.showcaseBatchLabel || '后端这一发没回这一类叫什么';
+  return `这一格里分批在写：第 ${row.showcaseBatchIndex}/${total} 批 · ${label} · `
+    + `这一批已经等了 ${formatWaitMs(row.showcaseBatchWaitMs)}`;
 }
 
 /**
