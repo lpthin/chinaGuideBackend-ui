@@ -81,6 +81,7 @@ vi.mock('../../../api/siteBriefs', async (importOriginal) => {
       estimate: vi.fn(),
       generate: vi.fn(),
       progress: vi.fn(),
+      streamProgress: vi.fn(),
       candidates: vi.fn(),
       previewLink: vi.fn(),
       reissuePreviewLink: vi.fn(),
@@ -168,6 +169,38 @@ function candidateSite(overrides: Record<string, unknown> = {}): BriefCandidateS
   } as BriefCandidateSite
 }
 
+/**
+ * 假流（M-P33 批 C #340）：只记「订了哪几个事件」与「关没关」，一条真连接都不起。
+ * 两条腿的机制钉在 `utils/__tests__/proposal-progress-follow.spec.ts`（与向导共用那一份等待机），
+ * 这里钉的是画廊这一屏上真摆出来的那几句话。
+ */
+class GalleryStreamStub {
+  static instances: GalleryStreamStub[] = []
+
+  handlers = new Map<string, ((event: any) => void)[]>()
+  closed = 0
+
+  constructor(public url: string) {
+    GalleryStreamStub.instances.push(this)
+  }
+
+  addEventListener(name: string, handler: (event: any) => void) {
+    this.handlers.set(name, [...(this.handlers.get(name) ?? []), handler])
+  }
+
+  close() {
+    this.closed += 1
+  }
+
+  emit(name: string, rows: unknown) {
+    ;(this.handlers.get(name) ?? []).forEach(handler => handler({ data: JSON.stringify(rows) }))
+  }
+
+  get listening(): string[] {
+    return [...this.handlers.keys()]
+  }
+}
+
 interface MountOptions {
   briefData?: Record<string, unknown> | null
   sites?: any[]
@@ -179,6 +212,8 @@ interface MountOptions {
   progressError?: string
   candidateData?: BriefCandidateSite[]
   candidatesError?: string
+  /** 这一条用例要演的是「浏览器没有推送」那一形：那条腿直接抹掉，等的人只能自己按时读一眼 */
+  noEventSource?: boolean
 }
 
 async function mountView(options: MountOptions = {}) {
@@ -214,6 +249,17 @@ async function mountView(options: MountOptions = {}) {
   } else {
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue(options.candidateData ?? [])
   }
+  // 进度那两条腿里「听推送」这一条由测试代管：假流顶掉 EventSource，视图不许真的去连；
+  // noEventSource 那一形则把这一条腿直接抹掉，看的是它当众换到轮询那一句
+  GalleryStreamStub.instances = []
+  if (options.noEventSource) {
+    vi.stubGlobal('EventSource', undefined)
+  } else {
+    vi.stubGlobal('EventSource', GalleryStreamStub)
+    vi.mocked(briefGenerationApi.streamProgress).mockImplementation(
+      (id: number) => new GalleryStreamStub(`stream-${id}`) as never
+    )
+  }
   const wrapper = mount(CandidateGalleryView, {
     attachTo: document.body,
     global: {
@@ -247,6 +293,8 @@ function click(node: Element) {
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  // EventSource 由 mountView 逐条用例重装（那条腿接不接得上看这一条用例怎么摆），上一条的假流不许漏下来
+  vi.unstubAllGlobals()
 })
 
 describe('槽位排满与每格只转述后端给的', () => {
@@ -659,6 +707,79 @@ describe('读不到就说什么读不到', () => {
     const wrapper = await mountView()
     click(byText('回需求单详情')[0])
     expect(pushSpy).toHaveBeenCalledWith({ name: 'workspace-portal-brief-detail', params: { id: '12' } })
+    wrapper.unmount()
+  })
+})
+
+/**
+ * M-P33 批 C #340：画廊也是等这一趟的地方，所以它挂的是与向导同一份等待机（`utils/proposalProgressFollow`）。
+ * 这一屏钉三句：进度是怎么来的（推送还是自己读一眼）、这一套等了多久、跑完了就把流收掉并重读预览现状。
+ */
+describe('等待面：进度是怎么来的 + 这一套等了多久', () => {
+  it('有一整套还在跑：开流一次，卡上摆出等了多久与那一步的历史区间', async () => {
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row({ status: 'running', statusLabel: '在跑', stage: 'copy', stageLabel: '文案', stageWaitMs: 95000, stageLatencyNote: '这一步以往成功回答实测在 1 分 ~ 9 分之间（只报区间，不是「还要等多久」）' })]
+    })
+
+    expect(briefGenerationApi.streamProgress).toHaveBeenCalledTimes(1)
+    expect(briefGenerationApi.streamProgress).toHaveBeenCalledWith(12)
+    expect(GalleryStreamStub.instances[0].listening.sort()).toEqual(['complete', 'error', 'progress'])
+    const text = wrapper.text()
+    expect(text).toContain('进度是后端推过来的')
+    expect(text).toContain('这一步已经等了：约 1 分 35 秒')
+    expect(text).toContain('这一步以往成功回答实测在 1 分 ~ 9 分之间')
+    wrapper.unmount()
+  })
+
+  it('后端没回时长读数那一格念「没回」，不替它编 0 秒', async () => {
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row({ status: 'running', statusLabel: '在跑', stageWaitMs: null })]
+    })
+    expect(wrapper.text()).toContain('这一步已经等了：后端这一发没回时长读数（不是 0 秒）')
+    wrapper.unmount()
+  })
+
+  it('全都进终态：不开流也不起表，那一行话术明说这一轮没有要等的东西', async () => {
+    const wrapper = await mountView({ sites: [site(31, 1)], progressData: [row()] })
+
+    expect(briefGenerationApi.streamProgress).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('这一轮没有要等的东西')
+    // 终态那两套不再念等了：后端那一格回的是 null，界面上不许留一个会动的读数
+    expect(wrapper.text()).toContain('这一套已进终态，不再念等了')
+    wrapper.unmount()
+  })
+
+  it('流里的 complete 一到就收流，并重读预览令牌现状（卡上那一格不能停在点之前的旧说法）', async () => {
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row({ status: 'running', statusLabel: '在跑' })]
+    })
+    const stream = GalleryStreamStub.instances[0]
+    const candidatesBefore = vi.mocked(briefGenerationApi.candidates).mock.calls.length
+
+    stream.emit('complete', [row()])
+    await flushPromises()
+
+    expect(stream.closed).toBe(1)
+    expect(vi.mocked(briefGenerationApi.candidates).mock.calls.length).toBe(candidatesBefore + 1)
+    expect(wrapper.text()).toContain('这一套已进终态，不再念等了')
+    wrapper.unmount()
+  })
+
+  it('推送接不上就当众换腿：那一行话术换成「每 5 秒自己读一眼」，读的还是同一个出口', async () => {
+    const wrapper = await mountView({
+      sites: [site(31, 1)],
+      progressData: [row({ status: 'running', statusLabel: '在跑', stageWaitMs: 95000 })],
+      noEventSource: true
+    })
+
+    expect(briefGenerationApi.streamProgress).not.toHaveBeenCalled()
+    const text = wrapper.text()
+    expect(text).toContain('每 5 秒自己读一眼')
+    expect(text).toContain('读的是同一个出口，没有第二套数')
+    expect(text).toContain('约 1 分 35 秒')
     wrapper.unmount()
   })
 })

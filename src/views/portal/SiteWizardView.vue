@@ -19,7 +19,7 @@
  * 取数时机分两层（`loadRailReadings` / `loadStepExtras`）：驱动顶上那条步序条的三件事一直读，
  * 多出来的逐套进度与客户留痕等人走到那一步再读——进页面不把五步的读数一次发完。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -44,6 +44,7 @@ import BriefIntakeForm from '@/views/portal/BriefIntakeForm.vue'
 import FoldedText from '@/components/FoldedText.vue'
 import WizardSteps from '@/components/WizardSteps.vue'
 import { createWizardState, type WizardState, type WizardStepDef } from '@/components/wizardModel'
+import { createProposalProgressFollower } from '@/utils/proposalProgressFollow'
 
 const route = useRoute()
 const router = useRouter()
@@ -59,8 +60,18 @@ const spec = ref<SpecDocumentView | null>(null)
 const specError = ref('')
 const candidates = ref<BriefCandidateSite[]>([])
 const candidatesError = ref('')
-const progress = ref<BriefCandidateProgress[]>([])
-const progressError = ref('')
+/**
+ * 逐套进度的两条腿（推送 + 兜底轮询）在 `utils/proposalProgressFollow` 那一份里，
+ * 这里只是把它接上：读数出口仍然只有 `progress` 那一条 GET，流里推的是同一份数组。
+ * `onSettled` 挂的是顶上那条步序条——一整轮进终态后不重读，人看见的是一条不动的步序条。
+ */
+const progressFollow = createProposalProgressFollower({
+  briefId: () => briefId.value,
+  onSettled: () => loadRailReadings()
+})
+const progress = progressFollow.rows
+const progressError = progressFollow.error
+const progressSourceLine = progressFollow.sourceLine
 /** 价签不是自动刷出来的：那一发是 POST，只有人在这屏点「先算一次价」才发（它零模型调用，但仍是请求） */
 const quote = ref<BriefEstimate | null>(null)
 const quoteError = ref('')
@@ -275,9 +286,13 @@ const stepNotice = computed<Record<string, string>>(() => ({
   spec: !briefId.value ? '要先有需求单。'
     : specError.value ? `说明书没读到：${specError.value}`
     : !spec.value?.exists ? '这一单还没有说明书（AI 出初稿与逐段修改都在那一页）。'
-    : spec.value.status === 'CONFIRMED'
-      ? `已确认的第 ${spec.value.specVersion} 版，${spec.value.sections.length} 段全文就是生成的输入。`
-      : `第 ${spec.value.specVersion} 版草稿：${spec.value.sections.length} 段里写了 ${filledSections.value} 段${blankSections.value ? `、空着 ${blankSections.value} 段` : '，一段都没空着'}。签字才能放行生成。`,
+    // 异步那一发在跑时，下面这几段还是<em>原来那一版</em>：这一句不说，向导就把「等模型」演成「文档就这样」
+    : spec.value.draftStatus === 'RUNNING'
+      ? `${spec.value.draftStatusLabel}：下面这几段还是原来那一版，跑成之前别按字面当成初稿在读；`
+        + '进度、以往实测多久，都在说明书那一页读（这一页不另开第二张嘴）。'
+      : spec.value.status === 'CONFIRMED'
+        ? `已确认的第 ${spec.value.specVersion} 版，${spec.value.sections.length} 段全文就是生成的输入。`
+        : `第 ${spec.value.specVersion} 版草稿：${spec.value.sections.length} 段里写了 ${filledSections.value} 段${blankSections.value ? `、空着 ${blankSections.value} 段` : '，一段都没空着'}。签字才能放行生成。`,
   generate: !briefId.value ? '要先有需求单。'
     : candidatesError.value ? `候选站没读到：${candidatesError.value}`
     : !candidates.value.length ? '这一单还没有候选站：先算一次价，再带凭据去按「开始出方案」。'
@@ -352,16 +367,14 @@ async function loadCandidates() {
   }
 }
 
-async function loadProgress() {
-  progress.value = []
-  progressError.value = ''
-  if (!briefId.value) return
-  try {
-    progress.value = (await briefGenerationApi.progress(briefId.value)) || []
-  } catch (error) {
-    progressError.value = error instanceof Error ? error.message : String(error)
-  }
-}
+/**
+ * 这一趟的等待机在 `utils/proposalProgressFollow` 那一份（与候选画廊共用），这里只把它的名字接上：
+ * 读数出口仍然只有 `progress` 那一条 GET，流里推的是同一份数组，界面上那一行「进度是怎么来的」
+ * 跟着真在用的那一条腿换——不许写着「推送」而其实在轮询。
+ */
+const loadProgress = progressFollow.load
+const stopFollowingProgress = progressFollow.stop
+const waitLineOf = progressFollow.waitLineOf
 
 async function loadDecisions() {
   decisions.value = []
@@ -390,7 +403,12 @@ async function loadRailReadings() {
 
 function loadStepExtras(stepIndex: number) {
   const key = STEP_KEYS[stepIndex]
-  if (key === 'generate' || key === 'candidates') loadProgress()
+  if (key === 'generate' || key === 'candidates') {
+    loadProgress()
+    return
+  }
+  // 人不在等这一趟的那两步：那条流与那只表都不留着跑，「读一次」与「一直听」的界限跟着屏幕走
+  stopFollowingProgress()
   if (key === 'deliver') loadDecisions()
 }
 
@@ -511,6 +529,7 @@ watch(briefId, () => {
   quoteError.value = ''
   decisions.value = []
   progress.value = []
+  stopFollowingProgress()
   loadRailReadings()
   loadStepExtras(wizard.value.current)
 })
@@ -526,6 +545,9 @@ onMounted(async () => {
   loadRailReadings()
   loadStepExtras(wizard.value.current)
 })
+
+// 人走了那条流与那只表都得关掉：留着就是一边占着后端那条 SSE 工作线程，一边对着已经不看的页面空转
+onUnmounted(stopFollowingProgress)
 </script>
 
 <template>
@@ -685,11 +707,13 @@ onMounted(async () => {
 
         <div v-if="progress.length" class="site-wizard__row">
           <p class="site-wizard__sub-title">每一套跑到哪一步了</p>
+          <p class="site-wizard__hint">{{ progressSourceLine }}</p>
           <a-table
             :data-source="progress"
             :columns="[
               { title: '第几套', dataIndex: 'candidateNo', key: 'candidateNo', width: 80 },
               { title: '阶段', key: 'stage', width: 150 },
+              { title: '这一步已经等了', key: 'wait', width: 170 },
               { title: '这一套的状态', key: 'status', width: 150 },
               { title: '这一步说的话', key: 'detail' }
             ]"
@@ -702,8 +726,12 @@ onMounted(async () => {
               <template v-if="column.key === 'stage'">
                 <a-tag>{{ record.stageLabel || record.stage || '后端没回阶段' }}</a-tag>
               </template>
+              <template v-else-if="column.key === 'wait'">
+                <span>{{ waitLineOf(record) }}</span>
+                <p v-if="record.stageLatencyNote" class="site-wizard__hint">{{ record.stageLatencyNote }}</p>
+              </template>
               <template v-else-if="column.key === 'status'">
-                <a-tag :color="record.status === 'failed' ? 'red' : record.status === 'success' ? 'green' : 'blue'">
+                <a-tag :color="record.status === 'failed' ? 'red' : record.status === 'succeeded' ? 'green' : 'blue'">
                   {{ record.statusLabel || record.status || '状态未知' }}
                 </a-tag>
               </template>

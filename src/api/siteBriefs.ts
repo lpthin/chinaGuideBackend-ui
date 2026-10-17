@@ -1,4 +1,4 @@
-import http from './http';
+import http, { currentAuthToken } from './http';
 import type { SectionState } from './portalSections';
 
 /**
@@ -867,6 +867,52 @@ export interface BriefCandidateProgress {
   imageDone?: number | null;
   imageFailed?: number | null;
   imageSkipped?: number | null;
+  /**
+   * 这一套当前阶段的起点（后端 V187 那一列）。
+   *
+   * <p>进终态之后库里那一格<em>不清</em>，所以界面不许拿它自己减秒数——那会对着一个早就跑完的
+   * 数字念「还在等」。「等了多久」只读下面那一格后端算好的。</p>
+   */
+  stageStartedAt?: string | null;
+  /** 只在跑动中给：这一步到现在等了多久（毫秒）；null 不是「等了 0 秒」，是「没在等」或后端没回 */
+  stageWaitMs?: number | null;
+  /** 这一整趟（这一套从开跑到现）已经过了多久（毫秒），同样只在跑动中给 */
+  roundElapsedMs?: number | null;
+  /** 这一步以往实测的区间（毫秒）。null 是那两种「给不出区间」：这一步没有外呼，或还没有过一次成功回答 */
+  stageLatencyMinMs?: number | null;
+  stageLatencyMaxMs?: number | null;
+  /** 那一句区间的中文原话（{@code StageLatencyRanges} 唯一出处，只报区间不报点估计）；界面一字不改地摆 */
+  stageLatencyNote?: string | null;
+}
+
+/**
+ * 后端 `ProposalStages.TERMINAL` 那一族的状态码镜像（`succeeded` / `failed`）。
+ *
+ * <p>这里只拿它判<b>还要不要接着听进度</b>（在跑就别停表，进终态就收流），
+ * 中文一律读后端回的 `statusLabel`，前端不抄第二份词表（I-1）。
+ * 为什么前端要自己认这两个码：进度那一口的回包里没有「是否终态」这一格，
+ * 而等待面必须知道什么时候把那条流关掉。</p>
+ */
+export const CANDIDATE_TERMINAL_STATUSES = ['succeeded', 'failed'] as const;
+
+/** 这一行是不是已经进终态：码取不到（旧后端/读失败）时按「还没终态」处理，宁可多读一眼不可提前收工 */
+export function candidateStatusTerminal(status?: string | null): boolean {
+  return !!status && (CANDIDATE_TERMINAL_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * 把毫秒说成一句人话。
+ *
+ * <p>只用于后端回的那些读数（`stageWaitMs` 等）：null 一律念「后端这一发没回」，
+ * <b>不许念成 0 秒</b>——0 是「刚开跑」，没回是「这一格我没读到」，两件事。</p>
+ */
+export function formatWaitMs(value: number | null | undefined): string {
+  if (value == null) return '后端这一发没回时长读数（不是 0 秒）';
+  const seconds = Math.max(0, Math.round(value / 1000));
+  if (seconds < 60) return `约 ${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `约 ${minutes} 分 ${seconds % 60} 秒`;
+  return `约 ${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分`;
 }
 
 /**
@@ -1046,6 +1092,73 @@ export interface BriefPreviewLink {
   expiresAt?: string | null;
 }
 
+/**
+ * 超管侧「建站任务总览」的一单（M-P33 批 D，后端 `SiteProposalOverview.Round`，
+ * 端点 `GET /admin/site-proposal/overview`，纯读）。
+ *
+ * <p>`candidates` 就是 {@link BriefCandidateProgress} 那一份读数（后端内部调同一个出口），
+ * 所以等待、历史实测区间那五格在这里不必再解释第二遍——界面对同一趟只许有一份真相（M-P16 #248）。</p>
+ */
+export interface BriefOverviewRound {
+  briefId: number;
+  tenantId?: number | null;
+  /** 归属那一家的名字，由后端按 tenant_id 现查；读不到就是 null（界面露空，不兜「未知租户」） */
+  tenantName?: string | null;
+  /** 需求单状态的码与原话标签：后端那一格的组件名是 briefStatus/briefStatusLabel（不是 status），抄错等于界面永远念「没回」 */
+  briefStatus?: string | null;
+  briefStatusLabel?: string | null;
+  attempt?: number | null;
+  roundStartedAt?: string | null;
+  /** 整单已跑多久（毫秒）；只有还在跑时后端才给，进终态后是 null */
+  roundElapsedMs?: number | null;
+  candidateTotal?: number | null;
+  runningCount?: number | null;
+  terminalCount?: number | null;
+  /** 「已受理、一套都还没开始」那一格；中文理由在 waitingLine */
+  waitingForPool?: boolean | null;
+  waitingLine?: string | null;
+  /** 这一轮候选行的网关实报合计（不是字数尺那把） */
+  burnedTokens?: number | null;
+  estimatedTokens?: number | null;
+  candidates?: BriefCandidateProgress[] | null;
+  /** 这一家名下这条链历史上已经烧掉的那一份账（字数尺口径，句子出处 WorkbenchBurnLedger） */
+  tenantBurn?: BriefPlatformBurn | null;
+}
+
+/** 说明书异步初稿在跑的一格（批 C 拍板 ⑨ 那一族；状态词表与出方案那族不同，故后端单列） */
+export interface BriefOverviewDraft {
+  briefId: number;
+  tenantId?: number | null;
+  tenantName?: string | null;
+  draftStatus?: string | null;
+  draftStatusLabel?: string | null;
+  startedAt?: string | null;
+  waitMs?: number | null;
+  errorMessage?: string | null;
+}
+
+/** 一个线程池的瞬时快照（只说这一个进程，多实例部署时不代表全平台） */
+export interface BriefOverviewPool {
+  name: string;
+  activeCount?: number | null;
+  poolSize?: number | null;
+  maxPoolSize?: number | null;
+  queueSize?: number | null;
+  queueCapacity?: number | null;
+  /** 后端拼好的那句口径，界面原样念 */
+  line?: string | null;
+}
+
+export interface BriefWorkbenchOverview {
+  runningRounds?: number | null;
+  runningDrafts?: number | null;
+  pools?: BriefOverviewPool[] | null;
+  rounds?: BriefOverviewRound[] | null;
+  drafts?: BriefOverviewDraft[] | null;
+  /** 那一句口径（没有预测、只读、两把 token 尺各说各的） */
+  note?: string | null;
+}
+
 export const briefGenerationApi = {
   /** 零模型调用的预估：只算不花，所以它不需要 confirm，也不该被省掉 */
   estimate: (id: number) => http.post<BriefEstimate>(`/admin/site-briefs/${id}/estimate`),
@@ -1066,6 +1179,33 @@ export const briefGenerationApi = {
 
   /** 每候选站一条子任务的进度：后端回的是数组，哪套在跑、哪套失败、失败缺什么都在各自那一行 */
   progress: (id: number) => http.get<BriefCandidateProgress[]>(`/admin/site-briefs/${id}/progress`),
+
+  /**
+   * 进度的<em>推送</em>版（M-P33 批 C，后端 `GET /admin/site-briefs/{id}/progress/stream`）。
+   *
+   * <p>数据<b>就是上面那一口 `progress` 的同一份读数</b>，事件名与工作台那支持久任务的流逐字一致
+   * （`connected` / `progress` / `complete` / `error`），所以这里不另列字段、界面也不另算一套。</p>
+   *
+   * <p>令牌只能走 `?token=`：EventSource 带不了请求头（与 `api/workspace` 那支同形）。
+   * 另有一条现场实测的形状要记着——这一口只认 `Accept: text/event-stream`，
+   * 写成通配那种（星号 斜杠 星号）会被全仓那个异常兜底拦成 406「不支持的响应类型」
+   * （浏览器发的正是前者，而 curl 默认发的是后者，取证时别拿 curl 的 406 判这一口坏了）。</p>
+   */
+  streamProgress: (id: number) =>
+    new EventSource(`/api/admin/site-briefs/${id}/progress/stream?token=${encodeURIComponent(currentAuthToken() ?? '')}`),
+
+  /**
+   * 超管侧「建站任务总览」（M-P33 批 D，拍板 ⑩）：跨租户摆「同时在跑几单、谁在排队、
+   * 各自跑到哪一步、已经烧了多少」。<b>纯读</b>：不启动、不取消、不补跑任何东西。
+   *
+   * <p>没有 SSE 是有意的：这一页服务的是「我手上不止一单」的那个人，他每次切回这一页就要看全平台，
+   * 而 20 分钟里给一单挂一条流的成本（一条工作线程 × N 单）远高于这里每 10 秒读一次的量。
+   * 一单内部的实时跟随仍走上面那支 {@link streamProgress}。</p>
+   */
+  overview: (tenantId?: number | null) =>
+    http.get<BriefWorkbenchOverview>('/admin/site-proposal/overview', {
+      params: tenantId ? { tenantId } : {}
+    }),
 
   /**
    * 候选站列表（含每套预览令牌的<b>现状</b>）：纯读，一条令牌都不签。

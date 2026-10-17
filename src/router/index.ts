@@ -78,6 +78,7 @@ const SkeletonLibraryView = () => import('../views/portal/SkeletonLibraryView.vu
 const AssembleJobView = () => import('../views/portal/AssembleJobView.vue')
 const SiteBriefsView = () => import('../views/portal/SiteBriefsView.vue')
 const SiteWizardView = () => import('../views/portal/SiteWizardView.vue')
+const SiteProposalOverviewView = () => import('../views/portal/SiteProposalOverviewView.vue')
 const BriefIntakeView = () => import('../views/portal/BriefIntakeView.vue')
 const BriefDetailView = () => import('../views/portal/BriefDetailView.vue')
 const CandidateGalleryView = () => import('../views/portal/CandidateGalleryView.vue')
@@ -523,6 +524,24 @@ export const routes: RouteRecordRaw[] = [
           title: '新建网站',
           desc: '需求单 → 说明书 → 估价与出方案 → 候选比较 → 选定转正，五步一条线，每步只摆今天真能做的动作',
           icon: 'rocket',
+          requiredPermission: 'portal:build:manage',
+          requiresSuperAdmin: true
+        }
+      },
+      {
+        // 建站任务总览（Spec-M §10.44 拍板 ⑩，M-P33 批 D）：全平台「同时在跑几单、谁在排队、
+        // 各自跑到哪一步、已烧多少」那一格。它紧跟向导排在建站组第二项靠的是路由定义顺序。
+        // 闸与向导逐字同码（portal:build:manage + requiresSuperAdmin）：建设域在跑的东西租户连读都不该读到，
+        // 而这一页新造一个权限码就等于再维护一份没人核对的开关（Spec §3.1 硬规则 1/5）。
+        path: 'portal/proposal-overview',
+        name: 'workspace-portal-proposal-overview',
+        component: SiteProposalOverviewView,
+        meta: {
+          title: '建站任务总览',
+          desc: '全平台在跑的建站任务：同时几单、各自到哪一步、已经烧了多少；这一页只读，不停也不补跑任何东西',
+          // 图标用 dashboard（「一屏看全平台」那颗）而不是再抄一颗 rocket：相邻两项同一个图标，
+          // 扫一眼菜单就分不清哪一条是「跑一趟」、哪一条是「看全局」
+          icon: 'dashboard',
           requiredPermission: 'portal:build:manage',
           requiresSuperAdmin: true
         }

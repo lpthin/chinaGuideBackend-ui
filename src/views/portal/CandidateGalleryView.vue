@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
@@ -33,6 +33,7 @@ import FoldedText from '@/components/FoldedText.vue'
 import { portalSkeletonsApi, type SkeletonView } from '@/api/portalSkeletons'
 import { siteApi } from '@/api/workspace'
 import { formatDateTime } from '@/utils/format'
+import { createProposalProgressFollower } from '@/utils/proposalProgressFollow'
 import type { Site as SiteEntity } from '@/types'
 
 /**
@@ -74,9 +75,24 @@ const vocabulary = ref<SiteBriefVocabulary | null>(null)
 const vocabularyFailed = ref(false)
 const sites = ref<SiteEntity[]>([])
 const sitesError = ref('')
-/** 进度口的形状就是**一个数组**（每套一行）：以前按 `{candidates:[…]}` 读，这一页永远显示空清单 */
-const progress = ref<BriefCandidateProgress[] | null>(null)
-const progressError = ref('')
+/**
+ * 进度口的形状就是**一个数组**（每套一行）：以前按 `{candidates:[…]}` 读，这一页永远显示空清单。
+ * 这一份读数与顶上那一行「进度是怎么来的」都来自 `utils/proposalProgressFollow` 那台等待机
+ * （和向导第 3/4 步同一份实现）：卡上的「子任务/阶段/等了多久」在一趟真跑里要自己动，
+ * 以前它只在 onMounted 读一次，人守着这一页看到的是永远停在「进行中」的三张卡。
+ */
+const progressFollow = createProposalProgressFollower({
+  briefId: () => routeBriefId(),
+  // 一整轮跑完：预览令牌的现状（三态那一格）也得跟着重读，不然卡上留着点之前的旧说法
+  onSettled: () => {
+    const id = routeBriefId()
+    if (id !== null) void loadCandidates(id)
+  }
+})
+const progress = progressFollow.rows
+const progressError = progressFollow.error
+const progressSourceLine = progressFollow.sourceLine
+const waitLineOf = progressFollow.waitLineOf
 /** 骨架库：进度口只给 key，中文名只有这一处出处（I-4：骨架是数据资产，不写进代码） */
 const skeletons = ref<SkeletonView[]>([])
 const skeletonsError = ref('')
@@ -143,7 +159,7 @@ function siteOfSlot(row: BriefCandidateProgress | null, candidateNo: number): Si
 const slots = computed<CandidateSlot[]>(() => {
   // 套数就是单子上写死的那个值：candidate.max-count 的闸在后端（拍板 4），这里不再自设上限
   const count = Math.max(0, brief.value?.candidateCount ?? 0)
-  const rows = progress.value ?? []
+  const rows = progress.value
   const out: CandidateSlot[] = []
   for (let no = 1; no <= count; no += 1) {
     const row = rows.find(item => item.candidateNo === no) ?? null
@@ -476,21 +492,16 @@ async function loadAll() {
     skeletons.value = []
     skeletonsError.value = errText(error)
   }
-  progressError.value = ''
-  try {
-    const rows = await briefGenerationApi.progress(id)
-    progress.value = rows ?? []
-  } catch (error) {
-    // 进度口（P3 契约）没上线时这一句原文挂顶；卡面退回站点列表那份真相，不演
-    progress.value = null
-    progressError.value = errText(error)
-  }
+  // 进度这一眼交给那台等待机：读到还有没进终态的套，它自己接着听推送（听不到就每 5 秒轮询）
+  await progressFollow.load()
   // 预览令牌的现状单独一口：读它不签任何东西（旧口径每读一次就给每套新签一条 14 天公开链接）
   await loadCandidates(id)
   loading.value = false
 }
 
 onMounted(loadAll)
+// 人是会走的：离开这一页就把那条流与那只表收掉，不许在后台替一个不在看的页面一直读
+onUnmounted(() => progressFollow.stop())
 </script>
 
 <template>
@@ -545,6 +556,8 @@ onMounted(loadAll)
       这一单还没出过套数（抬头里的候选套数读不出来或为 0）：回详情页走完②的门禁再来看。
     </p>
 
+    <p class="candidate-gallery__muted">{{ progressSourceLine }}</p>
+
     <div class="candidate-gallery__grid">
       <a-card
         v-for="slot in slots"
@@ -562,6 +575,11 @@ onMounted(loadAll)
           <a-tag v-if="needsHumanOf(slot)" color="orange">{{ CANDIDATE_NEEDS_HUMAN_TEXT }}</a-tag>
           <span class="candidate-gallery__muted">子任务：{{ subtaskText(slot) }} · 阶段：{{ stageText(slot) }}</span>
         </div>
+        <!-- 「等了多久」是后端算好的读数（阶段起点落库再减现在）；进了终态就明说不再念，因为那一格回的是 null 不是 0 秒 -->
+        <p v-if="slot.row" class="candidate-gallery__line">
+          这一步已经等了：{{ waitLineOf(slot.row) }}
+          <template v-if="slot.row.stageLatencyNote">（{{ slot.row.stageLatencyNote }}）</template>
+        </p>
         <p v-if="needsHumanOf(slot)" class="candidate-gallery__line">
           <b>{{ CANDIDATE_NEEDS_HUMAN_TEXT }}：</b>{{ CANDIDATE_NEEDS_HUMAN_HINT }}
         </p>

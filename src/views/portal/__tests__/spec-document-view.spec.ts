@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { Button } from 'ant-design-vue'
 import SpecDocumentView from '../SpecDocumentView.vue'
 import { siteSpecApi, type SpecDocumentView as SpecDoc } from '../../../api/siteSpec'
 
 /**
- * 建站说明书页（Spec-M P0）钉的六件事，全是这一族真出过问题的地方：
+ * 建站说明书页（Spec-M P0）钉的七件事，全是这一族真出过问题的地方：
  *
  * 1. 进页面只发那一条 GET：出初稿（真花钱 + 整份覆盖）与确认（让它成为生成输入）
  *    都只在人明确点按钮时才发得出去；
@@ -13,7 +13,9 @@ import { siteSpecApi, type SpecDocumentView as SpecDoc } from '../../../api/site
  * 3. 确认按不动时，理由永远摆在页面上（blockers），不让人猜；
  * 4. 超限只报数不裁剪：字数显示的是真字数，红的是确认闸那一句；
  * 5. 保存提交的是输入框里的原话（含首尾空格），前端一个字节都不加工；
- * 6. 七段有内容时出初稿必须先问一次覆盖，不许静默盖掉超管改过的字。
+ * 6. 七段有内容时出初稿必须先问一次覆盖，不许静默盖掉超管改过的字；
+ * 7. 初稿那一发是异步受理的（M-P33 拍板 ⑨）：进度只读那一条 GET，等得到看得见，
+ *    而且那一发跑着的时候不许吃掉人正在输入的字。
  *
  * 挂真实控件：真 Button（读 DOM 的 disabled 属性）、真 textarea（读 DOM 的 value），
  * 不用全局 stub 演交互。
@@ -87,6 +89,12 @@ function doc(overrides: Partial<SpecDoc> = {}): SpecDoc {
     aiDraftProvider: null,
     aiDraftModel: null,
     aiDraftAt: null,
+    draftStatus: null,
+    draftStatusLabel: '还没异步出过初稿',
+    draftStartedAt: null,
+    draftWaitMs: null,
+    draftErrorMessage: null,
+    draftLatencyNote: null,
     maxSectionChars: 6000,
     sections: contents as any,
     notices: [],
@@ -412,7 +420,183 @@ describe('AI 出初稿：会覆盖人写的字，所以必须先问', () => {
     const { message } = await import('ant-design-vue')
     const shown = vi.mocked(message.error).mock.calls.map(call => String(call[0])).join('\n')
     expect(shown).toContain('app.site-spec.draft.enabled=false')
-    expect(shown).toContain('初稿没有生成')
+    expect(shown).toContain('这一发出初稿没有被受理')
+    // 闸是「受理」阶段的闸：这一发连模型都没碰，所以界面那句必须把钱说死，不许留成「生成了但坏了」的形状
+    expect(shown).toContain('一个模型都没调，也没扣费')
     expect(shown).not.toContain('生成失败')
+  })
+})
+
+/**
+ * 初稿那一发改成异步受理之后的进度面（M-P33 拍板 ⑨）。这一组钉的四件事都是这一族翻过车的地方：
+ *
+ * 1. 等待看得见：摆后端现算的 draftWaitMs 与以往实测区间，不拿浏览器时钟减（时区不同源会造出「等了三小时」的假读数）；
+ * 2. 进度出口只有一支：轮询打的还是那一条 GET /spec，一处都不许再开第二张嘴，也不许在自动路径里碰写口；
+ * 3. 轮询不许吃掉人正在打的字：这一条是这一组里唯一「跑成了也照样是缺陷」的形状——
+ *    七段整份覆盖的同时输入框被上一份服务端原文刷回去，人敲进去的内容就这样没了，而界面一个字都不报错；
+ * 4. 进终态要停表：不停表就是一支永远在打的只读请求，而 FAILED 那句必须原话挂出来，
+ *    因为「模型没答」「门禁整单拒」「进程重启被回收」这三种死法的下一步完全不同。
+ */
+describe('初稿那一发是异步的：进度只读那一条 GET', () => {
+  const RUNNING = {
+    draftStatus: 'RUNNING',
+    draftStatusLabel: '出初稿中',
+    draftStartedAt: '2026-10-17T02:10:00',
+    draftWaitMs: 96000,
+    draftLatencyNote: '这一族以往实测 163 秒～216 秒（读自流水，不是猜的）'
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('RUNNING 时摆出「已经等了多久」与以往实测区间，两颗写按钮灭', async () => {
+    vi.mocked(siteSpecApi.read).mockResolvedValue(doc(RUNNING))
+    mounted()
+    await flushPromises()
+
+    expect(bodyText()).toContain('出初稿中')
+    // 96 秒念成「1 分 36 秒」，且说明白这是到上一次读数为止，不是秒针在走
+    expect(bodyText()).toContain('到上一次读数为止约 1 分 36 秒')
+    expect(bodyText()).toContain(RUNNING.draftLatencyNote)
+    expect(bodyText()).toContain('跑成之前七段保持原样')
+
+    expect(buttonThat('AI 出初稿')!.disabled).toBe(true)
+    expect(buttonThat('确认这一版')!.disabled).toBe(true)
+  })
+
+  it('RUNNING 时每 5 秒只读那一条 GET：一次都不碰写口', async () => {
+    vi.mocked(siteSpecApi.read).mockResolvedValue(doc(RUNNING))
+    mounted()
+    await flushPromises()
+    expect(siteSpecApi.read).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(siteSpecApi.read).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(siteSpecApi.read).toHaveBeenCalledTimes(4)
+
+    expect(siteSpecApi.draft).not.toHaveBeenCalled()
+    expect(siteSpecApi.confirm).not.toHaveBeenCalled()
+    expect(siteSpecApi.saveSection).not.toHaveBeenCalled()
+    // 读的是同一个对象：进度不许另开一支口（M-P16 #248 立的规矩）
+    expect(siteSpecApi.read).toHaveBeenCalledWith(12)
+  })
+
+  it('轮询回来的那一份不许盖掉正在输入但没保存的字', async () => {
+    vi.mocked(siteSpecApi.read).mockResolvedValue(doc(RUNNING))
+    const wrapper = mounted()
+    await flushPromises()
+
+    const box = wrapper.findAll('textarea')[0]
+    await box.setValue('我正在补的一句，还没点保存')
+    expect((box.element as HTMLTextAreaElement).value).toBe('我正在补的一句，还没点保存')
+
+    // 再读两眼：服务端那一份第 1 段仍是「第 1 段的正文」，输入框必须还是人敲的那一句
+    await vi.advanceTimersByTimeAsync(10000)
+    expect((wrapper.findAll('textarea')[0].element as HTMLTextAreaElement).value).toBe('我正在补的一句，还没点保存')
+    // 但进度那几格跟着新读数走：等的秒数换了照样要念出来
+    expect(bodyText()).toContain('到上一次读数为止约 1 分 36 秒')
+  })
+
+  it('读到 SUCCEEDED 才逐段对齐，报一句「是模型那一版」，然后停表', async () => {
+    const done = doc({
+      draftStatus: 'SUCCEEDED',
+      draftStatusLabel: '异步初稿已写回',
+      draftWaitMs: null,
+      sections: KEYS.map((key, index) => ({
+        key,
+        title: LABELS[index],
+        order: index + 1,
+        content: `模型出的第 ${index + 1} 段`,
+        charCount: `模型出的第 ${index + 1} 段`.length,
+        blank: false,
+        overLimit: false
+      }))
+    })
+    vi.mocked(siteSpecApi.read)
+      .mockResolvedValueOnce(doc(RUNNING))
+      .mockResolvedValue(done)
+
+    const wrapper = mounted()
+    await flushPromises()
+    await wrapper.findAll('textarea')[0].setValue('我正在补的一句')
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    expect((wrapper.findAll('textarea')[0].element as HTMLTextAreaElement).value).toBe('模型出的第 1 段')
+    const { message } = await import('ant-design-vue')
+    const shown = vi.mocked(message.success).mock.calls.map(call => String(call[0])).join('\n')
+    expect(shown).toContain('初稿跑成了')
+    expect(shown).toContain('AI 那一版不是签字版')
+
+    // 停表：再等 30 秒也不许再多打一眼
+    const before = vi.mocked(siteSpecApi.read).mock.calls.length
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(vi.mocked(siteSpecApi.read).mock.calls.length).toBe(before)
+  })
+
+  it('读到 FAILED：后端原话一个字不改地挂出来，并说清七段没被动过', async () => {
+    const failed = doc({
+      draftStatus: 'FAILED',
+      draftStatusLabel: '异步初稿失败',
+      draftWaitMs: null,
+      draftErrorMessage: '模型没有回答（网关在 900 秒把这一趟掐断了）'
+    })
+    vi.mocked(siteSpecApi.read).mockResolvedValueOnce(doc(RUNNING)).mockResolvedValue(failed)
+    mounted()
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    const { message } = await import('ant-design-vue')
+    const shown = vi.mocked(message.error).mock.calls.map(call => String(call[0])).join('\n')
+    expect(shown).toContain('模型没有回答（网关在 900 秒把这一趟掐断了）')
+    expect(shown).toContain('原来那一版七段一个字都没被改动')
+    expect(shown).not.toContain('生成失败')
+    // 页面上那条常驻的说明也要在：人不看弹窗也要知道上一发死了
+    expect(bodyText()).toContain('上一次那一发「AI 出初稿」没跑成')
+
+    const before = vi.mocked(siteSpecApi.read).mock.calls.length
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(vi.mocked(siteSpecApi.read).mock.calls.length).toBe(before)
+  })
+
+  it('离开页面把表停掉：组件都拆了不许还在打请求', async () => {
+    vi.mocked(siteSpecApi.read).mockResolvedValue(doc(RUNNING))
+    const wrapper = mounted()
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+    const before = vi.mocked(siteSpecApi.read).mock.calls.length
+    expect(before).toBe(2)
+
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(vi.mocked(siteSpecApi.read).mock.calls.length).toBe(before)
+  })
+
+  it('进度这一眼读失败只报一句，不停表：一条只读 GET 失败不等于那一发死了', async () => {
+    vi.mocked(siteSpecApi.read)
+      .mockResolvedValueOnce(doc(RUNNING))
+      .mockRejectedValueOnce(new Error('网络抖了一下'))
+      .mockResolvedValue(doc(RUNNING))
+    mounted()
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+    const { message } = await import('ant-design-vue')
+    const shown = vi.mocked(message.warning).mock.calls.map(call => String(call[0])).join('\n')
+    expect(shown).toContain('网络抖了一下')
+    expect(shown).toContain('下一轮再读')
+
+    // 表还在走：第三眼读得到
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(vi.mocked(siteSpecApi.read)).toHaveBeenCalledTimes(3)
   })
 })

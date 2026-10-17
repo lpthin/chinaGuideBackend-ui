@@ -43,7 +43,29 @@
               {{ draftSource || '这一份没有用过 AI 初稿' }}
             </a-descriptions-item>
             <a-descriptions-item label="初稿时间">{{ formatDateTime(doc?.aiDraftAt) || '—' }}</a-descriptions-item>
+            <a-descriptions-item label="出初稿这一发">
+              {{ doc?.draftStatusLabel || '读不出来' }}
+            </a-descriptions-item>
           </a-descriptions>
+
+          <!-- 异步那一发的进度（M-P33 拍板 ⑨）：读数只有 GET /spec 这一个出口，这里不另列第二套字段 -->
+          <a-alert v-if="draftRunning" type="info" show-icon class="spec-page__notice">
+            <template #message>
+              <div>这一发正在异步线程里跑，{{ waitedText }}；每 {{ DRAFT_POLL_MS / 1000 }} 秒读一次进度。</div>
+              <div v-if="doc?.draftLatencyNote" class="spec-page__muted">{{ doc.draftLatencyNote }}</div>
+              <div>
+                跑成之前七段保持原样，跑成之后整份替换——所以现在正在输入但没保存的字会被盖掉，
+                要留的字请先存那一段。
+              </div>
+            </template>
+          </a-alert>
+
+          <a-alert v-else-if="doc?.draftStatus === 'FAILED'" type="warning" show-icon class="spec-page__notice">
+            <template #message>
+              <div>上一次那一发「AI 出初稿」没跑成，原来那一版七段一个字都没被改动。后端原话：</div>
+              <p class="spec-page__draft-reason">{{ doc.draftErrorMessage || '后端没给原因' }}</p>
+            </template>
+          </a-alert>
 
           <a-alert v-if="doc && !doc.exists" type="info" show-icon class="spec-page__notice">
             <template #message>
@@ -69,13 +91,13 @@
             <a-button @click="load">重新读取</a-button>
             <a-button @click="diffOpen = true">版本对比</a-button>
             <a-tooltip :title="draftTip">
-              <a-button :disabled="!canWrite || busy" :loading="drafting" @click="askDraft">
+              <a-button :disabled="!canWrite || busy || draftRunning" :loading="drafting" @click="askDraft">
                 AI 出初稿
               </a-button>
             </a-tooltip>
             <a-button
               type="primary"
-              :disabled="!canWrite || !doc || blockers.length > 0 || busy"
+              :disabled="!canWrite || !doc || blockers.length > 0 || busy || draftRunning"
               :loading="confirming"
               @click="askConfirm"
             >
@@ -138,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Modal, message } from 'ant-design-vue'
 import { siteSpecApi, type SpecDocumentView, type SpecSection } from '../../api/siteSpec'
@@ -152,6 +174,8 @@ import { useAuthStore } from '../../stores/auth'
  * 五条刻意：
  * 1. 段名、顺序、上限全部来自后端回包：这一页不认识「七段」这件事本身，抄一份清单就会有两份真相；
  * 2. 进页面只发那一条 GET。出初稿（真花钱 + 整份覆盖）与确认（让它成为生成输入）都只在人明确点按钮时发；
+ *    点下去之后这一页会按 5 秒一次<em>只读</em>那条 GET 追进度（M-P33 拍板 ⑨：写口只管受理，
+ *    进度出口与文档读数同一支，不另开第二张嘴）；
  * 3. 「确认」按不动的理由永远摆在页面上（blockers 那一列），不让人猜为什么点了没反应；
  * 4. 字数只报数不裁剪：超限照样能存，红着提示，拦住的是确认与生成；
  * 5. 每次写回来的 doc 都要重新对齐本地草稿，否则「已确认」被落回草稿时，界面还拿着旧签字那一份在编辑。
@@ -188,6 +212,13 @@ const sectionsVisible = computed(() => briefId.value !== null && !denied.value &
 const blockers = computed<string[]>(() => doc.value?.blockers ?? [])
 const notices = computed<string[]>(() => doc.value?.notices ?? [])
 const busy = computed(() => loading.value || drafting.value || confirming.value || savingKey.value !== '')
+/**
+ * 这一发正在异步线程里跑（M-P33 拍板 ⑨）。
+ *
+ * <p>认的是后端那一格 {@code draftStatus}，不是本地的 {@code drafting}：后者跟着请求线程，
+ * 请求早就回来了。按钮 disable 只是好看——真正的闸是后端幂等闸，两个标签页各绕过一个按钮也没用。</p>
+ */
+const draftRunning = computed(() => doc.value?.draftStatus === 'RUNNING')
 const draftSource = computed(() => {
   if (!doc.value?.aiDraftModel && !doc.value?.aiDraftProvider) {
     return ''
@@ -205,6 +236,25 @@ const draftTip = computed(() =>
     ? '七段里已经有内容：初稿是整份覆盖的，点下去会先问你一次要不要覆盖'
     : '按这张需求单的前采内容出七段初稿（会调用模型、消耗配额）'
 )
+
+/**
+ * 「已经等了多久」那句：秒数取后端现算的那一格（{@code draftWaitMs}），界面不自己拿本地时钟减。
+ *
+ * <p>为什么不自己算：{@code draft_started_at} 是后端那一台的 LocalDateTime，浏览器时区与它不同源，
+ * 自己减会造出一个「等了三小时」的假读数。代价是这一格每轮询一次才更新一次，
+ * 所以下面写的是「到上一次读数为止」，不写成秒针在走的计时器。</p>
+ */
+const waitedText = computed(() => {
+  const ms = doc.value?.draftWaitMs
+  if (ms == null) {
+    return '还没读到现在等了多久'
+  }
+  const seconds = Math.max(0, Math.round(ms / 1000))
+  if (seconds < 60) {
+    return `到上一次读数为止约 ${seconds} 秒`
+  }
+  return `到上一次读数为止约 ${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
+})
 
 function placeholderFor(section: SpecSection) {
   return section.blank ? `这一段还没有内容：确认时会被点名（第 ${section.order} 段）` : ''
@@ -231,7 +281,72 @@ function sync(next: SpecDocumentView) {
   for (const section of next.sections) {
     drafts[section.key] = section.content ?? ''
   }
+  followDraftProgress(next)
 }
+
+/**
+ * 进度轮询：这一发改成异步受理之后，「跑成没跑成」只剩 {@code GET /spec} 这一个读数出口（M-P16 #248 立的规矩），
+ * 所以这里不去另开一支口，只把这一口按 5 秒一次读。
+ *
+ * <p>5 秒不是随手取的：一趟初稿实测最长 216 秒（正档 §10.44 ①），跑成的那一刻最坏晚 5 秒才被看见，
+ * 而每一眼只是一条不调模型的 GET。再密（1 秒）就把一条只读链打成小压力，再疏（30 秒）人又开始怀疑卡死。</p>
+ *
+ * <p>关键的一条：<b>轮询不许走 {@link sync}</b>。sync 会把七段逐段回写进输入框，
+ * 人在那一发跑的时候正在打字，两次轮询之间敲进去的字会被上一份服务端原文盖掉。
+ * 所以 RUNNING 期间只并 {@code doc}（进度那几格跟着新读数走，textarea 绑的是本地 drafts，不动），
+ * 进终态那一刻才逐段对齐——那时候七段真的是那一发的结果。</p>
+ */
+const DRAFT_POLL_MS = 5000
+let draftPollTimer: ReturnType<typeof setInterval> | null = null
+
+function followDraftProgress(next: SpecDocumentView) {
+  if (next.draftStatus === 'RUNNING') {
+    if (!draftPollTimer) {
+      draftPollTimer = setInterval(pollDraftProgress, DRAFT_POLL_MS)
+    }
+    return
+  }
+  if (draftPollTimer) {
+    clearInterval(draftPollTimer)
+    draftPollTimer = null
+  }
+}
+
+async function pollDraftProgress() {
+  if (briefId.value === null) {
+    if (draftPollTimer) {
+      clearInterval(draftPollTimer)
+      draftPollTimer = null
+    }
+    return
+  }
+  try {
+    const next = await siteSpecApi.read(briefId.value)
+    if (next.draftStatus === 'RUNNING') {
+      doc.value = next
+      return
+    }
+    // 进终态：七段真的是那一发的结果了，这一刻才逐段对齐（sync 里顺带把表停掉）
+    sync(next)
+    if (next.draftStatus === 'SUCCEEDED') {
+      message.success('初稿跑成了：七段已经是模型出的那一版，逐段看过再确认（AI 那一版不是签字版）', 8)
+    } else {
+      // 后端那句人话一个字都不改写：跑坏的原因（模型没答 / 门禁整单拒 / 进程重启被回收）下一步完全不同
+      message.error(`初稿这一发没跑成（后端原话：${next.draftErrorMessage || '后端没给原因'}）：`
+        + '原来那一版七段一个字都没被改动', 10)
+    }
+  } catch (error: any) {
+    // 读进度本身失败：不停表，下一轮再读；只是把这一轮的失败原话报出来（一条只读 GET 失败不等于那一发死了）
+    message.warning(`进度这一眼没读到（后端原话：${error?.message || '未知原因'}），下一轮再读`, 6)
+  }
+}
+
+onUnmounted(() => {
+  if (draftPollTimer) {
+    clearInterval(draftPollTimer)
+    draftPollTimer = null
+  }
+})
 
 async function load() {
   if (briefId.value === null) {
@@ -297,12 +412,14 @@ async function runDraft(overwrite: boolean) {
   }
   drafting.value = true
   try {
-    sync(await siteSpecApi.draft(briefId.value, overwrite))
-    message.success('初稿已经写进七段：逐段看过再确认，AI 出的那一版不是签字版')
+    // 这一发只「受理」：回包里 draftStatus 就是 RUNNING，七段还是原来那一版，进度由表轮询读
+    const accepted = await siteSpecApi.draft(briefId.value, overwrite)
+    sync(accepted)
+    message.success('已受理：这一发在异步线程里跑，跑成之前七段保持原样（本次请求没有等模型，也没有多花一分钱）', 8)
   } catch (error: any) {
-    // 后端被拦下的那几种（开关没开 / 余额不够 / 模型没跑成 / 门禁整单拒）都带着中文原话，
-    // 这里一个字都不改写：四种含义对应的下一步完全不同，归纳成「生成失败」就没人知道该做什么
-    message.error(`初稿没有生成（后端原话：${error?.message || '未知原因'}）`, 8)
+    // 后端被拦下的那几种（开关没开 / 已经有一发在跑 / 会覆盖但没带 overwrite / 没有模板 / 余额不够 / 队列满）
+    // 都带着中文原话，这里一个字都不改写：这几种含义对应的下一步完全不同，归纳成「生成失败」就没人知道该做什么
+    message.error(`这一发出初稿没有被受理（后端原话：${error?.message || '未知原因'}）：一个模型都没调，也没扣费`, 8)
     await load()
   } finally {
     drafting.value = false
@@ -358,6 +475,12 @@ onMounted(() => {
 }
 .spec-page__notice {
   margin-top: 12px;
+}
+/* 后端那句失败原话是一整段人话（106 字起），不许被省略号截半（M-P27 那条同型缺陷）：整段折行摆出来 */
+.spec-page__draft-reason {
+  margin: 6px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .spec-page__blockers,
 .spec-page__notices {

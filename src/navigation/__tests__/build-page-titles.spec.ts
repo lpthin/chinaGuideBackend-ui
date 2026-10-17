@@ -36,11 +36,12 @@ function componentFileOf(routeName: string): string {
 }
 
 describe('建站组的每一页都有一行标题，且标题就是菜单上那几个字', () => {
-  it('组表里 build 那六项都真的对着一个视图文件（加页面就得进这一条用例）', () => {
+  it('组表里 build 那七项都真的对着一个视图文件（加页面就得进这一条用例）', () => {
     expect(buildLeaves.map(leaf => leaf.routeName).sort()).toEqual([
       'workspace-portal-blocks',
       'workspace-portal-presets',
       'workspace-portal-prompts',
+      'workspace-portal-proposal-overview',
       'workspace-portal-reference-sites',
       'workspace-portal-skeletons',
       'workspace-portal-wizard'

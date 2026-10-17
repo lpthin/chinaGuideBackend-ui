@@ -37,6 +37,19 @@ export interface SpecDocumentView {
   aiDraftProvider: string | null
   aiDraftModel: string | null
   aiDraftAt: string | null
+  /**
+   * 「AI 出初稿」这<em>一次任务</em>的状态（RUNNING / SUCCEEDED / FAILED），与上面的 status 是两回事：
+   * 那一族说的是<b>文档</b>（草稿 / 已确认），这一族说的是<b>那一次异步外呼</b>。
+   * null = 从来没有异步出过初稿，界面念后端给的中文标签，不自己译。
+   */
+  draftStatus: string | null
+  draftStatusLabel: string
+  draftStartedAt: string | null
+  /** 已经等了多久（毫秒），只在 RUNNING 时给；null 不是「等了 0 秒」，是「没在等」 */
+  draftWaitMs: number | null
+  draftErrorMessage: string | null
+  /** 这一发以往实测多久那一句（读自 ai_call_log，出处唯一）；没有历史读数时后端会给一句「没法说」 */
+  draftLatencyNote: string | null
   maxSectionChars: number
   sections: SpecSection[]
   /** 本次动作要额外告诉人的话（签字被落回草稿、这一发有没有落账） */
@@ -100,19 +113,8 @@ export interface SpecDiffView {
   notices: string[]
 }
 
-/**
- * 「AI 出初稿」这一发的浏览器预算：330 秒。
- *
- * <p>出处不是拍脑袋。后端那一发被 `app.ai.chat-timeout-seconds`（application.yml 默认 300 秒）卡着，
- * 界面只有等得过它才可能看见后端的真话；而 http.ts 的全局预算是 30 秒。
- * 现场实测两趟模型分别跑了 163 秒与 212 秒（ai_call_log id 320 / 321，两趟都 success、钱都扣了），
- * 浏览器却在第 31.7 秒弹「初稿没有生成（后端原话：请求超时，服务处理时间较长，请稍后重试）」——
- * 同一次动作两套结论，而且报的那句失败是假的。</p>
- */
-export const SITE_SPEC_DRAFT_TIMEOUT = 330000
-
 export const siteSpecApi = {
-  /** GET：只读，零模型调用 */
+  /** GET：只读，零模型调用。进度也在这一口读（draftStatus / draftWaitMs / draftLatencyNote 三格） */
   read: (briefId: number) => http.get<SpecDocumentView>(`/admin/site-briefs/${briefId}/spec`),
 
   /** PUT：只写一段。正文逐字提交，前端不做 trim、不做截断（截断是这一族明令禁止的谎报） */
@@ -120,16 +122,21 @@ export const siteSpecApi = {
     http.put<SpecDocumentView>(`/admin/site-briefs/${briefId}/spec/${sectionKey}`, { content }),
 
   /**
-   * POST：AI 出初稿。整份覆盖，所以七段里已经有字时必须带 overwrite=true。
-   * 这一发会真调模型、真花配额，前端不许在任何自动路径里调它。
+   * POST：<b>受理</b>一次 AI 出初稿，不是等它跑完。整份覆盖，所以七段里已经有字时必须带 overwrite=true。
    *
-   * <p>超时单独放宽（{@link SITE_SPEC_DRAFT_TIMEOUT}）：这一发是同步等模型的一次 chat，
-   * 而全局 30 秒比后端那一道闸短得多，跟着全局走等于「界面必然先报失败、后端照旧写完并扣钱」。</p>
+   * <p>这一发会真调模型、真花配额，前端不许在任何自动路径里调它。返回的回包里 draftStatus 就是
+   * RUNNING，之后由界面按进度轮询 {@link siteSpecApi.read}；后端那边的幂等闸保证第二发 POST 会被当面拒，
+   * 所以按钮 disable 只是好看，不是唯一的闸（M-P33 拍板 ⑨）。</p>
+   *
+   * <p>这里曾经挂着 330000 毫秒的单独超时，理由是「这一发是同步等模型的一次 chat，而后端
+   * `app.ai.chat-timeout-seconds` 卡着 300 秒，界面只有等得过它才看得见真话；现场实测两趟模型跑了
+   * 163 秒与 212 秒，浏览器却在第 31.7 秒弹『请求超时』——同一次动作两套结论，而且那句失败是假的」。
+   * 那一套形状已经不存在：POST 现在只做五道不要钱的闸（开关 / 幂等 / 覆盖 / 模板 / 余额）加一次受理写库，
+   * 真外呼在 `siteSpecDraftTaskExecutor` 那一条线程里跑，请求线程几十毫秒就回来。
+   * 所以跟着全局 30 秒预算走才是对的形状；留着 330 秒等于在界面上演「还在等模型」。</p>
    */
   draft: (briefId: number, overwrite: boolean) =>
-    http.post<SpecDocumentView>(`/admin/site-briefs/${briefId}/spec/draft`, { overwrite }, {
-      timeout: SITE_SPEC_DRAFT_TIMEOUT
-    }),
+    http.post<SpecDocumentView>(`/admin/site-briefs/${briefId}/spec/draft`, { overwrite }),
 
   /** POST：签字放行。只有签过字的版本才会被拿去生成（Spec-M §3 闸一） */
   confirm: (briefId: number) => http.post<SpecDocumentView>(`/admin/site-briefs/${briefId}/spec/confirm`),

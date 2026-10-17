@@ -18,7 +18,7 @@ const httpMock = vi.hoisted(() => ({
 
 vi.mock('../http', () => ({ default: httpMock }))
 
-import { siteSpecApi, SITE_SPEC_DRAFT_TIMEOUT } from '../siteSpec'
+import { siteSpecApi } from '../siteSpec'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -60,20 +60,23 @@ describe('逐段差异', () => {
 })
 
 /**
- * 「AI 出初稿」这一发单独放宽超时（M-P13 现场实测：模型 163 秒与 212 秒各成一发、两发都 success 并扣了钱，
- * 浏览器却在第 31.7 秒按全局 30 秒掐断，弹出一句「初稿没有生成」——同一次动作两套结论，报的那句还是假的）。
- * 预算必须长过后端那道 `app.ai.chat-timeout-seconds`（默认 300 秒），否则界面永远看不见后端的真话。
+ * 「AI 出初稿」这一发不再挂单独的浏览器预算（M-P33 拍板 ⑨ 把它改成异步受理之后）。
+ *
+ * <p>这一组用例原来钉的是「预算必须长过后端那道 `app.ai.chat-timeout-seconds`」，
+ * 前提是这一发同步等模型——现场实测两趟 163 秒与 212 秒各成一发、两发都 success 并扣了钱，
+ * 而浏览器在第 31.7 秒按全局 30 秒掐断，弹出一句假的「初稿没有生成」。</p>
+ *
+ * <p>那个前提已经不存在：POST 现在只做五道不要钱的闸加一次受理写库，真外呼在
+ * `siteSpecDraftTaskExecutor` 里跑。判据跟着换方向——它钉的是「这一发不再等模型」这件事，
+ * 哪天有人把 timeout 加回来就会红，那意味着有人把这一发改回同步等模型：那是要当面拍的改动，
+ * 不许靠一个常量偷偷续命（界面上等 330 秒而库里其实早就受理了，正是这一批要修掉的形状）。</p>
  */
-describe('花钱那一发的浏览器预算', () => {
-  it('初稿带上了比后端 chat 闸还长的预算', async () => {
+describe('初稿那一发已经不再等模型', () => {
+  it('受理那一发跟着全局预算走，不再单独放宽', async () => {
     await siteSpecApi.draft(12, true)
-    expect(httpMock.post).toHaveBeenLastCalledWith(
-      '/admin/site-briefs/12/spec/draft', { overwrite: true }, { timeout: SITE_SPEC_DRAFT_TIMEOUT }
-    )
-    expect(SITE_SPEC_DRAFT_TIMEOUT).toBeGreaterThan(300000)
+    expect(httpMock.post).toHaveBeenLastCalledWith('/admin/site-briefs/12/spec/draft', { overwrite: true })
   })
-
-  it('读、写一段、签字这三发不跟着放宽：它们不调模型，放宽只会把真慢也演成正常', async () => {
+  it('读、写一段、签字这三发也不带预算：它们不调模型，放宽只会把真慢也演成正常', async () => {
     await siteSpecApi.read(12)
     await siteSpecApi.saveSection(12, 'overview', '字')
     await siteSpecApi.confirm(12)

@@ -415,7 +415,7 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     expect(domains.slice(5).every(d => d === 'platform')).toBe(true)
   })
 
-  it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) +P9-B(1) +P9-C(1) +M-P1(1) = 71（租户 40 + 平台 31）', () => {
+  it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) +P9-B(1) +P9-C(1) +M-P1(1) +M-P33-D(1) = 72（租户 40 + 平台 32）', () => {
     // 16 组时是 39 + 34 = 73 项（再加固定两项 = 75）。P0 归组一个页面都没动；
     // P3 往下每摘一颗都要在这里减一个数，并且 `MENU_EXCLUDED` 里要多一行理由——
     // 以后谁借着「合并栏目」把页面从菜单里摘掉却不留地址、不留理由，这条会直接问他要。
@@ -428,9 +428,12 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     // 挂 prompt:template:manage，V173 只发给 SUPER_ADMIN ⇒ 多的是平台段那一颗，不是租户多一个入口。
     // M-P4 把「新建网站」向导放进建站组、同时把「前采需求单」从菜单摘掉（路由留着，见上那条用例）：
     // 一加一减，总数照旧 71。这一条钉的就是「收入口不等于删页面」——摘掉的那颗必须仍有地址可达。
-    expect(grouped).toHaveLength(71)
+    // M-P33-D 在同一个组里多加一颗「建站任务总览」（拍板 ⑩ 那块全平台在跑读数）：
+    // 它挂的是与向导逐字相同的 portal:build:manage + requiresSuperAdmin，多的是平台段那一颗，
+    // 租户段一个入口都没多。
+    expect(grouped).toHaveLength(72)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(40)
-    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(31)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(32)
   })
 
   it('项名 ≤6 个字：超一个字就是导航在替页面写说明书（Q4-a）', () => {

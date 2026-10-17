@@ -55,7 +55,7 @@ vi.mock('../../../api/siteBriefs', async importOriginal => {
       sectionCatalogue: vi.fn().mockResolvedValue([])
     },
     vocabularyApi: { adminVocabulary: vi.fn() },
-    briefGenerationApi: { candidates: vi.fn(), progress: vi.fn(), estimate: vi.fn() }
+    briefGenerationApi: { candidates: vi.fn(), progress: vi.fn(), estimate: vi.fn(), streamProgress: vi.fn() }
   }
 })
 
@@ -137,6 +137,12 @@ function specDoc(overrides: Partial<SpecDocumentView> = {}): SpecDocumentView {
     aiDraftProvider: 'dashscope',
     aiDraftModel: 'qwen3.7-plus',
     aiDraftAt: null,
+    draftStatus: null,
+    draftStatusLabel: '还没异步出过初稿',
+    draftStartedAt: null,
+    draftWaitMs: null,
+    draftErrorMessage: null,
+    draftLatencyNote: null,
     maxSectionChars: 6000,
     sections: [
       { key: 'overview', title: '1 项目概述', order: 1, content: '有字', charCount: 2, blank: false, overLimit: false },
@@ -186,9 +192,71 @@ function candidate(overrides: Partial<BriefCandidateSite> = {}): BriefCandidateS
   } as BriefCandidateSite
 }
 
+/**
+ * 视图这一层的假流（M-P33 批 C）：只记「订了哪几个事件」与「关没关」，一条真的连接都不起。
+ * 两条腿的机制本身（换腿、5 秒一眼、坏 JSON 不改读数）钉在 `utils/__tests__/proposal-progress-follow.spec.ts`，
+ * 这里钉的是**这一屏上真摆出来的那几句话**：接没接上推送、等了多久那一格、终态的绿。
+ */
+class WizardStreamStub {
+  static instances: WizardStreamStub[] = []
+
+  handlers = new Map<string, ((event: any) => void)[]>()
+  closed = 0
+
+  constructor(public url: string) {
+    WizardStreamStub.instances.push(this)
+  }
+
+  addEventListener(name: string, handler: (event: any) => void) {
+    this.handlers.set(name, [...(this.handlers.get(name) ?? []), handler])
+  }
+
+  close() {
+    this.closed += 1
+  }
+
+  emit(name: string, rows: unknown) {
+    // 后端流里 data 就是 progress 那一份数组的 JSON 文本
+    ;(this.handlers.get(name) ?? []).forEach(handler => handler({ data: JSON.stringify(rows) }))
+  }
+
+  get listening(): string[] {
+    return [...this.handlers.keys()]
+  }
+}
+
+/** 在跑那一形的进度行：等待面那几格只有非终态才有读数，终态那两格后端回 null */
+function runningRow(overrides: Record<string, any> = {}) {
+  return {
+    candidateId: 11,
+    candidateNo: 1,
+    siteId: 52,
+    stage: 'copy',
+    stageLabel: '文案',
+    status: 'running',
+    statusLabel: '在跑',
+    errorMessage: null,
+    notices: [],
+    stageWaitMs: 95000,
+    roundElapsedMs: 400000,
+    stageLatencyMinMs: 60000,
+    stageLatencyMaxMs: 540000,
+    stageLatencyNote: '这一步以往成功回答实测在 1 分 ~ 9 分之间（只报区间，不是「还要等多久」）',
+    ...overrides
+  } as any
+}
+
+/** 接上假流：EventSource 这一层由测试代管，视图不许真的去连 */
+function followWithFakeStream() {
+  vi.stubGlobal('EventSource', WizardStreamStub)
+  vi.mocked(briefGenerationApi.streamProgress).mockImplementation(
+    (id: number) => new WizardStreamStub(`stream-${id}`) as never
+  )
+}
+
 const PASS_THROUGH = (name: string) => ({
   name,
-  props: ['title', 'label', 'message', 'type', 'dataSource', 'columns', 'pagination', 'options', 'value', 'disabled', 'steps', 'modelValue', 'placeholder', 'rows', 'checked'],
+  props: ['title', 'label', 'message', 'type', 'dataSource', 'columns', 'pagination', 'options', 'value', 'disabled', 'steps', 'modelValue', 'placeholder', 'rows', 'checked', 'color'],
   template: `<div class="${name}-stub"><slot name="title" /><slot name="message" /><slot /></div>`
 })
 
@@ -301,6 +369,9 @@ function steps() {
 beforeEach(() => {
   document.body.innerHTML = ''
   routeState.query = {}
+  // EventSource 是测试替视图代管的（上一条用例可能把它抹成了 undefined 走轮询那条腿）：每条用例从头装
+  vi.unstubAllGlobals()
+  WizardStreamStub.instances = []
   pushSpy.mockReset()
   replaceSpy.mockReset()
   vi.mocked(siteBriefsApi.list).mockReset()
@@ -312,6 +383,7 @@ beforeEach(() => {
   vi.mocked(siteSpecApi.read).mockReset()
   vi.mocked(briefGenerationApi.candidates).mockReset()
   vi.mocked(briefGenerationApi.progress).mockReset()
+  vi.mocked(briefGenerationApi.streamProgress).mockReset()
   vi.mocked(briefGenerationApi.estimate).mockReset()
   vi.mocked(siteBriefDeliveryApi.decisions).mockReset()
   vi.mocked(siteBriefDeliveryApi.promote).mockReset()
@@ -405,6 +477,28 @@ describe('新建网站向导', () => {
     expect(steps()[1].dataset.status).toBe('process')
     expect(bodyText()).toContain('第 2 段「战略分析」还是空的')
     expect(bodyText()).toContain('空着 1 段')
+  })
+
+  it('初稿那一发正在异步跑：第 2 步说清「下面这几段还是原来那一版」，不演成初稿已经在了', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({
+      draftStatus: 'RUNNING',
+      draftStatusLabel: '出初稿中',
+      draftStartedAt: '2026-10-17T02:10:00',
+      draftWaitMs: 96000
+    }))
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+
+    mountAt('spec', '7')
+    await flushPromises()
+
+    expect(bodyText()).toContain('出初稿中：下面这几段还是原来那一版')
+    // 指针只指一次：进度与区间的读数归说明书那一页，向导不养第二张嘴（M-P16 #248）
+    expect(bodyText()).toContain('都在说明书那一页读')
+    // 这一句在 RUNNING 时是假话：那一份文档根本不是这一发的初稿
+    expect(bodyText()).not.toContain('空着 1 段')
+    expect(steps()[1].dataset.status).not.toBe('finish')
   })
 
   it('七段都填了字时不许念成「空着 0 段」，也不许提前说已确认', async () => {
@@ -669,7 +763,9 @@ describe('新建网站向导', () => {
       siteId: 52,
       stage: 'done',
       stageLabel: '建完了',
-      status: 'success',
+      // 终态码只认后端那一份（ProposalStages.SUCCEEDED = 'succeeded'）：
+      // 这里以前写 'success'，界面拿它判「这一套绿了」的那一格就永远不绿——桩替后端撒了谎
+      status: 'succeeded',
       statusLabel: '成功',
       errorMessage: null,
       notices: [],
@@ -1082,6 +1178,159 @@ describe('新建网站向导', () => {
     expect(bodyText()).toContain('另有 1 套这一发没回实耗')
     // 套数只认价签那一格：第 4 步没人点过算价，界面不许拿进度行数冒充配置
     expect(bodyText()).toContain('后端这一发没回套数')
+  })
+
+  // ---- M-P33 批 C（#340）：等待面那两条腿在向导这一屏的样子 ----
+
+  /**
+   * 推送接上时这一屏的三句实话：进度是后端推的、这一套等了多久是后端算的、
+   * 那一格历史区间只报区间。推来的新读数要直接换上屏，且**不许**因此多发一眼进度 GET
+   * （M-P16 #248：同一趟只许一份真相，两条腿都读的是同一个出口）。
+   */
+  it('第 3 步接上后端推送：推来的读数当场换上屏，等的时间与历史区间一并摆出来', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([runningRow()])
+    followWithFakeStream()
+
+    const wrapper = mountAt('generate', '7')
+    await flushPromises()
+
+    expect(briefGenerationApi.streamProgress).toHaveBeenCalledTimes(1)
+    expect(briefGenerationApi.streamProgress).toHaveBeenCalledWith(7)
+    const stream = WizardStreamStub.instances[0]
+    expect(stream.listening.sort()).toEqual(['complete', 'error', 'progress'])
+    expect(bodyText()).toContain('进度是后端推过来的')
+    // 那一列的表头真在（桩不渲 column.title，读的是传下去的那一份列定义）：
+    // 「约 1 分 35 秒」孤零零摆着没人知道它是什么的计时
+    const titles = wrapper.findAllComponents({ name: 'a-table' })
+      .flatMap(node => (node.props('columns') as any[]) ?? [])
+      .map(column => column?.title)
+    expect(titles).toContain('这一步已经等了')
+    expect(bodyText()).toContain('约 1 分 35 秒')
+    expect(bodyText()).toContain('这一步以往成功回答实测在 1 分 ~ 9 分之间')
+
+    stream.emit('progress', [runningRow({ stageLabel: '演示内容', stageWaitMs: 3_900_000 })])
+    await flushPromises()
+
+    expect(bodyText()).toContain('演示内容')
+    expect(bodyText()).toContain('约 1 小时 5 分')
+    // 腿已经换到推送上了：进度那一条 GET 只进门读过这一眼
+    expect(briefGenerationApi.progress).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * `complete` 一到：流关掉（不留一条挂着已结束的流），外围读数重读一发（否则人看见的是一条不动的步序条），
+   * 绿只给后端的 `succeeded`，等待那一格明说不再念了。
+   */
+  it('流里的 complete 一到就收流并重读外围读数，终态那一格不再念等了', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([runningRow()])
+    followWithFakeStream()
+
+    const wrapper = mountAt('generate', '7')
+    await flushPromises()
+    const stream = WizardStreamStub.instances[0]
+    const readBefore = vi.mocked(siteSpecApi.read).mock.calls.length
+    const candidatesBefore = vi.mocked(briefGenerationApi.candidates).mock.calls.length
+
+    stream.emit('complete', [runningRow({ status: 'succeeded', statusLabel: '已产出', stageLabel: '建完了', stageWaitMs: null, roundElapsedMs: null })])
+    await flushPromises()
+
+    expect(stream.closed).toBe(1)
+    expect(bodyText()).toContain('这一套已进终态，不再念等了')
+    // 后端终态回的是 null：这一格念「没回时长读数」，念 0 秒就是编出来的
+    expect(bodyText()).not.toContain('约 0 秒')
+    expect(vi.mocked(siteSpecApi.read).mock.calls.length).toBe(readBefore + 1)
+    expect(vi.mocked(briefGenerationApi.candidates).mock.calls.length).toBe(candidatesBefore + 1)
+    // 绿只认后端那一份终态码（桩不渲 color，颜色只能从组件 props 取）
+    expect(wrapper.findAllComponents({ name: 'a-tag' }).map(node => node.props('color'))).toContain('green')
+  })
+
+  /**
+   * `success` 这种码后端不发（`ProposalStages` 里只有 `succeeded`）。
+   * 界面要是认它当终态，真回包来了就永远不绿；反过来这里也钉住：它不算跑完了，流照旧开。
+   */
+  it('`success` 那种码既判不成绿也不算跑完：界面只认后端的 `succeeded`', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([runningRow({ status: 'success', statusLabel: '成功' })])
+    followWithFakeStream()
+
+    const wrapper = mountAt('generate', '7')
+    await flushPromises()
+
+    expect(wrapper.findAllComponents({ name: 'a-tag' }).map(node => node.props('color'))).not.toContain('green')
+    expect(briefGenerationApi.streamProgress).toHaveBeenCalledTimes(1)
+    expect(bodyText()).toContain('约 1 分 35 秒')
+  })
+
+  /** 这一条腿接不上就当众换腿：不许写着「推送」而其实在轮询，也不许闷着不吭声 */
+  it('浏览器没有推送时当众换腿：走轮询并把那一行话术换成轮询那句', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([runningRow()])
+    vi.stubGlobal('EventSource', undefined)
+
+    mountAt('generate', '7')
+    await flushPromises()
+
+    expect(briefGenerationApi.streamProgress).not.toHaveBeenCalled()
+    expect(bodyText()).toContain('每 5 秒自己读一眼')
+    expect(bodyText()).not.toContain('进度是后端推过来的')
+    expect(bodyText()).toContain('约 1 分 35 秒')
+  })
+
+  /** 人不在这一步了，那条流就得关掉：第 5 步读的是留痕，不该还挂着一条听第 3 步那趟的流 */
+  it('从第 3 步走到第 5 步：中途换步不收流，落到不等的那一步才收', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([runningRow()])
+    vi.mocked(siteBriefDeliveryApi.decisions).mockResolvedValue([])
+    followWithFakeStream()
+
+    mountAt('generate', '7')
+    await flushPromises()
+    const stream = WizardStreamStub.instances[0]
+    expect(stream.closed).toBe(0)
+
+    // 第 3 步 → 第 4 步：还在等同一趟，流照旧开着，也不许为测试另开一条
+    await click(buttonThat('下一步'))
+    expect(WizardStreamStub.instances).toHaveLength(1)
+    expect(stream.closed).toBe(0)
+
+    // 第 4 步 → 第 5 步：这一屏等的是客户的答复，那条流当场收掉
+    await click(buttonThat('下一步'))
+    expect(stream.closed).toBe(1)
+    expect(siteBriefDeliveryApi.decisions).toHaveBeenCalled()
+  })
+
+  /** 人直接走了（关页、切路由）也一样收：留着就是一边占后端那条 SSE 工作线程，一边对着没了的页面空转 */
+  it('离开这一页要收流', async () => {
+    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
+    vi.mocked(briefGenerationApi.progress).mockResolvedValue([runningRow()])
+    followWithFakeStream()
+
+    const wrapper = mountAt('generate', '7')
+    await flushPromises()
+    const stream = WizardStreamStub.instances[0]
+
+    wrapper.unmount()
+    expect(stream.closed).toBe(1)
   })
 })
 
