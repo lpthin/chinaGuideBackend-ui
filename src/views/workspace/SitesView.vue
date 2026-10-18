@@ -115,7 +115,9 @@ const defaultForm = (): SiteForm => ({
   siteType: 'content_site',
   defaultLocale: 'zh-CN',
   enabledLocalesList: ['zh-CN'],
-  status: 'enabled'
+  // M-P40 拍板②：新建的站先落候选，不落成已上线。后端 create 现在认这一条（不带状态也是候选，
+  // 显式写非候选态直接拒），所以这里给的必须是 candidate，否则点保存只会撞回一句报错
+  status: 'candidate'
 })
 
 const siteStore = useSiteStore()
@@ -205,6 +207,31 @@ function sourceText(site: Site): string {
 
 /** 编辑弹窗里那一格：候选/归档时换成文本，不给一个会把状态写歪的下拉 */
 const statusLockedInForm = computed(() => form.status === 'candidate' || form.status === 'archived')
+
+/**
+ * 行上那颗「启用」该不该摆（M-P40 拍板②的配套把手）。
+ *
+ * <p>只给<em>没有需求单来源</em>的候选站：那种站是超管在这张表格里手建的，
+ * 后端现在把它落成候选，不点这一发就永远出不去。有需求单来源的那一套归流水线管——
+ * 客户在候选对比里选中它才转正（写手在交付链那一头，会一起回填转正时刻与正式站名），
+ * 在这里摆同一颗按钮等于替客户点头。</p>
+ */
+function canEnable(record: Site): boolean {
+  return record.status === 'candidate' && !fromBrief(record)
+}
+
+async function enableSite(record: Site) {
+  if (!record.id) return
+  try {
+    // 只带状态这一格：后端 update 认的是「这一发动了什么」，把整份列表行发回去只会多写一遍同样的值
+    await siteApi.update(record.id, { status: 'enabled' })
+    message.success(`「${record.name || record.code}」已上线，访客现在读得到这一站了`)
+    await load()
+    await siteStore.loadSites()
+  } catch (e) {
+    message.error((e as Error)?.message || '启用失败')
+  }
+}
 
 /**
  * 租户名只用来把「这一站归谁」说清楚（Spec-C §3.2 P0：建站域与内容域分开后，
@@ -340,7 +367,7 @@ async function save() {
       await siteStore.loadSites()
     } else {
       await siteApi.create({ ...payload, tenantId })
-      message.success('站点已建好，下一步在「新建网站」向导里录前采需求单')
+      message.success('站点已建好，现在落在「候选」（还读不到）：要对外就在清单这一行点「启用」；下一步在「新建网站」向导里录前采需求单')
       modalVisible.value = false
       await load()
       await siteStore.loadSites()
@@ -373,9 +400,11 @@ onMounted(() => {
       <div>
         <h3>站点清单</h3>
         <p>
-          维护站点画像与归属：域名、租户、启用状态都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。
-          建站流水线建出来的是 <b>候选站</b>（等客户选中才转正），客户没选中的收进 <b>归档</b>——这两种在下面的行里都单独标色，
-          状态本身不在这里改：转正与归档是流水线推进的结果，这里给一个下拉就等于撒一个谎。
+          维护站点画像与归属：域名、租户都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。
+          建站流水线建出来的是 <b>候选站</b>（等客户选中才转正），客户没选中的收进 <b>归档</b>——这两种在下面的行里都单独标色。
+          <b>手建的站点也先落候选</b>（M-P40 拍板：没人确认过的一套不该一建出来就对全世界可读），要对外就在行上点「启用」。
+          已上线的站在编辑弹窗里只在「启用 / 禁用」之间转；转正与归档这里不给下拉——那是流水线推进的结果，
+          在这里改一下字符串就等于撒一个谎。
         </p>
       </div>
       <a-button type="primary" @click="resetForm(); modalVisible = true">
@@ -470,17 +499,21 @@ onMounted(() => {
       <a-table-column title="状态" width="150" align="center">
         <template #default="{ record }">
           <a-tag :color="siteStatusColor(record.status)">{{ siteStatusText(record.status) }}</a-tag>
-          <div v-if="record.status === 'candidate'" class="sites-view__muted">等客户选中，选中才转正</div>
+          <div v-if="record.status === 'candidate' && fromBrief(record)" class="sites-view__muted">等客户选中，选中才转正</div>
+          <div v-else-if="record.status === 'candidate'" class="sites-view__muted">手建的站，点这一行的「启用」才对外</div>
           <div v-else-if="record.status === 'archived'" class="sites-view__muted">旧方案，留着备查</div>
           <div v-else-if="record.promotedAt" class="sites-view__muted">转正于 {{ formatDateTime(record.promotedAt) }}</div>
         </template>
       </a-table-column>
-      <a-table-column title="操作" width="100" fixed="right" align="center">
+      <a-table-column title="操作" width="140" fixed="right" align="center">
         <template #default="{ record }">
+          <a-button v-if="canEnable(record)" type="link" size="small" @click="enableSite(record)">
+            启用
+          </a-button>
           <a-button v-if="record.id" type="link" size="small" @click="resetForm(record); modalVisible = true">
             编辑
           </a-button>
-          <span v-else>-</span>
+          <span v-if="!record.id">-</span>
         </template>
       </a-table-column>
       <template #emptyText>
@@ -639,7 +672,8 @@ onMounted(() => {
                    在这里改一下字符串既不会让客户选、也不会撤销预览令牌，摆了就是一个会写坏数据的控件。 -->
               <template v-if="statusLockedInForm">
                 <span class="sites-view__locked-status">{{ siteStatusText(form.status) }}</span>
-                <p class="sites-view__muted">
+                <p v-if="!editingId" class="sites-view__muted">新建的站一律先落这一态，要对外就在清单那一行点「启用」。</p>
+                <p v-else class="sites-view__muted">
                   这一站的状态归建站流水线管，这张表单不动它；下面那些画像字段照常能改，改完保存只写画像。
                 </p>
               </template>

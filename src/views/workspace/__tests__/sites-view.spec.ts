@@ -257,3 +257,61 @@ describe('建站向导第一跳：归属租户与建后进前采', () => {
     wrapper.unmount()
   })
 })
+
+/**
+ * M-P40 拍板②：新建的站先落候选，要对外得在行上点「启用」。
+ *
+ * 这里钉三件：默认值真的是 candidate（不是界面写着候选、发出去是 enabled）、
+ * 手建的候选行摆得出那颗按钮、流水线建的候选行<em>不</em>摆（同一颗按钮在那一行上等于替客户点头）。
+ */
+describe('新建落候选与「启用」把手（M-P40）', () => {
+  it('新建：payload 带的状态是 candidate，界面写的与发出去的是同一个', async () => {
+    const wrapper = await mountView()
+    click(byText('新建站点')[0])
+    await flushPromises()
+
+    await fillRequiredInputs(wrapper)
+    tenantSelect(wrapper)!.vm.$emit('update:value', 15)
+    // 新建那一屏：状态这一格不给下拉，摆出来的是「候选」这个既成事实
+    expect(document.body.textContent).toContain('新建的站一律先落这一态')
+    await clickModalOk()
+
+    const payload = vi.mocked(siteApi.create).mock.calls[0][0]
+    expect(payload.status).toBe('candidate')
+    wrapper.unmount()
+  })
+
+  it('手建的候选行摆「启用」，点它就发一发只带状态的 PUT', async () => {
+    const wrapper = await mountView([{ ...BASE_SITE, status: 'candidate' }])
+
+    const enable = byText('启用')
+    expect(enable).toHaveLength(1)
+    expect(document.body.textContent).toContain('手建的站，点这一行的「启用」才对外')
+    click(enable[0])
+    await flushPromises()
+
+    expect(siteApi.update).toHaveBeenCalledTimes(1)
+    const [id, payload] = vi.mocked(siteApi.update).mock.calls[0]
+    expect(id).toBe(7)
+    // 只发被点的那一格：把整行发回去会让别的列再写一遍，界面上看不出来的那种覆盖
+    expect(payload).toEqual({ status: 'enabled' })
+    expect(vi.mocked(message.success).mock.calls.flat().join()).toContain('已上线')
+    wrapper.unmount()
+  })
+
+  it('流水线建的候选行不摆「启用」：那一套要客户在候选对比里选中才转正', async () => {
+    const wrapper = await mountView([{ ...BASE_SITE, status: 'candidate', buildBriefId: 555, candidateNo: 2 }])
+
+    expect(byText('启用')).toHaveLength(0)
+    expect(document.body.textContent).toContain('等客户选中，选中才转正')
+    wrapper.unmount()
+  })
+
+  it('已上线的行不摆「启用」，也不念候选那句', async () => {
+    const wrapper = await mountView([BASE_SITE])
+
+    expect(byText('启用')).toHaveLength(0)
+    expect(document.body.textContent).not.toContain('手建的站，点这一行的「启用」才对外')
+    wrapper.unmount()
+  })
+})
