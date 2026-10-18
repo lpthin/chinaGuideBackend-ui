@@ -46,6 +46,48 @@ interface HttpClient {
   defaults: AxiosInstance['defaults']
 }
 
+/**
+ * 这一发回的不是本系统说的话（M-P38 拍板①，现场量过的形状见正档 §10.53）。
+ *
+ * <p>判据只有「回体是不是自家那一个形状」这一条：自家的每一发（含 M-P36 修好的容器 ERROR 派发）
+ * 都带 {@code success} 或 {@code code}，而服务容器在请求进业务处理<em>之前</em>就拒掉的那一类
+ * ——坏百分号编码的 URL、超长请求行、超长请求头——回的是它自己的 HTML 错误页。
+ * 界面上把这一形念成「请求参数有误，请检查后重试」是把责任放错了地方：那一句话让人去改表单，
+ * 而他改不动的东西（地址编码、请求尺寸）才是真原因。</p>
+ *
+ * <p>{@code X-Trace-Id} 在这里<em>不</em>做判据：读不到响应头那一层的自定义字段要靠
+ * axios 的 header 白名单，量出来的差别只有回体形状这一条是稳的。</p>
+ */
+export function isContainerLevelRejection(error: unknown): boolean {
+  const response = (error as AxiosError | undefined)?.response
+  if (!response) {
+    return false
+  }
+  const data = response.data as any
+  if (data && typeof data === 'object' && ('success' in data || 'code' in data)) {
+    return false
+  }
+  const contentType = String(response.headers?.['content-type'] ?? '')
+  const body = typeof data === 'string' ? data : ''
+  return /text\/html/i.test(contentType) || /<html|<h1/i.test(body)
+}
+
+/**
+ * 容器级拒绝那一句。要点三件：谁回的、说了什么、下一步做什么。
+ *
+ * <p>不写「参数有误」：表单里没有 URL 编码与请求尺寸这两样，让人去改一个改不动的东西。
+ * 也不承诺「换直连就好」：走代理还是直连要现测，这一句只说得出「业务接口没有给答复」。
+ * 「400 最常见的原因」那一支只在本批现场量过的那三型上成立（坏百分号编码、超长请求行、
+ * 超长单枚请求头，三只回的是同一页），别的状态码不套用同一句原因。</p>
+ */
+function containerRejectionMessage(status: number): string {
+  const cause = status === 400
+    ? '这一形最常见的原因是地址里有不完整的百分号编码，或请求行、请求头过长：请把地址写完整、把请求缩短后重试。'
+    : '请把请求重试一次；连续如此要看的是本系统前面那一层的日志，不是业务数据。'
+  return `这一发不是本系统回的话（HTTP ${status}）：回来的是本系统前面的服务容器或网关自己的错误页，`
+    + `业务接口没有给出答复。${cause}这不是数据或权限的问题，业务侧也不会留下这一次的记录。`
+}
+
 /** 给用户看的错误文案：axios/网关的英文原文（如 Request failed with status code 502）不能直接抛到界面上 */
 export function describeHttpError(error: unknown): string {
   const axiosError = error as AxiosError<{ message?: string }>
@@ -58,6 +100,9 @@ export function describeHttpError(error: unknown): string {
     // 拦截器转抛的纯 Error 里带的是后端返回的中文业务文案，原样透出。
     if (axiosError?.isAxiosError) return '无法连接服务器，请确认后端已启动'
     return (error as Error | null)?.message || '无法连接服务器，请确认后端已启动'
+  }
+  if (isContainerLevelRejection(axiosError)) {
+    return containerRejectionMessage(status)
   }
   switch (status) {
     case 400: return '请求参数有误，请检查后重试'
