@@ -75,13 +75,19 @@
           />
           <template #actions>
             <a-space>
-              <a-button type="primary" @click="showAddModal">
+              <a-button v-if="canManage" type="primary" @click="showAddModal">
                 <template #icon><PlusOutlined /></template>
                 新建案例
               </a-button>
             </a-space>
           </template>
         </filter-bar>
+
+        <!-- 后端这五张口（新增/编辑/删除/批量删除/AI 起草）挂的是 operation:case:manage，
+             缺码的人只摆「查看」；不说这句等于让人以为页面坏了 -->
+        <a-alert v-if="!canManage" type="info" show-icon style="margin-bottom: 12px"
+                 message="这个账号只有查看案例的权限（operation:case:view）"
+                 description="新建、编辑、删除和 AI 起草要 operation:case:manage，找有权限的同事或在角色页把这个码发给这个账号。" />
 
         <a-table
           :scroll="{ x: 'max-content' }"
@@ -119,9 +125,11 @@
             <template v-if="column.key === 'actions'">
               <a-space>
                 <a-button type="link" size="small" @click="viewDetail(record)">查看</a-button>
-                <a-button type="link" size="small" @click="editCase(record)">编辑</a-button>
-                <a-button type="link" size="small" @click="openDraftModal(record)">AI 起草</a-button>
-                <a-button type="link" size="small" danger @click="handleDelete(record.id)">删除</a-button>
+                <template v-if="canManage">
+                  <a-button type="link" size="small" @click="editCase(record)">编辑</a-button>
+                  <a-button type="link" size="small" @click="openDraftModal(record)">AI 起草</a-button>
+                  <a-button type="link" size="small" danger @click="handleDelete(record.id)">删除</a-button>
+                </template>
               </a-space>
             </template>
           </template>
@@ -291,7 +299,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { message, Modal, notification } from 'ant-design-vue'
 import {
   TrophyOutlined,
@@ -312,6 +320,9 @@ import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
+
+/** 会改内容或会花租户钱的那五张口在后端要这个码；界面跟着它摆不摆把手，与路由的 view 码同一分法 */
+const canManage = computed(() => authStore.hasPermission('operation:case:manage'))
 
 const loading = ref(false)
 const tableLoading = ref(false)

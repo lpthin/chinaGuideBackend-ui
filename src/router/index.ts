@@ -989,7 +989,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'operation/cases',
         name: 'workspace-operation-cases',
         component: CaseManageView,
-        meta: { title: '客户案例', desc: '运营侧跟进的客户案例（operation_case 表），不是门户访客看的那张 case 表', icon: 'case' }
+        meta: { title: '客户案例', desc: '运营侧跟进的客户案例（operation_case 表），不是门户访客看的那张 case 表', icon: 'case', requiredPermission: 'operation:case:view' }
       },
       {
         path: 'operation/reports',

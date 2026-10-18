@@ -42,6 +42,13 @@ vi.mock('../../../api/operation', () => ({
 
 const DRAFT_TITLE = '让 AI 重写这一条案例'
 
+/**
+ * 后端 M-P37 拍板 1 把这五张口（新建/编辑/删除/批量删除/AI 起草）挂在 operation:case:manage 上，
+ * 起草那一发会真的花租户的钱，所以它跟增删改同档，不跟「查看」同档。
+ * 这一串用例走的是有码的人，所以两码都给；缺码那一档由下面那组用例单独钉。
+ */
+const CASE_CODES = ['operation:case:view', 'operation:case:manage']
+
 /** 只渲染「开着的那一扇」，并把 ok 事件与 okButtonProps.disabled 如实接出来 */
 const MODAL_STUB = defineComponent({
   name: 'AModal',
@@ -130,9 +137,9 @@ function estimate(overrides: Record<string, unknown> = {}) {
   }
 }
 
-async function mountView() {
+async function mountView(permissions: string[] = CASE_CODES) {
   const auth = useAuthStore()
-  auth.user = { id: 1, username: 'tester', roles: ['SITE_ADMIN'], permissions: [] } as any
+  auth.user = { id: 1, username: 'tester', roles: ['SITE_ADMIN'], permissions } as any
   const wrapper = mount(CaseManageView, {
     attachTo: document.body,
     global: {
@@ -299,5 +306,70 @@ describe('CaseManageView 的 AI 起草', () => {
 
     expect(customerCaseApi.aiDraft).not.toHaveBeenCalled()
     expect(message.error).toHaveBeenCalledWith(expect.stringContaining('预估失败'))
+  })
+})
+
+/**
+ * 缺码的人在这一页上能做什么（M-P37 拍板 1 的界面那一半）。
+ *
+ * 这里必须挂真实按钮：把手只要还在，点下去就是后端一句 403，界面等于摆了个坏按钮。
+ * 反过来，只有查看码的人不该被整页挡在门外——清单、详情、统计他本来就该看，
+ * 所以「不加那句说明」和「把整页藏起来」两种做法都不对。
+ */
+describe('CaseManageView 按 operation:case:manage 摆把手', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(customerCaseApi.list).mockResolvedValue({ records: [CASE], total: 1, page: 1, size: 10 } as any)
+    vi.mocked(customerCaseApi.statistics).mockResolvedValue({
+      total: 1,
+      published: 1,
+      draft: 0,
+      totalViews: 3,
+      industryCount: 1
+    } as any)
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  function buttonLabels(wrapper: any) {
+    return wrapper.findAll('button').map((node: any) => node.text().trim())
+  }
+
+  it('两码齐的人四颗都在', async () => {
+    const wrapper = await mountView()
+    const labels = buttonLabels(wrapper)
+
+    expect(labels).toContain('新建案例')
+    expect(labels).toContain('编辑')
+    expect(labels).toContain('AI 起草')
+    expect(labels).toContain('删除')
+    expect(wrapper.find('.AAlert-stub').exists()).toBe(false)
+  })
+
+  it('只有查看码的人四颗写把手都不在，但清单照旧看得见，并有一句说明缺哪一码', async () => {
+    const wrapper = await mountView(['operation:case:view'])
+    const labels = buttonLabels(wrapper)
+
+    expect(labels).not.toContain('新建案例')
+    expect(labels).not.toContain('编辑')
+    expect(labels).not.toContain('AI 起草')
+    expect(labels).not.toContain('删除')
+    // 读口不该被顺手一起藏掉：这一页对他是「看得了、改不动」，不是「进不来」
+    // （表格桩件只替 actions 那一列渲染插槽，所以行在不在看「查看」那颗与 table-stub）
+    expect(labels).toContain('查看')
+    expect(wrapper.find('.table-stub').exists()).toBe(true)
+    expect(customerCaseApi.list).toHaveBeenCalled()
+
+    const notice = wrapper.findAll('.AAlert-stub').map((node: any) => node.text()).join(' ')
+    expect(notice).toContain('operation:case:manage')
+  })
+
+  it('一码都没有时不喊起草：这一发要真花钱，缺码的人压根点不到', async () => {
+    const wrapper = await mountView([])
+
+    expect(buttonLabels(wrapper)).not.toContain('AI 起草')
+    expect(customerCaseApi.aiDraft).not.toHaveBeenCalled()
   })
 })

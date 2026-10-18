@@ -54,8 +54,11 @@ const SUPER = {
  *
  * `portal:page:manage` 在这一串里：V93 曾把它连同另外三码从 SITE_ADMIN 收回，
  * Q-P7-3 拆完权限码后由 V161 只恢复这一码（读页/改信息/发布/下线），实测现网 SITE_ADMIN 确实持它。
+ *
+ * `operation:case:view` 是 M-P37 拍板 1 新加的：这一族接口在此之前一支权限注解都没有，
+ * V191 把读码发给 SITE_ADMIN ⇒ 客户案例这颗对租户照旧在，但它从此有一道闸。
  */
-const TENANT_CODES = ['portal:siteinfo:manage', 'portal:page:manage', 'media:manage', 'analytics:view', 'portal:ticket:submit', 'case:manage']
+const TENANT_CODES = ['portal:siteinfo:manage', 'portal:page:manage', 'media:manage', 'analytics:view', 'portal:ticket:submit', 'case:manage', 'operation:case:view']
 const TENANT = {
   isSuperAdmin: false,
   hasPermission: (code: string) => TENANT_CODES.includes(code),
@@ -183,6 +186,28 @@ describe('平台段与租户段分家', () => {
     expect(leafVisible(pages!, TENANT)).toBe(true)
     const buildOnly = { isSuperAdmin: false, hasPermission: (code: string) => code === 'portal:build:manage', openContentEntries: ALL_OPEN }
     expect(leafVisible(pages!, buildOnly)).toBe(false)
+  })
+
+  /**
+   * 2026-10-18 拍板 1：客户案例这一族「三处同源」里的菜单那一处。
+   *
+   * 后端五支写口挂 manage、四支读口落在类级 view，路由 meta 也必须是同一个 view——
+   * 这一项从前没有闸（meta 里没有 requiredPermission），任何登录用户从菜单点进去都能增删改。
+   * 断言写成「只有 manage 没有 view 的账号进不来」是为了钉住两码不互相顶替：
+   * 库里 SITE_ADMIN 两码都有，这一组合不存在，但它正是「菜单挂写码、守卫读码」会长出假入口的地方。
+   */
+  it('客户案例挂在读码 operation:case:view 上：有写码没读码的人菜单里不摆这一颗', () => {
+    const cases = grouped.find(leaf => leaf.routeName === 'workspace-operation-cases')
+    expect(cases, '「客户案例」必须还在菜单里').toBeTruthy()
+    expect(cases?.permission).toBe('operation:case:view')
+    expect(cases?.superAdminOnly).toBe(false)
+    expect(leafVisible(cases!, TENANT)).toBe(true)
+
+    const manageOnly = { isSuperAdmin: false, hasPermission: (code: string) => code === 'operation:case:manage', openContentEntries: ALL_OPEN }
+    expect(leafVisible(cases!, manageOnly)).toBe(false)
+
+    const none = { isSuperAdmin: false, hasPermission: () => false, openContentEntries: ALL_OPEN }
+    expect(leafVisible(cases!, none)).toBe(false)
   })
 
   /**
