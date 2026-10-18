@@ -160,7 +160,9 @@ describe('出方案进度的等待机', () => {
       showcaseBatchIndex: 5,
       showcaseBatchTotal: 7,
       showcaseBatchLabel: '经营指标',
-      showcaseBatchWaitMs: 26_000
+      showcaseBatchWaitMs: 26_000,
+      showcaseBatchState: 'skipped',
+      showcaseBatchStateLabel: '没写成'
     })])
 
     const row = follower.rows.value[0]
@@ -168,9 +170,12 @@ describe('出方案进度的等待机', () => {
     expect(row.showcaseBatchTotal).toBe(7)
     expect(row.showcaseBatchLabel).toBe('经营指标')
     expect(row.showcaseBatchWaitMs).toBe(26_000)
+    // M-P37 那两格也在同一条腿上：等待机裁掉它，那一格就永远念不出「上一批没写成」
+    expect(row.showcaseBatchState).toBe('skipped')
+    expect(row.showcaseBatchStateLabel).toBe('没写成')
     // 「这一批等了多久」与「这一步等了多久」是两个数，谁也不许顶替谁
     expect(follower.waitLineOf(row)).toBe('约 1 分 35 秒')
-    expect(showcaseBatchLineOf(row)).toBe('这一格里分批在写：第 5/7 批 · 经营指标 · 这一批已经等了 约 26 秒')
+    expect(showcaseBatchLineOf(row)).toBe('这一格里分批在写：第 5/7 批 · 经营指标 · 这一批已经等了 约 26 秒 · 上一批：没写成')
   })
 
   it('③ complete 一到就收流，并且把外围读数重读一次（画廊的预览状态、向导的步序条都靠这一下）', async () => {

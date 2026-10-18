@@ -233,4 +233,27 @@ describe('showcaseBatchLineOf：分批那一格只有一份句子，读不到就
     expect(line).toContain('后端这一发没回时长读数（不是 0 秒）')
     expect(line).not.toContain('约 0 秒')
   })
+
+  /**
+   * M-P37 拍板②那一格：现场逐帧数出来的缺口是「第 2/5 批挂死两分钟后，195 个 progress 事件里
+   * 没有任何一帧说第 2 批没成」（§10.51 ⑦.3）。这里钉的是那句话的形状，以及<b>只有后端回了终态
+   * 才说得出那句话</b>：`showcaseBatchStateLabel` 为 null 的意思是「还没有一批落定过」，
+   * 兜成「没写成」就是把还不知道说成一件坏事。
+   */
+  it('后端回了上一批的终态就跟着念，没回就整段不出现', () => {
+    expect(showcaseBatchLineOf({
+      showcaseBatchIndex: 3,
+      showcaseBatchTotal: 7,
+      showcaseBatchLabel: '资质荣誉',
+      showcaseBatchWaitMs: 40_000,
+      showcaseBatchStateLabel: '没写成'
+    })).toBe('这一格里分批在写：第 3/7 批 · 资质荣誉 · 这一批已经等了 约 40 秒 · 上一批：没写成')
+
+    const firstBatch = showcaseBatchLineOf({
+      showcaseBatchIndex: 1, showcaseBatchTotal: 7, showcaseBatchLabel: '团队成员',
+      showcaseBatchWaitMs: 5_000, showcaseBatchStateLabel: null
+    }) as string
+    expect(firstBatch).not.toContain('上一批')
+    expect(firstBatch).not.toContain('没写成')
+  })
 })

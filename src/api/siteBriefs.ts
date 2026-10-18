@@ -914,6 +914,16 @@ export interface BriefCandidateProgress {
   showcaseBatchLabel?: string | null;
   /** 这一批<em>发问那一刻</em>起算的等待（毫秒）；不是整阶段也不是整趟，null 同样不许念成 0 秒 */
   showcaseBatchWaitMs?: number | null;
+  /**
+   * <b>最近落定</b>的那一批成了什么（M-P37 拍板②，V192 那一列）。
+   *
+   * <p>它说的<em>不是</em>上面那四格正在飞的这一批：一批死掉到下一批发问之间只隔几毫秒，而进度流
+   * 每 2 秒才读一次库，把终态写在在飞那一批上等于没修。null 有三种意思（第 1 批还在飞、queued 的行、
+   * V192 之前生的老行），它的含义是「还没有一批落定过」——不许被念成「上一批没写成」。</p>
+   */
+  showcaseBatchState?: string | null;
+  /** 上面那一格的中文（唯一出处 = 后端 `ShowcaseBatchStates.label`），界面一字不改地摆 */
+  showcaseBatchStateLabel?: string | null;
 }
 
 /**
@@ -922,18 +932,24 @@ export interface BriefCandidateProgress {
  * <p>为什么这是唯一出处：等待面有三处在读这一趟的进度（向导第 3/4 步、候选画廊、总览页），
  * 这一句话要是各写各的，同一趟在两个页面上就会一个说「第 3/7 批」一个不说（I-1）。
  * 后端在那四种「不该念」的情况下回的是 null，所以这里不加闸也不兜底——null 就是没在写。</p>
+ *
+ * <p>后半句「上一批：已写成／没写成」读的是后端那一格终态的中文（M-P37 拍板②）。
+ * 它在 null 时<em>整段不出现</em>：那一格的意思是「还没有一批落定过」，
+ * 把它翻译成「上一批没写成」就是把还不知道说成一件坏事。</p>
  */
 export function showcaseBatchLineOf(row: {
   showcaseBatchIndex?: number | null;
   showcaseBatchTotal?: number | null;
   showcaseBatchLabel?: string | null;
   showcaseBatchWaitMs?: number | null;
+  showcaseBatchStateLabel?: string | null;
 }): string | null {
   if (row.showcaseBatchIndex == null) return null;
   const total = row.showcaseBatchTotal == null ? '?' : row.showcaseBatchTotal;
   const label = row.showcaseBatchLabel || '后端这一发没回这一类叫什么';
+  const landed = row.showcaseBatchStateLabel ? ` · 上一批：${row.showcaseBatchStateLabel}` : '';
   return `这一格里分批在写：第 ${row.showcaseBatchIndex}/${total} 批 · ${label} · `
-    + `这一批已经等了 ${formatWaitMs(row.showcaseBatchWaitMs)}`;
+    + `这一批已经等了 ${formatWaitMs(row.showcaseBatchWaitMs)}${landed}`;
 }
 
 /**
@@ -1208,6 +1224,15 @@ export interface BriefWorkbenchOverview {
   drafts?: BriefOverviewDraft[] | null;
   /** 那一句口径（没有预测、只读、两把 token 尺各说各的） */
   note?: string | null;
+  /**
+   * 整页都空时后端答「这是哪一种空」：NONE（查过了真没有）/ NOT_VISIBLE（这一档读不到）/
+   * NOT_ANSWERED（这一发没回）。有东西在跑时是 null。
+   *
+   * <p>M-P37 拍板 ⑤：界面这一格不许自己猜成因，只认后端带回来的码。</p>
+   */
+  emptyReason?: string | null;
+  /** 与 emptyReason 同源的整句话术（中文唯一出处在后端，界面逐字念） */
+  emptyLine?: string | null;
 }
 
 /**

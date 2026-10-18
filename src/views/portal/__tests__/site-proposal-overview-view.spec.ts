@@ -209,7 +209,24 @@ const EMPTY_OVERVIEW = {
   pools: OVERVIEW.pools,
   rounds: [],
   drafts: [],
-  note: OVERVIEW.note
+  note: OVERVIEW.note,
+  // 拍板 ⑤：空态的成因是后端那一格带的码，界面只认它；这句话的唯一出处在后端，这里逐字抄一份
+  emptyReason: 'NONE',
+  emptyLine: '建站这一族：这一档查过了，一条都没有。'
+}
+
+/** 同一个空列表，成因换成「读不到」：选中的那个身份在这张表里根本没有行 */
+const EMPTY_OVERVIEW_NOT_VISIBLE = {
+  ...EMPTY_OVERVIEW,
+  emptyReason: 'NOT_VISIBLE',
+  emptyLine: '建站这一族：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'
+}
+
+/** 后端没回成因（老接口、或这一族只空了一半）：界面不替它猜一个 */
+const EMPTY_OVERVIEW_NO_REASON = {
+  ...EMPTY_OVERVIEW,
+  emptyReason: null,
+  emptyLine: null
 }
 
 beforeEach(() => {
@@ -388,6 +405,36 @@ describe('建站任务总览（批 D 只读页）', () => {
 
     expect(wrapper.text()).toContain('今天没有任何一单处在「方案生成中」')
     expect(wrapper.text()).toContain('一家租户同时只许一单')
+  })
+
+  /**
+   * 拍板 ⑤（M-P37）的前端那一半：空态的「为什么没有」只认后端带的成因码。
+   * 读不到（这一档在这个身份下根本没有行）≠ 真没有 —— 界面不许把前者念成后者。
+   */
+  it('后端说读不到时逐字念它那句，不许念成「没人点」', async () => {
+    ;(briefGenerationApi.overview as any).mockResolvedValue({ ...EMPTY_OVERVIEW_NOT_VISIBLE })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('这一档读不到（选中的那个身份在这张表里没有行）')
+    expect(wrapper.text()).not.toContain('没人点')
+    expect(wrapper.text()).not.toContain('今天没有任何一单处在「方案生成中」')
+    // 初稿那一格走的是同一条规矩：成因不是「真没有」时，那句描述自己跑法的话也不许摆出来
+    expect(wrapper.text()).not.toContain('没有一份初稿在跑')
+  })
+
+  /** 后端没回成因时那一格说什么：只报「这一发没有行」这个自己看得见的事实，不猜成因 */
+  it('后端没回成因时不猜：既不说「没人点」也不说「读不到」', async () => {
+    ;(briefGenerationApi.overview as any).mockResolvedValue({ ...EMPTY_OVERVIEW_NO_REASON })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('这一格这一发没有行（成因后端没回，界面不替它猜）')
+    expect(wrapper.text()).not.toContain('没人点')
+    expect(wrapper.text()).not.toContain('读不到')
+    expect(wrapper.text()).not.toContain('没有一份初稿在跑')
   })
 
   it('有东西在跑才挂 10 秒的表，读到全空就自己停', async () => {

@@ -39,6 +39,14 @@ const rounds = computed<BriefOverviewRound[]>(() => overview.value?.rounds ?? []
 const drafts = computed(() => overview.value?.drafts ?? [])
 const pools = computed(() => overview.value?.pools ?? [])
 
+/**
+ * 空态的成因只认后端那一格（M-P37 拍板 ⑤）：
+ * `NONE` 才许说「查过了，真没有」；`NOT_VISIBLE` 那一句是后端拼好的，逐字念；
+ * 后端没回成因时界面不替它猜一个，只报「这一发没有行」这个自己看得见的事实。
+ */
+const emptyReason = computed(() => overview.value?.emptyReason ?? '')
+const emptyLine = computed(() => overview.value?.emptyLine ?? '')
+
 /** 还有没有值得继续读的东西：一单在跑或一份初稿在跑才续表，全空就停（不许挂一条永远在打的读） */
 const anythingInFlight = computed(() => rounds.value.length > 0 || drafts.value.length > 0)
 
@@ -149,8 +157,12 @@ onBeforeUnmount(stopTimer)
 
     <a-card size="small" title="在跑的出方案单" class="proposal-overview__card">
       <p v-if="!loading && overview && !rounds.length" class="proposal-overview__muted">
-        今天没有任何一单处在「方案生成中」。这不是坏了，是没人点——一家租户同时只许一单，
-        第二单在受理那一步就被中文拒绝，所以这里最多每家一条。
+        <template v-if="emptyReason === 'NONE'">
+          今天没有任何一单处在「方案生成中」。这不是坏了，是没人点——一家租户同时只许一单，
+          第二单在受理那一步就被中文拒绝，所以这里最多每家一条。
+        </template>
+        <template v-else-if="emptyLine">{{ emptyLine }}</template>
+        <template v-else>这一格这一发没有行（成因后端没回，界面不替它猜）。</template>
       </p>
       <div v-for="round in rounds" :key="round.briefId" class="proposal-overview__round">
         <a-divider v-if="round.briefId !== rounds[0]?.briefId" style="margin: 12px 0" />
@@ -214,7 +226,11 @@ onBeforeUnmount(stopTimer)
 
     <a-card size="small" title="在跑的说明书初稿" class="proposal-overview__card">
       <p v-if="!loading && overview && !drafts.length" class="proposal-overview__muted">
-        没有一份初稿在跑。这一族跑一次是模型写七段那一发，跑完就把状态落进说明书那一页。
+        <template v-if="emptyReason === 'NONE'">
+          没有一份初稿在跑。这一族跑一次是模型写七段那一发，跑完就把状态落进说明书那一页。
+        </template>
+        <template v-else-if="emptyLine">{{ emptyLine }}</template>
+        <template v-else>这一格这一发没有行（成因后端没回，界面不替它猜）。</template>
       </p>
       <p v-for="draft in drafts" :key="draft.briefId" class="proposal-overview__line">
         <b>需求单 #{{ draft.briefId }}</b>
