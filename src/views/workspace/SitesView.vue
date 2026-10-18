@@ -348,7 +348,8 @@ async function save() {
       router.push({ name: 'workspace-portal-brief-new', query: { tenantId: String(tenantId) } })
     }
   } catch (e) {
-    message.error('保存失败')
+    // 后端拦下来的理由要说给人听（「站点状态不能这么改…」），只报「保存失败」等于让人反复试同一发
+    message.error((e as Error)?.message || '保存失败')
   }
 }
 
