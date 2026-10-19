@@ -126,23 +126,24 @@
       width="600px"
       @ok="submitTenant"
     >
-      <a-form :model="formData" :rules="formRules" layout="vertical">
+      <a-form ref="formRef" :model="formData" :rules="formRules" layout="vertical">
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="租户名称" name="name">
-              <a-input v-model:value="formData.name" placeholder="请输入租户名称" />
+              <a-input v-model:value="formData.name" placeholder="请输入租户名称" @blur="suggestCodeFromName" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item
               label="租户代码"
               name="code"
+              extra="小写字母、数字、连字符，2~50 位；它会同时作为交付站域名的前缀，建成之后改不了"
               :validate-status="codeCheck.validateStatus"
               :help="codeCheck.help"
             >
               <a-input
                 v-model:value="formData.code"
-                placeholder="请输入租户代码"
+                placeholder="留空则按名称自动建议，可改"
                 :disabled="isEdit"
                 @blur="checkTenantCode"
               />
@@ -216,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, h } from 'vue'
+import { ref, reactive, computed, watch, onMounted, h, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -226,10 +227,15 @@ import {
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
-import type { TableProps } from 'ant-design-vue'
+import type { TableProps, FormInstance } from 'ant-design-vue'
 import http, { describeHttpError } from '@/api/http'
 import { formatDateTime } from '@/utils/format'
-import { describeTenantCodeCheck, type TenantCodeCheckState } from './tenantCodeCheck'
+import {
+  CODE_FORMAT_PATTERN,
+  describeTenantCodeCheck,
+  type TenantCodeCheckState,
+} from './tenantCodeCheck'
+import { suggestTenantCodeFromName } from './tenantCodeSuggest'
 
 interface Tenant {
   id: number
@@ -250,6 +256,9 @@ const router = useRouter()
 const searchText = ref('')
 const statusFilter = ref('all')
 const modalVisible = ref(false)
+// a-modal 默认不销毁内容：上一次打开时红掉的那一栏会跟着下一次开弹窗一起来，
+// 而表单值已被换成别一家的数据，红字念的内容与格子里的值不再相干
+const formRef = ref<FormInstance>()
 const detailVisible = ref(false)
 const isEdit = ref(false)
 const currentTenant = ref<Tenant | null>(null)
@@ -312,7 +321,8 @@ interface ProvisionedTenant {
 
 const formRules = {
   name: [{ required: true, message: '请输入租户名称' }],
-  code: [{ required: true, message: '请输入租户代码' }],
+  // whitespace: true 与后端 `!code.trim()` 那把空闸同一把尺：只敲空格的代码不许在界面显成「这栏过了」
+  code: [{ required: true, whitespace: true, message: '请输入租户代码' }],
   contactEmail: [{ required: true, message: '请输入联系邮箱' }],
   adminPassword: [{ required: true, message: '请设置管理员初始密码，至少 6 位' }],
 }
@@ -346,6 +356,13 @@ const checkTenantCode = async () => {
     codeCheckMessage.value = ''
     return
   }
+  if (!CODE_FORMAT_PATTERN.test(code)) {
+    // 形状就不对的代码不必去问占用：那一发答的是「有没有被用过」，而这一串压根当不了域名
+    codeCheckSeq++
+    codeCheckState.value = 'invalid'
+    codeCheckMessage.value = ''
+    return
+  }
   const seq = ++codeCheckSeq
   codeCheckState.value = 'checking'
   try {
@@ -365,6 +382,34 @@ const checkTenantCode = async () => {
     codeCheckState.value = 'unreachable'
     codeCheckMessage.value = (e as Error)?.message ?? ''
   }
+}
+
+/**
+ * 名称失焦时从名字里推一个<em>建议</em>代码（M-P45 拍板①「只加本地拼音库，不外呼」+ 拍板②「名称失焦、
+ * 且代码格为空时才打」）。
+ *
+ * 四条纪律都在这里，一条都不在别处：
+ * - 代码格里有<em>任何</em>字符就住手（比的是 `!== ''`，不是 trim 后非空）——一个空格也是人打的字，
+ *   覆盖它等于替超管改了他已经写下的东西；
+ * - 一次开弹窗最多打一发（`codeSuggestedOnce` 在真正动词典之前置位，推不出合格代码也不重试）；
+ * - 全程本地：没有任何外呼、没有任何流水行，这一发在记账上和敲键盘同价；
+ * - 填完之后照旧走查重那一发，建议值不享有「界面默认它可用」的待遇。
+ */
+const codeSuggestedOnce = ref(false)
+
+const suggestCodeFromName = async () => {
+  if (isEdit.value) return
+  if (codeSuggestedOnce.value) return
+  if (formData.code !== '') return
+  if (!formData.name.trim()) return
+  codeSuggestedOnce.value = true
+  const suggested = await suggestTenantCodeFromName(formData.name)
+  // 推不出合格代码（名字全是符号、或只剩一个字母）就留空，不往格子里填一个注定被格式闸拒掉的串
+  if (!suggested) return
+  formData.code = suggested
+  // 改代码那条 watch 会把 seq 往前推一格并撤掉结论；不等它落地就去查，刚填的值会被自己的作废判据抹平
+  await nextTick()
+  await checkTenantCode()
 }
 
 const getStatusColor = (status: number) => {
@@ -435,6 +480,7 @@ const handleTableChange: TableProps['onChange'] = (pag) => {
 
 const showCreateModal = () => {
   isEdit.value = false
+  codeSuggestedOnce.value = false
   Object.assign(formData, {
     name: '',
     code: '',
@@ -447,6 +493,7 @@ const showCreateModal = () => {
     adminPassword: '',
   })
   modalVisible.value = true
+  formRef.value?.clearValidate()
 }
 
 const editTenant = (record: Tenant) => {
@@ -462,6 +509,7 @@ const editTenant = (record: Tenant) => {
   })
   editingId.value = record.id
   modalVisible.value = true
+  formRef.value?.clearValidate()
 }
 
 const showProvisionResult = (created: ProvisionedTenant) => {

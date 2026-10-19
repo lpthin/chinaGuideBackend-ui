@@ -20,6 +20,7 @@
     "echarts": "^6.1.0",
     "marked": "^18.0.6",
     "pinia": "latest",
+    "pinyin-pro": "^3.29.5",
     "vue": "latest",
     "vue-router": "latest"
   },
