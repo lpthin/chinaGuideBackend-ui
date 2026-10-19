@@ -134,8 +134,18 @@
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item label="租户代码" name="code">
-              <a-input v-model:value="formData.code" placeholder="请输入租户代码" :disabled="isEdit" />
+            <a-form-item
+              label="租户代码"
+              name="code"
+              :validate-status="codeCheck.validateStatus"
+              :help="codeCheck.help"
+            >
+              <a-input
+                v-model:value="formData.code"
+                placeholder="请输入租户代码"
+                :disabled="isEdit"
+                @blur="checkTenantCode"
+              />
             </a-form-item>
           </a-col>
           <a-col :span="12">
@@ -206,7 +216,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from 'vue'
+import { ref, reactive, computed, watch, onMounted, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -219,6 +229,7 @@ import FilterBar from '../../components/FilterBar.vue'
 import type { TableProps } from 'ant-design-vue'
 import http, { describeHttpError } from '@/api/http'
 import { formatDateTime } from '@/utils/format'
+import { describeTenantCodeCheck, type TenantCodeCheckState } from './tenantCodeCheck'
 
 interface Tenant {
   id: number
@@ -304,6 +315,56 @@ const formRules = {
   code: [{ required: true, message: '请输入租户代码' }],
   contactEmail: [{ required: true, message: '请输入联系邮箱' }],
   adminPassword: [{ required: true, message: '请设置管理员初始密码，至少 6 位' }],
+}
+
+/**
+ * 代码查重那一格（M-P44 拍板①「加失焦就地查重」）。
+ *
+ * 说什么、不说什么全在 `tenantCodeCheck.ts` 那一份纯函数里，这里只管三件事：
+ * 何时发问、把答案换成形状、以及<em>改一个字就把上一发的结论撤掉</em>——
+ * 挂着「已被占用」念一个已经改过的代码，是最容易让人以为自己没打错的那种误导。
+ */
+const codeCheckState = ref<TenantCodeCheckState>('idle')
+const codeCheckMessage = ref('')
+let codeCheckSeq = 0
+
+const codeCheck = computed(() => describeTenantCodeCheck(codeCheckState.value, codeCheckMessage.value))
+
+watch(() => formData.code, () => {
+  codeCheckSeq++
+  codeCheckState.value = 'idle'
+  codeCheckMessage.value = ''
+})
+
+const checkTenantCode = async () => {
+  // 编辑态这一栏禁用、代码也改不动（建的时候就定死了），失焦再问一发是白打
+  if (isEdit.value) return
+  // 查的正是待会儿要提交的那一串字（不 trim）：判据要与后端那一发同一把尺，差一个空格就是两把尺
+  const code = formData.code
+  if (!code.trim()) {
+    codeCheckState.value = 'idle'
+    codeCheckMessage.value = ''
+    return
+  }
+  const seq = ++codeCheckSeq
+  codeCheckState.value = 'checking'
+  try {
+    const reading = await http.get<{ available?: boolean; message?: string }>(
+      '/admin/tenants/code-available', { params: { code } })
+    if (seq !== codeCheckSeq) return
+    if (typeof reading?.available !== 'boolean') {
+      // 没回 available 不等于「可用」：这一档宁可念「没查到答复」，不替后端担保
+      codeCheckState.value = 'unreachable'
+      codeCheckMessage.value = '后端没有给出可用与否'
+      return
+    }
+    codeCheckState.value = reading.available ? 'available' : 'taken'
+    codeCheckMessage.value = reading.message ?? ''
+  } catch (e) {
+    if (seq !== codeCheckSeq) return
+    codeCheckState.value = 'unreachable'
+    codeCheckMessage.value = (e as Error)?.message ?? ''
+  }
 }
 
 const getStatusColor = (status: number) => {
