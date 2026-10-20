@@ -93,6 +93,12 @@
               {{ getStatusText(record.status) }}
             </a-tag>
           </template>
+          <template v-if="column.key === 'deliveryState'">
+            <!-- 这一栏的中文只念后端那份词表（后端实体上派生的 deliveryStateLabel），界面不再抄一遍 -->
+            <a-tag :color="record.deliveryState === 'delivered' ? 'green' : 'orange'">
+              {{ record.deliveryStateLabel || record.deliveryState || '后端没回这一栏' }}
+            </a-tag>
+          </template>
           <template v-if="column.key === 'action'">
             <a-space>
               <a-button type="link" size="small" @click="viewDetail(record)">
@@ -104,6 +110,18 @@
               <!-- 交棒出口：带着这一家的租户号去前采录入页（租户由地址预填，不用到那边再挑） -->
               <a-button type="link" size="small" @click="goIntake(record.id)">
                 去录前采
+              </a-button>
+              <!--
+                M-P53 拍板：交付态（含退回未交付）只有超管能点。平台自己那家（id=1）后端冻着，
+                这里连把手都不摆——摆一个必定被拒的按钮等于让人白打一发。
+              -->
+              <a-button
+                v-if="authStore.isSuperAdmin && record.id !== PLATFORM_TENANT_ID"
+                type="link"
+                size="small"
+                @click="openDeliveryModal(record)"
+              >
+                改交付态
               </a-button>
               <a-popconfirm
                 title="确定要删除该租户吗？"
@@ -205,6 +223,9 @@
           </a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="联系邮箱">{{ currentTenant.contactEmail }}</a-descriptions-item>
+        <a-descriptions-item label="交付态">
+          {{ currentTenant.deliveryStateLabel || currentTenant.deliveryState || '后端没回这一栏' }}
+        </a-descriptions-item>
         <a-descriptions-item label="联系电话">{{ currentTenant.contactPhone }}</a-descriptions-item>
         <a-descriptions-item label="官网">{{ currentTenant.website || '-' }}</a-descriptions-item>
         <a-descriptions-item label="创建时间">{{ formatDateTime(currentTenant.createdAt) }}</a-descriptions-item>
@@ -212,6 +233,76 @@
         <a-descriptions-item label="描述" :span="2">{{ currentTenant.description || '-' }}</a-descriptions-item>
       </a-descriptions>
     </a-drawer>
+
+    <!--
+      改交付态（M-P53 拍板「加一条只有超管能点的退回」）。
+      四道闸后端才是出处，这一屏先把提交按钮按住：让人在点之前看见缺哪一格，而不是打一发吃一发红字。
+      目标档位那一份名单读后端的 GET /admin/tenants/delivery-states，界面不自己列词表。
+    -->
+    <a-modal
+      v-model:open="deliveryVisible"
+      title="改这一家的交付态"
+      width="640px"
+      ok-text="确认改"
+      :ok-button-props="{ disabled: !deliveryFormReady }"
+      :confirm-loading="deliverySubmitting"
+      @ok="submitDeliveryState"
+    >
+      <template v-if="deliveryTarget">
+        <a-alert type="warning" show-icon style="margin-bottom: 12px">
+          <template #message>
+            交付态只回答一个问题：这一家自己发起的 AI 消耗算不算在它头上。改它还会连带改掉每日自动产出跳过谁。
+          </template>
+        </a-alert>
+
+        <p style="margin-bottom: 12px">
+          这一家：<b>{{ deliveryTarget.name }}</b>（#{{ deliveryTarget.id }} · {{ deliveryTarget.code }}）·
+          现在是 <b>{{ deliveryTarget.deliveryStateLabel || deliveryTarget.deliveryState || '后端没回这一栏' }}</b>
+        </p>
+
+        <a-form layout="vertical">
+          <a-form-item label="改到哪一档">
+            <a-select
+              v-model:value="deliveryForm.state"
+              :options="deliveryStateOptions"
+              :loading="deliveryOptionsLoading"
+              placeholder="选一档"
+            />
+            <p v-if="deliveryStateUnchanged" style="margin: 6px 0 0; color: #8c8c8c; font-size: 12px">
+              这一家本来就是这一档：提交也不会写库，后端会回一句「没改」。
+            </p>
+          </a-form-item>
+
+          <a-form-item label="逐字输入这一家的租户代码">
+            <a-input
+              v-model:value="deliveryForm.expectedCode"
+              :placeholder="`最后一道闸：把 ${deliveryTarget.code} 逐字打进来`"
+            />
+            <p class="delivery-modal__hint" style="margin: 6px 0 0; color: #8c8c8c; font-size: 12px">
+              这一格拦的是「从一张过期的列表上点错行」：只有你打的这一串与库里那一行逐字相等，后端才动数据。
+            </p>
+          </a-form-item>
+
+          <a-form-item label="为什么改（必填，这一句会落进审计）">
+            <a-textarea
+              v-model:value="deliveryForm.reason"
+              :rows="2"
+              :maxlength="500"
+              show-count
+              placeholder="写清是谁要求、为哪件事改；事后只有这一句能分出误点与有意"
+            />
+          </a-form-item>
+
+          <a-form-item label="确认词">
+            <a-input
+              v-model:value="deliveryForm.confirm"
+              :placeholder="`打 ${DELIVERY_STATE_CONFIRM_TOKEN}`"
+            />
+            <p class="delivery-modal__hint" style="margin: 6px 0 0; color: #8c8c8c; font-size: 12px">这一串要逐字打对，少一个字后端就当没收到确认。</p>
+          </a-form-item>
+        </a-form>
+      </template>
+    </a-modal>
 
   </div>
 </template>
@@ -230,6 +321,7 @@ import FilterBar from '../../components/FilterBar.vue'
 import type { TableProps, FormInstance } from 'ant-design-vue'
 import http, { describeHttpError } from '@/api/http'
 import { formatDateTime } from '@/utils/format'
+import { useAuthStore } from '@/stores/auth'
 import {
   CODE_FORMAT_PATTERN,
   describeTenantCodeCheck,
@@ -249,10 +341,18 @@ interface Tenant {
   description: string
   createdAt: string
   updatedAt: string
+  /**
+   * 交付态原码（`presale` / `delivered`）。老后端不回这一格时它是 undefined，
+   * 界面那句「后端没回这一栏」就是给这种情况摆的，不替它猜一档。
+   */
+  deliveryState?: string | null
+  /** 交付态的中文：后端实体上从唯一词表派生出来的那一句，界面不许自己再抄一份 */
+  deliveryStateLabel?: string | null
 }
 
 const loading = ref(false)
 const router = useRouter()
+const authStore = useAuthStore()
 const searchText = ref('')
 const statusFilter = ref('all')
 const modalVisible = ref(false)
@@ -263,6 +363,53 @@ const detailVisible = ref(false)
 const isEdit = ref(false)
 const currentTenant = ref<Tenant | null>(null)
 const editingId = ref<number | null>(null)
+
+/** 平台自己那家：后端把它的交付态冻住了（改它会连带改掉平台那批外呼的计费归属），界面连把手都不摆 */
+const PLATFORM_TENANT_ID = 1
+
+/**
+ * 写口要求的确认词。出处是后端 `TenantDeliveryStateService.CONFIRM_TOKEN`——它是协议常量、不是中文话术，
+ * 所以这里照抄一份；打错时那一发会被后端原样念回该带哪一串。
+ */
+const DELIVERY_STATE_CONFIRM_TOKEN = 'SET-TENANT-DELIVERY-STATE'
+
+interface DeliveryStateReceipt {
+  tenantId: number
+  code: string
+  fromState?: string | null
+  toState?: string | null
+  fromLabel?: string | null
+  toLabel?: string | null
+  changed: boolean
+  consequences?: string[] | null
+  reason?: string | null
+}
+
+const deliveryVisible = ref(false)
+const deliverySubmitting = ref(false)
+const deliveryOptionsLoading = ref(false)
+const deliveryTarget = ref<Tenant | null>(null)
+/** 下拉那一份名单读后端的 `/admin/tenants/delivery-states`，界面不自己列词表 */
+const deliveryStateOptions = ref<{ value: string; label: string }[]>([])
+const deliveryForm = reactive({
+  state: undefined as string | undefined,
+  expectedCode: '',
+  reason: '',
+  confirm: '',
+})
+
+const deliveryStateUnchanged = computed(
+  () => !!deliveryTarget.value && deliveryForm.state === deliveryTarget.value.deliveryState,
+)
+
+const deliveryFormReady = computed(() =>
+  !!deliveryTarget.value
+  && !!deliveryForm.state
+  // 代码这一格按「逐字相等」才放行：后端还会拿库里那一行再比一次，这里只是先把明显不对的按住
+  && deliveryForm.expectedCode.trim() === deliveryTarget.value.code
+  && deliveryForm.reason.trim().length > 0
+  && deliveryForm.confirm === DELIVERY_STATE_CONFIRM_TOKEN,
+)
 
 const stats = reactive({
   totalTenants: 0,
@@ -286,6 +433,7 @@ const columns = [
   { title: '联系邮箱', dataIndex: 'contactEmail', key: 'contactEmail', width: 180 },
   { title: '联系电话', dataIndex: 'contactPhone', key: 'contactPhone', width: 130 },
   { title: '状态', key: 'status', width: 80 },
+  { title: '交付态', key: 'deliveryState', width: 260 },
   {
     title: '创建时间',
     dataIndex: 'createdAt',
@@ -293,7 +441,8 @@ const columns = [
     width: 180,
     customRender: ({ text }: { text: string }) => formatDateTime(text)
   },
-  { title: '操作', key: 'action', width: 250, fixed: 'right' }
+  // 多摆一格「改交付态」（只有超管看得见），250 会把它挤到换行
+  { title: '操作', key: 'action', width: 330, fixed: 'right' }
 ]
 
 const tenantList = ref<Tenant[]>([])
@@ -591,6 +740,70 @@ const viewDetail = (record: Tenant) => {
  */
 const goIntake = (tenantId: number) => {
   router.push({ name: 'workspace-portal-brief-new', query: { tenantId: String(tenantId) } })
+}
+
+const loadDeliveryStateOptions = async () => {
+  if (deliveryStateOptions.value.length) return
+  deliveryOptionsLoading.value = true
+  try {
+    const labels = await http.get<Record<string, string>>('/admin/tenants/delivery-states')
+    deliveryStateOptions.value = Object.entries(labels || {}).map(([value, label]) => ({ value, label }))
+  } catch (e) {
+    // 名单读不到时下拉就是空的：这一屏宁可让人看不见可选档位，也不替他猜一档
+    message.error(`交付态的名单没读到：${describeHttpError(e)}`)
+  } finally {
+    deliveryOptionsLoading.value = false
+  }
+}
+
+const openDeliveryModal = (record: Tenant) => {
+  deliveryTarget.value = record
+  deliveryForm.state = undefined
+  deliveryForm.expectedCode = ''
+  deliveryForm.reason = ''
+  deliveryForm.confirm = ''
+  deliveryVisible.value = true
+  loadDeliveryStateOptions()
+}
+
+const showDeliveryReceipt = (receipt: DeliveryStateReceipt) => {
+  Modal.success({
+    title: receipt.changed ? '交付态已改' : '这一发没写库',
+    width: 560,
+    content: h('div', {}, [
+      h('p', {}, `这一家：${receipt.code}（#${receipt.tenantId}）`),
+      h('p', { style: 'font-weight:600' },
+        receipt.changed
+          ? `${receipt.fromLabel || receipt.fromState || '（没回改前那一档）'} → ${receipt.toLabel || receipt.toState || '（没回改后那一档）'}`
+          : `这一家本来就是「${receipt.toLabel || receipt.toState}」，所以后端一行都没写。`),
+      ...(receipt.consequences || []).map(line => h('p', { style: 'color:#888' }, line)),
+      h('p', { style: 'color:#888' }, `原因（这一句已落进审计）：${receipt.reason || '（后端没回原因）'}`),
+    ]),
+  })
+}
+
+const submitDeliveryState = async () => {
+  const target = deliveryTarget.value
+  if (!target) return
+  deliverySubmitting.value = true
+  try {
+    // 这四格走查询参数：审计拦的是 query string，写成请求体的话，事后那一行只剩「谁改的」没有「改成什么、为什么」
+    const receipt = await http.put<DeliveryStateReceipt>(`/admin/tenants/${target.id}/delivery-state`, null, {
+      params: {
+        state: deliveryForm.state,
+        expectedCode: deliveryForm.expectedCode.trim(),
+        reason: deliveryForm.reason.trim(),
+        confirm: deliveryForm.confirm,
+      },
+    })
+    deliveryVisible.value = false
+    showDeliveryReceipt(receipt)
+    loadData()
+  } catch (e) {
+    message.error(`改交付态失败：${describeHttpError(e)}`)
+  } finally {
+    deliverySubmitting.value = false
+  }
 }
 
 onMounted(() => {
