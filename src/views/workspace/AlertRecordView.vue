@@ -122,6 +122,18 @@
         row-key="id"
         @change="handleTableChange"
       >
+        <!--
+          这一页没行的那一句只认后端（M-P50 拍板 ④）。antd 默认那句「暂无数据」是把四种不同的空
+          混成一种的万能词：真没有、这一档读不到、后端这一发没回、这一页翻过了头——后两种说成
+          「没有」都是谎报，所以这里整格换成后端拼好的那一句原文（话术只有后端那一份）。
+        -->
+        <template #emptyText>
+          <p v-if="!loading" class="empty-line">
+            <template v-if="readFailed">这一发读失败：{{ readFailed }}（读失败不是「这一档没有」）</template>
+            <template v-else-if="emptyLine">{{ emptyLine }}</template>
+            <template v-else>这一格这一发没有行（后端没回是哪一种空，界面不替它猜）。</template>
+          </p>
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'severity'">
             <a-tag :color="getSeverityColor(record.severity)">
@@ -265,6 +277,10 @@ const detailDrawerVisible = ref(false)
 const currentRecord = ref<AlertRecord | null>(null)
 const recordList = ref<AlertRecord[]>([])
 const updateStatusValue = ref<string>('')
+/** 空态那句成因：只存后端回的那一格，界面不拼第二份 */
+const emptyLine = ref('')
+/** 这一发读失败了（它和「没有行」是两件事，混在一起就是谎报） */
+const readFailed = ref('')
 
 const filterForm = reactive({
   severity: undefined as string | undefined,
@@ -351,6 +367,9 @@ const getStatusColor = (status: string) => {
 
 const fetchRecords = async () => {
   loading.value = true
+  // 每一发先把自己擦干净：留着上一轮那句成因，失败的那一发就会念成上一轮的空态
+  emptyLine.value = ''
+  readFailed.value = ''
   try {
     const params: any = {
       page: pagination.current,
@@ -378,8 +397,10 @@ const fetchRecords = async () => {
     const result = await alertApi.records.list(params) as any
     recordList.value = result.records || []
     pagination.total = result.total || 0
+    emptyLine.value = result.emptyLine || ''
   } catch (error) {
-    message.error(`获取报警记录失败：${describeHttpError(error)}`)
+    readFailed.value = describeHttpError(error)
+    message.error(`获取报警记录失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }
@@ -479,6 +500,12 @@ onMounted(() => {
     padding: 16px;
     background: #fafafa;
     border-radius: 8px;
+  }
+
+  .empty-line {
+    margin: 0;
+    color: rgba(0, 0, 0, 0.45);
+    text-align: center;
   }
 }
 

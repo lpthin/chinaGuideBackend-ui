@@ -29,6 +29,13 @@ export interface PageResult<T> {
   page: number
   size: number
   pages: number
+  /**
+   * 这一页没行时是哪一种空（`NONE` / `NOT_VISIBLE` / `NOT_ANSWERED` / `OUT_OF_RANGE`）。
+   * 只有后端接上成因的那几口会填；读不到这一格不等于「没有」，界面不许自己补一个。
+   */
+  emptyReason?: string | null
+  /** 与 `emptyReason` 同源的整句中文（唯一出处在后端，界面逐字念） */
+  emptyLine?: string | null
 }
 
 // 通用查询参数
