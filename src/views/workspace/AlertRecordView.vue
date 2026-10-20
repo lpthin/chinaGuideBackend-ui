@@ -123,16 +123,19 @@
         @change="handleTableChange"
       >
         <!--
-          这一页没行的那一句只认后端（M-P50 拍板 ④）。antd 默认那句「暂无数据」是把四种不同的空
-          混成一种的万能词：真没有、这一档读不到、后端这一发没回、这一页翻过了头——后两种说成
-          「没有」都是谎报，所以这里整格换成后端拼好的那一句原文（话术只有后端那一份）。
+          这一页没行的那一句只认后端（M-P50 拍板 ④，M-P53 按「只保人会看错的屏」收进共用组件）。
+          antd 默认那句「暂无数据」是把几种不同的空混成一种的万能词：真没有、这一档读不到、
+          这一页翻过了头——后两种说成「没有」都是谎报。话术与那三种摆法在 EmptyListHint 一份。
+          「这一页翻过了头」那一档界面还会多做一件事：自己翻回第一页再读一遍，见 fetchRecords。
+          报警记录是系统产生的，这一屏没有新建动作，所以不传 canCreate。
         -->
         <template #emptyText>
-          <p v-if="!loading" class="empty-line">
-            <template v-if="readFailed">这一发读失败：{{ readFailed }}（读失败不是「这一档没有」）</template>
-            <template v-else-if="emptyLine">{{ emptyLine }}</template>
-            <template v-else>这一格这一发没有行（后端没回是哪一种空，界面不替它猜）。</template>
-          </p>
+          <empty-list-hint
+            :loading="loading"
+            :read-failed="readFailed"
+            :empty-line="emptyLine"
+            :empty-reason="emptyReason"
+          />
         </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'severity'">
@@ -266,6 +269,8 @@ import type { TablePaginationConfig } from 'ant-design-vue'
 import { alertApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import type { AlertRecord } from '../../types/workspace'
 
@@ -279,6 +284,8 @@ const recordList = ref<AlertRecord[]>([])
 const updateStatusValue = ref<string>('')
 /** 空态那句成因：只存后端回的那一格，界面不拼第二份 */
 const emptyLine = ref('')
+/** 后端答的是哪一种空；null = 这一发它没答，界面不许替它猜 */
+const emptyReason = ref<EmptyReason>(null)
 /** 这一发读失败了（它和「没有行」是两件事，混在一起就是谎报） */
 const readFailed = ref('')
 
@@ -369,6 +376,7 @@ const fetchRecords = async () => {
   loading.value = true
   // 每一发先把自己擦干净：留着上一轮那句成因，失败的那一发就会念成上一轮的空态
   emptyLine.value = ''
+  emptyReason.value = null
   readFailed.value = ''
   try {
     const params: any = {
@@ -398,6 +406,14 @@ const fetchRecords = async () => {
     recordList.value = result.records || []
     pagination.total = result.total || 0
     emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：人多半是要看这一档的行，所以界面自己翻回第一页再读一遍。
+    // 判据要 current>1，所以回到第一页那一发不可能再触发它——最多多发一发，不会来回跳。
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current ?? 1)) {
+      pagination.current = 1
+      await fetchRecords()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
     readFailed.value = describeHttpError(error)
     message.error(`获取报警记录失败：${readFailed.value}`)
@@ -500,12 +516,6 @@ onMounted(() => {
     padding: 16px;
     background: #fafafa;
     border-radius: 8px;
-  }
-
-  .empty-line {
-    margin: 0;
-    color: rgba(0, 0, 0, 0.45);
-    text-align: center;
   }
 }
 

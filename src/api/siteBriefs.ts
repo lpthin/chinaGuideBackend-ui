@@ -1225,8 +1225,9 @@ export interface BriefWorkbenchOverview {
   /** 那一句口径（没有预测、只读、两把 token 尺各说各的） */
   note?: string | null;
   /**
-   * 整页都空时后端答「这是哪一种空」：NONE（查过了真没有）/ NOT_VISIBLE（这一档读不到）/
-   * NOT_ANSWERED（这一发没回）。有东西在跑时是 null。
+   * 整页都空时后端答「这是哪一种空」：NONE（查过了真没有）/ NOT_VISIBLE（这一档读不到）。
+   * 有东西在跑时是 null，后端没答时也是 null（M-P53 拍板「只保人会看错的屏」：原来那第三档
+   * NOT_ANSWERED 删了——「后端没答」是一种缺失，不是一种成因，界面见此自己兜底，不替它编）。
    *
    * <p>M-P37 拍板 ⑤：界面这一格不许自己猜成因，只认后端带回来的码。</p>
    */

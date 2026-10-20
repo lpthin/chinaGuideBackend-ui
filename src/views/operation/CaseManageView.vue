@@ -97,6 +97,19 @@
           :loading="tableLoading"
           :row-key="(record: any) => record.id"
         >
+          <!-- 没行的那一句只认后端，话术在 EmptyListHint 与后端词表各一份（M-P53 拍板「只保人会看错的屏」）。
+               「真的没有」那一档下面摆的就是这一屏本就有的「新建案例」，同一条权限码守卫 -->
+          <template #emptyText>
+            <empty-list-hint
+              :loading="tableLoading"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+              :can-create="canManage"
+              create-label="新建案例"
+              @create="showAddModal"
+            />
+          </template>
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'name'">
               <div class="case-name">
@@ -312,6 +325,8 @@ import type { CaseDraftEstimate } from '../../api/operation'
 import type { CustomerCase, CustomerCaseForm } from '../../types/operation'
 import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime, formatNumber } from '../../utils/format'
+import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
 import FilterBar from '../../components/FilterBar.vue'
@@ -378,6 +393,11 @@ const columns = [
 ]
 
 const caseList = ref<CustomerCase[]>([])
+/** 空态那句成因与「后端答了哪一种空」，话术的唯一出处在后端，界面只存不回抄 */
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+/** 这一发读失败了（它和「没行」是两件事，混在一起就是谎报） */
+const readFailed = ref('')
 
 const editForm = reactive<CustomerCaseForm>({
   tenantId: 0,
@@ -424,6 +444,10 @@ function getStatusName(status: string): string {
 async function loadCaseList() {
   const tenantId = authStore.selectedTenantId || authStore.tenantId
   tableLoading.value = true
+  // 每一发先把自己擦干净：留着上一轮那句成因，失败的那一发就会念成上一轮的空态
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const params: any = {
       tenantId,
@@ -437,8 +461,18 @@ async function loadCaseList() {
     const res = await customerCaseApi.list(params)
     caseList.value = res.records || []
     paginationConfig.total = res.total || 0
+    emptyLine.value = res.emptyLine || ''
+    emptyReason.value = asEmptyReason(res.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：人多半是要看这一档的案例，所以界面自己翻回第一页再读一遍。
+    // 判据要 current>1，所以回到第一页那一发不可能再触发它——最多多发一发，不会来回跳。
+    if (shouldJumpBackToFirstPage(emptyReason.value, paginationConfig.current)) {
+      paginationConfig.current = 1
+      await loadCaseList()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
-    message.error(`加载案例列表失败：${describeHttpError(error)}`)
+    readFailed.value = describeHttpError(error)
+    message.error(`加载案例列表失败：${readFailed.value}`)
     logError('operation/case-manage-view', error)
     caseList.value = []
   } finally {

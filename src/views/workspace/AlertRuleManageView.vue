@@ -120,6 +120,22 @@
         row-key="id"
         @change="handleTableChange"
       >
+        <!--
+          这一页没行的那一句只认后端（M-P53「只保人会看错的屏」，话术与摆法在 EmptyListHint 一份）。
+          「这一页翻过了头」那一档界面还会自己翻回第一页再读一遍，见 fetchRules。
+          这一屏的「新增规则」本来就摆在筛选栏上、谁都能看到，所以空着的时候照样给这一个入口。
+        -->
+        <template #emptyText>
+          <empty-list-hint
+            :loading="loading"
+            :read-failed="readFailed"
+            :empty-line="emptyLine"
+            :empty-reason="emptyReason"
+            can-create
+            create-label="新增规则"
+            @create="handleAdd"
+          />
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'triggerType'">
             {{ getTriggerTypeName(record.triggerType) }}
@@ -257,9 +273,12 @@ import {
 } from '@ant-design/icons-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import { alertApi } from '../../api/workspace'
+import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
 import type { AlertRule, AlertRuleForm } from '../../types/workspace'
 import { formatDateTime } from '../../utils/format'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 
 const authStore = useAuthStore()
 
@@ -270,6 +289,9 @@ const isEdit = ref(false)
 const formRef = ref<FormInstance>()
 const ruleList = ref<AlertRule[]>([])
 const toggleLoading = reactive<Record<number, boolean>>({})
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 
 const filterForm = reactive({
   name: '',
@@ -401,6 +423,9 @@ const toRulePayload = (form: AlertRuleForm): Partial<AlertRule> => {
 
 const fetchRules = async () => {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const params: any = {
       page: pagination.current,
@@ -427,9 +452,20 @@ const fetchRules = async () => {
     const result = await alertApi.rules.list(params) as any
     ruleList.value = result.records || []
     pagination.total = result.total || 0
-    calculateStats(result.records || [])
-  } catch (error: any) {
-    message.error(error.message || '获取报警规则失败')
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：人多半是要看这一档的行，所以界面自己翻回第一页再读一遍。
+    // 判据要 current>1，所以回到第一页那一发不可能再触发它——最多多发一发，不会来回跳。
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current ?? 1)) {
+      pagination.current = 1
+      await fetchRules()
+      message.info(JUMP_BACK_NOTICE)
+    }
+    // 统计按「现在表上摆的这几行」算，所以排在自动翻回去之后：翻过头那一发本来就没行。
+    calculateStats(ruleList.value)
+  } catch (error) {
+    readFailed.value = describeHttpError(error)
+    message.error(`获取报警规则失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }

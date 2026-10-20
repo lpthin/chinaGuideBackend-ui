@@ -27,6 +27,22 @@
         row-key="id"
         @change="handleTableChange"
       >
+        <!--
+          这一页没行的那一句只认后端（M-P53「只保人会看错的屏」，话术与摆法在 EmptyListHint 一份）。
+          「这一页翻过了头」那一档界面还会自己翻回第一页再读一遍，见 fetchChannels。
+          这一屏的「新增渠道」本来就摆在筛选栏上，所以空着的时候照样给这一个入口。
+        -->
+        <template #emptyText>
+          <empty-list-hint
+            :loading="loading"
+            :read-failed="readFailed"
+            :empty-line="emptyLine"
+            :empty-reason="emptyReason"
+            can-create
+            create-label="新增渠道"
+            @create="handleAdd"
+          />
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'channelType'">
             <a-tag :color="getChannelTypeColor(record.channelType)">
@@ -255,6 +271,8 @@ import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { AlertChannelConfig } from '../../types/workspace'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 
 const authStore = useAuthStore()
 
@@ -264,6 +282,9 @@ const modalVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref<FormInstance>()
 const channelList = ref<AlertChannelConfig[]>([])
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 
 const pagination = reactive<TablePaginationConfig>({
   current: 1,
@@ -354,6 +375,9 @@ const getChannelTypeColor = (type: string) => {
 
 const fetchChannels = async () => {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const params: any = {
       page: pagination.current,
@@ -367,8 +391,18 @@ const fetchChannels = async () => {
     const result = await alertApi.channels.list(params) as any
     channelList.value = result.records || []
     pagination.total = result.total || 0
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：人多半是要看这一档的行，所以界面自己翻回第一页再读一遍。
+    // 判据要 current>1，所以回到第一页那一发不可能再触发它——最多多发一发，不会来回跳。
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current ?? 1)) {
+      pagination.current = 1
+      await fetchChannels()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
-    message.error(`获取通知渠道失败：${describeHttpError(error)}`)
+    readFailed.value = describeHttpError(error)
+    message.error(`获取通知渠道失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }

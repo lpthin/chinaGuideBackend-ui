@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { Comment, Fragment, h } from 'vue'
-import { Button, Col, Descriptions, DescriptionsItem, Form, FormItem, Input, Row, Table, Tag } from 'ant-design-vue'
+import { Button, Col, Descriptions, DescriptionsItem, Form, FormItem, Input, message, Row, Table, Tag } from 'ant-design-vue'
 import AlertRecordView from '../AlertRecordView.vue'
 import { alertApi } from '../../../api/workspace'
+import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
 import type { AlertRecord } from '../../../types/workspace'
 
 /**
@@ -262,17 +263,18 @@ describe('AlertRecordView 的归属列', () => {
  * 空态那一句只认后端（M-P50 拍板 ④：这一屏接的是「哪一种空」，不只是「有没有行」）。
  *
  * 钉四件：
- * 1. **四种空各念各的**——后端那四句整句原文逐字比，界面不许改写，也不许合并成一句万能词
+ * 1. **三种空各念各的**——后端那三句整句原文逐字比，界面不许改写，也不许合并成一句万能词
  *    （话术的唯一出处是 `EmptyResultReasons.sentence`，抄第二份就会漂）。
+ *    〔M-P53 口径改口〕原来那一档 `NOT_ANSWERED` 已从后端词表里删掉：「后端没答」是一种缺答案，
+ *    不是一种成因，所以那一发回的是两格都空着（null），界面念的是「不替它猜」那一句（下面单列一条测）。
  * 2. **「暂无数据」一处都不许出现**——上面那个 stub 在页面没接管 emptyText 插槽时故意渲成这句，
  *    读到它就说明这一格还是 antd 默认那句。
- * 3. **后端没答这一发时不许蒙**——那两格都是 null 时念的是「界面不替它猜」，不是四句里的任何一句。
+ * 3. **后端没答这一发时不许蒙**——那两格都是 null 时念的是「界面不替它猜」，不是三句里的任何一句。
  * 4. **读失败不等于「这一档没有」**——失败那一发要说清是读失败了。
  */
-const FOUR_EMPTIES: Array<[string, string]> = [
+const THREE_EMPTIES: Array<[string, string]> = [
   ['NONE', '报警记录：这一档查过了，一条都没有。'],
   ['NOT_VISIBLE', '报警记录：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'],
-  ['NOT_ANSWERED', '报警记录：后端这一发没回，不是 0，也不是没有。'],
   ['OUT_OF_RANGE', '报警记录：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。']
 ]
 
@@ -283,19 +285,19 @@ describe('AlertRecordView 的空态成因', () => {
     vi.clearAllMocks()
   })
 
-  it.each(FOUR_EMPTIES)('后端回 %s 那一档时逐字念那一句，页面上没有「暂无数据」', async (reason, line) => {
+  it.each(THREE_EMPTIES)('后端回 %s 那一档时逐字念那一句，页面上没有「暂无数据」', async (reason, line) => {
     const wrapper = await mountView([], { emptyReason: reason, emptyLine: line })
 
     expect(emptyLineText(wrapper)).toBe(line)
     expect(wrapper.html()).not.toContain('暂无数据')
   })
 
-  it('那四句是四句：任何一种空都不被另一句顶替', async () => {
-    for (const [reason, line] of FOUR_EMPTIES) {
+  it('那三句是三句：任何一种空都不被另一句顶替', async () => {
+    for (const [reason, line] of THREE_EMPTIES) {
       const wrapper = await mountView([], { emptyReason: reason, emptyLine: line })
       const said = emptyLineText(wrapper)
       expect(said).toBe(line)
-      for (const [, other] of FOUR_EMPTIES) {
+      for (const [, other] of THREE_EMPTIES) {
         if (other !== line) expect(said).not.toBe(other)
       }
       await wrapper.unmount()
@@ -321,7 +323,7 @@ describe('AlertRecordView 的空态成因', () => {
   })
 
   it('有行的时候根本不渲空态那一句', async () => {
-    const wrapper = await mountView([PLATFORM_ROW], { emptyReason: 'NONE', emptyLine: FOUR_EMPTIES[0][1] })
+    const wrapper = await mountView([PLATFORM_ROW], { emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] })
 
     expect(wrapper.find('.empty').exists()).toBe(false)
     expect(wrapper.html()).not.toContain('一条都没有')
@@ -330,8 +332,8 @@ describe('AlertRecordView 的空态成因', () => {
 
   it('每一发先擦掉上一轮的成因：先空后有行不留旧句子', async () => {
     const list = vi.mocked(alertApi.records.list)
-    const wrapper = await mountView([], { emptyReason: 'NONE', emptyLine: FOUR_EMPTIES[0][1] })
-    expect(emptyLineText(wrapper)).toBe(FOUR_EMPTIES[0][1])
+    const wrapper = await mountView([], { emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] })
+    expect(emptyLineText(wrapper)).toBe(THREE_EMPTIES[0][1])
 
     list.mockResolvedValue({ records: [PLATFORM_ROW], total: 1 } as any)
     // 真实把手：筛选栏那颗「搜索」按钮，不是直接调 fetchRecords
@@ -342,5 +344,50 @@ describe('AlertRecordView 的空态成因', () => {
 
     expect(wrapper.find('.empty').exists()).toBe(false)
     expect(wrapper.html()).not.toContain('一条都没有')
+  })
+
+  /**
+   * M-P53 拍板「翻过头自动跳回」：后端答「这一页翻过了头」时，人多半要看的是这一档的行，
+   * 所以界面自己翻回第一页再读一遍，而不是只念一句解释让人再点一次。
+   *
+   * 三条都要钉住：第二发真的带过了页号、第三发回到第 1 页、回到第一页那一发之后空态消失。
+   * 判据里的 current>1 是为了不许来回跳：第一页那一发不可能再触发这一条。
+   */
+  it('后端回「这一页翻过了头」时界面自己翻回第一页再读一遍', async () => {
+    const list = vi.mocked(alertApi.records.list)
+    const wrapper = await mountView([PLATFORM_ROW])
+    expect(list).toHaveBeenCalledTimes(1)
+
+    // 人翻到第 3 页：这一发后端说超出总页数
+    list.mockResolvedValueOnce({
+      records: [],
+      total: 1,
+      emptyReason: 'OUT_OF_RANGE',
+      emptyLine: THREE_EMPTIES[2][1]
+    } as any)
+    list.mockResolvedValue({ records: [PLATFORM_ROW], total: 1 } as any)
+
+    await wrapper.findComponent(TABLE_STUB).vm.$emit('change', { current: 3, pageSize: 10 })
+    await flushPromises()
+
+    expect(list).toHaveBeenCalledTimes(3)
+    expect((list.mock.calls[1] as any)[0].page).toBe(3)
+    expect((list.mock.calls[2] as any)[0].page).toBe(1)
+    expect(message.info).toHaveBeenCalledWith(JUMP_BACK_NOTICE)
+    // 翻回来那一发有行：空态那一格整块不再渲
+    expect(wrapper.find('.empty').exists()).toBe(false)
+    expect(wrapper.html()).not.toContain('这一页翻过了头')
+  })
+
+  it('后端回「真的没有」时不翻页：那一档本来就没有行', async () => {
+    const list = vi.mocked(alertApi.records.list)
+    const wrapper = await mountView([], { emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] })
+
+    await wrapper.findComponent(TABLE_STUB).vm.$emit('change', { current: 2, pageSize: 10 })
+    await flushPromises()
+
+    expect(list).toHaveBeenCalledTimes(2)
+    expect(message.info).not.toHaveBeenCalledWith(JUMP_BACK_NOTICE)
+    expect(emptyLineText(wrapper)).toBe(THREE_EMPTIES[0][1])
   })
 })

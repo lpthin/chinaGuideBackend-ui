@@ -177,4 +177,12 @@ export interface PageResult<T> {
   page: number
   size: number
   pages: number
+  /**
+   * 这一页没行时是哪一种空（`NONE` / `NOT_VISIBLE` / `OUT_OF_RANGE`，出处是后端 `EmptyResultReasons`）。
+   * 后端 `/api/operation/cases` 从 M-P53 起真答这一格；null 或没有这一格 = 这一发后端没答是哪一种空，
+   * 界面不许自己补一个（话术的唯一出处在后端，界面逐字念 `emptyLine`）。
+   */
+  emptyReason?: string | null
+  /** 与 `emptyReason` 同源的整句中文 */
+  emptyLine?: string | null
 }

@@ -30,8 +30,10 @@ export interface PageResult<T> {
   size: number
   pages: number
   /**
-   * 这一页没行时是哪一种空（`NONE` / `NOT_VISIBLE` / `NOT_ANSWERED` / `OUT_OF_RANGE`）。
-   * 只有后端接上成因的那几口会填；读不到这一格不等于「没有」，界面不许自己补一个。
+   * 这一页没行时是哪一种空（`NONE` / `NOT_VISIBLE` / `OUT_OF_RANGE`，出处是后端 `EmptyResultReasons`）。
+   * 只有后端接上成因的那几口会填。null 或没有这一格 = 这一发后端没答是哪一种空，
+   * 界面不许自己补一个（原来还有第四档 `NOT_ANSWERED`，M-P53 拍板「只保人会看错的屏」时删了：
+   * 「后端没答」是一种缺失，不是一种成因）。
    */
   emptyReason?: string | null
   /** 与 `emptyReason` 同源的整句中文（唯一出处在后端，界面逐字念） */
