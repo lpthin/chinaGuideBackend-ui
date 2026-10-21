@@ -119,6 +119,9 @@ const PASS_THROUGH = (name: string) => ({
   name,
   props: ['title', 'message', 'type', 'description', 'label', 'span', 'column', 'bordered', 'size', 'header'],
   template: `<div class="${name}-stub"><span>{{ message }}{{ description }}</span>`
+    // 栏标题也要渲出来：a-descriptions-item 的 label 是「这一格是什么」的唯一出处，
+    // 不渲就等于测试从没读过它（V196 那行「作废原因」就是这么露不出来的）
+    + `<span class="put-label">${'{{ label }}'}</span>`
     + '<slot name="title" /><slot name="message" /><slot /><slot name="default" />'
     // header 是 a-collapse-panel 那一栏的标题（「……后端原话逐字」那一句）：不渲就等于测试没读过它
     + `<span class="fold-header">${'{{ header }}'}</span></div>`
@@ -148,6 +151,7 @@ function brief(overrides: Record<string, unknown> = {}) {
     referenceUrls: [],
     notes: null,
     requirementsSummary: '按 13 题选择渲染的那句话',
+    cancelReason: null,
     createdBy: 'admin',
     createdAt: '2026-09-28T10:00:00',
     updatedAt: '2026-09-28T10:00:00',
@@ -188,6 +192,8 @@ interface MountOptions {
   rerunData?: unknown
   /** 补跑那两支里任意一支出错时后端那句中文 */
   rerunError?: string
+  /** V196 那列的回包形状：不给＝null（未作废/老单），给了就原样进 brief */
+  cancelReason?: string | null
 }
 
 /**
@@ -287,7 +293,8 @@ function succeededProgressRow(overrides: Record<string, unknown> = {}) {
 
 async function mountView(options: MountOptions = {}) {
   routeParams.current = { id: '12' }
-  vi.mocked(siteBriefsApi.get).mockResolvedValue(brief({ status: options.status ?? 'ready' }) as any)
+  vi.mocked(siteBriefsApi.get).mockResolvedValue(
+    brief({ status: options.status ?? 'ready', cancelReason: options.cancelReason ?? null }) as any)
   if (options.vocabularyPending) {
     // 永远不 resolve：这一屏就是「词表还在路上」那一刻的界面
     vi.mocked(vocabularyApi.adminVocabulary).mockReturnValue(new Promise(() => {}) as any)
@@ -1058,5 +1065,38 @@ describe('作废这张单（拍板②）', () => {
     expect(siteBriefDeliveryApi.cancel).toHaveBeenCalledWith(12, '客户线下说不做了')
     expect(wrapper.text()).toContain('需求单已置为「已作废」')
     wrapper.unmount()
+  })
+})
+
+/**
+ * M-P59 拍板「+1 列」：作废那句原因存进了库（V196 的 cancel_reason），这一屏要能查回来。
+ * 三条判据：已作废且带原因→原话上屏；已作废但原因还是 null（那一列是后加的，老单没有值）
+ * →给一句「当时只在服务端日志里」的话术，不许摆一片空白；别的状态即使后端回了值也不摆这一行
+ * （否则「草稿」也会被读成「有人写过为什么不做了」）。
+ */
+describe('作废原因那一行（拍板 +1 列）', () => {
+  it('已作废的单把原因原话摆在抬头，一个字不改', async () => {
+    const wrapper = await mountView({ status: 'cancelled', cancelReason: '客户线下说不做了，改走别家' })
+    expect(wrapper.text()).toContain('作废原因')
+    expect(wrapper.text()).toContain('客户线下说不做了，改走别家')
+    wrapper.unmount()
+  })
+
+  it('老单没有原因值时给一句解释，不摆空白', async () => {
+    const wrapper = await mountView({ status: 'cancelled', cancelReason: null })
+    expect(wrapper.text()).toContain('作废原因')
+    expect(wrapper.text()).toContain('当时的原因只在服务端日志里')
+    wrapper.unmount()
+  })
+
+  it('不是已作废的单，库里带了原因也不摆这一行', async () => {
+    const ready = await mountView({ status: 'ready', cancelReason: '这条不该上屏' })
+    expect(ready.text()).not.toContain('作废原因')
+    expect(ready.text()).not.toContain('这条不该上屏')
+    ready.unmount()
+
+    const promoted = await mountView({ status: 'promoted', cancelReason: '这条也不该上屏' })
+    expect(promoted.text()).not.toContain('作废原因')
+    promoted.unmount()
   })
 })

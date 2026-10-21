@@ -127,6 +127,12 @@ export interface SiteBrief {
   fontHint: string | null;
   complianceNote: string | null;
   notDoing: string[];
+  /**
+   * V196：作废这张单时人写的那句原因（库里那列的原样）。
+   * 只有 `status === 'cancelled'` 才该摆出来——别的状态这一列是 null，
+   * 而「有一句话写着它为什么不做了」这句话只对已作废的单成立。
+   */
+  cancelReason: string | null;
 }
 
 /**

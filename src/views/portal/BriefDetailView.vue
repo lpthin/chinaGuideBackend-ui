@@ -836,6 +836,11 @@ onUnmounted(stopPolling)
           <a-descriptions-item label="创建人">{{ brief.createdBy || '-' }}</a-descriptions-item>
           <a-descriptions-item label="创建时间">{{ formatDateTime(brief.createdAt) }}</a-descriptions-item>
           <a-descriptions-item label="更新时间">{{ formatDateTime(brief.updatedAt) }}</a-descriptions-item>
+          <!-- 只有已作废的单才摆这一行：别的状态那列是 null，摆出来等于把「草稿」说成「有人写过为什么不做了」 -->
+          <a-descriptions-item v-if="brief.status === 'cancelled'" label="作废原因" :span="2">
+            {{ brief.cancelReason
+              || '这张单作废时还没有存原因的位置（那一列是 2026-10-21 之后加的），当时的原因只在服务端日志里' }}
+          </a-descriptions-item>
         </a-descriptions>
       </a-card>
 
@@ -1110,7 +1115,7 @@ onUnmounted(stopPolling)
               v-model:value="cancelReason"
               :maxlength="500"
               :rows="3"
-              placeholder="原因（必填，会进审计留痕）：例如「客户线下说不做了」「试单放弃」"
+              placeholder="原因（必填，存进这张单，之后在详情页「作废原因」那一行能查回来）：例如「客户线下说不做了」「试单放弃」"
             />
             <FoldedText
               v-if="cancelError"
