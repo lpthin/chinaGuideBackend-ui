@@ -70,6 +70,20 @@ export interface ClientDecisionPayload {
 export const CLIENT_FACING_BRIEF_STATUSES = ['awaiting_client', 'decided'] as const;
 
 /**
+ * 单子状态念给客户听的那一句（2026-10-22 全流程走查第 5 条）。
+ *
+ * 这一页以前把响应里的原始状态码 `decided` 直接印在客户那一屏上——和后端为什么要给语气码做
+ * `toneLabel`（{@code ClientDecisionService}）是同一件事：给客户看的必须是中文说法，不是内部码。
+ * 词表只有这两种：第三种状态（生成中、已作废、已交付）在这条链接上根本打不开这一页
+ * （{@code ClientDecisionService#resolve} 的判据），所以这里回空串，由界面照实说「这条链接没说明」。
+ */
+export function clientBriefStatusLabel(status: string | null | undefined): string {
+  if (status === 'decided') return '已经收到过你的答复';
+  if (status === 'awaiting_client') return '还在等你答复';
+  return '';
+}
+
+/**
  * 预览地址解析：后端没配 `app.portal.candidate.preview-base-url` 时回的是相对路径（`/?reviewToken=…`），
  * 由前端按当前 origin 拼（`ClientBriefView` 注释里写明这是有意的退化路径）。
  * 绝对地址原样透传。空值给空串——调用方据此走「这一套没有可点开的预览」那条文案，不摆死链。
@@ -90,6 +104,11 @@ export function resolvePreviewUrl(url: string | null | undefined, origin?: strin
  * 那正是客户看不出差别的那种场合。
  * 有几套就是没这句 focus（那一套在 plan 之前被门禁拦下）时，把「缺几套」也念出来，
  * 不许让这一句看起来像三套都齐了。
+ *
+ * 2026-10-22 全流程走查第 5 条：这一句是念给买单的人听的，所以里面一个内部词都不许有。
+ * 客户选择页上曾经原样印着「（后端原话）」「差异原话属 P3 的 plan 字段」——
+ * 「后端」「P3」「plan 字段」这些字出现在给客户的那一屏上，等于把工程内部的话术摊到客户面前。
+ * 反例闸是 `site-brief-delivery-api.spec.ts` 里那条「四个分支都不许带内部词」，改文案先跑它。
  */
 export function clientCandidatesDifference(candidates: ClientBriefCandidate[]): {
   text: string;
@@ -98,12 +117,12 @@ export function clientCandidatesDifference(candidates: ClientBriefCandidate[]): 
 } {
   const lines = candidates
     .filter(candidate => (candidate.focus || '').trim())
-    .map(candidate => `${candidate.candidateNo ?? '?'}：${(candidate.focus || '').trim()}`);
+    .map(candidate => `第 ${candidate.candidateNo ?? '?'} 套：${(candidate.focus || '').trim()}`);
   if (lines.length) {
     const missing = candidates.length - lines.length;
     return {
-      text: `这套侧重什么（后端原话）：${lines.join(' ｜ ')}`
-        + (missing ? ` ｜ 另外 ${missing} 套没有这句：那一套在出方案的第一步就被拦下，focus 还没落库` : ''),
+      text: `这几套分别侧重什么：${lines.join(' ｜ ')}`
+        + (missing ? ` ｜ 另外 ${missing} 套没有这句说明：那几套在出方案的第一步就没产出说明，请点开各自的预览对比` : ''),
       visible: true
     };
   }
@@ -112,7 +131,7 @@ export function clientCandidatesDifference(candidates: ClientBriefCandidate[]): 
   const known = skeletonKeys.filter(key => key);
   if (!known.length) {
     return {
-      text: '这一份响应里没有写出各套差在哪（后端今天只回骨架名与预览地址，差异原话属 P3 的 plan 字段）',
+      text: '这一屏看不出各套差在哪（这条链接只带了每套的名字、骨架与预览地址，没带侧重说明）',
       visible: false
     };
   }
@@ -123,7 +142,7 @@ export function clientCandidatesDifference(candidates: ClientBriefCandidate[]): 
   return distinct
     ? { text: `${candidates.length} 套的骨架各不相同，这就是这一屏看得见的差异：${perCard}`, visible: true }
     : {
-        text: `这几套用的骨架是同一份（${perCard}）：后端没随这条链接下发差异说明，看不出差别请回平台问`,
+        text: `这几套用的骨架是同一份（${perCard}）：这条链接没带各套的侧重说明，看不出差别请找平台对接人问`,
         visible: false
       };
 }

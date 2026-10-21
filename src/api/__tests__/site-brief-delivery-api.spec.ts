@@ -25,6 +25,7 @@ vi.mock('../http', () => ({
 
 import {
   clientBriefApi,
+  clientBriefStatusLabel,
   clientCandidatesDifference,
   hasChosenDecision,
   resolvePreviewUrl,
@@ -152,6 +153,27 @@ describe('预览地址与差异说明（拍板 1A / 5A 的前端那一半）', (
 
     const nothing = clientCandidatesDifference([candidate({ skeletonKey: null }), candidate({ siteId: 2, skeletonKey: null })])
     expect(nothing.visible).toBe(false)
-    expect(nothing.text).toContain('这一份响应里没有写出各套差在哪')
+    expect(nothing.text).toContain('这一屏看不出各套差在哪')
+  })
+
+  it('这一句是念给买单的人听的：四个分支都不许出现工程内部的说法（2026-10-22 走查第 5 条）', () => {
+    // 反例：改文案前这一屏原样印着「这套侧重什么（后端原话）」和「差异原话属 P3 的 plan 字段」
+    const branches = [
+      clientCandidatesDifference([candidate({ focus: '这一套把留资表单摆第一屏' })]).text,
+      clientCandidatesDifference([candidate({ focus: '有这句' }), candidate({ siteId: 2, candidateNo: 2 })]).text,
+      clientCandidatesDifference([candidate(), candidate({ siteId: 2, candidateNo: 2, skeletonKey: 'corporate-base' })]).text,
+      clientCandidatesDifference([candidate(), candidate({ siteId: 2, skeletonKey: null })]).text,
+      clientCandidatesDifference([candidate({ skeletonKey: null })]).text
+    ]
+    for (const text of branches) {
+      expect(text).not.toMatch(/后端|落库|响应|字段|令牌|需求单|回执|接口|P3|plan|site_proposal|focus/i)
+    }
+  })
+
+  it('单子状态念给客户的是中文，不是 decided 这种内部码；第三种状态回空串由界面照实说', () => {
+    expect(clientBriefStatusLabel('decided')).toBe('已经收到过你的答复')
+    expect(clientBriefStatusLabel('awaiting_client')).toBe('还在等你答复')
+    expect(clientBriefStatusLabel('generating')).toBe('')
+    expect(clientBriefStatusLabel(null)).toBe('')
   })
 })

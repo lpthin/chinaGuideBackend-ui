@@ -56,8 +56,9 @@ function briefView(overrides: Record<string, unknown> = {}) {
       { siteId: 32, candidateNo: 2, name: '先留资', skeletonKey: 'lead-gen', focus: null, tone: null, previewUrl: '/?reviewToken=t32' },
       { siteId: 33, candidateNo: 3, name: '讲案例', skeletonKey: 'content-first', focus: null, tone: null, previewUrl: 'https://demo.preview.internal/?reviewToken=t33' }
     ],
-    demoNotice: '演示内容由 AI 生成，交付后可替换（后端原话）',
-    previewNotice: '候选阶段只有可点开的预览链接（后端原话）',
+    // 这两句逐字取自后端 `ClientBriefView.DEMO_NOTICE` / `PREVIEW_NOTICE`：那两句里没有内部词
+    demoNotice: '以下页面文案、文章、案例与图片均由 AI 生成的演示内容，交付后都可以替换、修改或删除。',
+    previewNotice: '预览链接可直接打开整站（含演示内容），候选阶段没有截图。',
     ...overrides
   }
 }
@@ -292,7 +293,7 @@ describe('三套并排（拍板 5A + 1A：每套各用自己的预览令牌）',
     })
     const wrapper = await mountView({ token: 'tok', data })
     expect([...document.querySelectorAll('.client-decision__card a')]).toHaveLength(1)
-    expect(wrapper.text()).toContain('这一套的预览地址没在这份响应里')
+    expect(wrapper.text()).toContain('这条链接没带这一套的预览地址')
     wrapper.unmount()
   })
 })
@@ -331,7 +332,7 @@ describe('提交一次，然后锁死', () => {
     expect(http.post).toHaveBeenCalledTimes(1)
     const text = wrapper.text()
     expect(text).toContain('已经提交过了：这一页不再接受第二次答复')
-    expect(text).toContain('前端无从知道你那条到底进没进库')
+    expect(text).toContain('这一页并不能替你确认平台到底收到没有')
     // 后端对所有情况都回同一个成功，所以这句话不许被写成「已收到/已记录/已成功」
     expect(text).not.toMatch(/已收到|已记录|提交成功/)
     // 提交后表单控件全部锁上（不可自助修改）
@@ -349,7 +350,9 @@ describe('提交一次，然后锁死', () => {
     await flushPromises()
     const text = wrapper.text()
     expect(text).toContain('正式地址')
-    expect(text).toContain('maintenanceUrl')
+    // 那句「这条链接里没有」要说给客户听，但字段名是他自己人都看不懂的东西（走查第 5 条）
+    expect(text).toContain('要等平台把这一套交付之后才会有')
+    expect(text).not.toContain('maintenanceUrl')
     expect(text).toContain('也不摆一个「查看正式地址」的按钮')
     // 页面上唯一的链接是三个预览链接，没有第四个「看起来像正式地址」的东西
     expect([...document.querySelectorAll('.client-decision__receipt a')]).toHaveLength(0)
@@ -403,9 +406,30 @@ describe('提交一次，然后锁死', () => {
   it('响应里的需求单状态已是 decided：这一页直接锁，不再收第二份答复', async () => {
     const wrapper = await mountView({ token: 'tok', data: briefView({ briefStatus: 'decided' }) })
     expect(wrapper.text()).toContain('这条链接上已经交过一次答复')
+    expect(wrapper.text()).toContain('已经收到过你的答复')
     expect(radios().every(node => node.disabled)).toBe(true)
     expect(textarea()!.disabled).toBe(true)
     expect(http.post).not.toHaveBeenCalled()
     wrapper.unmount()
+  })
+
+  it('这一页是给客户看的：三种形状里都不许出现工程内部的说法（2026-10-22 走查第 5 条）', async () => {
+    // 反例：改文案前这一屏印着「（后端原话）」「需求单状态（decided）」「维护地址字段（`maintenanceUrl`）」
+    const INTERNAL = /后端|落库|响应|字段|令牌|需求单|回执|接口|P3|awaiting_client|decided|maintenanceUrl|site_proposal/
+    const shapes: Array<Record<string, unknown>> = [
+      // 能选的那一屏（带 focus 原话）
+      briefView({ candidates: [{ siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'corporate-base', focus: '这一套把留资表单摆第一屏', tone: 'professional', previewUrl: 'https://demo.preview.internal/?reviewToken=t31' }] }),
+      // 已经交过一次答复：交付说明那一块才会渲染
+      briefView({ briefStatus: 'decided' }),
+      // 链接打不开：空清单那一屏
+      briefView({ candidates: [], candidateCount: 0, briefId: null, briefStatus: null, title: null })
+    ]
+    for (const data of shapes) {
+      const wrapper = await mountView({ token: 'tok', data })
+      const hit = wrapper.text().match(INTERNAL)
+      // 命中哪三个字就报哪三个：红的时候不需要人再去读一遍模板
+      expect(hit && hit[0]).toBeNull()
+      wrapper.unmount()
+    }
   })
 })

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   clientBriefApi,
+  clientBriefStatusLabel,
   clientCandidatesDifference,
   resolvePreviewUrl,
   type ClientBriefCandidate,
@@ -97,10 +98,15 @@ const headerTitle = computed(() => {
   const data = view.value
   if (!data) return '建站方案'
   if (data.title) return data.title
-  return data.briefId ? `建站方案 · 需求单 #${data.briefId}` : '建站方案'
+  return '建站方案'
 })
 
 const difference = computed(() => clientCandidatesDifference(candidates.value))
+
+/** 状态码念成中文给客户听：这一页不许把 `decided` 这种内部码原样印出去（走查第 5 条） */
+const briefStatusLabel = computed(
+  () => clientBriefStatusLabel(view.value?.briefStatus) || '这条链接没说明这一单现在算什么状态'
+)
 
 /** 预览地址：绝对的原样用，相对的按当前 origin 拼（后端注释把这一步明确交给前端） */
 function previewHref(candidate: ClientBriefCandidate): string {
@@ -197,7 +203,7 @@ async function submit() {
     <!-- 请求没走通 vs. 后端回了 404：两种实话两句说法，谁都不演谁 -->
     <section v-else-if="state === 'failed'" class="client-decision__panel">
       <h2>{{ linkRevoked ? '这条链接已经不再生效' : '方案没读出来：这一发请求没走通' }}</h2>
-      <p class="client-decision__quote">后端原话：{{ loadError }}</p>
+      <p class="client-decision__quote">这一页打不开时，服务器回的那一句：{{ loadError }}</p>
       <p v-if="linkRevoked">改过需求重跑、或已经选定并交付之后，旧的那几条链接会被作废（这是刻意的：
         作废的方案不能再被点开）。要新的链接请找平台对接人。</p>
       <template v-else>
@@ -210,7 +216,7 @@ async function submit() {
          对这几种情况这句话都成立，所以它不是假话，也不比别人多知道一点 -->
     <section v-else-if="state === 'unavailable'" class="client-decision__panel">
       <h2>这条链接现在打不开方案</h2>
-      <p>链接无效、已过期（预览链接 14 天有效）、或这一单已经收口——旧链接作废之后就是这个样子。
+      <p>链接无效、已过期（预览链接 14 天有效）、或这一单已经交付或收掉了——旧链接作废之后就是这个样子。
         要重看请找平台对接人要一条新链接。</p>
       <p class="client-decision__muted">这一页不显示任何「看起来像成功」的东西：没有候选、也没有提交入口。</p>
     </section>
@@ -218,15 +224,15 @@ async function submit() {
     <template v-else>
       <!-- §9-4 / §6.7 那两句原话来自响应体（后端把它们当法务口径，不是 UI 装饰），一个字不改 -->
       <p v-if="view?.demoNotice" class="client-decision__notice">{{ view.demoNotice }}</p>
-      <p v-else class="client-decision__muted">这一份响应里没有带演示内容说明：那句话在后端，这里不替它编一句。</p>
+      <p v-else class="client-decision__muted">这条链接没带演示内容的说明：那句话没随链接回来，这里不替它编一句。</p>
       <p v-if="view?.previewNotice" class="client-decision__notice">{{ view.previewNotice }}</p>
 
       <p class="client-decision__diff" :class="{ 'client-decision__diff--weak': !difference.visible }">
         {{ difference.text }}
       </p>
       <p v-if="!hasDifferentiationCopy" class="client-decision__muted">
-        上面这一句只用了这条链接真带回来的字段（骨架名与预览地址）；「这套侧重什么」的原话由出方案那一步落库，
-        还没随这条链接下发时，这里宁可空着也不替它写一句。
+        上面这一句只用了这条链接真带回来的信息（每套的名字、骨架与预览地址）；
+        「这套侧重什么」那句说明由出方案那一步产出，还没随这条链接带过来时，这里宁可空着也不替它写一句。
       </p>
 
       <section class="client-decision__grid">
@@ -247,7 +253,7 @@ async function submit() {
             <!-- 每套各用自己的预览令牌：令牌绑站不绑页，点进去就是完整的一套站（含演示内容） -->
             <a :href="previewHref(candidate)" target="_blank" rel="noopener noreferrer">在新标签打开这一套</a>
           </p>
-          <p v-else class="client-decision__muted">这一套的预览地址没在这份响应里：不摆一条打不开的链接。</p>
+          <p v-else class="client-decision__muted">这条链接没带这一套的预览地址：不摆一条打不开的链接。</p>
           <label class="client-decision__pick">
             <input v-model="chosenSiteId" type="radio" name="chosen-site" :value="candidate.siteId" :disabled="formLocked">
             就这套
@@ -274,7 +280,7 @@ async function submit() {
           :disabled="formLocked"
           placeholder="例如：第二套的语气太硬，案例想放到首页第一屏"
         />
-        <p v-if="noteTooLong" class="client-decision__error">这句意见超过了 {{ NOTE_MAX }} 字：后端会把整条答复丢掉，请先删短。</p>
+        <p v-if="noteTooLong" class="client-decision__error">这句意见超过了 {{ NOTE_MAX }} 字：太长的答复会被整条丢掉，请先删短。</p>
 
         <!-- 蜜罐：留在源码里给机器人读，访客看不见、Tab 走不到，也永远没有初值 -->
         <div class="client-decision__honeypot" aria-hidden="true">
@@ -292,7 +298,7 @@ async function submit() {
         </button>
 
         <p v-if="nothingToSend && !submitted" class="client-decision__muted">
-          还没选、也没写意见：这样的答复后端会当误触丢掉，所以按钮是灭的。
+          还没选、也没写意见：这样的答复会被当成误触丢掉，所以按钮是灭的。
         </p>
         <p v-if="submitError" class="client-decision__error">{{ submitError }}</p>
 
@@ -300,16 +306,16 @@ async function submit() {
         <div v-if="formLocked" class="client-decision__receipt">
           <h3>{{ submitted ? '已经提交过了：这一页不再接受第二次答复' : '这条链接上已经交过一次答复' }}</h3>
           <p v-if="submitted" class="client-decision__muted">
-            这一句说的是「我们不会再替你改」：后端的回执对所有情况都长成同一个成功（限流、蜜罐也一样），
-            前端无从知道你那条到底进没进库——所以要确认平台看没看到，请找对接人，别把这句话当回执。
+            这一句说的只是「我们不会再替你改」：提交之后回的那句话，对所有情况都长成同一个成功，
+            这一页并不能替你确认平台到底收到没有——要确认，请找平台对接人，别把这一句当成平台的确认。
           </p>
           <p v-else class="client-decision__muted">
-            依据是这份响应里的需求单状态（{{ view?.briefStatus }}）：答复已经落在单子上了，
+            依据是这条链接带回来的单子状态：{{ briefStatusLabel }}。答复已经记在单子上了，
             要改主意请找平台对接人，这一页没有自助修改的入口。
           </p>
-          <p><b>接下来：</b>等平台把这一套转正交付。交付之前这一套仍是候选站，只有拿着链接的人能看。</p>
-          <p><b>正式地址：</b>来自转正那一步交付回执里的维护地址字段（`maintenanceUrl`），
-            不在这条链接回的数据里——所以这一页今天既没有正式地址可显示，也不摆一个「查看正式地址」的按钮。
+          <p><b>接下来：</b>等平台把这一套交付给你。交付之前这一套只有拿着这条链接的人能看。</p>
+          <p><b>正式地址：</b>要等平台把这一套交付之后才会有，这条链接里没有——
+            所以这一页今天既没有正式地址可显示，也不摆一个「查看正式地址」的按钮。
             交付后平台会把能打开的地址发给你。</p>
         </div>
       </section>
