@@ -191,6 +191,16 @@ export interface RegenerateReceipt {
   nextStepNotice: string;
 }
 
+/** `CancelReceipt`（2026-10-21 流程评审拍板②）：作废收口的回执，口径与重跑一致（归档不删） */
+export interface CancelReceipt {
+  briefId: number;
+  briefStatus: string;
+  briefStatusLabel: string;
+  archivedSiteIds: number[];
+  revokedTokenCount: number;
+  notice: string;
+}
+
 /** `SiteBriefDeliveryController.DecisionView`：哪条链接、选了哪套、说了什么、什么时候（没有第五件事实） */
 export interface BriefDecisionView {
   id: number;
@@ -216,6 +226,13 @@ export const siteBriefDeliveryApi = {
 
   /** `POST /api/admin/site-briefs/{id}/regenerate`：只收口（归档 + 撤令牌 + 回到 ready），不调模型、不花钱 */
   regenerate: (id: number) => http.post<RegenerateReceipt>(`/admin/site-briefs/${id}/regenerate`),
+
+  /**
+   * `POST /api/admin/site-briefs/{id}/cancel`：客户不做了的收尾（拍板②）。
+   * 原因必填（后端中文拒空串），候选全部归档（不删）+ 令牌全撤，需求单落 cancelled。
+   */
+  cancel: (id: number, reason: string) =>
+    http.post<CancelReceipt>(`/admin/site-briefs/${id}/cancel`, { reason }),
 
   /** `GET /api/admin/site-briefs/{id}/decisions`：客户答复留痕（不回 ip_hash，那一列不是给人看的） */
   decisions: (id: number) => http.get<BriefDecisionView[]>(`/admin/site-briefs/${id}/decisions`)

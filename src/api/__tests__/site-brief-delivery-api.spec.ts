@@ -70,8 +70,8 @@ describe('公开面：客户选择页一读一写', () => {
   })
 })
 
-describe('超管面：转正 / 收口重跑 / 留痕', () => {
-  it('三口路径与动词逐字对齐 SiteBriefDeliveryController', async () => {
+describe('超管面：转正 / 收口重跑 / 作废 / 留痕', () => {
+  it('四口路径与动词逐字对齐 SiteBriefDeliveryController', async () => {
     await siteBriefDeliveryApi.promote(12)
     expect(last()).toEqual({ method: 'post', url: '/admin/site-briefs/12/promote', rest: [{ decisionId: null, siteId: null }] })
 
@@ -80,6 +80,10 @@ describe('超管面：转正 / 收口重跑 / 留痕', () => {
 
     await siteBriefDeliveryApi.regenerate(12)
     expect(last()).toEqual({ method: 'post', url: '/admin/site-briefs/12/regenerate', rest: [] })
+
+    // 作废（M-P58 拍板②）：原因必带着发——后端对空串当面拒，适配层不替他兜空串
+    await siteBriefDeliveryApi.cancel(12, '客户线下说不做了')
+    expect(last()).toEqual({ method: 'post', url: '/admin/site-briefs/12/cancel', rest: [{ reason: '客户线下说不做了' }] })
 
     await siteBriefDeliveryApi.decisions(12)
     expect(last()).toEqual({ method: 'get', url: '/admin/site-briefs/12/decisions', rest: [] })

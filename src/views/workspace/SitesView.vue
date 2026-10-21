@@ -234,6 +234,46 @@ async function enableSite(record: Site) {
 }
 
 /**
+ * 行上那颗「归档」该不该摆（M-P58，2026-10-21 流程评审拍板③：不自动动默认站，界面上给超管口）。
+ *
+ * 只给「已停用、且没有交付时刻」的行：开通租户时建的那座空壳占位站正是这一形——
+ * 交付后它留在租户后台里碍事。带 promotedAt 的是客户点头交付的正式站，后端同样一刀
+ * （SITE_PROMOTED_CANNOT_ARCHIVE）：归档只超管可见，点一下等于把在线的站从门面上藏掉。
+ */
+function canArchive(record: Site): boolean {
+  return record.status === 'disabled' && !record.promotedAt
+}
+
+/** 归档错了要能收回来：这一支只认「归档、且不是交付站、也不是候选产物」的行（候选归交付链两步走） */
+function canRestoreArchivedPlaceholder(record: Site): boolean {
+  return record.status === 'archived' && !record.promotedAt && !fromBrief(record)
+}
+
+async function archiveSite(record: Site) {
+  if (!record.id) return
+  try {
+    await siteApi.update(record.id, { status: 'archived' })
+    message.success(`「${record.name || record.code}」已归档：租户后台不再列出它，一行都没有删`)
+    await load()
+    await siteStore.loadSites()
+  } catch (e) {
+    message.error((e as Error)?.message || '归档失败')
+  }
+}
+
+async function restoreArchivedPlaceholder(record: Site) {
+  if (!record.id) return
+  try {
+    await siteApi.update(record.id, { status: 'disabled' })
+    message.success(`「${record.name || record.code}」已放回「已停用」，租户后台重新列出它`)
+    await load()
+    await siteStore.loadSites()
+  } catch (e) {
+    message.error((e as Error)?.message || '恢复失败')
+  }
+}
+
+/**
  * 租户名只用来把「这一站归谁」说清楚（Spec-C §3.2 P0：建站域与内容域分开后，
  * 超管第一件要看的就是站点归属）。取不到就把原话的 tenantId 报出来，不编名字。
  */
@@ -505,11 +545,29 @@ onMounted(() => {
           <div v-else-if="record.promotedAt" class="sites-view__muted">转正于 {{ formatDateTime(record.promotedAt) }}</div>
         </template>
       </a-table-column>
-      <a-table-column title="操作" width="140" fixed="right" align="center">
+      <a-table-column title="操作" width="190" fixed="right" align="center">
         <template #default="{ record }">
           <a-button v-if="canEnable(record)" type="link" size="small" @click="enableSite(record)">
             启用
           </a-button>
+          <a-popconfirm
+            v-if="canArchive(record)"
+            title="归档后这一站从租户后台消失（只超管可查），一行都不会删；点错了可以放回「已停用」。确认归档？"
+            ok-text="归档"
+            cancel-text="先不"
+            @confirm="archiveSite(record)"
+          >
+            <a-button type="link" size="small">归档</a-button>
+          </a-popconfirm>
+          <a-popconfirm
+            v-if="canRestoreArchivedPlaceholder(record)"
+            title="把这一站放回「已停用」：租户后台会重新列出它。确认？"
+            ok-text="放回已停用"
+            cancel-text="先不"
+            @confirm="restoreArchivedPlaceholder(record)"
+          >
+            <a-button type="link" size="small">放回已停用</a-button>
+          </a-popconfirm>
           <a-button v-if="record.id" type="link" size="small" @click="resetForm(record); modalVisible = true">
             编辑
           </a-button>

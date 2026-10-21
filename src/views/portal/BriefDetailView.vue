@@ -26,6 +26,7 @@ import {
   hasChosenDecision,
   siteBriefDeliveryApi,
   type BriefDecisionView,
+  type CancelReceipt,
   type PromoteReceipt,
   type RegenerateReceipt
 } from '@/api/siteBriefDelivery'
@@ -711,6 +712,47 @@ async function runRegenerate() {
   }
 }
 
+// ---- 作废（2026-10-21 流程评审拍板②：「客户不做了」要有日常收尾口） ----
+const cancelling = ref(false)
+const cancelModalOpen = ref(false)
+const cancelReason = ref('')
+const cancelReceipt = ref<CancelReceipt | null>(null)
+const cancelError = ref('')
+
+/** 除「已转正（交付凭证）」与「已作废（幂等）」之外都能作废——含 generating：与在跑流水的并发由后端条件写兜底 */
+const CANCELLABLE_STATUSES = ['draft', 'ready', 'generating', 'awaiting_client', 'decided'] as const
+
+const canCancel = computed(() => {
+  const status = brief.value?.status
+  return !!status && (CANCELLABLE_STATUSES as readonly string[]).includes(status)
+})
+
+async function runCancel() {
+  const current = brief.value
+  const reason = cancelReason.value.trim()
+  if (!current || !reason) {
+    message.warning('作废必须写明原因，界面上这一句不会空着提交')
+    return
+  }
+  cancelling.value = true
+  cancelError.value = ''
+  try {
+    cancelReceipt.value = await siteBriefDeliveryApi.cancel(current.id, reason)
+    cancelModalOpen.value = false
+    cancelReason.value = ''
+    message.success('已作废：候选全部转「已归档」（不删），预览令牌全部撤销，旧链接当场失效')
+    await load()
+    await loadDecisions()
+    await loadAux()
+  } catch (error) {
+    cancelReceipt.value = null
+    cancelError.value = errText(error)
+    message.error(cancelError.value)
+  } finally {
+    cancelling.value = false
+  }
+}
+
 // 生成中每 8 秒拉一次进度；任一步失败只影响该套，所以这里只刷新、绝不替它「重试推进」
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -1049,11 +1091,39 @@ onUnmounted(stopPolling)
           >
             <a-button :loading="regenerating">收口重跑（旧候选作废，不花钱）</a-button>
           </a-popconfirm>
+          <a-button v-if="canCancel" danger :disabled="promoting || regenerating" @click="cancelModalOpen = true">
+            作废这张单（客户不做了）
+          </a-button>
+          <a-modal
+            v-model:open="cancelModalOpen"
+            title="作废这张需求单"
+            ok-text="确认作废（候选归档、不删除）"
+            cancel-text="先不"
+            :confirm-loading="cancelling"
+            @ok="runCancel"
+          >
+            <p class="brief-detail__muted">
+              口径与「收口重跑」一致：候选全部转「已归档」（只超管可查，一行不删）、客户手里的预览链接全部作废，
+              区别是这张单落「已作废」——之后不能再改、不能再出方案、不能重跑。要重来请开一张新需求单。
+            </p>
+            <a-textarea
+              v-model:value="cancelReason"
+              :maxlength="500"
+              :rows="3"
+              placeholder="原因（必填，会进审计留痕）：例如「客户线下说不做了」「试单放弃」"
+            />
+            <FoldedText
+              v-if="cancelError"
+              :raw="cancelError"
+              :summary="rejectedLine('作废', cancelError)"
+              raw-label="后端拒绝原文（逐字）"
+            />
+          </a-modal>
           <a-button :loading="loadingDecisions" @click="loadDecisions">刷新留痕</a-button>
         </a-space>
 
         <p v-if="!canPromote && !canRegenerate" class="brief-detail__muted">
-          这一格今天没有可点的动作：转正要等客户答复留痕里有一条真的选了某一套；
+          这一格今天没有转正与收口重跑那两颗动作可点：转正要等客户答复留痕里有一条真的选了某一套；
           收口重跑要等这一单确实已经出过方案（还在草稿/待出方案的单子上没有候选要收，
           已交付与已作废那两态后端会整条拒）。这里不摆「点了只会拿回一句拒绝」的按钮。
         </p>
@@ -1119,6 +1189,7 @@ onUnmounted(stopPolling)
           也不摆一条我拼出来的假链接：要重取请按后端说的用幂等口再点一次转正（第二次只回同一张回执、一行都不动）。
         </p>
         <p v-if="regenerateReceipt" class="brief-detail__muted">{{ regenerateReceipt.nextStepNotice }}</p>
+        <p v-if="cancelReceipt" class="brief-detail__muted">{{ cancelReceipt.notice }}</p>
       </a-card>
 
       <a-card size="small" class="brief-detail__panel">

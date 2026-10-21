@@ -153,7 +153,12 @@ async function mountView(sites: Record<string, unknown>[] = []) {
         'a-col': PASS_THROUGH('ACol'),
         'a-alert': PASS_THROUGH('AAlert'),
         'a-space': PASS_THROUGH('ASpace'),
-        'a-empty': PASS_THROUGH('AEmpty')
+        'a-empty': PASS_THROUGH('AEmpty'),
+        // popconfirm 换成把默认槽渲出来、能由测试发 confirm 的壳（真组件走 teleport + rAF）
+        'a-popconfirm': {
+          name: 'APopconfirm',
+          template: '<div class="popconfirm-stub"><slot /></div>'
+        }
       }
     }
   })
@@ -312,6 +317,78 @@ describe('新建落候选与「启用」把手（M-P40）', () => {
 
     expect(byText('启用')).toHaveLength(0)
     expect(document.body.textContent).not.toContain('手建的站，点这一行的「启用」才对外')
+    wrapper.unmount()
+  })
+})
+
+/**
+ * M-P58 拍板③（2026-10-21 流程评审）：转正后租户后台那两座站——空壳占位站不自动动，
+ * 界面上给超管一颗「归档」。判据钉的是摆谁、不摆谁：
+ * 带转正时刻的交付站永远不摆（一键藏掉在线正式站是事故），归档的占位行给收回口。
+ */
+describe('占位站归档把手（M-P58）', () => {
+  const POPCONFIRMS = () => ({ name: 'APopconfirm' })
+
+  /** 把「归档候选」这一格从默认的不列切到全量：默认视图根本渲不出归档行，按钮判据会空跑 */
+  async function showAllArchived(wrapper: any) {
+    const scope = wrapper.findAllComponents(Select).find(
+      (node: any) => ((node.props('options') ?? []) as { value: unknown }[]).some(option => option.value === 'only')
+    )
+    expect(scope, '工具栏上该有那颗「归档候选」范围选择').toBeTruthy()
+    scope!.vm.$emit('update:value', 'all')
+    await flushPromises()
+    await nextTick()
+  }
+
+  it('没交付过的停用行摆「归档」，点确认只发一发带状态 PUT', async () => {
+    const wrapper = await mountView([{ ...BASE_SITE, status: 'disabled' }])
+
+    expect(byText('归档')).toHaveLength(1)
+    const pop = wrapper.findAllComponents(POPCONFIRMS())[0]
+    pop.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(siteApi.update).toHaveBeenCalledTimes(1)
+    const [id, payload] = vi.mocked(siteApi.update).mock.calls[0]
+    expect(id).toBe(7)
+    expect(payload).toEqual({ status: 'archived' })
+    expect(vi.mocked(message.success).mock.calls.flat().join()).toContain('已归档')
+    wrapper.unmount()
+  })
+
+  it('交付过的停用行（带转正时刻）不摆「归档」：那是客户的正式站，只能走「禁用」', async () => {
+    const wrapper = await mountView([
+      { ...BASE_SITE, status: 'disabled', promotedAt: '2026-10-20T10:00:00' }
+    ])
+
+    expect(byText('归档')).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it('流水线产的候选/归档行不摆这一口：候选归交付链两步走', async () => {
+    const wrapper = await mountView([
+      { ...BASE_SITE, status: 'archived', buildBriefId: 555, candidateNo: 2 }
+    ])
+    // 归档行默认被「归档候选=不列」收起来：不切到全量，这一行压根没渲出来，两条 0 都是白测
+    await showAllArchived(wrapper)
+
+    expect(byText('归档')).toHaveLength(0)
+    expect(byText('放回已停用')).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it('归档错的占位行摆「放回已停用」，点确认发 disabled 那一转', async () => {
+    const wrapper = await mountView([{ ...BASE_SITE, status: 'archived' }])
+    await showAllArchived(wrapper)
+
+    const restore = byText('放回已停用')
+    expect(restore).toHaveLength(1)
+    wrapper.findAllComponents(POPCONFIRMS())[0].vm.$emit('confirm')
+    await flushPromises()
+
+    expect(siteApi.update).toHaveBeenCalledTimes(1)
+    const [, payload] = vi.mocked(siteApi.update).mock.calls[0]
+    expect(payload).toEqual({ status: 'disabled' })
     wrapper.unmount()
   })
 })

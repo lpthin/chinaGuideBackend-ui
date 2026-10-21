@@ -90,6 +90,7 @@ vi.mock('../../../api/siteBriefDelivery', async importOriginal => {
     siteBriefDeliveryApi: {
       promote: vi.fn(),
       regenerate: vi.fn(),
+      cancel: vi.fn(),
       decisions: vi.fn()
     }
   }
@@ -328,6 +329,11 @@ async function mountView(options: MountOptions = {}) {
   vi.mocked(siteBriefDeliveryApi.decisions).mockResolvedValue((options.decisions ?? []) as any)
   vi.mocked(siteBriefDeliveryApi.promote).mockResolvedValue((options.promoteData ?? null) as any)
   vi.mocked(siteBriefDeliveryApi.regenerate).mockResolvedValue(null as any)
+  vi.mocked(siteBriefDeliveryApi.cancel).mockResolvedValue({
+    briefId: 12, briefStatus: 'cancelled', briefStatusLabel: '已作废',
+    archivedSiteIds: [31, 32], revokedTokenCount: 2,
+    notice: '已把本单 2 套候选转为「已归档」（只超管可查，不删除），撤销全部预览令牌——客户手里的旧链接当场失效；需求单已置为「已作废」。'
+  } as any)
   const wrapper = mount(BriefDetailView, {
     attachTo: document.body,
     global: {
@@ -345,6 +351,19 @@ async function mountView(options: MountOptions = {}) {
         'a-tooltip': PASS_THROUGH('ATooltip'),
         // 真 popconfirm 走 teleport + rAF，这里要钉的是 confirm 之后上屏的那份回执：换成把默认槽渲出来的壳
         'a-popconfirm': PASS_THROUGH('APopconfirm'),
+        // 作废弹窗：open 之前不渲内容（和真模态一致），内置一颗「点确定」的按钮发 ok
+        'a-modal': defineComponent({
+          name: 'AModal',
+          props: { open: { type: Boolean, default: false } },
+          template: '<div class="modal-stub"><template v-if="open"><slot /><button class="modal-ok" @click="$emit(\'ok\')">确定</button></template></div>'
+        }),
+        // 原因输入框：真 a-textarea 没接进来会整个渲不出（弹窗里读不到 textarea），这里挂一颗真 textarea 让 v-model 走通
+        'a-textarea': defineComponent({
+          name: 'ATextarea',
+          props: { value: { type: String, default: '' } },
+          emits: ['update:value'],
+          template: '<textarea :value="value" @input="$emit(\'update:value\', $event.target.value)"></textarea>'
+        }),
         // FoldedText 那一句人话 + 展开：桩要真把插槽与栏标题渲出来，测试才读得到「原文一个字都没丢」
         'a-collapse': PASS_THROUGH('ACollapse'),
         'a-collapse-panel': PASS_THROUGH('ACollapsePanel')
@@ -708,9 +727,10 @@ describe('P4 的诚实边界与每一步的真去处', () => {
   it('③④ 的闸是「留痕里真有一条选定」：留痕为空时只有原话，不摆点了只会拿回拒绝的按钮', async () => {
     // P4 之前这一格连后端口都没有（断言的是「这一段的后端口还没有（P4」）。
     // 现在三口有了，要守的行为没变、只是挪了位置：没有客户真选过的留痕，就不许出现转正/重跑按钮，
-    // 页面必须说清「今天为什么没有可点的动作」——界面不许谎报到哪一步。
+    // 页面必须说清「今天为什么没有这两颗动作」——界面不许谎报到哪一步。
+    // M-P58 之后这一格还多了一颗作废，所以那句话只准点名转正与收口重跑，不许写成「这一格什么都点不了」。
     const wrapper = await mountView()
-    expect(wrapper.text()).toContain('这一格今天没有可点的动作')
+    expect(wrapper.text()).toContain('这一格今天没有转正与收口重跑那两颗动作可点')
     const labels = [...document.querySelectorAll('button')].map(node => (node.textContent || '').replace(/\s+/g, ''))
     expect(labels.filter(label => /转正交棒|收口重跑|发给客户|选择页/.test(label))).toEqual([])
     wrapper.unmount()
@@ -985,6 +1005,58 @@ describe('M-P34：只补失败那一套（第二张价签、第二道确认）',
     expect(confirm).toBeTruthy()
     expect(confirm).toContain('由平台承担')
     expect(confirm).not.toContain('会消耗租户配额')
+    wrapper.unmount()
+  })
+})
+
+/**
+ * M-P58 拍板②：「客户不做了」的作废收尾。
+ * 三条判据：按钮只对还没交付/还没作废的单摆；原因空着不许提交（后端同样拒，界面不白跑一发）；
+ * 提交成功后回执那句原话上屏。
+ */
+describe('作废这张单（拍板②）', () => {
+  const CANCEL_BUTTON = '作废这张单（客户不做了）'
+
+  function findButton(text: string) {
+    return [...document.querySelectorAll('button')].find(
+      node => (node.textContent || '').replace(/\s+/g, '') === text
+    )
+  }
+
+  it('已交付与已作废的单不摆按钮，其余状态摆', async () => {
+    const promoted = await mountView({ status: 'promoted' })
+    expect(findButton(CANCEL_BUTTON)).toBeFalsy()
+    promoted.unmount()
+
+    const cancelled = await mountView({ status: 'cancelled' })
+    expect(findButton(CANCEL_BUTTON)).toBeFalsy()
+    cancelled.unmount()
+
+    const ready = await mountView({ status: 'ready' })
+    expect(findButton(CANCEL_BUTTON)).toBeTruthy()
+    ready.unmount()
+  })
+
+  it('原因空着点确定：不发请求；填了原因才把那一串发过去，回执原话上屏', async () => {
+    const wrapper = await mountView({ status: 'awaiting_client' })
+    click(findButton(CANCEL_BUTTON)!)
+    await flushPromises()
+
+    // 弹窗开了，原因空着点确定 —— 后端对空串会当面拒，界面不该白跑这一发
+    click(document.querySelector('.modal-ok')!)
+    await flushPromises()
+    expect(siteBriefDeliveryApi.cancel).not.toHaveBeenCalled()
+
+    const box = document.querySelector('textarea') as HTMLTextAreaElement
+    expect(box).toBeTruthy()
+    box.value = '客户线下说不做了'
+    box.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    click(document.querySelector('.modal-ok')!)
+    await flushPromises()
+
+    expect(siteBriefDeliveryApi.cancel).toHaveBeenCalledWith(12, '客户线下说不做了')
+    expect(wrapper.text()).toContain('需求单已置为「已作废」')
     wrapper.unmount()
   })
 })
