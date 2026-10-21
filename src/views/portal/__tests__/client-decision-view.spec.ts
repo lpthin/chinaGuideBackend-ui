@@ -52,9 +52,9 @@ function briefView(overrides: Record<string, unknown> = {}) {
     title: '甲租户',
     candidateCount: 3,
     candidates: [
-      { siteId: 31, candidateNo: 1, name: '稳一稳', skeletonKey: 'corporate-base', focus: null, tone: null, previewUrl: '/?reviewToken=t31' },
-      { siteId: 32, candidateNo: 2, name: '先留资', skeletonKey: 'lead-gen', focus: null, tone: null, previewUrl: '/?reviewToken=t32' },
-      { siteId: 33, candidateNo: 3, name: '讲案例', skeletonKey: 'content-first', focus: null, tone: null, previewUrl: 'https://demo.preview.internal/?reviewToken=t33' }
+      { siteId: 31, candidateNo: 1, name: '稳一稳', skeletonKey: 'corporate-base', skeletonName: '基础企业形象站', focus: null, tone: null, previewUrl: '/?reviewToken=t31' },
+      { siteId: 32, candidateNo: 2, name: '先留资', skeletonKey: 'lead-gen', skeletonName: '留资转化站', focus: null, tone: null, previewUrl: '/?reviewToken=t32' },
+      { siteId: 33, candidateNo: 3, name: '讲案例', skeletonKey: 'content-first', skeletonName: '内容优先资讯站', focus: null, tone: null, previewUrl: 'https://demo.preview.internal/?reviewToken=t33' }
     ],
     // 这两句逐字取自后端 `ClientBriefView.DEMO_NOTICE` / `PREVIEW_NOTICE`：那两句里没有内部词
     demoNotice: '以下页面文案、文章、案例与图片均由 AI 生成的演示内容，交付后都可以替换、修改或删除。',
@@ -236,8 +236,10 @@ describe('三套并排（拍板 5A + 1A：每套各用自己的预览令牌）',
     const wrapper = await mountView({ token: 'tok' })
     const text = wrapper.text()
     expect(text).toContain('套的骨架各不相同')
-    expect(text).toContain('corporate-base')
-    expect(text).toContain('lead-gen')
+    // 念的是骨架的中文名，不是 `corporate-base` 那串内部码（走查第 6 条）
+    expect(text).toContain('基础企业形象站')
+    expect(text).toContain('留资转化站')
+    expect(text).not.toMatch(/corporate-base|lead-gen|content-first/)
     expect(text).toContain('这里宁可空着也不替它写一句')
     wrapper.unmount()
   })
@@ -245,8 +247,8 @@ describe('三套并排（拍板 5A + 1A：每套各用自己的预览令牌）',
   it('后端给了 focus 原话就一个字不改地显示，并顶掉那句「没下发」的说明', async () => {
     const data = briefView({
       candidates: [
-        { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', focus: '这一套把留资表单摆第一屏', tone: '务实、直接', previewUrl: '/?reviewToken=t31' },
-        { siteId: 32, candidateNo: 2, name: '乙', skeletonKey: 'content-first', focus: '这一套先讲案例与实力', tone: '稳重、专业', previewUrl: '/?reviewToken=t32' }
+        { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', skeletonName: '留资转化站', focus: '这一套把留资表单摆第一屏', tone: '务实、直接', previewUrl: '/?reviewToken=t31' },
+        { siteId: 32, candidateNo: 2, name: '乙', skeletonKey: 'content-first', skeletonName: '内容优先资讯站', focus: '这一套先讲案例与实力', tone: '稳重、专业', previewUrl: '/?reviewToken=t32' }
       ]
     })
     const wrapper = await mountView({ token: 'tok', data })
@@ -262,8 +264,8 @@ describe('三套并排（拍板 5A + 1A：每套各用自己的预览令牌）',
   it('只有一部分套带 focus：缺的那几套照实说缺，卡片上也不给它们编一句', async () => {
     const data = briefView({
       candidates: [
-        { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', focus: '这一套把留资表单摆第一屏', tone: '务实、直接', previewUrl: '/?reviewToken=t31' },
-        { siteId: 32, candidateNo: 2, name: '乙', skeletonKey: 'content-first', focus: null, tone: null, previewUrl: '/?reviewToken=t32' }
+        { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', skeletonName: '留资转化站', focus: '这一套把留资表单摆第一屏', tone: '务实、直接', previewUrl: '/?reviewToken=t31' },
+        { siteId: 32, candidateNo: 2, name: '乙', skeletonKey: 'content-first', skeletonName: '内容优先资讯站', focus: null, tone: null, previewUrl: '/?reviewToken=t32' }
       ]
     })
     const wrapper = await mountView({ token: 'tok', data })
@@ -280,15 +282,16 @@ describe('三套并排（拍板 5A + 1A：每套各用自己的预览令牌）',
     const cards = [...document.querySelectorAll('.client-decision__card')]
     expect(cards).toHaveLength(3)
     expect(cards.every(node => !node.textContent?.includes('这套侧重什么'))).toBe(true)
-    expect(cards[0].textContent).toContain('这一套是什么骨架：corporate-base')
+    expect(cards[0].textContent).toContain('这一套是什么骨架：基础企业形象站')
+    expect(cards[0].textContent).not.toContain('corporate-base')
     wrapper.unmount()
   })
 
   it('某一套没有预览地址时不摆死链：那一套只留一句实话', async () => {
     const data = briefView({
       candidates: [
-        { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', previewUrl: '/?reviewToken=t31' },
-        { siteId: 32, candidateNo: 2, name: '乙', skeletonKey: 'content-first', previewUrl: null }
+        { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'lead-gen', skeletonName: '留资转化站', previewUrl: '/?reviewToken=t31' },
+        { siteId: 32, candidateNo: 2, name: '乙', skeletonKey: 'content-first', skeletonName: '内容优先资讯站', previewUrl: null }
       ]
     })
     const wrapper = await mountView({ token: 'tok', data })
@@ -414,11 +417,12 @@ describe('提交一次，然后锁死', () => {
   })
 
   it('这一页是给客户看的：三种形状里都不许出现工程内部的说法（2026-10-22 走查第 5 条）', async () => {
-    // 反例：改文案前这一屏印着「（后端原话）」「需求单状态（decided）」「维护地址字段（`maintenanceUrl`）」
-    const INTERNAL = /后端|落库|响应|字段|令牌|需求单|回执|接口|P3|awaiting_client|decided|maintenanceUrl|site_proposal/
+    // 反例：改文案前这一屏印着「（后端原话）」「需求单状态（decided）」「维护地址字段（`maintenanceUrl`）」，
+    // 还印着骨架那串内部码 `corporate-base`（走查第 6 条）
+    const INTERNAL = /后端|落库|响应|字段|令牌|需求单|回执|接口|P3|awaiting_client|decided|maintenanceUrl|site_proposal|corporate-base|lead-gen|content-first/
     const shapes: Array<Record<string, unknown>> = [
       // 能选的那一屏（带 focus 原话）
-      briefView({ candidates: [{ siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'corporate-base', focus: '这一套把留资表单摆第一屏', tone: 'professional', previewUrl: 'https://demo.preview.internal/?reviewToken=t31' }] }),
+      briefView({ candidates: [{ siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'corporate-base', skeletonName: '基础企业形象站', focus: '这一套把留资表单摆第一屏', tone: 'professional', previewUrl: 'https://demo.preview.internal/?reviewToken=t31' }] }),
       // 已经交过一次答复：交付说明那一块才会渲染
       briefView({ briefStatus: 'decided' }),
       // 链接打不开：空清单那一屏
@@ -431,5 +435,27 @@ describe('提交一次，然后锁死', () => {
       expect(hit && hit[0]).toBeNull()
       wrapper.unmount()
     }
+  })
+
+  it('骨架那一行念的是中文名；后端没带名字就整行不显示（2026-10-22 走查第 6 条）', async () => {
+    const named = await mountView({
+      token: 'tok',
+      data: briefView({
+        candidates: [{ siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'corporate-base', skeletonName: '基础企业形象站', focus: null, tone: null, previewUrl: '/?reviewToken=t31' }]
+      })
+    })
+    expect(named.text()).toContain('这一套是什么骨架：基础企业形象站')
+    named.unmount()
+
+    const unnamed = await mountView({
+      token: 'tok',
+      data: briefView({
+        candidates: [{ siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'corporate-base', skeletonName: null, focus: null, tone: null, previewUrl: '/?reviewToken=t31' }]
+      })
+    })
+    // 少这一行好过念一串客户看不懂的码
+    expect(unnamed.text()).not.toContain('这一套是什么骨架')
+    expect(unnamed.text()).not.toContain('corporate-base')
+    unnamed.unmount()
   })
 })

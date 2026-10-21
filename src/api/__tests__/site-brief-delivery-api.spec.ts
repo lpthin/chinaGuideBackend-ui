@@ -112,6 +112,7 @@ describe('预览地址与差异说明（拍板 1A / 5A 的前端那一半）', (
       candidateNo: 1,
       name: '甲',
       skeletonKey: 'lead-gen',
+      skeletonName: '留资转化站',
       focus: null,
       tone: null,
       previewUrl: '/?reviewToken=a',
@@ -141,11 +142,16 @@ describe('预览地址与差异说明（拍板 1A / 5A 的前端那一半）', (
     expect(result.text).toContain('另外 2 套没有这句')
   })
 
-  it('没给 focus 时只用响应真有的字段（骨架各不相同才算看得出差异）', () => {
-    const distinct = clientCandidatesDifference([candidate(), candidate({ siteId: 2, candidateNo: 2, skeletonKey: 'corporate-base' })])
+  it('没给 focus 时只用响应真有的字段（骨架各不相同才算看得出差异），念的是中文名不是那串码', () => {
+    const distinct = clientCandidatesDifference([
+      candidate({ skeletonName: '留资转化站' }),
+      candidate({ siteId: 2, candidateNo: 2, skeletonKey: 'corporate-base', skeletonName: '基础企业形象站' })
+    ])
     expect(distinct.visible).toBe(true)
-    expect(distinct.text).toContain('lead-gen')
-    expect(distinct.text).toContain('corporate-base')
+    expect(distinct.text).toContain('留资转化站')
+    expect(distinct.text).toContain('基础企业形象站')
+    // 走查第 6 条：比对用 key，念出来的必须是名字——这一屏以前印的是 `corporate-base`
+    expect(distinct.text).not.toMatch(/lead-gen|corporate-base/)
 
     const same = clientCandidatesDifference([candidate(), candidate({ siteId: 2, candidateNo: 2 })])
     expect(same.visible).toBe(false)
@@ -154,6 +160,15 @@ describe('预览地址与差异说明（拍板 1A / 5A 的前端那一半）', (
     const nothing = clientCandidatesDifference([candidate({ skeletonKey: null }), candidate({ siteId: 2, skeletonKey: null })])
     expect(nothing.visible).toBe(false)
     expect(nothing.text).toContain('这一屏看不出各套差在哪')
+  })
+
+  it('后端没带骨架中文名时照实说没有，绝不拿那串英文码顶上', () => {
+    const result = clientCandidatesDifference([
+      candidate({ skeletonName: null }),
+      candidate({ siteId: 2, candidateNo: 2, skeletonKey: 'corporate-base', skeletonName: '  ' })
+    ])
+    expect(result.text).toContain('这一套没有骨架名')
+    expect(result.text).not.toMatch(/lead-gen|corporate-base/)
   })
 
   it('这一句是念给买单的人听的：四个分支都不许出现工程内部的说法（2026-10-22 走查第 5 条）', () => {

@@ -33,6 +33,8 @@ export interface ClientBriefCandidate {
   candidateNo: number | null;
   name: string | null;
   skeletonKey: string | null;
+  /** 骨架的中文名（后端读自 `portal_skeleton.name`）；这一格才是给客户看的，`skeletonKey` 只用于比对 */
+  skeletonName: string | null;
   /** plan 落库的「这套侧重什么」原话；那一套没跑到 plan 时后端回 null */
   focus: string | null;
   /** 这一套的语气档位（门禁按「语气不重复」拦三套） */
@@ -81,6 +83,17 @@ export function clientBriefStatusLabel(status: string | null | undefined): strin
   if (status === 'decided') return '已经收到过你的答复';
   if (status === 'awaiting_client') return '还在等你答复';
   return '';
+}
+
+/**
+ * 这一套骨架念给客户听的那一句（2026-10-22 全流程走查第 6 条）。
+ *
+ * 这一屏以前印的是 `skeletonKey`（`corporate-base` 那一串）——那是我们内部的标识，不是产品名词。
+ * 中文名后端读自 `portal_skeleton.name`（一处出处，界面不再自己编名单），读不到就回空串，
+ * 界面那一行跟着不显示：少一句好过念一串客户看不懂的码。
+ */
+export function clientSkeletonLabel(candidate: Pick<ClientBriefCandidate, 'skeletonName'>): string {
+  return (candidate.skeletonName ?? '').trim();
 }
 
 /**
@@ -136,8 +149,10 @@ export function clientCandidatesDifference(candidates: ClientBriefCandidate[]): 
     };
   }
   const distinct = new Set(known).size === candidates.length && known.length === candidates.length;
+  // 比对「是不是同一份骨架」用 key，念给客户的那一句读名字（走查第 6 条：以前这里念的是
+  // `corporate-base` 那串内部码，客户读不出任何信息）
   const perCard = candidates
-    .map(candidate => `第 ${candidate.candidateNo ?? '?'} 套：${(candidate.skeletonKey || '没有骨架名').trim()}`)
+    .map(candidate => `第 ${candidate.candidateNo ?? '?'} 套：${clientSkeletonLabel(candidate) || '这一套没有骨架名'}`)
     .join(' ｜ ');
   return distinct
     ? { text: `${candidates.length} 套的骨架各不相同，这就是这一屏看得见的差异：${perCard}`, visible: true }

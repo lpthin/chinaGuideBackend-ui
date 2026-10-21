@@ -5,6 +5,7 @@ import {
   clientBriefApi,
   clientBriefStatusLabel,
   clientCandidatesDifference,
+  clientSkeletonLabel,
   resolvePreviewUrl,
   type ClientBriefCandidate,
   type ClientBriefView
@@ -242,7 +243,9 @@ async function submit() {
           class="client-decision__card"
         >
           <h2>{{ candidateLabel(candidate, index) }}</h2>
-          <p class="client-decision__line"><b>这一套是什么骨架：</b>{{ (candidate.skeletonKey || '').trim() || '这条链接没带骨架名' }}</p>
+          <p v-if="clientSkeletonLabel(candidate)" class="client-decision__line">
+            <b>这一套是什么骨架：</b>{{ clientSkeletonLabel(candidate) }}
+          </p>
           <p v-if="(candidate.focus || '').trim()" class="client-decision__line">
             <b>这套侧重什么：</b>{{ candidate.focus }}
           </p>
