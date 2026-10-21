@@ -76,17 +76,31 @@ const MODAL_STUB = defineComponent({
 /** 行内按钮长在 bodyCell 插槽里：按 dataSource 逐行走一遍，判断与按钮仍是视图自己的代码 */
 const TABLE_STUB = defineComponent({
   name: 'ATable',
-  props: { dataSource: { type: Array, default: () => [] }, columns: { type: Array, default: () => [] } },
+  props: {
+    dataSource: { type: Array, default: () => [] },
+    columns: { type: Array, default: () => [] },
+    pagination: { type: Object, default: null }
+  },
   setup(props: any, { slots }: any) {
     return () =>
       h(
         'div',
         { class: 'table-stub' },
-        props.dataSource.flatMap((record: any) =>
-          props.columns.map((column: any) =>
-            column.key === 'actions' && slots.bodyCell ? slots.bodyCell({ column, record }) : null
-          )
-        )
+        [
+          ...props.dataSource.flatMap((record: any) =>
+            props.columns.map((column: any) =>
+              column.key === 'actions' && slots.bodyCell ? slots.bodyCell({ column, record }) : null
+            )
+          ),
+          // 翻页那条腿真组件里是分页器给的，桩件摆一颗替它点一下：筛选用例要先让人站到第 2 页上
+          props.pagination?.onChange
+            ? h(
+                'button',
+                { class: 'stub-page-2', onClick: () => props.pagination.onChange(2, props.pagination.pageSize) },
+                '翻到第 2 页'
+              )
+            : null
+        ]
       )
   }
 })
@@ -371,5 +385,110 @@ describe('CaseManageView 按 operation:case:manage 摆把手', () => {
 
     expect(buttonLabels(wrapper)).not.toContain('AI 起草')
     expect(customerCaseApi.aiDraft).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 筛选栏那三个控件（任务 #455，M-P53 现场看到的缺陷）。
+ *
+ * 缺陷的形状：这一屏的行业／状态两个下拉没挂 `@change`、搜索框没挂 `@search`，
+ * 条件改了要等翻页才动 ⇒ 人看到的是「筛了没反应」，而不是「筛出来是空的」。
+ * 同一族另一屏（素材库 `ImageLibraryView`）早就是「改条件回第一页再取」这一形，这里照它接。
+ *
+ * 桩件发事件的顺序照 ant-design-vue 的真实顺序：先 `update:value`（v-model 落值）、
+ * 再 `change`（处理器读到的就是新值）。反过发来会造出一个真代码里不存在的「带旧条件取数」。
+ */
+describe('CaseManageView 改筛选条件立刻重新取数', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(customerCaseApi.list).mockResolvedValue({ records: [CASE], total: 1, page: 1, size: 10 } as any)
+    vi.mocked(customerCaseApi.statistics).mockResolvedValue({
+      total: 1,
+      published: 1,
+      draft: 0,
+      totalViews: 3,
+      industryCount: 1
+    } as any)
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  /** 顺序照 ant：update:value 先落进 v-model，change 才是那一下「条件变了」 */
+  async function emitSelect(wrapper: any, index: number, value: unknown) {
+    const select = wrapper.findAllComponents({ name: 'ASelect' })[index]
+    expect(select, `第 ${index + 1} 个下拉应存在`).toBeTruthy()
+    select.vm.$emit('update:value', value)
+    select.vm.$emit('change', value)
+    await nextTick()
+    await flushPromises()
+  }
+
+  it('选行业当场多发一发取数，带上这一格的条件', async () => {
+    const wrapper = await mountView()
+    expect(customerCaseApi.list).toHaveBeenCalledTimes(1)
+
+    await emitSelect(wrapper, 0, 'health')
+
+    expect(customerCaseApi.list).toHaveBeenCalledTimes(2)
+    expect(customerCaseApi.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, industry: 'health' })
+    )
+  })
+
+  it('状态那一格同样当场重新取', async () => {
+    const wrapper = await mountView()
+
+    await emitSelect(wrapper, 1, 'DRAFT')
+
+    expect(customerCaseApi.list).toHaveBeenCalledTimes(2)
+    expect(customerCaseApi.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, status: 'DRAFT' })
+    )
+  })
+
+  it('清掉那一格也重新取，并且不再带那一格', async () => {
+    const wrapper = await mountView()
+    await emitSelect(wrapper, 0, 'health')
+
+    await emitSelect(wrapper, 0, undefined)
+
+    expect(customerCaseApi.list).toHaveBeenCalledTimes(3)
+    expect(customerCaseApi.list).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ industry: expect.anything() })
+    )
+  })
+
+  it('人站在第 2 页改条件时退回第 1 页，不停在老那一页', async () => {
+    const wrapper = await mountView()
+    await wrapper.get('.stub-page-2').trigger('click')
+    await flushPromises()
+    expect(customerCaseApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }))
+
+    await emitSelect(wrapper, 0, 'finance')
+
+    expect(customerCaseApi.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, industry: 'finance' })
+    )
+  })
+
+  it('搜索要在那一发（点按钮或回车）才取，带 keyword', async () => {
+    const wrapper = await mountView()
+    const search = wrapper.findAllComponents({ name: 'AInputSearch' })[0]
+    expect(search, '应搜到那颗搜索框').toBeTruthy()
+
+    search.vm.$emit('update:value', '种植')
+    await nextTick()
+    // 光打字不许取数：那一发是点「搜索」或回车才发的
+    expect(customerCaseApi.list).toHaveBeenCalledTimes(1)
+
+    search.vm.$emit('search', '种植')
+    await flushPromises()
+
+    expect(customerCaseApi.list).toHaveBeenCalledTimes(2)
+    expect(customerCaseApi.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, keyword: '种植' })
+    )
   })
 })

@@ -51,6 +51,7 @@
             style="width: 150px"
             placeholder="选择行业"
             allowClear
+            @change="handleQueryChange"
           >
             <a-select-option value="finance">金融科技</a-select-option>
             <a-select-option value="ecommerce">电子商务</a-select-option>
@@ -63,6 +64,7 @@
             style="width: 120px"
             placeholder="状态"
             allowClear
+            @change="handleQueryChange"
           >
             <a-select-option value="PUBLISHED">已发布</a-select-option>
             <a-select-option value="DRAFT">草稿</a-select-option>
@@ -72,6 +74,7 @@
             placeholder="搜索案例名称/客户名称"
             style="width: 280px"
             enter-button
+            @search="handleQueryChange"
           />
           <template #actions>
             <a-space>
@@ -381,6 +384,12 @@ const paginationConfig = reactive({
     loadCaseList()
   },
 })
+
+// 条件一改就回第一页重新取：留着旧页码，人看到的是「改了条件、列表还是老那一页」，会以为筛选没生效
+function handleQueryChange() {
+  paginationConfig.current = 1
+  loadCaseList()
+}
 
 const columns = [
   { title: '案例信息', key: 'name', width: 280 },
