@@ -339,7 +339,10 @@ test('SYS-J14 交付前校验：查得出、拦得住、改齐能过、全程不
     j.expect('正常站基线：结论是 pass', str(baseline.run.verdict), 'pass');
     j.expect('读的页数与库里真行数对平（不许空跑）', num(baseline.run.pagesScanned), pages.length);
     j.expect('手跑这一发落的是 manual 口径', str(baseline.run.triggerSource), 'manual');
-    j.expect('判据版本落账', str(baseline.run.checkerVersion), 'cross-page-v1');
+    // 判据版本：2026-10-22 起是 v2 —— logo 那一格的口径改了（客户上传了标志图就整个不比这一格，
+    // 访客看的是客户那一张，按区块里那两张报就是误报）。抬版本是 SiteCrossPageScanner 自己的规矩：
+    // 「加一条判据或改任何一条的口径都要抬它」，否则事后读到「上次 blocked、这次 pass」分不清是修好了还是查松了
+    j.expect('判据版本落账', str(baseline.run.checkerVersion), 'cross-page-v2');
 
     // ── J14-03 查得出：把这次现场量到的毛病真造进去，逐条报出来 ────────────
     j.card({
