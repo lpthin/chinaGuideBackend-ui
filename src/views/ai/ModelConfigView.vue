@@ -78,11 +78,10 @@
             placeholder="按模型类型筛选"
             allowClear
           >
-            <a-select-option value="chat">聊天模型</a-select-option>
-            <a-select-option value="vision">视觉模型</a-select-option>
-            <a-select-option value="embedding">向量化模型</a-select-option>
-            <a-select-option value="image">图像模型</a-select-option>
-            <a-select-option value="audio">语音模型</a-select-option>
+            <!-- 词表只有一份：这一排的选项与弹窗里那一格、表格里那块牌子念的都是 types/ai-model 里那一个 map -->
+            <a-select-option v-for="option in MODEL_TYPE_OPTIONS" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </a-select-option>
           </a-select>
           <template #actions>
             <a-space>
@@ -113,7 +112,7 @@
               </a-tag>
             </template>
             <template v-if="column.key === 'type'">
-              <a-tag color="blue">{{ getModelTypeName(record.modelType) }}</a-tag>
+              <a-tag color="blue">{{ describeModelTypes(record.modelType) }}</a-tag>
             </template>
             <template v-if="column.key === 'apiProtocol'">
               <a-tooltip :title="protocolTooltip(record)">
@@ -224,15 +223,15 @@
             <a-form-item
               label="模型类型"
               required
-              extra="「视觉模型」是能看图的多模态模型（参考站截图摄取要用它）；「图像模型」是生成图片的，收不到图片"
+              extra="可以多选：一台既能对话又能看图的模型（千问 3.8 max 这类）就同时勾「聊天模型」与「视觉模型」。只勾一个的话，另一条能力在系统里等于不存在——选路读的是这一格勾了哪些词，不是模型的名字。「视觉模型」是能看图的多模态模型（参考站截图摄取、素材图片分析要用它）；「图像模型」是生成图片的，收不到图片"
             >
-              <a-select v-model:value="configForm.modelType" style="width: 100%">
-                <a-select-option value="chat">聊天模型</a-select-option>
-                <a-select-option value="vision">视觉模型</a-select-option>
-                <a-select-option value="embedding">向量化模型</a-select-option>
-                <a-select-option value="image">图像模型</a-select-option>
-                <a-select-option value="audio">语音模型</a-select-option>
-              </a-select>
+              <a-select
+                v-model:value="configForm.modelType"
+                mode="multiple"
+                :options="MODEL_TYPE_OPTIONS"
+                style="width: 100%"
+                placeholder="至少勾一个能力词"
+              />
             </a-form-item>
           </a-col>
           <a-col :span="24">
@@ -356,6 +355,15 @@ import {
 import { modelConfigApi, usageApi } from '../../api/ai-model'
 import { describeHttpError } from '../../api/http'
 import type { ModelConfig } from '../../types/ai-model'
+import {
+  MODEL_TYPE_OPTIONS,
+  describeModelTypes,
+  hasModelType,
+  isChatCapableType,
+  isImageGeneratingType,
+  joinModelTypes,
+  splitModelTypes,
+} from '../../types/ai-model'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { logError } from '../../utils/errorLog'
@@ -445,9 +453,9 @@ function protocolTooltip(record: ModelConfig) {
   return `已显式指定为「${PROTOCOL_LABELS[record.apiProtocol]}」，后端不再按地址推断`
 }
 
-/** 只有「图像模型」这一类走「试出一张图」；和后端 AiModelTypes.isImageGenerating 认的是同一个取值 */
+/** 只有勾了图像生成那一族词的行走「试出一张图」；认哪几个词与后端 AiModelTypes.isImageGenerating 同一口径 */
 function isImageRow(record: ModelConfig) {
-  return record.modelType === 'image'
+  return isImageGeneratingType(record.modelType)
 }
 
 /**
@@ -459,12 +467,11 @@ const purposeScopeOptions = ref<{ value: string; label: string }[]>([])
 const scopeOptionsReady = ref(false)
 
 /**
- * 选路真的按「限定用途」挑行的只有聊天/文本那一路——判据与后端
- * {@code DynamicAiClient.pickChatModel} 里那一句是同一个（含 chat 或 text）。
+ * 选路真的按「限定用途」挑行的只有聊天/文本那一路——判据与后端 {@code AiModelTypes.isChatCapable}
+ * （{@code DynamicAiClient.pickChatModel} 读的就是它）同口径：先拆词，再问任一词是不是聊天那一族。
  */
 function isChatRoutedType(modelType?: string) {
-  const type = (modelType || '').toLowerCase()
-  return type.includes('chat') || type.includes('text')
+  return isChatCapableType(modelType)
 }
 
 function scopeValueOf(record: ModelConfig) {
@@ -497,7 +504,7 @@ function purposeScopeText(record: ModelConfig) {
 function purposeScopeTooltip(record: ModelConfig) {
   const scope = scopeValueOf(record)
   if (!isChatRoutedType(record.modelType)) {
-    const typeName = getModelTypeName(record.modelType || '')
+    const typeName = describeModelTypes(record.modelType)
     return scope
       ? `这一行是「${typeName}」，按用途挑行只读聊天模型的行；这里记着的「${scopeLabel(scope)}」不会让任何用途用上这一行`
       : `这一格只对聊天模型的行有意义：这一行是「${typeName}」，按用途挑行读不到它`
@@ -522,8 +529,9 @@ const scopeFormExtra = computed(() => {
   if (!scopeOptionsReady.value) {
     return '可选的用途清单没从后端读到，这一格先不能改'
   }
-  if (!isChatRoutedType(configForm.modelType)) {
-    return `这一列只有聊天模型的行会被读到：现在填的是「${getModelTypeName(configForm.modelType)}」，改它不会让任何用途用上这一行`
+  if (!isChatRoutedType(joinModelTypes(configForm.modelType))) {
+    return `这一列只有聊天模型的行会被读到：现在勾的是「${describeModelTypes(joinModelTypes(configForm.modelType))}」，`
+      + '改它不会让任何用途用上这一行'
   }
   return '留空＝通用行，所有用途都选得到；选定一个用途＝这一行只给那一支外呼优先用，别的用途选不到它'
 })
@@ -531,13 +539,16 @@ const scopeFormExtra = computed(() => {
 /**
  * 表单那一份初值。新建与编辑都从它出发：
  * 上一行的值不该出现在「添加模型配置」里，更不该跟着新建那一发被提交成一个专用行。
+ *
+ * 「模型类型」在表单里是<b>数组</b>（多选框那一份勾选），出接口时才收成逗号串——库里那一格存的
+ * 就是 `chat,vision` 这样的串，两者之间的换算是 joinModelTypes / splitModelTypes，只有这两句。
  */
 function formDefaults() {
   return {
     name: '',
     provider: '',
     modelName: '',
-    modelType: 'chat',
+    modelType: ['chat'],
     purposeScope: '',
     apiKey: '',
     baseUrl: '',
@@ -582,7 +593,9 @@ const filteredConfigs = computed(() => {
     result = result.filter(c => c.provider === filterProvider.value)
   }
   if (filterType.value) {
-    result = result.filter(c => c.modelType === filterType.value)
+    // 多选之后这一格是 `chat,vision` 这样的串，按全等筛就再也筛不出勾了两个能力的行
+    const wanted = filterType.value
+    result = result.filter(c => hasModelType(c.modelType, wanted))
   }
   return result
 })
@@ -665,17 +678,6 @@ function getProviderName(provider: string) {
   return map[provider] || provider
 }
 
-function getModelTypeName(type: string) {
-  const map: Record<string, string> = {
-    chat: '聊天模型',
-    vision: '视觉模型',
-    embedding: '向量化模型',
-    image: '图像模型',
-    audio: '语音模型',
-  }
-  return map[type] || type
-}
-
 function getPriorityColor(priority: number) {
   const map: Record<number, string> = {
     1: 'red',
@@ -708,11 +710,16 @@ function openAddModal() {
 
 function editConfig(config: ModelConfig) {
   editingConfig.value = config
+  // 库里那一格是逗号分隔的多个能力词，回填要拆成多选框那一份数组；拆不出一个词时才回到默认的「聊天模型」
+  const storedTypes = splitModelTypes(config.modelType)
   Object.assign(configForm, formDefaults(), {
     name: config.name,
     provider: config.provider,
     modelName: config.modelName || '',
-    modelType: config.modelType || 'chat',
+    // 词表外的脏值（V29 时代留下的 gpt 这类）也照样带回来显示着，不在前端悄悄抹掉：
+    // 悄悄抹掉会把那一行变成「没标类型」，而后端的写口只认词表——挂着原值保存会被当场拒下来，
+    // 管理员于是必须显式地替这一行改口，而不是被界面替它做主
+    modelType: storedTypes.length ? storedTypes : ['chat'],
     // 空串与「没带」在这一列上是两件事，所以带回来的只能是库里那一个值（没有就当通用行）
     purposeScope: (config.purposeScope || '').trim(),
     apiKey: '',
@@ -864,7 +871,9 @@ function formToPayload() {
     name: configForm.name,
     provider: configForm.provider,
     modelName: configForm.modelName,
-    modelType: configForm.modelType,
+    // 多选框那一份数组收成库里的串（按词表顺序、去重）；一个都没勾时提交空串＝未标类型，
+    // 后端允许空串，各判据对空串的回答与过去逐字相同
+    modelType: joinModelTypes(configForm.modelType),
     // 空串也照样提交：这一列 NOT NULL DEFAULT ''，「清回通用行」只有显式给空串才落得下去
     // （请求里根本不带这一键时后端按「这次不动它」处理，那不是清除）
     purposeScope: (configForm.purposeScope || '').trim(),
