@@ -44,6 +44,8 @@
       <template #message>{{ pagesNote }}</template>
     </a-alert>
 
+    <site-validation-strip :site-id="filters.siteId" @scanned="onValidated" />
+
     <state-block v-if="!loading && findings.length === 0" state="empty" title="没有待处理的巡检结果——还没扫过的话，点右上角「立即巡检」" />
     <data-table
       v-else
@@ -260,6 +262,7 @@ import {
 import { portalPagesApi } from '../../api/portalPages'
 import { portalTicketsApi, type RevisionDraft } from '../../api/portalTickets'
 import DraftReviewCard from './builder/DraftReviewCard.vue'
+import SiteValidationStrip from './SiteValidationStrip.vue'
 import { siteApi } from '../../api/workspace'
 import { formatDateTime } from '../../utils/format'
 import { PH_DASH } from '../../utils/display'
@@ -452,6 +455,14 @@ async function runScan() {
   } finally {
     scanning.value = false
   }
+}
+
+/**
+ * 摘要条上「现在重查一遍」落账之后重新拉一次清单：校验那一跑合并进 portal_health_finding 的
+ * 就是下面这些行（跨页那三条也在里面），界面不自己把回执里的条数拼成一张表。
+ */
+async function onValidated() {
+  await load()
 }
 
 // ---------------- 忽略 ----------------

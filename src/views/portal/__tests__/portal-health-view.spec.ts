@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { Button, Checkbox, Input, Textarea, message } from 'ant-design-vue'
 import PortalHealthView from '../PortalHealthView.vue'
+import SiteValidationStrip from '../SiteValidationStrip.vue'
 import { portalHealthApi } from '../../../api/portalHealth'
+import { portalValidationApi } from '../../../api/portalValidation'
 import { portalPagesApi } from '../../../api/portalPages'
 import { portalTicketsApi } from '../../../api/portalTickets'
 import { siteApi } from '../../../api/workspace'
@@ -49,6 +51,14 @@ vi.mock('../../../api/portalHealth', async () => {
 })
 vi.mock('../../../api/portalPages', () => ({ portalPagesApi: { list: vi.fn() } }))
 vi.mock('../../../api/workspace', () => ({ siteApi: { list: vi.fn() } }))
+/** 摘要条走的是校验那四个口：只桩发请求的那一支，validationSummaryText 用真实现（句子是它拼的） */
+vi.mock('../../../api/portalValidation', async () => {
+  const actual = await vi.importActual<Record<string, any>>('../../../api/portalValidation')
+  return {
+    ...actual,
+    portalValidationApi: { latest: vi.fn(), runs: vi.fn(), options: vi.fn(), scan: vi.fn() }
+  }
+})
 vi.mock('../../../api/portalTickets', () => ({
   portalTicketsApi: { draft: vi.fn(), apply: vi.fn(), discard: vi.fn() }
 }))
@@ -411,6 +421,148 @@ it('只有 page:manage 时页面下拉照发，站点口与写入按钮都不出
   wrapper.unmount()
 })
 
+  // ---------------- 校验层 2 那三条跨页类型 + 摘要条 ----------------
+
+  /** 后端 /portal/health/options 新增的三条：aiFixMode 全是 none，修法是把全站那一份改齐 */
+  const CROSS_PAGE_OPTIONS = {
+    types: {
+      nav_mismatch: {
+        key: 'nav_mismatch',
+        label: '导航跨页不一致',
+        aiFixMode: 'none',
+        hint: '这一页自带的那份导航条目与全站不是同一份'
+      },
+      header_asset_mismatch: {
+        key: 'header_asset_mismatch',
+        label: '页头跨页不一致',
+        aiFixMode: 'none',
+        hint: '这一页页头自带的 logo 或站点名与别的页不同'
+      },
+      term_mismatch: {
+        key: 'term_mismatch',
+        label: '栏目用词不一致',
+        aiFixMode: 'none',
+        hint: '同一个栏目在导航、页面标题、页脚这几处写法不一样'
+      }
+    },
+    statuses: { open: '待处理' }
+  }
+
+  it('跨页那三条新类型：中文名照后端念，AI 入口一个都不长，筛选下拉里也带着这三条', async () => {
+    vi.mocked(portalHealthApi.options).mockResolvedValue(CROSS_PAGE_OPTIONS as any)
+    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+      finding(11, 'nav_mismatch'),
+      finding(12, 'header_asset_mismatch'),
+      finding(13, 'term_mismatch')
+    ] as any)
+    const wrapper = await mountView(['portal:build:health'])
+
+    const text = wrapper.text()
+    expect(text).toContain('导航跨页不一致')
+    expect(text).toContain('页头跨页不一致')
+    expect(text).toContain('栏目用词不一致')
+    // 三类的 aiFixMode 都是 none：这一屏上不该出现任何 AI 入口，也不该出现一个都没抄过的第二份名单
+    expect(byText('让 AI 出 SEO 建议').length).toBe(0)
+    expect(byText('让 AI 出改版草稿').length).toBe(0)
+    expect(byText('忽略').length).toBe(3)
+
+    // 类型下拉（第二个 a-select）的选项就是后端那份 types，不是前端硬编码的名单
+    const typeSelect = wrapper.findAllComponents({ name: 'ASelect' })[1]
+    expect((typeSelect.props('options') as any[]).map(item => item.value)).toEqual([
+      'nav_mismatch',
+      'header_asset_mismatch',
+      'term_mismatch'
+    ])
+    expect((typeSelect.props('options') as any[]).map(item => item.label)).toEqual([
+      '导航跨页不一致',
+      '页头跨页不一致',
+      '栏目用词不一致'
+    ])
+    wrapper.unmount()
+  })
+
+  /** 后端加了新类型而前端一个字没改：这一条就是把「不许抄第二份名单」钉住的形状 */
+  it('后端换掉跨页那三条的说法，界面跟着换，不留在旧名字上', async () => {
+    vi.mocked(portalHealthApi.options).mockResolvedValue({
+      types: {
+        ...CROSS_PAGE_OPTIONS.types,
+        term_mismatch: { ...CROSS_PAGE_OPTIONS.types.term_mismatch, label: '栏目叫法不统一' }
+      },
+      statuses: CROSS_PAGE_OPTIONS.statuses
+    } as any)
+    vi.mocked(portalHealthApi.findings).mockResolvedValue([finding(13, 'term_mismatch')] as any)
+    const wrapper = await mountView(['portal:build:health'])
+    expect(wrapper.text()).toContain('栏目叫法不统一')
+    expect(wrapper.text()).not.toContain('栏目用词不一致')
+    wrapper.unmount()
+  })
+
+  it('摘要条挂在这一屏上：选了哪家就读哪家的最近一跑，重查落账后这张清单跟着重拉一次', async () => {
+    vi.mocked(siteApi.list).mockResolvedValue([{ id: 1, name: '小山口腔' }, { id: 3, name: '南山口腔' }] as any)
+    vi.mocked(portalValidationApi.latest).mockResolvedValue({
+      id: 41,
+      tenantId: 15,
+      siteId: 3,
+      candidateId: null,
+      briefId: null,
+      round: 1,
+      triggerSource: 'manual',
+      checkerVersion: 'v1',
+      pagesScanned: 6,
+      blockerCount: 2,
+      warnCount: 0,
+      verdict: 'blocked',
+      createdAt: null,
+      finishedAt: null
+    } as any)
+    const wrapper = await mountView(['portal:build:health', 'portal:build:manage', 'portal:page:manage'])
+
+    // 没选站点时摘要条一个请求都不发，也不念任何计数（后端那三个读口的 siteId 是必填）
+    expect(wrapper.findComponent(SiteValidationStrip).exists()).toBe(true)
+    expect(portalValidationApi.latest).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('还没选定站点')
+    expect(wrapper.text()).not.toContain('0 条拦项')
+
+    // 站点下拉是第三个 a-select（状态、类型、站点），换一家就是 v-model 那一下
+    wrapper.findAllComponents({ name: 'ASelect' })[2].vm.$emit('update:value', 3)
+    await nextTickish()
+    await flushPromises()
+    expect(portalValidationApi.latest).toHaveBeenCalledWith(3)
+    expect(wrapper.text()).toContain('上次自检：这一套有 2 条拦项，修完才能交付（第 1 跑，读了 6 页）')
+
+    vi.mocked(portalValidationApi.scan).mockResolvedValue({
+      run: {
+        id: 42,
+        tenantId: 15,
+        siteId: 3,
+        candidateId: null,
+        briefId: null,
+        round: 2,
+        triggerSource: 'manual',
+        checkerVersion: 'v1',
+        pagesScanned: 6,
+        blockerCount: 0,
+        warnCount: 0,
+        verdict: 'pass',
+        createdAt: null,
+        finishedAt: null
+      },
+      findings: []
+    } as any)
+    vi.mocked(portalHealthApi.findings).mockClear()
+
+    const strip = wrapper.findComponent(SiteValidationStrip)
+    ;(strip.element.querySelector('.popconfirm-ok') as HTMLButtonElement).dispatchEvent(
+      new MouseEvent('click', { bubbles: true })
+    )
+    await flushPromises()
+
+    expect(portalValidationApi.scan).toHaveBeenCalledWith(3)
+    // @scanned 挂的是真处理函数：回执落账后清单重拉一次，不是只改了摘要那句话
+    expect(portalHealthApi.findings).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('上次自检：通过，读了 6 页，0 条拦项（第 2 跑）')
+    wrapper.unmount()
+  })
 })
 
 /** 这个环境里 rAF 不会跑（应用内标签页被隐藏），所以用微任务队列等渲染 */
