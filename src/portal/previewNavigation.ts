@@ -16,8 +16,10 @@ import type { LocationQueryRaw, RouteLocationRaw } from 'vue-router'
 import { PREVIEW_TOKEN_PARAM } from './api/portalPublic'
 
 /**
- * 不该被补上预览令牌的那几张面：工作台与登录是管理侧，`/brief/` 那条客户选择页
+ * 不该被当成门户的那几张面：工作台与登录是管理侧，`/brief/` 那条客户选择页
  * 自己的令牌在<em>路径</em>里（拍板 10），两种令牌混进同一条查询参数就是给自己埋雷。
+ * 这一份清单同时也是下面 isPortalPath 的根据：凡是不该出现门户外壳的地方，
+ * 也就不该被续上门户预览令牌——两件事判的是同一个事实，所以只留一份前缀表。
  */
 const NON_PORTAL_PREFIXES = ['/workspace', '/login', '/admin', '/brief/']
 
@@ -33,7 +35,14 @@ export function sitePreviewToken(): string {
   return siteScopedToken || ''
 }
 
-function isPortalPath(path: string): boolean {
+/**
+ * 这一条地址是不是门户那一路。
+ *
+ * 导出是因为「门户路径」这个概念的判据只能有一处：路由守卫拿它决定要不要续预览令牌，
+ * 404 页拿它决定要不要挂站点壳（挂错地方就是给管理后台多发一次壳请求、给工作台套上访客站的页头）。
+ * 两边各写一份前缀清单的话，加一条管理侧路径迟早只改一处——那种不一致不会报错，只会让某一页长得不对。
+ */
+export function isPortalPath(path: string): boolean {
   const value = path || '/'
   return !NON_PORTAL_PREFIXES.some(prefix => value.startsWith(prefix))
 }
