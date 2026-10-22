@@ -46,6 +46,14 @@
 
     <site-validation-strip :site-id="filters.siteId" @scanned="onValidated" />
 
+    <p v-if="groupByPage.length > 0" class="portal-health-page__grouping">
+      <b>按页面看这一套：</b>
+      <span v-for="group in groupByPage" :key="group.key" class="portal-health-page__group-item">
+        {{ group.label }} {{ group.count }} 条
+      </span>
+      <span class="portal-health-page__muted">（同一页里几条是不同的毛病，各占一格，不按页合并计数）</span>
+    </p>
+
     <state-block v-if="!loading && findings.length === 0" state="empty" title="没有待处理的巡检结果——还没扫过的话，点右上角「立即巡检」" />
     <data-table
       v-else
@@ -391,6 +399,23 @@ function pageTitle(pageId: number): string {
   return `${page.title || page.slug || '未命名页面'}（#${pageId}）`
 }
 
+/**
+ * 设计文档 §6 那句「按页面分组列」：只把当前这批结果按页归堆念一遍条数，
+ * 明细仍在下面那张表里逐条摆着——归堆不改计数，也不替后端把 open/fixed 归纳成「能不能交付」。
+ */
+const groupByPage = computed(() => {
+  const buckets = new Map<string, { key: string; label: string; count: number }>()
+  for (const finding of findings.value) {
+    const pageId = finding.pageId
+    const key = pageId === null || pageId === undefined ? 'site' : `page-${pageId}`
+    const label = pageId === null || pageId === undefined ? '站点级（不针对单页）' : pageTitle(pageId)
+    const bucket = buckets.get(key)
+    if (bucket) bucket.count += 1
+    else buckets.set(key, { key, label, count: 1 })
+  }
+  return [...buckets.values()].sort((a, b) => b.count - a.count)
+})
+
 function suggestionOf(finding: HealthFinding) {
   return seoSuggestionOf(finding)
 }
@@ -660,6 +685,20 @@ onMounted(async () => {
 
 .portal-health-page__muted {
   color: rgba(0, 0, 0, 0.45);
+}
+
+.portal-health-page__grouping {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.portal-health-page__group-item {
+  margin-right: 12px;
+  color: rgba(0, 0, 0, 0.65);
 }
 
 .portal-health-page__message {
