@@ -112,7 +112,7 @@
               </a-tag>
             </template>
             <template v-if="column.key === 'type'">
-              <a-tag color="blue">{{ describeModelTypes(record.modelType) }}</a-tag>
+              <a-tag class="model-type-tag" color="blue">{{ describeModelTypes(record.modelType) }}</a-tag>
             </template>
             <template v-if="column.key === 'apiProtocol'">
               <a-tooltip :title="protocolTooltip(record)">
@@ -571,6 +571,8 @@ const columns = [
   { title: '配置名称', dataIndex: 'name', key: 'name', width: 200 },
   { title: '提供商', key: 'provider', width: 140 },
   { title: '模型', dataIndex: 'modelName', key: 'modelName', width: 140 },
+  // 多选之后这一格必须摆在表上：筛「按模型类型筛」筛的是一个看不见的东西，等于让操作者猜
+  { title: '模型类型', key: 'type', width: 130 },
   { title: '接口协议', key: 'apiProtocol', width: 130 },
   { title: '单价（元/1k token）', key: 'pricePer1kTokens', width: 170 },
   { title: '限定用途', key: 'purposeScope', width: 170 },

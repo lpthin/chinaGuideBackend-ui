@@ -102,6 +102,7 @@ const TABLE_STUB = {
   template: `
     <div class="table-stub">
       <div v-for="(record, rowIndex) in dataSource" :key="rowIndex" class="row">
+        <slot v-if="$slots.bodyCell" name="bodyCell" :column="{ key: 'type' }" :record="record" />
         <slot v-if="$slots.bodyCell" name="bodyCell" :column="{ key: 'purposeScope' }" :record="record" />
         <slot v-if="$slots.bodyCell" name="bodyCell" :column="{ key: 'actions' }" :record="record" />
         <span class="row-name">{{ record.name }}</span>
@@ -297,6 +298,21 @@ describe('模型配置页 · 「模型类型」改成多选（2026-10-22 拍板�
     filter.vm.$emit('update:value', null)
     await flushPromises()
     expect(document.querySelectorAll('.table-stub .row')).toHaveLength(2)
+  })
+
+  it('表上就得看得见这一行勾了哪几个类型：列要在，念的是多值那一句', async () => {
+    const wrapper = await mountView([MULTIMODAL_ROW, VISION_ONLY_ROW])
+
+    // 「按模型类型筛选」筛的就是这一列；列不在表上，等于让操作者筛一个看不见的东西
+    const columns = wrapper.findComponent(TABLE_STUB as any).props('columns') as { key?: string; title?: string }[]
+    const typeColumn = columns.find(column => column.key === 'type')
+    expect(typeColumn, '表格里应有 key 是 type 的那一列').toBeTruthy()
+    expect(typeColumn!.title).toBe('模型类型')
+    expect(columns.findIndex(column => column.key === 'type'))
+      .toBeLessThan(columns.findIndex(column => column.key === 'apiProtocol'))
+
+    expect(rowByLabel('通义千问-多模态').querySelector('.model-type-tag')?.textContent).toBe('聊天 + 视觉')
+    expect(rowByLabel('通义千问-看图').querySelector('.model-type-tag')?.textContent).toBe('视觉模型')
   })
 
   it('念类型要念得出多值：两个词念「聊天 + 视觉」，一个词念全名', async () => {
