@@ -61,7 +61,10 @@ const mobileOpen = ref(false)
 const scrolled = ref(false)
 
 const siteName = computed(() => text(props.blockProps, 'siteName') || props.shell?.company?.name || props.shell?.siteName || '')
-const logo = computed(() => text(props.blockProps, 'logoUrl') || props.shell?.company?.logo || '')
+// 2026-10-22 产品口径「客户提供 logo 就用用户的，没有才用 AI 生成的」：客户在企业资料里上传的那一张优先，
+// 区块槽位里那一张是建站出图那一步写的，只在客户没给图时兜底。判「全站是不是同一张」的三处后端也读同一个口径
+// （CompanyInfoService.providedLogoUrl），否则检测层会按渲染不到的那一张报警。
+const logo = computed(() => props.shell?.company?.logo || text(props.blockProps, 'logoUrl') || '')
 const navItems = computed(() => (props.shell?.nav ?? []).filter(item => item.title && item.url))
 
 function isActive(url: string) {
