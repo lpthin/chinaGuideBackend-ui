@@ -227,6 +227,23 @@ describe('模型配置页 · 「模型类型」改成多选（2026-10-22 拍板�
     expect(typeSelectNode(wrapper).props('mode')).toBe('multiple')
   })
 
+  it('「同时勾聊天和生图」是放行不加闸，但那一格得把话说清：五个词都不许被禁选，说明里念得出为什么', async () => {
+    const wrapper = await mountView([MULTIMODAL_ROW])
+
+    // 2026-10-23 拍板：两头都不拦（聊天那条腿只挑勾了聊天的行、生图那条腿只挑勾了图像的行，各走各的），
+    // 所以界面上不许出现「勾了这个就不能勾那个」的禁选；代价是这句话必须写在格子下面，不然没人知道勾错会怎样
+    const options = typeSelectNode(wrapper).props('options') as { value: string; disabled?: boolean }[]
+    expect(options).toHaveLength(5)
+    expect(options.some(option => option.disabled)).toBe(false)
+
+    const typeItem = wrapper.findAllComponents(PASS_THROUGH('AFormItem') as any)
+      .find(node => node.props('label') === '模型类型')
+    expect(typeItem, '弹窗里应有「模型类型」那一格').toBeTruthy()
+    const extra = typeItem!.props('extra') as string
+    expect(extra).toContain('两类同时勾不互相拦')
+    expect(extra).toContain('勾上哪一项就得真会哪一项')
+  })
+
   it('多选框回填拆得开、提交收得拢：勾了 chat 与 vision 的那一行保存出去还是同一个串', async () => {
     const wrapper = await mountView([MULTIMODAL_ROW])
     await clickRowButton('通义千问-多模态', '编辑')
