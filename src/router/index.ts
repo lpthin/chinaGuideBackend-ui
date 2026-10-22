@@ -837,7 +837,11 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: '页面巡检',
           icon: 'safety',
-          requiredPermission: 'portal:build:health'
+          requiredPermission: 'portal:build:health',
+          // 2026-10-22 产品口径「租户那边不应该看到页面巡检」：这一屏查的是「我们给客户的站合不合格」，
+          // 改它的人也是平台。只判权限码不够——角色管理那一屏能把任何码授给任何角色，
+          // 一旦授了，租户敲地址就进得来。所以和「新建网站」向导同一条口径，档位也要判。
+          requiresSuperAdmin: true
         }
       },
       {
