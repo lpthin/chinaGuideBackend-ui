@@ -871,7 +871,7 @@ export interface BriefCandidateProgress {
   /** plan 落库的「这套侧重什么」原话（§6.1）；界面一个字都不改写 */
   focus?: string | null;
   tone?: string | null;
-  /** 当前阶段码（plan/copy/seo/demo/image/shots/preview/done）：中文名只认 stageLabel */
+  /** 当前阶段码（plan/copy/seo/demo/image/shots/validate/preview/done）：中文名只认 stageLabel */
   stage?: string | null;
   stageLabel?: string | null;
   /** 子任务状态码 + 后端给的中文（取不到中文就露码） */

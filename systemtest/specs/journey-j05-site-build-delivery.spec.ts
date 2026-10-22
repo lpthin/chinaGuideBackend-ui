@@ -15,7 +15,8 @@ import { env } from '../lib/env';
  * 真实租户（1、15）只读不写：本程全部写落在 E2E-<runId> 前缀的探针租户里。
  */
 
-const STAGES = ['queued', 'site', 'plan', 'copy', 'seo', 'demo', 'image', 'shots', 'preview', 'done'];
+// validate（交付前自检）排在 preview 之前：自检没过的那套连对客户的预览链接都不该签出去
+const STAGES = ['queued', 'site', 'plan', 'copy', 'seo', 'demo', 'image', 'shots', 'validate', 'preview', 'done'];
 const TERMINAL = ['succeeded', 'failed'];
 
 type Rec = Record<string, unknown>;
