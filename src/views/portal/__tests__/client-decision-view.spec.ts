@@ -459,3 +459,30 @@ describe('提交一次，然后锁死', () => {
     unnamed.unmount()
   })
 })
+
+describe('那一句「已通过 N 项自动检查」（Spec-N2 §6：N 只念后端下发的那一个数）', () => {
+  it('后端带了项数就照着念，并且数字跟着后端变：界面没有自己数一遍判据', async () => {
+    for (const count of [5, 3]) {
+      const wrapper = await mountView({
+        token: 'tok',
+        data: briefView({
+          candidates: [{ siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'corporate-base', skeletonName: '基础企业形象站', focus: null, tone: null, previewUrl: '/?reviewToken=t31', autoCheckCount: count }]
+        })
+      })
+      expect(wrapper.text()).toContain(`这一套已通过 ${count} 项自动检查`)
+      wrapper.unmount()
+    }
+  })
+
+  it('后端没带这一格（或带 0）时整行不出现：不合格那套本来就不会下发到这一页，界面不替它说「已通过」', async () => {
+    for (const candidate of [
+      { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'corporate-base', skeletonName: '基础企业形象站', focus: null, tone: null, previewUrl: '/?reviewToken=t31' },
+      { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'corporate-base', skeletonName: '基础企业形象站', focus: null, tone: null, previewUrl: '/?reviewToken=t31', autoCheckCount: 0 },
+      { siteId: 31, candidateNo: 1, name: '甲', skeletonKey: 'corporate-base', skeletonName: '基础企业形象站', focus: null, tone: null, previewUrl: '/?reviewToken=t31', autoCheckCount: null }
+    ]) {
+      const wrapper = await mountView({ token: 'tok', data: briefView({ candidates: [candidate] }) })
+      expect(wrapper.text()).not.toContain('自动检查')
+      wrapper.unmount()
+    }
+  })
+})

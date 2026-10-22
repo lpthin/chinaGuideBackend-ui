@@ -5,6 +5,7 @@ import {
   clientBriefApi,
   clientBriefStatusLabel,
   clientCandidatesDifference,
+  clientAutoCheckLabel,
   clientSkeletonLabel,
   resolvePreviewUrl,
   type ClientBriefCandidate,
@@ -251,6 +252,10 @@ async function submit() {
           </p>
           <p v-if="(candidate.tone || '').trim()" class="client-decision__line">
             <b>这一套的语气：</b>{{ candidate.tone }}
+          </p>
+          <!-- 项数只念后端下发的那一个数；没通过自检的那套后端不会发下来，这里也就不替它说「已通过」 -->
+          <p v-if="clientAutoCheckLabel(candidate)" class="client-decision__notice">
+            {{ clientAutoCheckLabel(candidate) }}
           </p>
           <p v-if="previewHref(candidate)" class="client-decision__line">
             <!-- 每套各用自己的预览令牌：令牌绑站不绑页，点进去就是完整的一套站（含演示内容） -->

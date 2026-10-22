@@ -41,6 +41,12 @@ export interface ClientBriefCandidate {
   tone: string | null;
   /** 这一套自己的预览地址（令牌绑站不绑页）；未配 preview-base-url 时是相对路径，由前端按当前 origin 拼 */
   previewUrl: string | null;
+  /**
+   * 这一套过了交付前自检几项（后端唯一出处 `SiteCrossPageScanner.CHECK_COUNT`）；
+   * 自检没通过的那套后端根本不会随链接下发，所以取到 0 或没带这一格时，界面都不许替它说「已通过」。
+   * 可选是因为这一格比这一屏老，回包缺它时界面走「少一句」而不是报错。
+   */
+  autoCheckCount?: number;
 }
 
 /** `ClientBriefView`：所有失败场景都是「同一个形状 + 空 candidates」（§9-7），所以这里没有 error 字段 */
@@ -94,6 +100,18 @@ export function clientBriefStatusLabel(status: string | null | undefined): strin
  */
 export function clientSkeletonLabel(candidate: Pick<ClientBriefCandidate, 'skeletonName'>): string {
   return (candidate.skeletonName ?? '').trim();
+}
+
+/**
+ * 这一套的自动检查那一句（设计文档 §6：客户侧只念结果，不念过程）。
+ *
+ * 项数只从后端那一个数来（`SiteCrossPageScanner.CHECK_COUNT` 经 `autoCheckCount` 下发），
+ * 界面不再自己数一遍。取到 0 就回空串：那一套要么没做过自检、要么没通过（没通过的本来就不会随链接下发），
+ * 两种都不许界面替它说「已通过」。
+ */
+export function clientAutoCheckLabel(candidate: Pick<ClientBriefCandidate, 'autoCheckCount'>): string {
+  const count = Number(candidate.autoCheckCount ?? 0);
+  return count > 0 ? `这一套已通过 ${count} 项自动检查` : '';
 }
 
 /**
