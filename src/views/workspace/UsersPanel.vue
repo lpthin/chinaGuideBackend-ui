@@ -44,6 +44,19 @@
         row-key="id"
         @change="handleTableChange"
       >
+        <!-- 这一页没行的那一句只认后端（M-P70）：空会被读成「这一家没有这个人」，
+             所以「读不到」与「真的没有」必须由后端答，界面不改写。 -->
+        <template #emptyText>
+          <empty-list-hint
+            :loading="loading"
+            :read-failed="readFailed"
+            :empty-line="emptyLine"
+            :empty-reason="emptyReason"
+            can-create
+            create-label="新增用户"
+            @create="handleAdd"
+          />
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'avatar'">
             <a-avatar :size="40">{{ record.nickname?.charAt(0) || record.username?.charAt(0) || 'U' }}</a-avatar>
@@ -212,10 +225,17 @@ import {
   SettingOutlined,
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 import type { Role } from '../../types'
 
 const authStore = useAuthStore()
@@ -231,6 +251,9 @@ const currentUserId = ref<number | null>(null)
 const users = ref<any[]>([])
 const roleList = ref<Role[]>([])
 const selectedRoleIds = ref<number[]>([])
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 
 const pwdModalVisible = ref(false)
 const pwdSubmitting = ref(false)
@@ -367,6 +390,9 @@ const columns = [
 
 async function loadUsers() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const result = await adminApi.users.list({
       page: pagination.current,
@@ -376,8 +402,17 @@ async function loadUsers() {
     })
     users.value = result.records || []
     pagination.total = result.total || 0
+    emptyLine.value = (result as any)?.emptyLine || ''
+    emptyReason.value = asEmptyReason((result as any)?.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current)) {
+      pagination.current = 1
+      await loadUsers()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
     message.error(`加载用户列表失败：${describeHttpError(error)}`)
+    readFailed.value = describeHttpError(error)
   } finally {
     loading.value = false
   }
