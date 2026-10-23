@@ -1,4 +1,4 @@
-import http from './http'
+import http, { AI_REQUEST_TIMEOUT } from './http'
 import type { HealthFinding, HealthType } from './portalHealth'
 
 /**
@@ -7,11 +7,15 @@ import type { HealthFinding, HealthType } from './portalHealth'
  * 三条与巡检接口一致的纪律：
  * 1. 结论、触发口径、级别、类型名的中文说法只认 `GET /portal/validation/options` 那一份，
  *    这一头不抄第二份名单——抄了就不跟着后端变；
- * 2. 四个口都没有请求体能伪造的租户号：站点归属由登录态推定，而 `siteId` 是**必填**
+ * 2. 这些口都没有请求体能伪造的租户号：站点归属由登录态推定，而 `siteId` 是**必填**
  *    （`SiteValidationController` 三条读口都先过 `requireTargetSite`：猜错一个站就是把结论
  *    记到别家账上，而那句结论要拦交付）；
  * 3. 界面不推进状态：`latest` 回 null 就是「没跑过」，绝不能演成「跑过了、0 条拦项」——
  *    谎报正是这一族要杀掉的东西。
+ *
+ * 最后那一支 `reask` 走的是 `/admin/sites/{id}/reask`（建站那一族），不是本文件的 `/portal/validation/*`：
+ * 校验那一族的承诺是「一个页面都不写」，而这一支会真的改页、真的花 token，挂进去就等于把那句
+ * 承诺说假。放在这里是因为**它和这几支是同一屏、同一个人点的**，界面不必为了一颗按钮再引第二个模块。
  */
 
 /** 结论三档，字面量与后端 `SiteValidationRun.VERDICT_*` 同名 */
@@ -56,6 +60,34 @@ export interface ValidationScanResult {
   findings: HealthFinding[]
 }
 
+/**
+ * `POST /admin/sites/{id}/reask` 的回执（与后端 `SiteProposalOrchestrator.ReaskResult` 逐字同名）。
+ *
+ * 这几格全是「本次动作的账」，不是状态：改了几处（`slotsAligned`，这一档一次模型都不调）、
+ * 问了模型几轮（`roundsRun`，上界 2）、改之前几条拦项、改之后剩几条。
+ * 过程那几句（`notices`）由后端原样给出，界面只念、不自己拼第二份文案。
+ */
+export interface ValidationReaskResult {
+  blockersBefore: number
+  slotsAligned: number
+  roundsRun: number
+  blockersAfter: number
+  verdict: string | null
+  runIdBefore: number | null
+  runIdAfter: number | null
+  notices: string[]
+}
+
+/**
+ * 「交给模型重问」这一发的超时。
+ *
+ * 后端是同步跑完才回的：一个有拦项的页就问一次、最多两轮，每一问都是一发真模型调用，
+ * 几十秒到几分钟都正常。用默认的 30s 会在后端还在花钱的时候先把连接掐掉——
+ * 那时页面已经改了、token 已经扣了，界面上却只能报「请求超时」，那是最坏的一种假失败。
+ * 取 AI_REQUEST_TIMEOUT 与 10 分钟里更大的那个（与组装那一发同一条口径）。
+ */
+export const VALIDATION_REASK_TIMEOUT = Math.max(AI_REQUEST_TIMEOUT, 600000)
+
 export const portalValidationApi = {
   /** 最近一次跑的那一行；从没跑过回 null（界面上那一句必须念「还没跑过」） */
   latest: (siteId: number) =>
@@ -75,7 +107,21 @@ export const portalValidationApi = {
    * siteId 走查询串、没有请求体（对着后端 `scan(@RequestParam Long siteId)` 那一行抄）。
    */
   scan: (siteId: number) =>
-    http.post<ValidationScanResult>('/portal/validation/scan', null, { params: { siteId } })
+    http.post<ValidationScanResult>('/portal/validation/scan', null, { params: { siteId } }),
+
+  /**
+   * 交给模型重问（2026-10-23 拍板「加一个只有超管能点的按钮」）：
+   * 后端先查这一站的跨页拦项，能自己改齐的自己改齐（一次模型都不调），改不动的那些页逐页问模型、
+   * 最多两轮，最后再查一遍并落账（触发口径 `manual_reask`）。
+   *
+   * 与上面那一支的分别是这一屏最容易念错的地方：`scan` 一个字都不改、一个模型都不调；
+   * 这一支会真的改写页面（每一页都有版本历史可逐页退回去）、会真的花 token。
+   * 所以它只在「上一次那一跑真有拦项」时才给按钮，界面上那句提醒也不许省。
+   */
+  reask: (siteId: number) =>
+    http.post<ValidationReaskResult>(`/admin/sites/${siteId}/reask`, null, {
+      timeout: VALIDATION_REASK_TIMEOUT
+    })
 }
 
 /** 「这个站还没跑过自检」：`latest` 回 null 时唯一允许出现的那一句 */

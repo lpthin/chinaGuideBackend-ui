@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { portalValidationApi, validationSummaryText, VALIDATION_NOT_RUN_TEXT } from '../portalValidation'
+import {
+  portalValidationApi,
+  validationSummaryText,
+  VALIDATION_NOT_RUN_TEXT,
+  VALIDATION_REASK_TIMEOUT
+} from '../portalValidation'
 import type { ValidationRun } from '../portalValidation'
 
 /**
@@ -7,8 +12,9 @@ import type { ValidationRun } from '../portalValidation'
  *
  * 钉四件事：
  * 1. 路径不带第二份 /api 前缀（http 实例已有 baseURL）；
- * 2. siteId 是必填查询串，且 POST 那一发没有请求体——对着后端 `scan(@RequestParam Long siteId)` 抄的；
- *    猜错一个站就是把结论记到别家账上，而那句结论要拦交付；
+ * 2. siteId 是必填：读口与「现在重查一遍」走查询串，「交给模型重问」走路径段——
+ *    两边都是对着后端那两个方法的签名抄的。猜错一个站就是把结论记到别家账上，
+ *    而那句结论要拦交付、那一发还会真的改页面；
  * 3. 中文结论句子只有一个出处（validationSummaryText），本文件不许再抄一份词表；
  * 4. latest 回 null 时念的是「还没跑过自检」，绝不允许出现「0 条拦项」——谎报正是这一族要杀的。
  */
@@ -19,7 +25,8 @@ vi.mock('../http', () => ({
     post: vi.fn().mockResolvedValue({}),
     put: vi.fn().mockResolvedValue({}),
     delete: vi.fn().mockResolvedValue({})
-  }
+  },
+  AI_REQUEST_TIMEOUT: 180000
 }))
 
 async function httpMock() {
@@ -87,6 +94,20 @@ describe('portalValidationApi 的请求形状', () => {
     const http = await httpMock()
     await portalValidationApi.scan(3)
     expect(http.post).toHaveBeenCalledWith('/portal/validation/scan', null, { params: { siteId: 3 } })
+  })
+
+  /**
+   * 「交给模型重问」那一发钉三点，每一点都对应一种会出的事故：
+   * 路径在 `/admin/sites/{id}/reask`（挂建站那一族，因为这一支会改页面——校验那一族的承诺是「一个字都不写」），
+   * 站点号走路径段且没有请求体（对着 `reask(@PathVariable Long id)` 抄），
+   * 超时必须放宽到十分钟那一档：后端是同步跑完才回的，用默认 30s 会在它还在花钱的时候掐断连接，
+   * 于是「页面改了、token 扣了、界面上报请求超时」——那是最坏的一种假失败。
+   */
+  it('重问那一发：走建站那一族的路径、无请求体、超时放宽到 10 分钟那一档', async () => {
+    const http = await httpMock()
+    await portalValidationApi.reask(3)
+    expect(http.post).toHaveBeenCalledWith('/admin/sites/3/reask', null, { timeout: VALIDATION_REASK_TIMEOUT })
+    expect(VALIDATION_REASK_TIMEOUT).toBe(600000)
   })
 })
 
