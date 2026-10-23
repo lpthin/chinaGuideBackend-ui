@@ -233,8 +233,8 @@ function focusText(slot: CandidateSlot): string {
 /** 演示内容的实际落库数：进度口回了就以它为准，没回才只说需求单上的档位 */
 function demoActualText(slot: CandidateSlot): string {
   const row = slot.row
-  if (!row || (row.demoArticles == null && row.demoCases == null)) return ''
-  return `实际落了文章 ${row.demoArticles ?? 0} 篇 / 案例 ${row.demoCases ?? 0} 条`
+  if (!row || (row.demoArticles == null && row.demoCases == null && row.demoJobs == null)) return ''
+  return `实际落了文章 ${row.demoArticles ?? 0} 篇 / 案例 ${row.demoCases ?? 0} 条 / 岗位 ${row.demoJobs ?? 0} 个`
 }
 
 /** 配图三本账：只在进度口真回了数字时才说，跳过与失败分开讲（拍板 8B） */

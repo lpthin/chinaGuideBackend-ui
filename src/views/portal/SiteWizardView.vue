@@ -173,7 +173,7 @@ function progressOf(candidate: BriefCandidateSite): BriefCandidateProgress | nul
 function setLedger(candidate: BriefCandidateSite): string {
   const row = progressOf(candidate)
   return [
-    `演示内容 文章 ${row?.demoArticles ?? '没取到'} 篇 / 案例 ${row?.demoCases ?? '没取到'} 条`,
+    `演示内容 文章 ${row?.demoArticles ?? '没取到'} 篇 / 案例 ${row?.demoCases ?? '没取到'} 条 / 岗位 ${row?.demoJobs ?? '没取到'} 个`,
     `配图 成功 ${row?.imageDone ?? '没取到'} 张、失败 ${row?.imageFailed ?? 0} 张、跳过 ${row?.imageSkipped ?? 0} 张（跳过不等于失败）`,
     `实耗 ${row?.promptTokens ?? '没取到'} + ${row?.completionTokens ?? '没取到'} token`
   ].join('；')

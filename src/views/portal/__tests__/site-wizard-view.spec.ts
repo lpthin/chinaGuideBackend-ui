@@ -905,7 +905,7 @@ describe('新建网站向导', () => {
     ])
     // 只有第 1 套读得到进度：第 2 套那些格子必须念「没取到」，念 0 是说「一张图都没出」
     vi.mocked(briefGenerationApi.progress).mockResolvedValue([
-      progressRow({ demoArticles: 8, demoCases: 3, imageDone: 2, imageFailed: 0, imageSkipped: 1, promptTokens: 900, completionTokens: 4000 })
+      progressRow({ demoArticles: 8, demoCases: 3, demoJobs: 2, imageDone: 2, imageFailed: 0, imageSkipped: 1, promptTokens: 900, completionTokens: 4000 })
     ])
 
     mountAt('candidates', '7')
@@ -913,7 +913,7 @@ describe('新建网站向导', () => {
 
     expect(bodyText()).toContain('每一套的账')
     expect(bodyText()).toContain('第 1 套')
-    expect(bodyText()).toContain('文章 8 篇 / 案例 3 条')
+    expect(bodyText()).toContain('文章 8 篇 / 案例 3 条 / 岗位 2 个')
     expect(bodyText()).toContain('成功 2 张、失败 0 张、跳过 1 张')
     expect(bodyText()).toContain('跳过不等于失败')
     expect(bodyText()).toContain('实耗 900 + 4000 token')

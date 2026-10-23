@@ -146,7 +146,7 @@ function row(overrides: Record<string, unknown> = {}) {
     stage: 'preview', stageLabel: '预览链接就绪', skeletonKey: 'lead-gen',
     focus: '这一套把案例与联系方式放在首屏，侧重点是把访客变成来电',
     notices: [], estimatedTokens: 130000, promptTokens: 90000, completionTokens: 40000,
-    demoArticles: 10, demoCases: 3, imageDone: 2, imageFailed: 0, imageSkipped: 0,
+    demoArticles: 10, demoCases: 3, demoJobs: 3, imageDone: 2, imageFailed: 0, imageSkipped: 0,
     ...overrides
   }
 }
@@ -469,13 +469,13 @@ describe('配图三本账与演示内容', () => {
   it('演示内容：档位取词表原话，进度回了实际落库数就一并说；§9-4 标注每张卡都挂', async () => {
     const wrapper = await mountView({
       sites: [site(31, 1), site(32, 2)],
-      progressData: [row({ siteId: 31, demoArticles: 12, demoCases: 4 })]
+      progressData: [row({ siteId: 31, demoArticles: 12, demoCases: 4, demoJobs: 5 })]
     })
     const text = wrapper.text()
     // 档位那一行就是词表 label 那一句原话：数量口径后端已经写在里面，前端不许再拼第二遍
     expect(text).toContain('整套演示（10 篇文章 + 3 条案例）')
     expect(text).not.toContain('（文章 10 篇 / 案例 3 条）')
-    expect(text).toContain('实际落了文章 12 篇 / 案例 4 条')
+    expect(text).toContain('实际落了文章 12 篇 / 案例 4 条 / 岗位 5 个')
     expect(text).toContain(DEMO_CONTENT_DISCLAIMER_TEXT)
     // 两张卡各挂一遍，不是页头挂一句就完事
     expect(text.split(DEMO_CONTENT_DISCLAIMER_TEXT).length - 1).toBeGreaterThanOrEqual(2)

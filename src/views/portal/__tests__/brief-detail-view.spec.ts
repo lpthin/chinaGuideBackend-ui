@@ -210,6 +210,7 @@ const DEFAULT_QUOTE = {
   pagesPerCandidate: 7,
   demoArticles: 10,
   demoCases: 3,
+  demoJobs: 3,
   imageSlots: 2,
   tokenEquivalentsPerImage: 1500,
   estimatedTokens: 260000,

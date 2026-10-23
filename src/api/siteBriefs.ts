@@ -785,6 +785,7 @@ export interface BriefEstimateQuote {
   pagesPerCandidate: number;
   demoArticles: number;
   demoCases: number;
+  demoJobs: number;
   /** 这一套有几个图位（hero 主视觉 / 站头 logo）：配图按张记账 */
   imageSlots: number;
   tokenEquivalentsPerImage: number;
@@ -886,6 +887,7 @@ export interface BriefCandidateProgress {
   completionTokens?: number | null;
   demoArticles?: number | null;
   demoCases?: number | null;
+  demoJobs?: number | null;
   /** 配图的三本账：成功几张、失败几张、跳过几张（跳过不等于失败，拍板 8B） */
   imageDone?: number | null;
   imageFailed?: number | null;
