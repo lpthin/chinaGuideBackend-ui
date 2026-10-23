@@ -147,6 +147,15 @@
             :row-key="(record: PortalMessage) => record.id"
             @change="handleTableChange"
           >
+            <!-- 这一屏的空会被读成「你没有信」，所以那一句只认后端回的成因（N-05） -->
+            <template #emptyText>
+              <empty-list-hint
+                :loading="loading"
+                :read-failed="readFailed"
+                :empty-line="emptyLine"
+                :empty-reason="emptyReason"
+              />
+            </template>
             <template #bodyCell="{ column, record, text }">
               <template v-if="column.key === 'title'">
                 <div class="message-title" :class="{ unread: isUnread(record) }">
@@ -259,6 +268,9 @@ import type { PortalMessage, PortalMessageStats, PortalMessageQuery, PortalMessa
 import type { Tenant } from '../../types/workspace'
 import TenantSelect from '../../components/TenantSelect.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { describeHttpError } from '../../api/http'
+import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
@@ -278,6 +290,11 @@ const stats = reactive<PortalMessageStats>({
 
 /** 统计那一发读不到时写在明处的一句话；有值就代表这三个数是「没读到」，不是「真的为 0」 */
 const statsNote = ref('')
+
+// 列表空态的那一句只认后端（N-05）：读失败 / 后端答了成因 / 后端没答，三件事分开说
+const readFailed = ref('')
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
 
 const queryParams = reactive({
   type: 'inbox' as 'inbox' | 'outbox',
@@ -468,6 +485,9 @@ async function loadMessageList() {
     return
   }
   loading.value = true
+  readFailed.value = ''
+  emptyLine.value = ''
+  emptyReason.value = null
   try {
     const params: PortalMessageQuery = {
       page: paginationConfig.current,
@@ -485,8 +505,19 @@ async function loadMessageList() {
       : await portalMessageApi.outbox(params)
     messageList.value = result.records || []
     paginationConfig.total = result.total || 0
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    if (shouldJumpBackToFirstPage(emptyReason.value, paginationConfig.current)) {
+      paginationConfig.current = 1
+      await loadMessageList()
+      message.info(JUMP_BACK_NOTICE)
+      return
+    }
   } catch (error: any) {
-    message.error(`加载消息列表失败：${String(error?.message || '未知原因')}`)
+    readFailed.value = describeHttpError(error)
+    messageList.value = []
+    paginationConfig.total = 0
+    message.error(`加载消息列表失败：${readFailed.value}`)
     logError('portal/message-manage-view', '加载消息列表失败:', error)
   } finally {
     loading.value = false

@@ -315,6 +315,17 @@
                 @change="handleTableChange"
                 class="article-table"
               >
+                <!-- 真的没内容时念后端那句成因；有内容只是被本屏的筛选条件筛掉时说筛选，别把两种空混成一句（N-05） -->
+                <template #emptyText>
+                  <empty-list-hint
+                    v-if="articles.length === 0"
+                    :loading="loading"
+                    :read-failed="readFailed"
+                    :empty-line="emptyLine"
+                    :empty-reason="emptyReason"
+                  />
+                  <span v-else>没有符合当前筛选条件的文章。</span>
+                </template>
                 <template #bodyCell="{ column, record }">
                   <template v-if="column.key === 'title'">
                     <div class="article-title-cell">
@@ -401,6 +412,14 @@
 
             <!-- 卡片视图 -->
             <div v-else-if="viewMode === 'card'" class="view-content card-view">
+              <empty-list-hint
+                v-if="filteredArticles.length === 0 && articles.length === 0"
+                :loading="loading"
+                :read-failed="readFailed"
+                :empty-line="emptyLine"
+                :empty-reason="emptyReason"
+              />
+              <span v-else-if="filteredArticles.length === 0">没有符合当前筛选条件的文章。</span>
               <a-row :gutter="[16, 16]">
                 <a-col :xs="24" :sm="12" :md="8" :xl="6" v-for="article in filteredArticles" :key="article.id">
                   <a-card class="article-card" hoverable>
@@ -457,6 +476,14 @@
 
             <!-- 缩略图视图 -->
             <div v-else class="view-content thumbnail-view">
+              <empty-list-hint
+                v-if="filteredArticles.length === 0 && articles.length === 0"
+                :loading="loading"
+                :read-failed="readFailed"
+                :empty-line="emptyLine"
+                :empty-reason="emptyReason"
+              />
+              <span v-else-if="filteredArticles.length === 0">没有符合当前筛选条件的文章。</span>
               <a-row :gutter="[8, 8]">
                 <a-col :xs="12" :sm="8" :md="6" :lg="4" :xl="3" v-for="article in filteredArticles" :key="article.id">
                   <a-card class="thumbnail-card" hoverable>
@@ -707,14 +734,20 @@ import { adminApi, articleManageApi, categoryApi } from '../../api'
 import { formatTime, formatDate } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import { articleStatusMeta as statusMeta } from '../../utils/contentStatus'
 import { describeHttpError } from '../../api/http'
+import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 
 const auth = useAuthStore()
 
 const loading = ref(false)
+// 空态的那一句只认后端（N-05）：读失败 / 后端答了成因 / 后端没答，三件事分开说
+const readFailed = ref('')
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
 const showArticleEditor = ref(false)
 const showArticlePreview = ref(false)
 const editingArticle = ref<any>(null)
@@ -1289,6 +1322,9 @@ function goToReview() {
 
 async function loadData() {
   loading.value = true
+  readFailed.value = ''
+  emptyLine.value = ''
+  emptyReason.value = null
   try {
     const [articlesData, categoriesData, authorsData] = await Promise.all([
       articleManageApi.list({ page: 1, size: 100 } as any),
@@ -1299,6 +1335,10 @@ async function loadData() {
     const articleList = (articlesData as any)?.records || (articlesData as any) || []
     const categoryList = categoriesData?.records || categoriesData || []
     const authorList = (authorsData as any)?.records || (authorsData as any) || []
+
+    // 这一屏的空会被读成「这家没有内容」，所以整页没行时只念后端那句成因
+    emptyLine.value = (articlesData as any)?.emptyLine || ''
+    emptyReason.value = asEmptyReason((articlesData as any)?.emptyReason)
 
     articles.value = articleList
     categories.value = categoryList
@@ -1347,7 +1387,8 @@ async function loadData() {
     const topArticle = articleList.reduce((max: any, a: any) => (a.viewCount || 0) > (max?.viewCount || 0) ? a : max, null)
     stats.topViews = topArticle?.viewCount || 0
   } catch (error) {
-    message.error('数据加载失败')
+    readFailed.value = describeHttpError(error)
+    message.error(`数据加载失败：${readFailed.value}`)
     logError('workspace/articles-panel', error)
   } finally {
     loading.value = false

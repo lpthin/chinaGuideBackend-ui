@@ -102,6 +102,15 @@
             :pagination="false"
             :row-key="(record: any) => record.id"
           >
+            <!-- 这一屏的空会被销售读成「这家没有线索」，所以那一句只认后端回的成因（N-05） -->
+            <template #emptyText>
+              <empty-list-hint
+                :loading="loading"
+                :read-failed="readFailed"
+                :empty-line="emptyLine"
+                :empty-reason="emptyReason"
+              />
+            </template>
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'content'">
                 <div class="message-content">{{ record.content }}</div>
@@ -229,12 +238,19 @@ import { guestbookApi } from '../../api/portal'
 import type { Guestbook, GuestbookQuery } from '../../types/portal'
 import { formatDateTime } from '../../utils/format'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { describeHttpError } from '../../api/http'
+import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 
 const auth = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
+// 空态的那一句只认后端（N-05）：读失败 / 后端答了成因 / 后端没答，三件事分开说
+const readFailed = ref('')
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
 const replyModalVisible = ref(false)
 const currentRecord = ref<Guestbook | null>(null)
 
@@ -364,6 +380,9 @@ async function handleDelete(id: number) {
 
 async function loadData() {
   loading.value = true
+  readFailed.value = ''
+  emptyLine.value = ''
+  emptyReason.value = null
   try {
     const params: GuestbookQuery = {
       tenantId: auth.selectedTenantId || auth.tenantId,
@@ -376,9 +395,21 @@ async function loadData() {
     const result = await guestbookApi.list(params)
     messageList.value = result.records || []
     pagination.total = result.total || 0
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍（判据在 emptyPage，最多多发一发）
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.page)) {
+      pagination.page = 1
+      await loadData()
+      message.info(JUMP_BACK_NOTICE)
+      return
+    }
     loadStats()
   } catch (error) {
-    message.error('加载留言列表失败')
+    readFailed.value = describeHttpError(error)
+    messageList.value = []
+    pagination.total = 0
+    message.error(`加载留言列表失败：${readFailed.value}`)
     logError('portal/guestbook-manage-view', error)
   } finally {
     loading.value = false

@@ -236,4 +236,8 @@ export interface PageResult<T> {
   page: number
   size: number
   pages: number
+  /** 这一页没行时是哪一种空（`NONE` / `NOT_VISIBLE` / `OUT_OF_RANGE`，唯一出处在后端 `EmptyResultReasons`） */
+  emptyReason?: string | null
+  /** 与 `emptyReason` 同源的整句中文（界面逐字念，不自己编） */
+  emptyLine?: string | null
 }
