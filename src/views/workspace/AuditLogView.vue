@@ -64,7 +64,7 @@
         <a-col :span="8">
           <a-statistic
             title="操作总数"
-            :value="stats.total"
+            :value="statsUnreadable ? '—' : stats.total"
             :value-style="{ color: '#1890ff' }"
           >
             <template #prefix><FileTextOutlined /></template>
@@ -73,7 +73,7 @@
         <a-col :span="8">
           <a-statistic
             title="今日操作数"
-            :value="stats.todayTotal"
+            :value="statsUnreadable ? '—' : stats.todayTotal"
             :value-style="{ color: '#52c41a' }"
           >
             <template #prefix><FileTextOutlined /></template>
@@ -82,7 +82,7 @@
         <a-col :span="8">
           <a-statistic
             title="异常操作"
-            :value="stats.errorCount"
+            :value="statsUnreadable ? '—' : stats.errorCount"
             :value-style="{ color: '#ff4d4f' }"
           >
             <template #prefix><WarningOutlined /></template>
@@ -100,6 +100,16 @@
         row-key="id"
         @change="handleTableChange"
       >
+        <!-- 这一页没行的那一句只认后端（M-P69）：这一屏的空会被读成「这一家没人操作过」，
+             所以「读不到」与「真的没有」必须由后端答，界面不改写。 -->
+        <template #emptyText>
+          <empty-list-hint
+            :loading="loading"
+            :read-failed="readFailed"
+            :empty-line="emptyLine"
+            :empty-reason="emptyReason"
+          />
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'action'">
             <a-tag :color="getActionColor(record.action)">
@@ -167,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   SearchOutlined,
@@ -178,10 +188,18 @@ import {
 } from '@ant-design/icons-vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import { adminApi } from '../../api/workspace'
+import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { AuditLog, AuditLogStats } from '../../types/workspace'
 import { logError } from '../../utils/errorLog'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason
+} from '../../utils/emptyPage'
 
 const authStore = useAuthStore()
 
@@ -189,6 +207,12 @@ const loading = ref(false)
 const detailDrawerVisible = ref(false)
 const currentLog = ref<AuditLog | null>(null)
 const logList = ref<AuditLog[]>([])
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
+
+// 三格统计是按「选中的这一家」算的；这一家读不到时它们只能是 0，所以摆「—」而不是把 0 念成结果
+const statsUnreadable = computed(() => emptyReason.value === 'NOT_VISIBLE')
 
 const filterForm = reactive({
   action: undefined as string | undefined,
@@ -255,6 +279,9 @@ const getActionName = (action: string) => {
 
 const fetchLogs = async () => {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const params: any = {
       page: pagination.current,
@@ -282,8 +309,17 @@ const fetchLogs = async () => {
     const result = await adminApi.auditLogs.list(params) as any
     logList.value = result.records || []
     pagination.total = result.total || 0
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current ?? 1)) {
+      pagination.current = 1
+      await fetchLogs()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error: any) {
-    message.error(error.message || '获取审计日志失败')
+    readFailed.value = describeHttpError(error)
+    message.error(`获取审计日志失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }
