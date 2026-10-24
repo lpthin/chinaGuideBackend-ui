@@ -13,7 +13,7 @@
                   <PictureOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ formatNumber(stats.totalBanners) }}</div>
+                  <div class="stat-value">{{ statText(stats.totalBanners) }}</div>
                   <div class="stat-title">Banner 总数</div>
                 </div>
               </div>
@@ -26,7 +26,7 @@
                   <CheckCircleOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ formatNumber(stats.enabledCount) }}</div>
+                  <div class="stat-value">{{ statText(stats.enabledCount) }}</div>
                   <div class="stat-title">展示中（门户可见）</div>
                 </div>
               </div>
@@ -39,7 +39,7 @@
                   <StopOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ formatNumber(stats.disabledCount) }}</div>
+                  <div class="stat-value">{{ statText(stats.disabledCount) }}</div>
                   <div class="stat-title">已停用</div>
                 </div>
               </div>
@@ -118,6 +118,18 @@
                 </a-space>
               </template>
             </template>
+            <!-- 这一屏的空会被读成「这一家的轮播图没了」：三种空由后端答（M-P73） -->
+            <template #emptyText>
+              <empty-list-hint
+                :loading="loading"
+                :read-failed="readFailed"
+                :empty-line="emptyLine"
+                :empty-reason="emptyReason"
+                :can-create="true"
+                create-label="新建 Banner"
+                @create="openCreate"
+              />
+            </template>
           </a-table>
 
           <div class="pagination-wrapper">
@@ -187,7 +199,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PictureOutlined,
@@ -197,7 +209,15 @@ import {
 } from '@ant-design/icons-vue'
 import { bannerApi } from '../../api/portal'
 import type { Banner, BannerForm, BannerQuery } from '../../types/portal'
+import { describeHttpError } from '../../api/http'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import { formatDateTime, formatNumber } from '../../utils/format'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
 import FilterBar from '../../components/FilterBar.vue'
@@ -206,6 +226,16 @@ import { logError } from '../../utils/errorLog'
 const loading = ref(false)
 const saving = ref(false)
 const bannerList = ref<Banner[]>([])
+/** 空的那一发后端答了哪一种空：读不到 / 查过了没有 / 翻过头（M-P73） */
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
+const statsFailed = ref(false)
+/** 读不到这一家时统计数摆「—」：摆 0 等于说「这一家一条都没有」 */
+const statsUnreadable = computed(
+  () => !!readFailed.value || statsFailed.value || emptyReason.value === 'NOT_VISIBLE'
+)
+const statText = (n: number) => (statsUnreadable.value ? '—' : formatNumber(n))
 const previewVisible = ref(false)
 const previewBanner = ref<Banner | null>(null)
 const formVisible = ref(false)
@@ -338,6 +368,9 @@ async function handleDelete(id: number) {
 
 async function loadData() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const params: BannerQuery = {
       page: pagination.page,
@@ -347,9 +380,21 @@ async function loadData() {
     const result = await bannerApi.list(params)
     bannerList.value = result.records || []
     pagination.total = result.total || 0
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.page)) {
+      pagination.page = 1
+      await loadData()
+      message.info(JUMP_BACK_NOTICE)
+      return
+    }
     loadStats()
   } catch (error: any) {
-    message.error(error?.message || '加载 Banner 列表失败')
+    bannerList.value = []
+    pagination.total = 0
+    readFailed.value = describeHttpError(error)
+    message.error(`加载 Banner 列表失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }
@@ -365,7 +410,9 @@ async function loadStats() {
     stats.totalBanners = all.total || 0
     stats.enabledCount = enabled.total || 0
     stats.disabledCount = disabled.total || 0
+    statsFailed.value = false
   } catch (error) {
+    statsFailed.value = true
     logError('portal/banner-manage-view', '加载统计数据失败:', error)
   }
 }

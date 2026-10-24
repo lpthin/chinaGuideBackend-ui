@@ -48,8 +48,7 @@
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'page'">
           {{ pageTitle(record.pageId) }}
-        </template>
-        <template v-else-if="column.key === 'block'">
+        </template>        <template v-else-if="column.key === 'block'">
           <div v-if="record.blockInstanceId">
             <span>{{ blockName(record.blockKey) }}</span>
             <span class="revision-ticket-page__muted">（{{ record.blockInstanceId }}）</span>
@@ -83,7 +82,13 @@
         </template>
       </template>
       <template #emptyText>
-        <a-empty description="还没有改版工单：先在「预览链接」里生成一条链接发给客户" />
+        <!-- 这一屏的空会被读成「这一家没提过改版」：三种空由后端答（M-P73） -->
+        <empty-list-hint
+          :loading="loading"
+          :read-failed="readFailed"
+          :empty-line="emptyLine"
+          :empty-reason="emptyReason"
+        />
       </template>
     </a-table>
 
@@ -260,6 +265,9 @@ import {
   type TicketOptions
 } from '../../api/portalTickets'
 import { portalPagesApi, type PortalPage } from '../../api/portalPages'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { describeHttpError } from '../../api/http'
+import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import DraftReviewCard from './builder/DraftReviewCard.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { formatDateTime } from '../../utils/format'
@@ -288,6 +296,10 @@ const pages = ref<PortalPage[]>([])
 const pagesNote = ref('')
 const tickets = ref<RevisionTicket[]>([])
 const loading = ref(false)
+/** 空的那一发后端答了哪一种空：读不到 / 查过了没有（M-P73） */
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 
 const statusFilter = ref<string | undefined>(undefined)
 const pageFilter = ref<number | null>(null)
@@ -409,12 +421,20 @@ async function loadPages() {
 
 async function loadTickets() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
-    tickets.value = await portalTicketsApi.list({ status: statusFilter.value, pageId: pageFilter.value })
+    const result: any = await portalTicketsApi.list({ status: statusFilter.value, pageId: pageFilter.value })
+    tickets.value = Array.isArray(result) ? result : (result?.records || [])
+    emptyLine.value = result?.emptyLine || ''
+    emptyReason.value = asEmptyReason(result?.emptyReason)
     paginationConfig.total = tickets.value.length
   } catch (error) {
     tickets.value = []
-    message.error((error as Error).message || '工单列表加载失败')
+    paginationConfig.total = 0
+    readFailed.value = describeHttpError(error)
+    message.error(`工单列表加载失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }

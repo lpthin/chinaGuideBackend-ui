@@ -58,6 +58,18 @@
               </a-space>
             </template>
           </template>
+          <!-- 这一屏的空会被读成「这一家没提过工单」：三种空的念法只认后端（M-P73） -->
+          <template #emptyText>
+            <empty-list-hint
+              :loading="loading"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+              :can-create="!isQueue"
+              create-label="提交新工单"
+              @create="openSubmit"
+            />
+          </template>
         </a-table>
       </a-card>
     </div>
@@ -120,8 +132,11 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { supportTicketsApi, type SupportTicket } from '../../api/supportTickets'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
+import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
 
 const props = withDefaults(defineProps<{ mode?: 'mine' | 'queue' }>(), { mode: 'mine' })
@@ -130,6 +145,10 @@ const isQueue = computed(() => props.mode === 'queue')
 const loading = ref(false)
 const saving = ref(false)
 const tickets = ref<SupportTicket[]>([])
+/** 空的那一发后端答了哪一种空：读不到 / 查过了没有（M-P73） */
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 const statusFilter = ref<string | undefined>(undefined)
 /** 状态词表只来自 /statuses，这里绝不抄第二份中文标签 */
 const statusLabels = ref<Record<string, string>>({})
@@ -161,12 +180,20 @@ function statusColor(status: string): string {
 
 async function loadData() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
-    tickets.value = isQueue.value
+    const result: any = isQueue.value
       ? await supportTicketsApi.listForAdmin(statusFilter.value)
       : await supportTicketsApi.listMine(statusFilter.value)
+    tickets.value = Array.isArray(result) ? result : (result?.records || [])
+    emptyLine.value = result?.emptyLine || ''
+    emptyReason.value = asEmptyReason(result?.emptyReason)
   } catch (error) {
-    message.error('加载工单列表失败')
+    tickets.value = []
+    readFailed.value = describeHttpError(error)
+    message.error(`加载工单列表失败：${readFailed.value}`)
     logError('portal/support-ticket-view', error)
   } finally {
     loading.value = false

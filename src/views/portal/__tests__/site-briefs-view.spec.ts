@@ -125,8 +125,11 @@ async function mountView(options: {
   briefs?: any[]
   listError?: string
   vocabError?: string
+  /** 后端跟着列表回来的那两格：这一页没行时是哪一种空 */
+  emptyReason?: string | null
+  emptyLine?: string | null
   /** 自己接管列表那一发（要盯「还在飞」那一档时把 resolve 留在用例手里） */
-  list?: () => Promise<any[]>
+  list?: () => Promise<any>
 } = {}) {
   vi.mocked(tenantApi.list).mockResolvedValue([{ id: 15, code: 't-a', name: '甲租户' }] as any)
   if (options.vocabError) {
@@ -134,12 +137,22 @@ async function mountView(options: {
   } else {
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue(VOCAB as any)
   }
+  const rows = options.briefs ?? []
+  const page = {
+    records: rows,
+    total: rows.length,
+    page: 1,
+    size: Math.max(rows.length, 1),
+    pages: rows.length ? 1 : 0,
+    emptyReason: options.emptyReason ?? null,
+    emptyLine: options.emptyLine ?? null
+  }
   if (options.list) {
     vi.mocked(siteBriefsApi.list).mockImplementation(options.list)
   } else if (options.listError) {
     vi.mocked(siteBriefsApi.list).mockRejectedValueOnce(new Error(options.listError))
   } else {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue(options.briefs ?? [] as any)
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(page as any)
   }
   const wrapper = mount(SiteBriefsView, {
     attachTo: document.body,
@@ -170,6 +183,13 @@ function byText(text: string) {
 
 function click(node: Element) {
   node.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+}
+
+/** 后端那一句本体：「真的没有」那一档下面多摆的那颗按钮不属于这句话，比原文时先摘掉 */
+function emptySentence(wrapper: any) {
+  const node = wrapper.find('.empty-line').element.cloneNode(true) as HTMLElement
+  node.querySelectorAll('.create-on-empty').forEach(button => button.remove())
+  return (node.textContent || '').trim()
 }
 
 beforeEach(() => {
@@ -204,7 +224,7 @@ describe('列表行只报接口给的东西', () => {
     const text = wrapper.text()
     expect(text).toContain('full')
     expect(text).not.toContain('整套演示')
-    expect(wrapper.find('.site-briefs__error').exists()).toBe(false)
+    expect(wrapper.find('.empty-line').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -247,13 +267,33 @@ describe('过滤与错误各说各的', () => {
     wrapper.unmount()
   })
 
-  it('列表读失败：后端那句中文原样挂在提示条上，空态话术不冒充「一单都没有」', async () => {
+  it('列表读失败：说的那句是「这一发读失败」，不冒充「一单都没有」', async () => {
     const wrapper = await mountView({ listError: '这个账号没有看需求单的资格' })
-    expect(wrapper.find('.site-briefs__error').text()).toContain('这个账号没有看需求单的资格')
-    expect(wrapper.text()).not.toContain('还没有需求单。下一步') // 失败不等于空
-    expect(wrapper.text()).toContain('列表没取到')
+    const said = wrapper.find('.empty-line').text()
+    expect(said).toContain('这一发读失败：这个账号没有看需求单的资格')
+    expect(said).toContain('读失败不是「这一档没有」')
+    expect(wrapper.text()).not.toContain('下一步是录一份前采需求单') // 失败不等于空
     expect(wrapper.text()).not.toContain('draft')
     expect(vi.mocked(message.error).mock.calls.flat().join()).toContain('这个账号没有看需求单的资格')
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['NONE', '需求单：这一档查过了，一条都没有。'],
+    ['NOT_VISIBLE', '需求单：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'],
+    ['OUT_OF_RANGE', '需求单：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。']
+  ])('后端回 %s 那一档时逐字念后端那一句，页面上没有「暂无数据」', async (reason, line) => {
+    const wrapper = await mountView({ briefs: [], emptyReason: reason, emptyLine: line })
+    expect(emptySentence(wrapper)).toBe(line)
+    expect(wrapper.html()).not.toContain('暂无数据')
+    wrapper.unmount()
+  })
+
+  it('后端没回是哪一种空时念「界面不替它猜」，不蒙成「真的没有」', async () => {
+    const wrapper = await mountView({ briefs: [] })
+    const text = wrapper.find('.empty-line').text()
+    expect(text).toContain('后端没回是哪一种空')
+    expect(wrapper.text()).not.toContain('一条都没有')
     wrapper.unmount()
   })
 })
@@ -288,8 +328,13 @@ describe('详情入口与绑定站点那一格', () => {
 })
 
 describe('空态与新入口', () => {
-  it('一单都没有：话只说今天真存在的下一步「录前采」，出方案/预览一个字不提入口', async () => {
-    const wrapper = await mountView({ briefs: [] })
+  it('一单都没有：先念后端那句「真的没有」，再说今天真存在的下一步「录前采」', async () => {
+    const wrapper = await mountView({
+      briefs: [],
+      emptyReason: 'NONE',
+      emptyLine: '需求单：这一档查过了，一条都没有。'
+    })
+    expect(emptySentence(wrapper)).toBe('需求单：这一档查过了，一条都没有。')
     const text = wrapper.text()
     expect(text).toContain('下一步是录一份前采需求单')
     expect(text).toContain('今天这里不摆点了没反应的按钮')
@@ -298,6 +343,19 @@ describe('空态与新入口', () => {
     click(byText('现在就去录一份')[0])
     expect(pushSpy).toHaveBeenCalledWith({ name: 'workspace-portal-brief-new' })
     wrapper.unmount()
+  })
+
+  it('读不到与翻过头都不摆「现在就去录一份」：那两种空不是「这一档还空着」', async () => {
+    for (const [reason, line] of [
+      ['NOT_VISIBLE', '需求单：这一档读不到。'],
+      ['OUT_OF_RANGE', '需求单：这一页翻过了头。']
+    ]) {
+      const wrapper = await mountView({ briefs: [], emptyReason: reason, emptyLine: line })
+      expect(byText('现在就去录一份')).toHaveLength(0)
+      expect(wrapper.text()).not.toContain('下一步是录一份前采需求单')
+      wrapper.unmount()
+      document.body.innerHTML = ''
+    }
   })
 
   it('「新建需求单」与空态按钮去同一个录入页', async () => {
@@ -311,7 +369,7 @@ describe('空态与新入口', () => {
     // 2026-10-16 走查现场：明明有 20 单的机器，进这一页会闪一句「还没有需求单」。
     // 读失败那一档有上面那条用例守着，「还没取回来」这一档只在真浏览器里闪一下、手工点抓不稳，
     // 所以把 resolve 留在用例手里钉在这里：空态那句话只留给「真的取回来了、真的没有单」。
-    let resolveList: (value: any[]) => void = () => {}
+    let resolveList: (value: any) => void = () => {}
     const wrapper = await mountView({
       list: () => new Promise(resolve => {
         resolveList = resolve
@@ -320,9 +378,17 @@ describe('空态与新入口', () => {
 
     expect(siteBriefsApi.list).toHaveBeenCalled()
     expect(wrapper.text()).not.toContain('还没有需求单')
-    expect(wrapper.find('.AEmpty-stub').exists()).toBe(false)
+    expect(wrapper.find('.empty-line').exists()).toBe(false)
 
-    resolveList([brief({ status: 'ready' })])
+    resolveList({
+      records: [brief({ status: 'ready' })],
+      total: 1,
+      page: 1,
+      size: 1,
+      pages: 1,
+      emptyReason: null,
+      emptyLine: null
+    })
     await flushPromises()
     expect(wrapper.text()).toContain('待出方案')
     expect(wrapper.text()).not.toContain('还没有需求单')

@@ -5,6 +5,8 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { briefStatusLabel, siteBriefsApi, vocabularyApi, type SiteBrief, type SiteBriefVocabulary } from '@/api/siteBriefs'
 import { tenantApi } from '@/api/workspace'
+import EmptyListHint from '@/components/EmptyListHint.vue'
+import { asEmptyReason, type EmptyReason } from '@/utils/emptyPage'
 import type { Tenant } from '@/types/workspace'
 
 /**
@@ -24,6 +26,9 @@ const router = useRouter()
 const loading = ref(false)
 const briefs = ref<SiteBrief[]>([])
 const listError = ref('')
+/** 后端答的那两种「这一页没行是哪一种空」；读失败不算空，走 listError */
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
 
 const tenants = ref<Tenant[]>([])
 const tenantsFailed = ref(false)
@@ -85,11 +90,16 @@ function formatDateTime(value: string | null | undefined): string {
 async function load() {
   loading.value = true
   listError.value = ''
+  emptyLine.value = ''
+  emptyReason.value = null
   try {
-    briefs.value = (await siteBriefsApi.list({
+    const result: any = await siteBriefsApi.list({
       tenantId: filterTenantId.value ?? null,
       status: filterStatus.value || null
-    })) || []
+    })
+    briefs.value = Array.isArray(result) ? result : (result?.records || [])
+    emptyLine.value = result?.emptyLine || ''
+    emptyReason.value = asEmptyReason(result?.emptyReason)
   } catch (error) {
     briefs.value = []
     listError.value = error instanceof Error ? error.message : String(error)
@@ -215,10 +225,6 @@ onMounted(() => {
       </a-form-item>
     </a-form>
 
-    <a-alert v-if="listError" type="error" show-icon class="site-briefs__error">
-      <template #message>{{ listError }}</template>
-    </a-alert>
-
     <a-table
       :data-source="briefs"
       :columns="columns"
@@ -253,17 +259,21 @@ onMounted(() => {
       <template #emptyText>
         <!-- 读失败不冒充「一单都没有」：空态那句话只留给真的没有单。
              同一把刀也砍「还没取到」：第一次加载在飞时 dataSource 天然是空的，
-             那时候摆「还没有需求单」等于在列表明明有 20 单的机器上闪一句假空态（2026-10-16 走查现场看到）。 -->
-        <p v-if="listError" class="site-briefs__empty-error">
-          列表没取到：不是「还没有需求单」，是上面那条原因。修好后点「刷新」重拉。
+             那时候摆「还没有需求单」等于在列表明明有 20 单的机器上闪一句假空态（2026-10-16 走查现场看到）。
+             「这一档读不到」与「真的没有」现在是两句不同的话，都由后端那一份成因说了算。 -->
+        <empty-list-hint
+          :loading="loading"
+          :read-failed="listError"
+          :empty-line="emptyLine"
+          :empty-reason="emptyReason"
+          :can-create="true"
+          create-label="现在就去录一份"
+          @create="createBrief"
+        />
+        <p v-if="!loading && !listError && emptyReason === 'NONE'" class="site-briefs__empty-next">
+          下一步是录一份前采需求单（13 题，以勾选为主）——这份需求就是 AI 出候选站的输入。<br />
+          出方案、预览这些要等生成链路接通后才有，那时它们有自己的入口；今天这里不摆点了没反应的按钮。
         </p>
-        <a-empty v-else-if="!loading">
-          <template #description>
-            还没有需求单。下一步是录一份前采需求单（13 题，以勾选为主）——这份需求就是 AI 出候选站的输入。<br />
-            出方案、预览这些要等生成链路接通后才有，那时它们有自己的入口；今天这里不摆点了没反应的按钮。
-          </template>
-          <a-button type="primary" @click="createBrief">现在就去录一份</a-button>
-        </a-empty>
       </template>
     </a-table>
   </div>
@@ -281,11 +291,8 @@ onMounted(() => {
 .site-briefs__toolbar {
   margin-bottom: 16px;
 }
-.site-briefs__error {
-  margin-bottom: 16px;
-}
-.site-briefs__empty-error {
-  margin: 24px 0;
+.site-briefs__empty-next {
+  margin: 8px 0 0;
   color: #6b7280;
   text-align: center;
 }
