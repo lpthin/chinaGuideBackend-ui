@@ -10,7 +10,7 @@
                 <ApartmentOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalCategories }}</div>
+                <div class="stat-value">{{ statText(stats.totalCategories) }}</div>
                 <div class="stat-title">分类总数</div>
               </div>
             </div>
@@ -23,7 +23,7 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalArticles }}</div>
+                <div class="stat-value">{{ statText(stats.totalArticles) }}</div>
                 <div class="stat-title">文章总数</div>
               </div>
             </div>
@@ -36,12 +36,12 @@
                 <ArrowUpOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ maxLevel }}</div>
+                <div class="stat-value">{{ statText(maxLevel) }}</div>
                 <div class="stat-title">最大层级</div>
               </div>
             </div>
             <div class="stat-footer">
-              <span class="stat-label">共 {{ stats.totalCategories }} 个分类</span>
+              <span class="stat-label">共 {{ statText(stats.totalCategories) }} 个分类</span>
             </div>
           </a-card>
         </a-col>
@@ -117,7 +117,18 @@
                   </div>
                 </template>
               </a-tree>
-              <a-empty v-else description="暂无分类" class="tree-empty" />
+              <!-- 这一屏的空会被读成「这一家没有栏目」，所以「读不到」与「真的没有」由后端答（M-P72） -->
+              <empty-list-hint
+                v-else
+                class="tree-empty"
+                :loading="loading"
+                :read-failed="readFailed"
+                :empty-line="emptyLine"
+                :empty-reason="emptyReason"
+                can-create
+                create-label="新增分类"
+                @create="showAddModal"
+              />
             </div>
           </a-card>
         </a-col>
@@ -438,6 +449,7 @@ import * as echarts from 'echarts'
 import { message, Modal } from 'ant-design-vue'
 import DemoFlag from '../../components/DemoFlag.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   ApartmentOutlined,
   FileTextOutlined,
@@ -459,6 +471,8 @@ import {
   CaretDownOutlined,
 } from '@ant-design/icons-vue'
 import { categoryApi } from '../../api'
+import { describeHttpError } from '../../api/http'
+import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
 
 const loading = ref(false)
@@ -480,6 +494,14 @@ const selectedKeys = ref<string[]>([])
 const expandedKeys = ref<string[]>([])
 const categories = ref<any[]>([])
 const currentCategory = ref<any>(null)
+
+// 这一屏的空会被读成「这一家没有栏目」，成因只认后端那一句（M-P72）
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
+// 读不到或读失败时，统计数不许摆 0：0 会被当成「这一家啥都没有」
+const statsUnreadable = computed(() => !!readFailed.value || emptyReason.value === 'NOT_VISIBLE')
+const statText = (n: number) => (statsUnreadable.value ? '—' : String(n))
 
 const modalForm = reactive({
   name: '',
@@ -705,23 +727,35 @@ function resetForm() {
 
 async function loadData() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const data = await categoryApi.list({ all: true }) as any
     const list = data?.records || data || []
     categories.value = list
+    emptyLine.value = data?.emptyLine || ''
+    emptyReason.value = asEmptyReason(data?.emptyReason)
     stats.totalCategories = list.length
     stats.totalArticles = list.reduce((sum: number, c: any) => sum + (c.articleCount || 0), 0)
     if (list.length && !selectedKeys.value.length) {
       selectedKeys.value = [String(list[0].id)]
       currentCategory.value = { ...list[0] }
+    } else if (!list.length) {
+      // 空列表时右边那格详情不许还挂着上一发的那一条
+      selectedKeys.value = []
+      currentCategory.value = null
     }
     await nextTick()
     initCategoryChart()
   } catch (error) {
     categories.value = []
+    selectedKeys.value = []
+    currentCategory.value = null
     stats.totalCategories = 0
     stats.totalArticles = 0
-    message.error('分类数据加载失败')
+    readFailed.value = describeHttpError(error)
+    message.error(`分类数据加载失败：${readFailed.value}`)
     logError('workspace/categories-panel', error)
   } finally {
     loading.value = false
