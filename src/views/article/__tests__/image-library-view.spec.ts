@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { h } from 'vue'
+import { message } from 'ant-design-vue'
 import ImageLibraryView from '../ImageLibraryView.vue'
+import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
 
 /**
  * Spec-J（J1/J3）在租户侧的两条落点：
@@ -130,5 +133,178 @@ describe('素材库的缩略图：非图片不许当图片渲染', () => {
     expect(wrapper.find('.image-thumbnail img').exists()).toBe(false)
     const failedTile = wrapper.findAll('.file-tile').find(t => t.text().includes('文件读不出来'))
     expect(failedTile, '读不出来的图要写成「文件读不出来」').toBeTruthy()
+  })
+})
+
+/**
+ * 素材库的空态（M-P71）：这一屏的空会被读成「这一家的素材没了」，
+ * 而 Spec-J 起系统素材组本来就不在这一档里——所以「读不到」与「真的没有」必须念后端那一句。
+ *
+ * 钉五件：三种空逐字念、后端没答不替它猜、读失败说读失败、
+ * 翻过头自动翻回第一页、「真的没有」才摆上传按钮；网格与列表两种形态念同一句。
+ */
+const THREE_EMPTIES: Array<[string, string]> = [
+  ['NONE', '素材库：这一档查过了，一条都没有。'],
+  ['NOT_VISIBLE', '素材库：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'],
+  ['OUT_OF_RANGE', '素材库：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。'],
+]
+
+const TABLE_STUB = {
+  name: 'ATable',
+  props: {
+    dataSource: { type: Array, default: () => [] },
+    columns: { type: Array, default: () => [] },
+    loading: { type: Boolean, default: false },
+    pagination: { default: false }
+  },
+  setup(props: any, { slots }: any) {
+    return () => {
+      const rows = props.dataSource as any[]
+      return h('div', { class: 'table-stub' }, rows.length === 0
+        ? h('div', { class: 'table-empty' }, slots.emptyText ? slots.emptyText({}) : '暂无数据')
+        : rows.map(record => h('div', { class: 'table-row' }, String(record.name))))
+    }
+  }
+}
+
+const PAGINATION_STUB = {
+  name: 'APagination',
+  emits: ['change', 'update:current', 'update:pageSize'],
+  setup(_: any, { emit }: any) {
+    return () => h('button', { class: 'go-page-3', onClick: () => emit('change', 3, 24) }, '到第 3 页')
+  }
+}
+
+const RADIO_GROUP_STUB = {
+  name: 'ARadioGroup',
+  emits: ['update:value'],
+  setup(_: any, { slots, emit }: any) {
+    return () => h('div', { class: 'radio-stub' }, [
+      h('button', { class: 'to-list-view', onClick: () => emit('update:value', 'list') }, '列表视图'),
+      slots.default ? slots.default() : null
+    ])
+  }
+}
+
+const PASS_SLOT = (cls: string) => ({
+  name: cls,
+  template: `<div class="${cls}-stub"><slot /><slot name="actions" /></div>`
+})
+
+type PageShape = { records: any[]; total: number; emptyReason?: string | null; emptyLine?: string | null }
+
+async function mountEmpty(
+  rows: any[],
+  pageExtras: Omit<PageShape, 'records' | 'total'> = {},
+  failWith?: Error
+) {
+  const list = vi.mocked(api.list)
+  if (failWith) {
+    list.mockRejectedValue(failWith)
+  } else {
+    list.mockResolvedValue({ records: rows, total: rows.length, ...pageExtras } as any)
+  }
+  const wrapper = mount(ImageLibraryView, {
+    attachTo: document.body,
+    global: {
+      stubs: {
+        'filter-bar': PASS_SLOT('FilterBar'),
+        'a-card': PASS_SLOT('ACard'),
+        'a-row': PASS_SLOT('ARow'),
+        'a-col': PASS_SLOT('ACol'),
+        'a-spin': PASS_SLOT('ASpin'),
+        'a-select': PASS_SLOT('ASelect'),
+        'a-select-option': PASS_SLOT('ASelectOption'),
+        'a-input-search': { name: 'AInputSearch', template: '<input class="search-stub" />' },
+        'a-radio-group': RADIO_GROUP_STUB,
+        'a-radio-button': { name: 'ARadioButton', template: '<span><slot /></span>' },
+        'a-table': TABLE_STUB,
+        'a-pagination': PAGINATION_STUB,
+        'a-tag': PASS_SLOT('ATag')
+      }
+    }
+  })
+  await flushPromises()
+  return wrapper
+}
+
+/** 后端那一句（「真的没有」那一档下面还会多摆一颗上传按钮，比那一句时把它摘掉） */
+const hintText = (wrapper: any) => {
+  const node = wrapper.find('.empty-line').element.cloneNode(true) as HTMLElement
+  node.querySelectorAll('.create-on-empty').forEach((button) => button.remove())
+  return (node.textContent || '').trim()
+}
+
+describe('素材库的空态成因', () => {
+  beforeEach(() => {
+    Object.values(api).forEach(fn => fn.mockReset())
+    api.categories.mockResolvedValue([])
+  })
+
+  it.each(THREE_EMPTIES)('后端回 %s 那一档时逐字念那一句，页面上没有「暂无数据」', async (reason, line) => {
+    const wrapper = await mountEmpty([], { emptyReason: reason, emptyLine: line })
+
+    expect(hintText(wrapper)).toBe(line)
+    expect(wrapper.html()).not.toContain('暂无数据')
+  })
+
+  it('网格形态与列表形态念的是同一句', async () => {
+    const wrapper = await mountEmpty([], { emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] })
+    expect(hintText(wrapper)).toBe(THREE_EMPTIES[0][1])
+
+    await wrapper.find('.to-list-view').trigger('click')
+    await flushPromises()
+    expect(hintText(wrapper)).toBe(THREE_EMPTIES[0][1])
+  })
+
+  it('后端没回是哪一种空时念「界面不替它猜」，不蒙成「真的没有」', async () => {
+    const wrapper = await mountEmpty([], { emptyReason: null, emptyLine: null })
+
+    expect(hintText(wrapper)).toContain('后端没回是哪一种空')
+    expect(wrapper.html()).not.toContain('一条都没有')
+  })
+
+  it('读失败那一发说的是读失败，不是「这一档没有」', async () => {
+    const wrapper = await mountEmpty([], {}, new Error('读口断了'))
+
+    const said = hintText(wrapper)
+    expect(said).toContain('这一发读失败')
+    expect(said).toContain('读失败不是「这一档没有」')
+    expect(said).not.toContain('一条都没有')
+  })
+
+  it('后端回「这一页翻过了头」时界面自己翻回第一页再读一遍', async () => {
+    const row = { id: 1, name: 'clinic.jpg', category: '企业基础资料', fileSize: 10 }
+    const wrapper = await mountEmpty([row])
+
+    const list = vi.mocked(api.list)
+    list.mockReset()
+    list
+      .mockResolvedValueOnce({ records: [], total: 25, emptyReason: 'OUT_OF_RANGE', emptyLine: THREE_EMPTIES[2][1] } as any)
+      .mockResolvedValueOnce({ records: [], total: 0, emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] } as any)
+    const info = vi.spyOn(message, 'info').mockImplementation((() => undefined) as any)
+
+    await wrapper.find('.go-page-3').trigger('click')
+    await flushPromises()
+
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 }))
+    expect(info).toHaveBeenCalledWith(JUMP_BACK_NOTICE)
+    expect(hintText(wrapper)).toBe(THREE_EMPTIES[0][1])
+    info.mockRestore()
+  })
+
+  it('「真的没有」才摆上传按钮，读不到不摆', async () => {
+    const none = await mountEmpty([], { emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] })
+    expect(none.find('.create-on-empty').exists()).toBe(true)
+
+    const invisible = await mountEmpty([], { emptyReason: 'NOT_VISIBLE', emptyLine: THREE_EMPTIES[1][1] })
+    expect(invisible.find('.create-on-empty').exists()).toBe(false)
+  })
+
+  it('有行的时候根本不渲空态那一句', async () => {
+    const wrapper = await mountEmpty([{ id: 1, name: 'clinic.jpg', category: '企业基础资料', fileSize: 10 }])
+
+    expect(wrapper.find('.empty-line').exists()).toBe(false)
+    expect(wrapper.html()).not.toContain('一条都没有')
   })
 })

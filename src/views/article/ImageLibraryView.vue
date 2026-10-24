@@ -166,6 +166,17 @@
               </div>
             </a-col>
           </a-row>
+          <!-- M-P71：这一屏的空会被读成「素材没了」，「读不到」与「真的没有」只认后端那一句 -->
+          <empty-list-hint
+            v-if="!imageList.length"
+            :loading="loading"
+            :read-failed="readFailed"
+            :empty-line="emptyLine"
+            :empty-reason="emptyReason"
+            can-create
+            create-label="上传文件"
+            @create="showUploadModal = true"
+          />
         </div>
 
         <!-- 列表视图 -->
@@ -178,6 +189,18 @@
             :row-selection="tableRowSelection"
             :pagination="false"
           >
+            <!-- 列表形态与网格形态念同一句：空态的成因只认后端回的 emptyLine -->
+            <template #emptyText>
+              <empty-list-hint
+                :loading="loading"
+                :read-failed="readFailed"
+                :empty-line="emptyLine"
+                :empty-reason="emptyReason"
+                can-create
+                create-label="上传文件"
+                @create="showUploadModal = true"
+              />
+            </template>
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'preview'">
                 <img
@@ -336,6 +359,13 @@ import type { ImageLibrary } from '../../types/article'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  asEmptyReason,
+  JUMP_BACK_NOTICE,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
@@ -370,6 +400,10 @@ const pagination = reactive({
 const viewMode = ref<'grid' | 'list'>('grid')
 const selectedKeys = ref<number[]>([])
 const imageList = ref<ImageLibrary[]>([])
+// 空态成因只认后端那一句（M-P71）：界面不改写，也不替后端猜是哪一种空
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 
 // Spec-J：筛选项读 /media/categories 真数据。旧版这里硬编码六个假类别，
 // 与库里的真实类别一个都对不上——选任何一项都筛不出东西。
@@ -547,6 +581,9 @@ function handlePageChange(page: number, size: number) {
 
 async function loadData() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const params: any = {
       page: pagination.page,
@@ -559,11 +596,22 @@ async function loadData() {
     const result = await imageLibraryApi.list(params)
     imageList.value = result.records || []
     pagination.total = result.total || 0
+    const extras = result as any
+    emptyLine.value = extras?.emptyLine || ''
+    emptyReason.value = asEmptyReason(extras?.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.page)) {
+      pagination.page = 1
+      await loadData()
+      message.info(JUMP_BACK_NOTICE)
+    }
 
     updateStats()
   } catch (error) {
     logError('article/image-library-view', '加载文件列表失败:', error)
-    message.error(describeHttpError(error))
+    const said = describeHttpError(error)
+    message.error(said)
+    readFailed.value = said
     imageList.value = []
     pagination.total = 0
   } finally {
