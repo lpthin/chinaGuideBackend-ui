@@ -333,7 +333,8 @@ function syncQuery(stepIndex: number, id: number | null) {
 
 async function loadBriefs() {
   try {
-    briefs.value = (await siteBriefsApi.list()) || []
+    const result: any = await siteBriefsApi.list()
+    briefs.value = Array.isArray(result) ? result : (result?.records || [])
     briefsError.value = ''
     if (!briefId.value && briefs.value.length) {
       briefId.value = briefs.value[0].id

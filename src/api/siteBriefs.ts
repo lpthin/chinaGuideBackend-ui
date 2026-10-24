@@ -1,5 +1,6 @@
 import http, { currentAuthToken } from './http';
 import type { SectionState } from './portalSections';
+import type { PageResult } from '../types/portal';
 
 /**
  * 前采需求单与词表（Spec「建站流程重构」§4.1 / §5 / I-1）。
@@ -203,8 +204,9 @@ export interface BriefPagePlanEntry {
 }
 
 export const siteBriefsApi = {
+  /** 列表：后端回 `PagedRead`（records/total + 这一页没行时的成因），不再是裸数组 */
   list: (params: { tenantId?: number | null; status?: string | null } = {}) =>
-    http.get<SiteBrief[]>('/admin/site-briefs', {
+    http.get<PageResult<SiteBrief>>('/admin/site-briefs', {
       params: {
         tenantId: params.tenantId ?? undefined,
         status: params.status?.trim() || undefined

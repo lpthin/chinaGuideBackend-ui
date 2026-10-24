@@ -123,6 +123,19 @@ function brief(overrides: Partial<SiteBrief> = {}): SiteBrief {
   } as SiteBrief
 }
 
+/** 需求单列表这一口从 M-P73 起回分页形状（带「读不到 / 真的没有」那一格），桩回包要照那个形状给 */
+function briefsPage(rows: SiteBrief[]) {
+  return {
+    records: rows,
+    total: rows.length,
+    page: 1,
+    size: Math.max(rows.length, 1),
+    pages: rows.length ? 1 : 0,
+    emptyReason: rows.length ? null : 'NONE',
+    emptyLine: rows.length ? null : '需求单：这一档查过了，一条都没有。'
+  }
+}
+
 function specDoc(overrides: Partial<SpecDocumentView> = {}): SpecDocumentView {
   return {
     specId: 4,
@@ -392,7 +405,8 @@ beforeEach(() => {
 
 describe('新建网站向导', () => {
   it('进页面只发只读 GET：花钱与签字那几发一个都不在这页', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({ statusLabels: {}, demoContentModes: [] } as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -415,7 +429,8 @@ describe('新建网站向导', () => {
   })
 
   it('一份需求单都没有：后面四步的主按钮全是 disabled，话只说今天真能做的那一步', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -451,7 +466,8 @@ describe('新建网站向导', () => {
   })
 
   it('说明书已确认那一步才算走完，其余状态一律不许念成完成', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED', statusLabel: '已确认', blockers: [] }))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -466,7 +482,8 @@ describe('新建网站向导', () => {
   })
 
   it('没确认的说明书把「还差什么」列在页面上，不让人猜', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -480,7 +497,8 @@ describe('新建网站向导', () => {
   })
 
   it('初稿那一发正在异步跑：第 2 步说清「下面这几段还是原来那一版」，不演成初稿已经在了', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({
       draftStatus: 'RUNNING',
@@ -503,7 +521,8 @@ describe('新建网站向导', () => {
 
   it('七段都填了字时不许念成「空着 0 段」，也不许提前说已确认', async () => {
     // 现场那一单（需求单 #59）就是这个形状：statusLabel「草稿（人编辑中，未确认）」+ 无空段
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ blockers: [], sections: [
       { key: 'overview', title: '1 项目概述', order: 1, content: '有字', charCount: 2, blank: false, overLimit: false }
@@ -520,7 +539,8 @@ describe('新建网站向导', () => {
   })
 
   it('第一步那格把候选数念成「要出几套」（意图），不念成已经建出来的套数', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief({ candidateCount: 3 })])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief({ candidateCount: 3 })]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -535,7 +555,8 @@ describe('新建网站向导', () => {
   })
 
   it('说明书读失败不冒充「还没有说明书」：报的是那一发的原话', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockRejectedValue(new Error('site_spec:edit 没有，读不到'))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -549,7 +570,8 @@ describe('新建网站向导', () => {
   })
 
   it('第三步要候选真的建出了站才算走完：待人工那一套单列，不并进失败', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED', blockers: [] }))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([
@@ -578,7 +600,8 @@ describe('新建网站向导', () => {
   })
 
   it('没发过预览地址时第四步不许念成完成：那一枚令牌只能由人在画廊按套签', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED', blockers: [] }))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -591,7 +614,8 @@ describe('新建网站向导', () => {
   })
 
   it('转正那一步看的是需求单名下的站点：回填了才算走完，并给出只看这一单站点的去处', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief({ siteId: 63 })])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief({ siteId: 63 })]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED', blockers: [] }))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate({ previewIssued: true })])
@@ -607,7 +631,8 @@ describe('新建网站向导', () => {
   })
 
   it('每一步的去处都带着这一单的号：说明书走 params.brief，画廊走 params.id', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -625,7 +650,8 @@ describe('新建网站向导', () => {
   })
 
   it('步号在地址里：带着 step=candidates 进来就在那一步，换步会 replace 回地址', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate({ previewIssued: true })])
@@ -642,7 +668,8 @@ describe('新建网站向导', () => {
   })
 
   it('还没选单就点下一步：拦下并给一句人话，步号不动', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -656,7 +683,8 @@ describe('新建网站向导', () => {
   })
 
   it('选另一份需求单会把单号写回地址并重读那一单的事实', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief(), brief({ id: 36, brandName: '另一家', status: 'awaiting_client' })])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief(), brief({ id: 36, brandName: '另一家', status: 'awaiting_client' })]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ briefId: 36 }))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -684,7 +712,8 @@ describe('新建网站向导', () => {
     document.body.innerHTML = ''
     // 租户号走的是地址那条既有交棒路（props 优先、地址兜底）：向导不给表单传租户，交棒链接因此不必改
     routeState.query = { step: 'intake', tenantId: '15' }
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue(VOCAB_WITH_QUESTIONS as any)
     vi.mocked(siteBriefsApi.create).mockResolvedValue(brief({ id: 88, status: 'draft', brandName: '某某科技' }) as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ briefId: 88 }))
@@ -724,7 +753,8 @@ describe('新建网站向导', () => {
   it('先看老单再点「录一份新需求单」：套数与档位回到词表默认，不把上一单的读数带进新单', async () => {
     document.body.innerHTML = ''
     routeState.query = { step: 'intake', tenantId: '15' }
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief({ id: 7, status: 'draft' })])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief({ id: 7, status: 'draft' })]))
+
     // #7 那份读的是「0 套 + standard 档」——新单的 payload 里只要出现这两个值，就是内嵌新建把旧读数带过来了
     vi.mocked(siteBriefsApi.get).mockResolvedValue(brief({ id: 7, status: 'draft', candidateCount: 0, demoContentMode: 'standard' }) as any)
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue(VOCAB_WITH_QUESTIONS as any)
@@ -774,7 +804,8 @@ describe('新建网站向导', () => {
   }
 
   it('第 2 步把每一段的现状摊在这一格里：空着的段直接点名，段数只认后端回的那份', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -792,7 +823,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 3 步的价签只由人点：进这一屏一次 POST 都不发，点了那一颗才发并摆出凭据', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED' }))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -834,7 +866,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 3 步：出方案开关没开时不念成一张可以花的价签', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -863,7 +896,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 3 步把失败那套的原因摆在明面上：那是这一发失败了，不是「还在跑」', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -880,7 +914,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 3 步进度读挂了：报「没读到」，不许念成「还在跑」', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -896,7 +931,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 4 步：每一套的账不用点开这一行就看得见，取不到念「没取到」不念 0', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([
@@ -923,7 +959,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 4 步：待人工那一套把话摊开，并说清它跟失败是两件事', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate({ needsHuman: true })])
@@ -942,7 +979,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 4 步：候选行自己带中文标签就用自己的，不靠进度那一行（进度挂了也不露原码）', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([
@@ -959,7 +997,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 4 步：候选行没带标签（后端还是旧版）时按 candidateId 借进度那一行，借不到才露原码', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([
@@ -984,7 +1023,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 5 步：客户留痕摊在这一格里，选定了也只说「还等人按」，这一屏不代转正', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief({ siteId: null })])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief({ siteId: null })]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED' }))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -1007,7 +1047,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 5 步留痕读挂了：报那一发的原话，不许念成「客户没答复」', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -1023,7 +1064,8 @@ describe('新建网站向导', () => {
   })
 
   it('换到别的一步不替人把别步的读数也发了：逐套进度只在前两步读，留痕只在第 5 步读', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -1046,7 +1088,8 @@ describe('新建网站向导', () => {
   })
 
   it('第 1 步读不到说明书时不许把「读挂了」念成「还没有说明书」（同族纪律，第 2 步也守）', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockRejectedValue(new Error('403 没这一单的权限'))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -1066,7 +1109,8 @@ describe('新建网站向导', () => {
    * 两份并排、不合成一句；句子全来自后端 `WorkbenchBurnLedger`，界面只负责摆。
    */
   it('第 3 步把「这一家已经烧了多少」与价签并排摆着，两份数字各说各的口径', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED' }))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -1117,7 +1161,8 @@ describe('新建网站向导', () => {
 
   /** 后端没下发这一份读数时念「没回读数」，不替它编 0（0 说的是「一次都没跑过」，那是另一档真话） */
   it('第 3 步：后端没回已烧读数时念「没回读数」，不念成 0 发', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ status: 'CONFIRMED' }))
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
@@ -1158,7 +1203,8 @@ describe('新建网站向导', () => {
    * 「成功那几套不动 + 价签只数真跑的那几套」这句真话撑着。</p>
    */
   it('重来那一句摆的是两条路：补跑已经有了，整轮仍然要再烧一趟整轮的钱', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([
@@ -1198,7 +1244,8 @@ describe('新建网站向导', () => {
    * （M-P16 #248：同一趟只许一份真相，两条腿都读的是同一个出口）。
    */
   it('第 3 步接上后端推送：推来的读数当场换上屏，等的时间与历史区间一并摆出来', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -1239,7 +1286,8 @@ describe('新建网站向导', () => {
    * 「第 ? 批」就是把没在分批写的那一趟演成在写。
    */
   it('推送里的批号跟着换屏：这一格里写到第几类看得见，不在那一步就不摆那一行', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -1283,7 +1331,8 @@ describe('新建网站向导', () => {
    * 绿只给后端的 `succeeded`，等待那一格明说不再念了。
    */
   it('流里的 complete 一到就收流并重读外围读数，终态那一格不再念等了', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -1314,7 +1363,8 @@ describe('新建网站向导', () => {
    * 界面要是认它当终态，真回包来了就永远不绿；反过来这里也钉住：它不算跑完了，流照旧开。
    */
   it('`success` 那种码既判不成绿也不算跑完：界面只认后端的 `succeeded`', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -1331,7 +1381,8 @@ describe('新建网站向导', () => {
 
   /** 这一条腿接不上就当众换腿：不许写着「推送」而其实在轮询，也不许闷着不吭声 */
   it('浏览器没有推送时当众换腿：走轮询并把那一行话术换成轮询那句', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -1349,7 +1400,8 @@ describe('新建网站向导', () => {
 
   /** 人不在这一步了，那条流就得关掉：第 5 步读的是留痕，不该还挂着一条听第 3 步那趟的流 */
   it('从第 3 步走到第 5 步：中途换步不收流，落到不等的那一步才收', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])
@@ -1375,7 +1427,8 @@ describe('新建网站向导', () => {
 
   /** 人直接走了（关页、切路由）也一样收：留着就是一边占后端那条 SSE 工作线程，一边对着没了的页面空转 */
   it('离开这一页要收流', async () => {
-    vi.mocked(siteBriefsApi.list).mockResolvedValue([brief()])
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief()]))
+
     vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue({} as any)
     vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc())
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([candidate()])

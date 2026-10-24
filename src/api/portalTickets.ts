@@ -1,5 +1,6 @@
 import http from './http'
 import type { PortalPage } from './portalPages'
+import type { PageResult } from '../types/portal'
 
 /**
  * 「客户在预览页圈选区块提反馈 → AI 改一版 → 人工看 diff → 应用」闭环的管理端接口。
@@ -119,7 +120,7 @@ export const portalTicketsApi = {
   revokeSession: (id: number) => http.post<ReviewSession>(`/portal/review-sessions/${id}/revoke`),
 
   list: (params: { status?: string; pageId?: number | null } = {}) =>
-    http.get<RevisionTicket[]>('/portal/tickets', {
+    http.get<PageResult<RevisionTicket>>('/portal/tickets', {
       params: { status: params.status || undefined, pageId: params.pageId ?? undefined },
     }),
 
