@@ -39,9 +39,19 @@
     />
 
     <a-spin :spinning="loadingPages">
-      <a-empty v-if="!pages.length" :description="canBuild ? '这个站点还没有页面模型，先新建一个页面' : '这个站点还没有页面：新建页面要 portal:build:manage，当前账号在这一页只能读与发布已有的页面'">
-        <template #image><span /></template>
-      </a-empty>
+      <!-- 这一页没行的那一句只认后端（M-P74）：空会被读成「这个站没有页面」，
+           「读不到」与「真的没有」必须由后端答，界面不改写。
+           权限那一段解释上面 a-alert 已经念过，这里不再抄第二份。 -->
+      <empty-list-hint
+        v-if="!pages.length"
+        :loading="loadingPages"
+        :read-failed="readFailed"
+        :empty-line="emptyLine"
+        :empty-reason="emptyReason"
+        :can-create="canBuild"
+        create-label="新建页面"
+        @create="openCreatePage"
+      />
       <a-row v-else :gutter="12">
         <a-col :xs="24" :lg="6">
           <a-card size="small" title="页面" :body-style="{ padding: '8px' }">
@@ -301,6 +311,7 @@ import {
   type PreviewPage
 } from '../../api/portalPages'
 import { portalSitesApi } from '../../api/portalSites'
+import { describeHttpError } from '../../api/http'
 import { themePresetsApi, type ThemeTokenField } from '../../api/themePresets'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
@@ -308,6 +319,8 @@ import ThemeTokenForm from './builder/ThemeTokenForm.vue'
 import SiteThemePanel from './builder/SiteThemePanel.vue'
 import BlockPropsForm from './builder/BlockPropsForm.vue'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 
 /**
  * 门户页面搭建器：区块白名单 + design token 白名单，没有任何「写 HTML / 写 CSS」的入口。
@@ -344,6 +357,9 @@ const sites = ref<Array<{ id: number; name: string }>>([])
 const pages = ref<PortalPage[]>([])
 const blocks = ref<PortalBlockMeta[]>([])
 const loadingPages = ref(false)
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 const saving = ref(false)
 
 const pageId = ref<number | null>(null)
@@ -437,13 +453,20 @@ function canAdd(block: PortalBlockMeta) {
 
 async function loadPages() {
   loadingPages.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
-    pages.value = await portalPagesApi.list({ siteId: siteId.value, status: statusFilter.value })
+    const result = await portalPagesApi.list({ siteId: siteId.value, status: statusFilter.value })
+    pages.value = result.records || []
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
     if (!pageId.value && pages.value.length) {
       selectPage(pages.value[0].id)
     }
   } catch (error) {
     message.error((error as Error).message || '页面列表加载失败')
+    readFailed.value = describeHttpError(error)
   } finally {
     loadingPages.value = false
   }

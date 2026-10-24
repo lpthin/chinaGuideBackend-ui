@@ -182,7 +182,19 @@
             </a-card>
           </a-col>
           <a-col :span="24" v-if="filteredFiles.length === 0 && !loading">
-            <a-empty description="暂无文件" />
+            <!-- 服务端真回了空才让后端念成因；这一页有行、只是被搜索/标签在界面这边筛掉时，
+                 念后端那句就成了谎报（后端那一发是有行的） -->
+            <a-empty
+              v-if="documents.length > 0"
+              :description="`这一页读了 ${documents.length} 份，是被上面的搜索或标签筛掉的，不是「这个项目没资料」`"
+            />
+            <empty-list-hint
+              v-else
+              :loading="loading"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+            />
           </a-col>
         </a-row>
 
@@ -192,12 +204,28 @@
           v-else
           :columns="mediaColumns"
           :data-source="filteredFiles"
-          :pagination="pagination"
+          :pagination="tablePagination"
           :loading="loading"
           row-key="id"
           :row-selection="{ selectedRowKeys: selectedIds, onChange: (keys: any) => selectedIds = keys }"
           @change="handleTableChange"
         >
+          <!-- 这一页没行的那一句只认后端（M-P74）：空会被读成「这个项目没资料」，
+               「读不到」与「真的没有」必须由后端答，界面不改写。
+               这里不摆新建按钮：这一屏的入口是「批量上传」那个文件选择框，未归类那一档本来就不许上传。 -->
+          <template #emptyText>
+            <a-empty
+              v-if="documents.length > 0"
+              :description="`这一页读了 ${documents.length} 份，是被上面的搜索或标签筛掉的，不是「这个项目没资料」`"
+            />
+            <empty-list-hint
+              v-else
+              :loading="loading"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+            />
+          </template>
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'name'">
               <a-space>
@@ -586,10 +614,20 @@ import { formatTime as formatAbsoluteTime, formatFileSize } from '@/utils/format
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 
 // ==================== 知识库文档相关状态 ====================
 const auth = useAuthStore()
 const loading = ref(false)
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 const uploading = ref(false)
 const categories = ref<KnowledgeCategory[]>([])
 const documents = ref<KnowledgeDocument[]>([])
@@ -625,6 +663,16 @@ const pagination = ref({
   size: 20,
   total: 0
 })
+
+/** a-table 认的是 current/pageSize，这一屏自己那份是 page/size，给它现拼一格（M-P74） */
+const tablePagination = computed(() => ({
+  current: pagination.value.page,
+  pageSize: pagination.value.size,
+  total: pagination.value.total,
+  showSizeChanger: true,
+  showQuickJumper: true,
+  showTotal: (total: number) => `共 ${total} 份`,
+}))
 
 // 卡片生成相关状态
 const cardGenerating = ref(false)
@@ -736,6 +784,9 @@ async function loadUnclassifiedCount() {
 async function loadDocuments() {
   if (!currentCategoryId.value && !unclassifiedMode.value) return
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const params: any = {
       tenantId: auth.selectedTenantId!,
@@ -754,14 +805,23 @@ async function loadDocuments() {
     if (selectedTag.value) {
       params.tag = selectedTag.value
     }
-    const result = await knowledgeDocumentApi.list(params) as any
+    const result = await knowledgeDocumentApi.list(params)
     documents.value = result.records
     pagination.value.total = result.total
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.value.page)) {
+      pagination.value.page = 1
+      await loadDocuments()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (e) {
     logError('knowledge/knowledge-document-view', '加载文档列表失败:', e)
     message.error('加载文档列表失败')
     documents.value = []
     pagination.value.total = 0
+    readFailed.value = describeHttpError(e)
   } finally {
     loading.value = false
   }
@@ -1212,9 +1272,11 @@ function getCategoryName(categoryId: number | null): string {
   return category?.name || '-'
 }
 
-function handleTableChange(pagination: any) {
-  pagination.value.page = pagination.current
-  pagination.value.size = pagination.pageSize
+function handleTableChange(pag: any) {
+  // 参数从前叫 pagination，把外层那份 ref 挡住了：`pagination.value` 在参数上是 undefined，
+  // 点翻页就是 TypeError，列表视图的页码一直翻不动（vue-tsc 认不出，因为参数标了 any）
+  pagination.value.page = pag.current
+  pagination.value.size = pag.pageSize
   loadDocuments()
 }
 

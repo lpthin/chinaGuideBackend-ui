@@ -1,4 +1,5 @@
 // 案例管理模块类型定义
+import type { EmptyCauseFields } from './emptyResult'
 
 // 案例状态枚举
 // 后端 case_info 写路径只会产生这两个值：create 默认 DRAFT、publish 置 PUBLISHED、
@@ -177,7 +178,7 @@ export interface CaseForm {
 }
 
 // 分页结果
-export interface PageResult<T> {
+export interface PageResult<T> extends EmptyCauseFields {
   records: T[]
   total: number
   page: number

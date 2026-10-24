@@ -298,7 +298,15 @@
               </template>
             </template>
             <template #emptyText>
-              <a-empty description="暂无发布记录" />
+              <!-- 这一页没行的那一句只认后端（M-P74）：空会被读成「这一家没发过东西」，
+                   「读不到」与「真的没有」必须由后端答，界面不改写。
+                   这一屏没有「新建发布记录」这个动作（记录是发布动作产生的），所以不摆新建按钮。 -->
+              <empty-list-hint
+                :loading="recordLoading"
+                :read-failed="recordReadFailed"
+                :empty-line="recordEmptyLine"
+                :empty-reason="recordEmptyReason"
+              />
             </template>
           </a-table>
         </a-tab-pane>
@@ -363,6 +371,14 @@ import {
 } from '@ant-design/icons-vue'
 import { useRouter } from 'vue-router'
 import { articleApi, publishApi, publishQueueApi } from '../../api/workspace'
+import { describeHttpError } from '../../api/http'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 import type { PublishRecord, PublishTask } from '../../types/workspace'
 import { articleStatusMeta, jobStatusMeta, queueStatusMeta } from '../../utils/contentStatus'
 import { formatDateTime } from '../../utils/format'
@@ -679,6 +695,9 @@ async function confirmPriority() {
 // ---------------- 发布记录 ----------------
 const recordLoading = ref(false)
 const recordList = ref<PublishRecord[]>([])
+const recordEmptyLine = ref('')
+const recordEmptyReason = ref<EmptyReason>(null)
+const recordReadFailed = ref('')
 const recordQuery = reactive<{ status?: string; page: number; size: number }>({ status: undefined, page: 1, size: 10 })
 const recordTotal = ref(0)
 
@@ -722,19 +741,31 @@ function handleRecordTableChange(pag: any) {
 
 async function loadRecords() {
   recordLoading.value = true
+  recordEmptyLine.value = ''
+  recordEmptyReason.value = null
+  recordReadFailed.value = ''
   try {
     const res = await publishApi.records({
       status: recordQuery.status,
       page: recordQuery.page,
       size: recordQuery.size,
       tenantId: authStore.selectedTenantId ?? undefined,
-    }) as any
+    })
     recordList.value = res?.records || []
     recordTotal.value = res?.total || 0
+    recordEmptyLine.value = res.emptyLine || ''
+    recordEmptyReason.value = asEmptyReason(res.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(recordEmptyReason.value, recordQuery.page)) {
+      recordQuery.page = 1
+      await loadRecords()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error: any) {
     recordList.value = []
     recordTotal.value = 0
     message.error(error?.message || '加载发布记录失败')
+    recordReadFailed.value = describeHttpError(error)
   } finally {
     recordLoading.value = false
   }

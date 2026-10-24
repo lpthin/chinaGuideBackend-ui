@@ -644,7 +644,7 @@ onMounted(async () => {
   if (canReadPages.value) {
     try {
       const pageList = await portalPagesApi.list()
-      pages.value = (pageList || []).map(page => ({ id: page.id, title: page.title, slug: page.slug }))
+      pages.value = (pageList.records || []).map(page => ({ id: page.id, title: page.title, slug: page.slug }))
     } catch (error) {
       message.error((error as Error).message || '页面列表加载失败')
     }

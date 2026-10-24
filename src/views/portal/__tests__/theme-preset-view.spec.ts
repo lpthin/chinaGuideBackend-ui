@@ -5,6 +5,7 @@ import { Button, Checkbox, Input, message, Select, Tag } from 'ant-design-vue'
 import ThemePresetView from '../ThemePresetView.vue'
 import { themePresetsApi } from '../../../api/themePresets'
 import { portalPagesApi } from '../../../api/portalPages'
+import { pagedResult } from '../../../test-utils/pagedResult'
 import { siteApi } from '../../../api/workspace'
 import { useAuthStore } from '../../../stores/auth'
 
@@ -183,7 +184,7 @@ describe('ThemePresetView', () => {
       { key: 'colorPrimary', kind: 'COLOR', min: 0, max: 0 },
       { key: 'radius', kind: 'LENGTH', min: 0, max: 0 }
     ] as any)
-    vi.mocked(portalPagesApi.list).mockResolvedValue([PAGE] as any)
+    vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([PAGE] as any))
     vi.mocked(siteApi.list).mockResolvedValue([{ id: 1, name: '小山口腔' }] as any)
   })
 

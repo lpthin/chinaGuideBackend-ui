@@ -1,4 +1,5 @@
 // 文章系统模块类型定义
+import type { EmptyCauseFields } from './emptyResult'
 
 // 文章分类
 export interface ArticleCategory {
@@ -230,14 +231,10 @@ export interface ArticleUnpublishResult {
 }
 
 // 分页结果
-export interface PageResult<T> {
+export interface PageResult<T> extends EmptyCauseFields {
   records: T[]
   total: number
   page: number
   size: number
   pages: number
-  /** 这一页没行时是哪一种空（`NONE` / `NOT_VISIBLE` / `OUT_OF_RANGE`，唯一出处在后端 `EmptyResultReasons`） */
-  emptyReason?: string | null
-  /** 与 `emptyReason` 同源的整句中文（界面逐字念，不自己编） */
-  emptyLine?: string | null
 }

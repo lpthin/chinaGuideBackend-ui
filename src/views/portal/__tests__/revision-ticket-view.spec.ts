@@ -4,6 +4,7 @@ import { message } from 'ant-design-vue'
 import RevisionTicketView from '../RevisionTicketView.vue'
 import { portalTicketsApi } from '../../../api/portalTickets'
 import { portalPagesApi } from '../../../api/portalPages'
+import { pagedResult } from '../../../test-utils/pagedResult'
 import { useAuthStore } from '../../../stores/auth'
 
 /**
@@ -74,7 +75,7 @@ beforeEach(() => {
     intents: { copy: '改文案' }
   } as any)
   vi.mocked(portalTicketsApi.list).mockResolvedValue([] as any)
-  vi.mocked(portalPagesApi.list).mockResolvedValue([{ id: 43, title: '联系我们', slug: 'contact' }] as any)
+  vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([{ id: 43, title: '联系我们', slug: 'contact' }] as any))
 })
 
 describe('改版工单：底数据按码取', () => {

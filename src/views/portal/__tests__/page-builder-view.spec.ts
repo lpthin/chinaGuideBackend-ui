@@ -6,6 +6,7 @@ import { portalPagesApi, type PortalPage } from '../../../api/portalPages'
 import { portalSitesApi } from '../../../api/portalSites'
 import { themePresetsApi } from '../../../api/themePresets'
 import { siteThemeApi } from '../../../api/siteTheme'
+import { pagedResult } from '../../../test-utils/pagedResult'
 
 /**
  * 页面搭建视图的两档权限形状（Q-P7-3）。
@@ -184,7 +185,7 @@ async function openVersionsDrawer(wrapper: Awaited<ReturnType<typeof mountView>>
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(portalPagesApi.list).mockResolvedValue([PAGE])
+  vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([PAGE]))
   vi.mocked(portalPagesApi.get).mockResolvedValue(PAGE)
   vi.mocked(portalPagesApi.statusLabels).mockResolvedValue({ draft: '草稿', published: '已发布' })
   vi.mocked(portalPagesApi.changeSourceLabels).mockResolvedValue({ manual: '人工' })
@@ -314,7 +315,7 @@ describe('页面搭建：「全部站点」那一档得说清每一行属于哪�
 
   beforeEach(() => {
     vi.mocked(portalSitesApi.listMine).mockResolvedValue([OPEN_SITE, DELIVERY_SITE])
-    vi.mocked(portalPagesApi.list).mockResolvedValue([OPEN_HOME, DELIVERY_HOME, DELETED_SITE_PAGE])
+    vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([OPEN_HOME, DELIVERY_HOME, DELETED_SITE_PAGE]))
   })
 
   it('两行同名的「首页」各带自己的站名，且页面清单发的是不带 siteId 的那一发', async () => {

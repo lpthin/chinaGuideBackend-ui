@@ -1,4 +1,5 @@
 // 知识库模块类型定义
+import type { EmptyCauseFields } from './emptyResult'
 
 // 文件类型枚举
 export enum KnowledgeFileType {
@@ -345,7 +346,7 @@ export interface KnowledgeTagForm {
 }
 
 // 分页结果
-export interface PageResult<T> {
+export interface PageResult<T> extends EmptyCauseFields {
   records: T[]
   total: number
   page: number

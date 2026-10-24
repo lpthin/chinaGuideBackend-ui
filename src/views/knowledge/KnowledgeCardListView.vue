@@ -90,6 +90,18 @@
 
         <div v-if="viewMode === 'card'" class="card-view">
           <a-row :gutter="16">
+            <a-col :span="24" v-if="cardList.length === 0 && !loading">
+              <!-- 卡片视图没行时以前什么都不摆，看着像这一屏坏了（M-P74） -->
+              <empty-list-hint
+                :loading="loading"
+                :read-failed="readFailed"
+                :empty-line="emptyLine"
+                :empty-reason="emptyReason"
+                can-create
+                create-label="新建卡片"
+                @create="goToEdit()"
+              />
+            </a-col>
             <a-col :span="6" v-for="card in cardList" :key="card.id">
               <a-card
                 class="knowledge-card"
@@ -152,6 +164,19 @@
           :row-selection="rowSelection"
           :row-key="(record: any) => record.id"
         >
+          <!-- 这一页没行的那一句只认后端（M-P74）：空会被读成「这一家没有知识卡片」，
+               「读不到」与「真的没有」必须由后端答，界面不改写。 -->
+          <template #emptyText>
+            <empty-list-hint
+              :loading="loading"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+              can-create
+              create-label="新建卡片"
+              @create="goToEdit()"
+            />
+          </template>
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'title'">
               <a @click="goToDetail(record.id)">{{ record.title }}</a>
@@ -280,10 +305,20 @@ import { formatDateTime } from '../../utils/format'
 import type { KnowledgeCard, KnowledgeCategory, KnowledgeTag } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 const viewMode = ref<'card' | 'list'>('card')
 const cardList = ref<KnowledgeCard[]>([])
 const categories = ref<KnowledgeCategory[]>([])
@@ -473,6 +508,9 @@ async function loadTags() {
 
 async function loadData() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const params = {
       tenantId: auth.selectedTenantId || auth.tenantId,
@@ -483,10 +521,19 @@ async function loadData() {
     const result = await knowledgeCardApi.list(params)
     cardList.value = result.records
     pagination.total = result.total
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.page)) {
+      pagination.page = 1
+      await loadData()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
     message.error(`加载知识卡片列表失败：${describeHttpError(error)}`)
     cardList.value = []
     pagination.total = 0
+    readFailed.value = describeHttpError(error)
   } finally {
     loading.value = false
   }

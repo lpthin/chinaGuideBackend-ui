@@ -5,6 +5,7 @@ import { Button, message } from 'ant-design-vue'
 import RevisionTicketView from '../RevisionTicketView.vue'
 import { portalTicketsApi } from '../../../api/portalTickets'
 import { portalPagesApi } from '../../../api/portalPages'
+import { pagedResult } from '../../../test-utils/pagedResult'
 import { useAuthStore } from '../../../stores/auth'
 
 /**
@@ -103,7 +104,7 @@ async function mountView(
     viewports: { desktop: '桌面' },
     intents: { copy: '改文案' }
   } as any)
-  vi.mocked(portalPagesApi.list).mockResolvedValue([{ id: 43, title: '联系我们', slug: 'contact' }] as any)
+  vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([{ id: 43, title: '联系我们', slug: 'contact' }] as any))
 
   const wrapper = mount(RevisionTicketView, {
     attachTo: document.body,

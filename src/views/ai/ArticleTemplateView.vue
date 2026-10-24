@@ -105,6 +105,19 @@
         :row-key="(record: any) => record.id"
         @change="handleTableChange"
       >
+        <!-- 这一页没行的那一句只认后端（M-P74）：空会被读成「这一家没有模板」，
+             「读不到」与「真的没有」必须由后端答，界面不改写。 -->
+        <template #emptyText>
+          <empty-list-hint
+            :loading="loading"
+            :read-failed="readFailed"
+            :empty-line="emptyLine"
+            :empty-reason="emptyReason"
+            can-create
+            create-label="新建模板"
+            @create="openModal()"
+          />
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'category'">
             <a-tag :color="getCategoryColor(record.category)">
@@ -292,6 +305,7 @@ import {
   FunctionOutlined,
 } from '@ant-design/icons-vue'
 import { articleTemplateApi } from '../../api/ai-model'
+import { describeHttpError } from '../../api/http'
 import type {
   ArticleTemplate,
   ArticleTemplateForm,
@@ -301,11 +315,21 @@ import type {
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
 
 const loading = ref(false)
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 const modalVisible = ref(false)
 const modalLoading = ref(false)
 
@@ -511,6 +535,9 @@ const deleteTemplate = async (id: number) => {
 
 const loadTemplates = async () => {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const result = await articleTemplateApi.list({
       tenantId: getTenantId(),
@@ -521,10 +548,19 @@ const loadTemplates = async () => {
     })
     templateList.value = result.records || []
     pagination.total = result.total || 0
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current)) {
+      pagination.current = 1
+      await loadTemplates()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error: any) {
     logError('ai/article-template-view', '加载模板列表失败:', error)
     message.error(error?.message || '加载模板列表失败')
     templateList.value = []
+    readFailed.value = describeHttpError(error)
   } finally {
     loading.value = false
   }

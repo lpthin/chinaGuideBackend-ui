@@ -6,6 +6,7 @@ import PageBuilderView from '../../../views/portal/PageBuilderView.vue'
 import { portalPagesApi } from '../../../api/portalPages'
 import { portalSitesApi } from '../../../api/portalSites'
 import { siteThemeApi } from '../../../api/siteTheme'
+import { pagedResult } from '../../../test-utils/pagedResult'
 
 /**
  * 搭建器里那两个主题框「接没接上线」（Spec-M P2 判据②③的前端那一半）。
@@ -101,7 +102,7 @@ function buttonOf(wrapper: Awaited<ReturnType<typeof mountView>>, label: string)
 
 describe('搭建器里的站级主题面板接线', () => {
   it('白名单取到了才摆出那两行按钮', async () => {
-    vi.mocked(portalPagesApi.list).mockResolvedValue([PAGE])
+    vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([PAGE]))
     vi.mocked(portalPagesApi.get).mockResolvedValue(PAGE)
     vi.mocked(portalPagesApi.statusLabels).mockResolvedValue({ draft: '草稿', published: '已发布' } as never)
     vi.mocked(portalPagesApi.changeSourceLabels).mockResolvedValue({ manual: '人工' } as never)
@@ -119,7 +120,7 @@ describe('搭建器里的站级主题面板接线', () => {
   })
 
   it('白名单没取到时不摆出可编辑态：那时点保存发的是「整站清空」', async () => {
-    vi.mocked(portalPagesApi.list).mockResolvedValue([PAGE])
+    vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([PAGE]))
     vi.mocked(portalPagesApi.get).mockResolvedValue(PAGE)
     vi.mocked(portalPagesApi.statusLabels).mockResolvedValue({ draft: '草稿', published: '已发布' } as never)
     vi.mocked(portalPagesApi.changeSourceLabels).mockResolvedValue({ manual: '人工' } as never)

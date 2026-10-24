@@ -137,6 +137,19 @@
           :row-key="(record: any) => record.id"
           :loading="tableLoading"
         >
+          <!-- 这一页没行的那一句只认后端（M-P74）：空会被读成「这一家没有案例」，
+               所以「读不到」与「真的没有」必须由后端答，界面不改写。 -->
+          <template #emptyText>
+            <empty-list-hint
+              :loading="tableLoading"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+              can-create
+              create-label="新建案例"
+              @create="handleAdd"
+            />
+          </template>
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'title'">
               <div class="case-title-cell">
@@ -263,9 +276,16 @@ import { CaseStatus, CasePriority, CaseType } from '../../types/case'
 import type { Case, CaseCategory, CaseForm } from '../../types/case'
 import CaseDetailDrawer from './CaseDetailDrawer.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import { caseApi, caseCategoryApi } from '../../api/case'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime, formatNumber } from '../../utils/format'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 
@@ -273,6 +293,9 @@ const authStore = useAuthStore()
 
 const loading = ref(false)
 const tableLoading = ref(false)
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 const drawerVisible = ref(false)
 const currentCaseId = ref<number | null>(null)
 const selectedRowKeys = ref<number[]>([])
@@ -437,6 +460,9 @@ async function loadCategories() {
 async function loadCases() {
   const tenantId = authStore.selectedTenantId || authStore.tenantId
   tableLoading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const params: any = {
       tenantId,
@@ -452,10 +478,19 @@ async function loadCases() {
     const res = await caseApi.list(params)
     caseList.value = res.records || []
     pagination.total = res.total || 0
+    emptyLine.value = res.emptyLine || ''
+    emptyReason.value = asEmptyReason(res.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current)) {
+      pagination.current = 1
+      await loadCases()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
     logError('case/case-list-view', 'Failed to load cases:', error)
     message.error(`加载案例列表失败：${describeHttpError(error)}`)
     caseList.value = []
+    readFailed.value = describeHttpError(error)
   } finally {
     tableLoading.value = false
   }

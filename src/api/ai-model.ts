@@ -17,6 +17,7 @@ import type {
   ArticleTemplateQueryParams,
   PurposeScopeOption,
 } from '../types/ai-model'
+import type { PageResult } from '../types/article'
 
 // 模型 API (复用 modelConfigApi)
 export const modelApi = {
@@ -213,11 +214,10 @@ export const aiModelApi = {
 // 软文模板 API
 export const articleTemplateApi = {
   // 获取模板列表
+  // M-P74：后端这一口换成 ApiResponse<PagedRead>，回包里多两格成因（emptyReason/emptyLine），
+  // 类型按同一份 PageResult 走，别再写一份只有 records/total 的假形状
   list: (params: ArticleTemplateQueryParams) =>
-    http.get<{
-      records: ArticleTemplate[]
-      total: number
-    }>('/ai/article-templates', { params }),
+    http.get<PageResult<ArticleTemplate>>('/ai/article-templates', { params }),
 
   // 获取模板详情
   get: (id: number) =>

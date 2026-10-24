@@ -366,7 +366,7 @@ async function loadPages() {
     return
   }
   try {
-    pages.value = (await portalPagesApi.list()) || []
+    pages.value = (await portalPagesApi.list()).records || []
     pagesNote.value = ''
   } catch (error) {
     message.error((error as Error).message || '页面列表加载失败')

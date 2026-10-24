@@ -6,6 +6,7 @@ import SiteValidationStrip from '../SiteValidationStrip.vue'
 import { portalHealthApi } from '../../../api/portalHealth'
 import { portalValidationApi } from '../../../api/portalValidation'
 import { portalPagesApi } from '../../../api/portalPages'
+import { pagedResult } from '../../../test-utils/pagedResult'
 import { portalTicketsApi } from '../../../api/portalTickets'
 import { siteApi } from '../../../api/workspace'
 import { useAuthStore } from '../../../stores/auth'
@@ -191,7 +192,7 @@ describe('PortalHealthView', () => {
       finding(2, 'content_stale'),
       finding(3, 'link_dead')
     ] as any)
-    vi.mocked(portalPagesApi.list).mockResolvedValue([{ id: 43, title: '联系我们', slug: 'contact' }] as any)
+    vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([{ id: 43, title: '联系我们', slug: 'contact' }] as any))
     vi.mocked(siteApi.list).mockResolvedValue([{ id: 1, name: '小山口腔' }] as any)
   })
 

@@ -1,4 +1,5 @@
 import http from './http'
+import type { PageResult } from '../types/article'
 
 /**
  * 门户「页面即数据」管理端接口（需登录）。
@@ -94,8 +95,12 @@ export const portalPagesApi = {
 
   changeSourceLabels: () => http.get<Record<string, string>>('/portal/pages/change-sources'),
 
+  /**
+   * 全站页面的一次性全量读（后端不分页）。M-P74：整页没行时后端会答是哪一种空，
+   * 所以返回体从裸数组换成带成因的分页形状，取数用 `.records`。
+   */
   list: (params: { siteId?: number | null; status?: string; pageKind?: string } = {}) =>
-    http.get<PortalPage[]>('/portal/pages', {
+    http.get<PageResult<PortalPage>>('/portal/pages', {
       params: {
         siteId: params.siteId ?? undefined,
         status: params.status || undefined,

@@ -1,5 +1,6 @@
 // Workspace 模块类型定义
 import type { ArticleStatus, JobStatus, QueueStatus } from '../utils/contentStatus'
+import type { EmptyCauseFields } from './emptyResult'
 
 // 租户信息
 export interface Tenant {
@@ -237,7 +238,7 @@ export interface ReviewActionParams {
 }
 
 // 分页结果
-export interface PageResult<T> {
+export interface PageResult<T> extends EmptyCauseFields {
   records: T[]
   total: number
   page: number
