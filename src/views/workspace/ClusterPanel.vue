@@ -104,10 +104,24 @@
           }"
           :pagination="{ pageSize: 8, showSizeChanger: true, pageSizeOptions: ['8', '16', '32'] }"
           :row-key="(record: any) => record.id"
-          :locale="{ emptyText: '暂无聚类数据，点击上方「一键智能蒸馏」开始' }"
           size="middle"
           bordered
         >
+          <!-- 这一格没行的那一句只认后端（M-P77）：这张表空会被读成「这一家没蒸馏过聚类」，
+               「这一档读不到」「这一页翻过了头」与「真的没有」是三种完全不同的空，界面不改写、不合并。
+               以前这里写死一句「暂无聚类数据，点击上方「一键智能蒸馏」开始」，三种念法念出来是同一句。 -->
+          <template #emptyText>
+            <empty-list-hint
+              :loading="loading"
+              :read-failed="clustersReadFailed"
+              :empty-line="clustersEmptyLine"
+              :empty-reason="clustersEmptyReason"
+              can-create
+              create-label="一键智能蒸馏"
+              @create="distillAll"
+            />
+          </template>
+
           <!-- Priority column with progress -->
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'priority'">
@@ -602,11 +616,13 @@ import {
   SaveOutlined,
 } from '@ant-design/icons-vue'
 import { clusterApi, suggestionApi } from '../../api'
-import http from '../../api/http'
+import http, { describeHttpError } from '../../api/http'
 import { formatDate } from '../../utils/format'
 import { useRouter } from 'vue-router'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 import { logError } from '../../utils/errorLog'
+import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -616,6 +632,13 @@ watch(() => authStore.selectedTenantId, () => {
 })
 
 const loading = ref(false)
+// 这一屏两张表各读一口，成因要分开记：聚类那一发的成因进空表那一句，
+// 内容建议那一发只决定「已生成建议」那一格摆数字还是摆「—」（M-P77）。
+const clustersEmptyLine = ref('')
+const clustersEmptyReason = ref<EmptyReason>(null)
+const clustersReadFailed = ref('')
+const suggestionsEmptyReason = ref<EmptyReason>(null)
+const suggestionsReadFailed = ref('')
 const distilling = ref(false)
 // 两阶段蒸馏：抽屉 + preview/confirm
 const distillDrawerOpen = ref(false)
@@ -740,13 +763,23 @@ const highPriorityCount = computed(() =>
 
 const statItems = computed(() => {
   const pendingCount = Math.max(stats.totalClusters - stats.hasSuggestions, 0)
+  // 「读不到」与「读失败」这两档不许摆 0：0 的意思是「查过了，一家都没有」，
+  // 而那一发根本没读回来，或者选中的身份在这张表里没有行（M-P77）。
+  const dash = '—'
   return [
-    { key: 'total', value: stats.totalClusters, label: '聚类总数', icon: ApartmentOutlined, color: 'blue' },
-    { key: 'high', value: highPriorityCount.value, label: '高优先级', icon: FireOutlined, color: 'red' },
-    { key: 'suggestions', value: stats.hasSuggestions, label: '已生成建议', icon: BulbOutlined, color: 'green' },
-    { key: 'pending', value: pendingCount, label: '待蒸馏', icon: ClockCircleOutlined, color: 'orange' },
+    { key: 'total', value: clustersUnreadable.value ? dash : stats.totalClusters, label: '聚类总数', icon: ApartmentOutlined, color: 'blue' },
+    { key: 'high', value: clustersUnreadable.value ? dash : highPriorityCount.value, label: '高优先级', icon: FireOutlined, color: 'red' },
+    { key: 'suggestions', value: suggestionsUnreadable.value ? dash : stats.hasSuggestions, label: '已生成建议', icon: BulbOutlined, color: 'green' },
+    { key: 'pending', value: clustersUnreadable.value || suggestionsUnreadable.value ? dash : pendingCount, label: '待蒸馏', icon: ClockCircleOutlined, color: 'orange' },
   ]
 })
+
+/** 这一发到底读回来了没有：读失败，或者后端答「这一档读不到」 */
+function unreadable(readFailed: string, emptyReason: EmptyReason) {
+  return !!readFailed || emptyReason === 'NOT_VISIBLE'
+}
+const clustersUnreadable = computed(() => unreadable(clustersReadFailed.value, clustersEmptyReason.value))
+const suggestionsUnreadable = computed(() => unreadable(suggestionsReadFailed.value, suggestionsEmptyReason.value))
 
 const clusters = ref<KeywordCluster[]>([])
 const suggestionsMap = ref<Record<number, KeywordContentSuggestion[]>>({})
@@ -835,18 +868,40 @@ function showClusterDetail(item: any) {
 
 async function loadData() {
   loading.value = true
-  try {
-    const [clustersRes, suggestionsRes] = await Promise.all([
-      clusterApi.list({ tenantId: authStore.selectedTenantId || undefined }),
-      suggestionApi.list({ tenantId: authStore.selectedTenantId || undefined }),
-    ])
-    const clustersData = clustersRes.records
-    const suggestionsData = suggestionsRes.records
-    clusters.value = clustersData as any
-    stats.totalClusters = clustersData.length
-    stats.hasSuggestions = 0
+  // 两发分开认：以前用 Promise.all，任何一发挂了都算「整屏读失败」，另一发其实读回来的行也被抹掉，
+  // 而且屏上说不出是哪一发没读回来（M-P77）。
+  const [clustersRes, suggestionsRes] = await Promise.allSettled([
+    clusterApi.list({ tenantId: authStore.selectedTenantId || undefined }),
+    suggestionApi.list({ tenantId: authStore.selectedTenantId || undefined }),
+  ])
+
+  clusters.value = []
+  suggestionsMap.value = {}
+  stats.totalClusters = 0
+  stats.hasSuggestions = 0
+  clustersEmptyLine.value = ''
+  clustersEmptyReason.value = null
+  suggestionsEmptyReason.value = null
+
+  if (clustersRes.status === 'fulfilled') {
+    const res = clustersRes.value
+    const rows = (res?.records ?? []) as any[]
+    clusters.value = rows
+    // 以前这一格摆的是本页行数：这一发只回前 20 条时，界面上「聚类总数」就念 20。
+    // 总条数后端本来就答得出来，认它那份。
+    stats.totalClusters = res?.total ?? rows.length
+    clustersEmptyLine.value = res?.emptyLine || ''
+    clustersEmptyReason.value = asEmptyReason(res?.emptyReason)
+    clustersReadFailed.value = ''
+  } else {
+    clustersReadFailed.value = describeHttpError(clustersRes.reason)
+    logError('workspace/cluster-panel', '聚类那一发读失败', clustersRes.reason)
+  }
+
+  if (suggestionsRes.status === 'fulfilled') {
+    const rows = (suggestionsRes.value?.records ?? []) as any[]
     const map: Record<number, KeywordContentSuggestion[]> = {}
-    suggestionsData.forEach((s: any) => {
+    rows.forEach((s: any) => {
       const cid = s.keywordClusterId || s.clusterId
       if (cid) {
         if (!map[cid]) map[cid] = []
@@ -855,16 +910,17 @@ async function loadData() {
     })
     suggestionsMap.value = map
     stats.hasSuggestions = Object.keys(map).length
-  } catch (error) {
-    clusters.value = []
-    suggestionsMap.value = {}
-    stats.totalClusters = 0
-    stats.hasSuggestions = 0
-    message.error('加载数据失败')
-    logError('workspace/cluster-panel', error)
-  } finally {
-    loading.value = false
+    suggestionsEmptyReason.value = asEmptyReason(suggestionsRes.value?.emptyReason)
+    suggestionsReadFailed.value = ''
+  } else {
+    suggestionsReadFailed.value = describeHttpError(suggestionsRes.reason)
+    logError('workspace/cluster-panel', '内容建议那一发读失败', suggestionsRes.reason)
   }
+
+  if (clustersReadFailed.value || suggestionsReadFailed.value) {
+    message.error(`这一发读失败：${clustersReadFailed.value || suggestionsReadFailed.value}`)
+  }
+  loading.value = false
 }
 
 async function distillAll() {
