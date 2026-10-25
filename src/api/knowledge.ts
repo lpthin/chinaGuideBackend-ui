@@ -57,9 +57,9 @@ export const knowledgeCategoryApi = {
   list: (params: KnowledgeCategoryQuery) =>
     http.get<PageResult<KnowledgeCategory>>('/knowledge/categories', { params }),
 
-  // 获取全部分类（不分页）
+  // 获取全部分类（不分页，但回的是带「这一档为什么空」的分页读形：项目面板要分得开「没建过」与「读不到」）
   all: (tenantId: number) =>
-    http.get<KnowledgeCategory[]>('/knowledge/categories/all', { params: { tenantId } }),
+    http.get<PageResult<KnowledgeCategory>>('/knowledge/categories/all', { params: { tenantId } }),
 
   // 获取分类统计
   stats: (tenantId: number, status?: string) =>

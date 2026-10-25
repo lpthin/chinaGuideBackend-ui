@@ -244,7 +244,7 @@ const loadCategories = async () => {
   try {
     const tenantId = authStore.selectedTenantId ?? authStore.tenantId
     const res: any = await knowledgeCategoryApi.all(tenantId)
-    const data = res?.data ?? res
+    const data = res?.records
     if (Array.isArray(data)) {
       categories.value = flattenCategories(data).map((cat: any) => ({ id: cat.id, name: cat.name }))
     }

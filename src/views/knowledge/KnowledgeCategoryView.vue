@@ -534,7 +534,7 @@ async function loadData() {
       knowledgeCategoryApi.stats(getTenantId())
     ])
     // /categories/all 返回树形结构，本地按 parentId 组树需要平铺列表
-    const list = flattenCategories(categoriesResult)
+    const list = flattenCategories(categoriesResult.records)
     categories.value = list
     categoryStats.value = statsResult
     stats.totalCategories = list.length

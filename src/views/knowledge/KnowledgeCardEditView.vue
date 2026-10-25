@@ -261,7 +261,7 @@ async function handleSave() {
 async function loadCategories() {
   try {
     const result = await knowledgeCategoryApi.all(getTenantId())
-    categories.value = flattenCategories(result)
+    categories.value = flattenCategories(result.records)
   } catch (error) {
     message.error(`加载分类失败：${describeHttpError(error)}`)
     categories.value = []

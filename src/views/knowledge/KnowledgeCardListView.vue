@@ -486,7 +486,7 @@ async function handleBatchSetTags() {
 
 async function loadCategories() {
   try {
-    const result = flattenCategories(await knowledgeCategoryApi.all(auth.selectedTenantId!))
+    const result = flattenCategories((await knowledgeCategoryApi.all(auth.selectedTenantId!)).records)
     categories.value = result
     stats.totalCategories = result.length
   } catch (error) {

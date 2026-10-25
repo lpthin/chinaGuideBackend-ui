@@ -47,8 +47,19 @@
               </a-card-meta>
             </a-card>
           </a-col>
-          <a-col :span="24" v-if="categories.length === 0 && !loading">
-            <a-empty description="暂无项目，点击新建项目创建" />
+          <a-col :span="24" v-if="categories.length === 0">
+            <!-- 项目面板那一句只认后端（M-P75）：空会被读成「这一家没建过项目」，
+                 而租户认不认得出是后端才知道的事，界面不改写、不硬编码。
+                 原来这里写死了一句「暂无项目，点击新建项目创建」，选错一家时也念同一句。 -->
+            <empty-list-hint
+              :loading="loading"
+              :read-failed="panelReadFailed"
+              :empty-line="panelEmptyLine"
+              :empty-reason="panelEmptyReason"
+              can-create
+              create-label="新建项目"
+              @create="showNewCategoryModal = true"
+            />
           </a-col>
         </a-row>
       </a-spin>
@@ -628,6 +639,10 @@ const loading = ref(false)
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
 const readFailed = ref('')
+// 项目面板那三个跟上面那三个说的是两屏：那三个是「这个项目里的资料」，这一组是「这一家有没有项目」
+const panelEmptyLine = ref('')
+const panelEmptyReason = ref<EmptyReason>(null)
+const panelReadFailed = ref('')
 const uploading = ref(false)
 const categories = ref<KnowledgeCategory[]>([])
 const documents = ref<KnowledgeDocument[]>([])
@@ -747,13 +762,19 @@ const hasNextDoc = computed(() => previewIndex.value >= 0 && previewIndex.value 
 // ==================== 知识库文档相关方法 ====================
 async function loadCategories() {
   loading.value = true
+  panelEmptyLine.value = ''
+  panelEmptyReason.value = null
+  panelReadFailed.value = ''
   try {
-    const result = await knowledgeCategoryApi.all(auth.selectedTenantId!) as any
-    categories.value = result
+    const result = await knowledgeCategoryApi.all(auth.selectedTenantId!)
+    categories.value = result.records
+    panelEmptyLine.value = result.emptyLine || ''
+    panelEmptyReason.value = asEmptyReason(result.emptyReason)
   } catch (e) {
     logError('knowledge/knowledge-document-view', '加载分类失败:', e)
     message.error('加载项目失败')
     categories.value = []
+    panelReadFailed.value = describeHttpError(e)
   } finally {
     loading.value = false
   }

@@ -178,7 +178,7 @@ const STUBS = {
 /** 挂好并真的走进项目里（点项目卡 → 切列表视图），返回界面 */
 async function mountInProject(responses: Array<PageShape | Error>, { list = true } = {}) {
   vi.mocked(knowledgeDocumentApi.list).mockImplementation(listHandler(responses) as any)
-  vi.mocked(knowledgeCategoryApi.all).mockResolvedValue([{ id: 7, name: '企业资料' }] as any)
+  vi.mocked(knowledgeCategoryApi.all).mockResolvedValue({ records: [{ id: 7, name: '企业资料' }], total: 1, page: 1, size: 1, pages: 1 } as any)
   vi.mocked(knowledgeTagApi.list).mockResolvedValue([] as any)
 
   const wrapper = mount(KnowledgeDocumentView, {

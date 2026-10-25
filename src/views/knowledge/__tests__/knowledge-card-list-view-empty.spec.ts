@@ -144,7 +144,7 @@ async function mountView(
   } else {
     list.mockResolvedValue({ records: rows, total: rows.length, ...pageExtras } as any)
   }
-  vi.mocked(knowledgeCategoryApi.all).mockResolvedValue([] as any)
+  vi.mocked(knowledgeCategoryApi.all).mockResolvedValue({ records: [], total: 0, page: 1, size: 1, pages: 1 } as any)
   vi.mocked(knowledgeTagApi.list).mockResolvedValue([] as any)
 
   const wrapper = mount(KnowledgeCardListView, {
