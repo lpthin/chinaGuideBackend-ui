@@ -65,7 +65,10 @@ const isEmpty = computed(() => !props.loading && props.dataSource.length === 0)
 
 <template>
   <StateBlock v-if="error" state="error" :detail="error" />
-  <StateBlock v-else-if="isEmpty" state="empty" />
+  <!-- 页面自己带了「这一种空是哪一种」那一句（N-05：后端原文，界面不改写）时，这一块固定话术
+       不能再盖在上面——「调整筛选条件，或新建一条记录」对「这一家读不到」那一形是谎报。
+       没带这一句的屏一行没变。 -->
+  <StateBlock v-else-if="isEmpty && !$slots.emptyText" state="empty" />
   <a-table v-else :data-source="dataSource" :loading="loading" :row-key="rowKey" :pagination="mergedPagination" :scroll="mergedScroll" v-bind="$attrs">
     <template v-for="(_, name) in $slots" #[name]="slotData"><slot :name="name" v-bind="slotData ?? {}" /></template>
   </a-table>

@@ -18,11 +18,19 @@ import {
 import { message, Modal } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import { keywordApi } from '../../api'
+import { describeHttpError } from '../../api/http'
+import {
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  JUMP_BACK_NOTICE,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 import { formatDateTime } from '../../utils/format'
 import { PH_DASH } from '../../utils/display'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import { useAuthStore } from '../../stores/auth'
 
@@ -62,6 +70,10 @@ const keywords = ref<KW[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+// 这一屏没行时念哪一句只认后端那一格（唯一出处 EmptyResultReasons，界面不改写）
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 
 const tablePagination = computed(() => ({
   current: currentPage.value,
@@ -178,6 +190,9 @@ async function loadExpandConfig() {
 
 async function loadKeywords() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const res = await keywordApi.list({
       page: currentPage.value,
@@ -220,6 +235,20 @@ async function loadKeywords() {
     })
     keywords.value = list
     total.value = Number(res?.total || 0)
+    emptyLine.value = res?.emptyLine || ''
+    emptyReason.value = asEmptyReason(res?.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, currentPage.value)) {
+      currentPage.value = 1
+      await loadKeywords()
+      message.info(JUMP_BACK_NOTICE)
+    }
+  } catch (error) {
+    // 以前这一发失败时这里只有 finally：表格留着上一批行，人看不出它是读失败还是真的没行
+    readFailed.value = describeHttpError(error)
+    keywords.value = []
+    total.value = 0
+    message.error(`加载关键词列表失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }
@@ -582,6 +611,19 @@ onMounted(fetchAll)
           :row-selection="rowSelection"
           class="kw-table"
         >
+          <!-- 这一页没行的那一句只认后端（M-P76）：空会被读成「这一家一个关键词都没导过」，
+               「读不到」「翻过头」与「真的没有」必须由后端答，界面不改写、不合并。 -->
+          <template #emptyText>
+            <empty-list-hint
+              :loading="loading"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+              can-create
+              create-label="导入关键词"
+              @create="showImportModal = true"
+            />
+          </template>
           <a-table-column title="#" type="index" width="48" />
           <a-table-column title="关键词" data-index="rawKeyword" min-width="180">
             <template #default="{ record }">
