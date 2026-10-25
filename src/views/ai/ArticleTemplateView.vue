@@ -492,6 +492,8 @@ const handleSubmit = async () => {
     }
     modalVisible.value = false
     await loadTemplates()
+    // 顶部那四块统计和这张表是同一批行：写完只刷表不刷统计，删掉一行后「模板总数」还写着旧数
+    await loadStats()
   } catch (error: any) {
     logError('ai/article-template-view', '保存模板失败:', error)
     message.error(error?.message || '保存模板失败')
@@ -516,6 +518,7 @@ const copyTemplate = async (id: number) => {
     await articleTemplateApi.copy(id)
     message.success('模板已复制')
     await loadTemplates()
+    await loadStats()
   } catch (error: any) {
     logError('ai/article-template-view', '复制模板失败:', error)
     message.error(error?.message || '复制模板失败')
@@ -527,6 +530,7 @@ const deleteTemplate = async (id: number) => {
     await articleTemplateApi.delete(id)
     message.success('删除成功')
     await loadTemplates()
+    await loadStats()
   } catch (error: any) {
     logError('ai/article-template-view', '删除模板失败:', error)
     message.error(error?.message || '删除模板失败')
