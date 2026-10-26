@@ -11,9 +11,23 @@
   :scroll="{ x: 'max-content' }"
   :data-source="templates"
   :loading="loading"
-  :pagination="false"
+  :pagination="pagination"
   row-key="id"
+  @change="handleTableChange"
 >
+      <!-- 这一屏的空会被读成「系统一条提示词模板都没有」，所以是哪一种空只认后端（M-P78）。
+           新建的入口只在「真的没有」那一档摆：读失败与翻过头都不是「这一档还空着」。 -->
+      <template #emptyText>
+        <empty-list-hint
+          :loading="loading"
+          :read-failed="readFailed"
+          :empty-line="emptyLine"
+          :empty-reason="emptyReason"
+          can-create
+          create-label="新建模板"
+          @create="openModal()"
+        />
+      </template>
   <a-table-column title="名称" data-index="name" width="200" />
   <a-table-column title="用途" width="150">
     <template #default="{ record }">{{ purposeName(record.purpose) }}</template>
@@ -79,13 +93,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { systemPromptApi } from '../../api'
+import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import type { PromptTemplate } from '../../types'
 import { logError } from '../../utils/errorLog'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 
 const purposeNames: Record<string, string> = {
   keyword_distill: '关键词蒸馏',
@@ -103,6 +125,18 @@ const loading = ref(false)
 const modalOpen = ref(false)
 const editingId = ref<number | null>(null)
 const saving = ref(false)
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
+
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+  showSizeChanger: true,
+  showQuickJumper: true,
+  showTotal: (total: number) => `共 ${total} 条`,
+})
 
 const form = ref<PromptTemplate>({
   name: '',
@@ -114,15 +148,40 @@ const form = ref<PromptTemplate>({
 
 const fetchTemplates = async () => {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
-    const res = await systemPromptApi.list({})
+    const res = await systemPromptApi.list({
+      page: pagination.current,
+      size: pagination.pageSize,
+    })
     templates.value = res.records || []
+    pagination.total = res.total || 0
+    emptyLine.value = res.emptyLine || ''
+    emptyReason.value = asEmptyReason(res.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current)) {
+      pagination.current = 1
+      await fetchTemplates()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (e) {
     logError('workspace/system-prompt-panel', 'fetchTemplates error:', e)
-    message.error('获取模板列表失败')
+    // 读失败与「这一档没有行」是两件事：旧行必须清掉，否则界面会把上一批行继续当成这一发的读数
+    templates.value = []
+    pagination.total = 0
+    readFailed.value = describeHttpError(e)
+    message.error(`获取模板列表失败：${describeHttpError(e)}`)
   } finally {
     loading.value = false
   }
+}
+
+const handleTableChange = (pag: any) => {
+  pagination.current = pag.current
+  pagination.pageSize = pag.pageSize
+  fetchTemplates()
 }
 
 const openModal = (record?: PromptTemplate) => {
