@@ -411,8 +411,8 @@ async function save() {
       modalVisible.value = false
       await load()
       await siteStore.loadSites()
-      // 建站向导的交棒出口：与 TenantPanel「去录前采」同一走法——租户号挂 query，录入页自己预填
-      router.push({ name: 'workspace-portal-brief-new', query: { tenantId: String(tenantId) } })
+      // 建站向导的交棒出口：与 TenantPanel「去录前采」同一走法——租户号挂 query，向导第一步自己预填
+      router.push({ name: 'workspace-portal-wizard', query: { step: 'intake', tenantId: String(tenantId) } })
     }
   } catch (e) {
     // 后端拦下来的理由要说给人听（「站点状态不能这么改…」），只报「保存失败」等于让人反复试同一发

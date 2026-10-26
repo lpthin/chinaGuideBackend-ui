@@ -94,6 +94,22 @@ function readStepKeyFromQuery(): string | undefined {
   return typeof value === 'string' && STEP_KEYS.includes(value as (typeof STEP_KEYS)[number]) ? value : undefined
 }
 
+/**
+ * 「租户管理 > 去录前采」那一行带过来的租户号。
+ *
+ * 它决定两件事：第一步摊开的是**一张空单**（不自动打开列表里那张老单，链接的来意就是「给这家新录一单」），
+ * 以及空单上那个租户已预填。选了已有需求单时它不动——表单那一刻读的是那一单自己的租户，
+ * 这个号只在回到空白单时生效，正是「给同一家再录一单」想要的那个预填。
+ */
+const intakeTenantId = ref<number | null>(readTenantIdFromQuery())
+
+function readTenantIdFromQuery(): number | null {
+  const raw = route.query.tenantId
+  const value = Array.isArray(raw) ? raw[0] : raw
+  const parsed = Number(value)
+  return value !== undefined && value !== '' && Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
 /** 步号写进地址：刷新、收藏夹、从别的页面退回来都还在原来那一步（Spec-F §9.2-4 那条持久化口径） */
 function createWizardStateWithStep(stepKey?: string): WizardState {
   const index = stepKey ? STEP_KEYS.indexOf(stepKey as (typeof STEP_KEYS)[number]) : 0
@@ -336,7 +352,7 @@ async function loadBriefs() {
     const result: any = await siteBriefsApi.list()
     briefs.value = Array.isArray(result) ? result : (result?.records || [])
     briefsError.value = ''
-    if (!briefId.value && briefs.value.length) {
+    if (!briefId.value && !intakeTenantId.value && briefs.value.length) {
       briefId.value = briefs.value[0].id
       syncQuery(wizard.value.current, briefId.value)
     }
@@ -609,8 +625,9 @@ onUnmounted(stopFollowingProgress)
         <p v-if="!briefsError && !briefs.length" class="site-wizard__hint">
           一份需求单都还没有：第一步就是录它（题目与分段都来自后端前采词表），后面四步都要靠它这一个号。
         </p>
-        <!-- 前采本体就地录：这一份和独立页 `BriefIntakeView` 用的是同一个组件，不存在第二套提交形状 -->
-        <BriefIntakeForm :brief-id="briefId" embedded @saved="onIntakeSaved" />
+        <!-- 前采本体就地录：这一份和独立页 `BriefIntakeView` 用的是同一个组件，不存在第二套提交形状。
+             地址带过来的租户号交给它预填（「租户管理 > 去录前采」那条链接的落点）。 -->
+        <BriefIntakeForm :brief-id="briefId" :tenant-id="intakeTenantId ?? undefined" embedded @saved="onIntakeSaved" />
       </template>
 
       <template #step-spec>

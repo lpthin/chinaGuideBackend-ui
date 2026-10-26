@@ -633,6 +633,17 @@ async function loadTenants() {
   }
 }
 
+/**
+ * 开新标签去「租户管理」，不在本页 router.push。
+ *
+ * 这一屏已经勾了十几道题，跳走就把填的东西丢了（需求单要点了保存才落库）。
+ * 建完租户回来点「重新取租户列表」就能选到那一家。
+ */
+function goCreateTenant() {
+  const target = router.resolve({ name: 'workspace-tenant' })
+  window.open(target.href, '_blank', 'noopener')
+}
+
 async function loadSites() {
   try {
     sites.value = (await siteApi.list()) || []
@@ -704,7 +715,10 @@ async function save() {
     return
   }
   if (!form.tenantId) {
-    message.warning('先选这一单给哪个租户')
+    // 一家租户都没有的时候，「先选租户」是一句做不到的要求：那一站还没法存在
+    message.warning(tenants.value.length
+      ? '先选这一单给哪个租户'
+      : '还没有租户：需求单必须记在一家租户名下，先点「去新建租户」开一家')
     return
   }
   if (requiredUnansweredLabels.value.length) {
@@ -907,6 +921,12 @@ onMounted(boot)
           style="width: 220px"
           @update:value="onTenantChange"
         />
+        <!-- 租户是建站的前置条件（后端没有租户就直接拒），但这一屏以前只拦「没选租户」、
+             不告诉人去哪儿开一家，一家都没有的人卡死在第一步。开新标签，见 goCreateTenant。 -->
+        <a-button size="small" type="link" @click="goCreateTenant">去新建租户</a-button>
+        <a-button v-if="tenantsFailed || !tenants.length" size="small" type="link" @click="loadTenants">
+          重新取租户列表
+        </a-button>
         <!-- 站点在这里**没有可选项**：候选站是后链路 AI 建出来之后才回填的（Spec-C §6.2），
              录入阶段给一个能选、选了又不入库的下拉，等于骗人填一遍。只在单子上确实绑过站时显示。 -->
         <template v-if="form.siteId">
@@ -934,6 +954,19 @@ onMounted(boot)
         />
       </a-space>
     </div>
+
+    <!-- 一家租户都没有 / 列表没取到：这一单填完也保存不了，先说清缺的是哪一样 -->
+    <a-alert v-if="tenantsFailed" type="warning" show-icon class="brief-intake__alert">
+      <template #message>
+        租户列表没取到：点上面那颗「重新取租户列表」重试。取不到就没法选，这一单也保存不了。
+      </template>
+    </a-alert>
+    <a-alert v-else-if="!tenants.length && !form.tenantId" type="warning" show-icon class="brief-intake__alert">
+      <template #message>
+        还没有租户：需求单要记在一家租户名下，先点上面那颗「去新建租户」开一家，
+        建完回到这一页点「重新取租户列表」就能选到它。
+      </template>
+    </a-alert>
 
     <a-alert v-if="tenantFromQuery && !briefId" type="info" show-icon class="brief-intake__alert">
       <template #message>

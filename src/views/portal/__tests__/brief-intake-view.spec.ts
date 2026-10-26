@@ -51,7 +51,12 @@ const { pushSpy, replaceSpy, routeParams, routeQuery } = vi.hoisted(() => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: pushSpy, replace: replaceSpy }),
+  useRouter: () => ({
+    push: pushSpy,
+    replace: replaceSpy,
+    // 「去新建租户」开新标签用的是 resolve（它只算地址，不把人跳走）：mock 里不给这口就是 TypeError
+    resolve: (to: any) => ({ href: to?.name === 'workspace-tenant' ? '/workspace/tenant' : '/workspace' })
+  }),
   useRoute: () => ({ params: routeParams.current, query: routeQuery.current })
 }))
 
@@ -250,10 +255,17 @@ interface Options {
   blocks?: any
   sections?: any
   sectionsError?: string
+  /** 租户列表那一头：给 [] 就是「一家都还没开」，给字符串就是「这一发失败了」 */
+  tenants?: any[]
+  tenantsError?: string
 }
 
 async function mountView(options: Options = {}) {
-  vi.mocked(tenantApi.list).mockResolvedValue([{ id: 15, code: 't-a', name: '甲租户' }] as any)
+  if (options.tenantsError) {
+    vi.mocked(tenantApi.list).mockRejectedValueOnce(new Error(options.tenantsError))
+  } else {
+    vi.mocked(tenantApi.list).mockResolvedValue(options.tenants ?? [{ id: 15, code: 't-a', name: '甲租户' }] as any)
+  }
   vi.mocked(siteApi.list).mockResolvedValue([{ id: 3, name: '甲站', tenantId: 15 }] as any)
   vi.mocked(portalPagesApi.blocks).mockResolvedValue(options.blocks ?? BLOCKS)
   vi.mocked(siteBriefsApi.sectionCatalogue).mockResolvedValue(options.sections ?? SECTIONS)
@@ -1097,6 +1109,55 @@ describe('这一页不许长出 P3 的按钮', () => {
     expect(wrapper.findAll('.brief-intake__rail-review')).toHaveLength(1)
     click(byText('返回列表')[0])
     expect(pushSpy).toHaveBeenCalledWith({ name: 'workspace-portal-briefs' })
+    wrapper.unmount()
+  })
+})
+
+/**
+ * 建站这条链的第一环：租户是硬前置（后端没有租户就直接拒），可这一屏以前只拦「没选租户」，
+ * 一家都还没开的人卡死在第一步——既没有去处，也没有一句说清「缺的是哪一样」的话。
+ * 这三条钉的是：空列表与取失败两种成因分开念、给一颗真能用的「去新建租户」，
+ * 以及那一颗开的是新标签（这一屏勾了十几道题，跳走就把填的丢了）。
+ */
+describe('租户这一头：一家都没有时给去处，不给做不到的要求', () => {
+  it('还没有租户：说明缺的是哪一样并给两颗把手，保存被拦下时不念那句做不到的「先选租户」', async () => {
+    const wrapper = await mountView({ tenants: [] })
+    expect(wrapper.text()).toContain('还没有租户：需求单要记在一家租户名下')
+    expect(byText('去新建租户')).toHaveLength(1)
+    expect(byText('重新取租户列表')).toHaveLength(1)
+
+    clickSave(wrapper)
+    expect(siteBriefsApi.create).not.toHaveBeenCalled()
+    const warning = vi.mocked(message.warning).mock.calls.flat().join()
+    expect(warning).toContain('还没有租户')
+    expect(warning).not.toContain('先选这一单给哪个租户')
+    wrapper.unmount()
+  })
+
+  it('租户列表没取到：明说「没取到」而不是「一家都没有」，点重试真的再发一发', async () => {
+    const wrapper = await mountView({ tenantsError: '租户接口 500' })
+    expect(wrapper.text()).toContain('租户列表没取到')
+    // 取失败那一档不许被念成空列表那句（两句说的是不同的事，处置动作也不同）
+    expect(wrapper.text()).not.toContain('还没有租户：需求单要记在一家租户名下')
+    expect(byText('重新取租户列表')).toHaveLength(1)
+
+    vi.mocked(tenantApi.list).mockResolvedValueOnce([{ id: 16, code: 't-b', name: '乙租户' }] as any)
+    click(byText('重新取租户列表')[0])
+    await flushPromises()
+    expect(tenantApi.list).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('租户列表没取到')
+    wrapper.unmount()
+  })
+
+  it('「去新建租户」开新标签，不在本页跳走：这一屏已经勾的题不算白填', async () => {
+    const openSpy = vi.fn()
+    Object.defineProperty(window, 'open', { value: openSpy, configurable: true, writable: true })
+    const wrapper = await mountView()
+
+    click(byText('去新建租户')[0])
+
+    expect(openSpy).toHaveBeenCalledWith('/workspace/tenant', '_blank', 'noopener')
+    expect(pushSpy).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

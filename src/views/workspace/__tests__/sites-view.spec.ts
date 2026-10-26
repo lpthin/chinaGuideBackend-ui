@@ -227,7 +227,10 @@ describe('建站向导第一跳：归属租户与建后进前采', () => {
     expect(siteApi.create).toHaveBeenCalledTimes(1)
     const payload = vi.mocked(siteApi.create).mock.calls[0][0]
     expect(payload.tenantId).toBe(15)
-    expect(pushSpy).toHaveBeenCalledWith({ name: 'workspace-portal-brief-new', query: { tenantId: '15' } })
+    // 交棒落点是五步向导的第一步（不是那张 hidden 的独立录入页）：租户号照样挂 query 带过去
+    expect(pushSpy).toHaveBeenCalledWith({
+      name: 'workspace-portal-wizard', query: { step: 'intake', tenantId: '15' }
+    })
     wrapper.unmount()
   })
 

@@ -734,12 +734,15 @@ const viewDetail = (record: Tenant) => {
 
 /**
  * 交棒出口（Spec-C §7「租户管理」那一行）：建完租户紧接着就是录前采。
- * P0 时故意没做——那一页 P1 才存在，先摆一个死链等于用一句谎换另一句谎；今天它是真页。
- * 租户号走地址的查询参数带给录入页预填，用户到那一页不用再挑一遍租户（N1：分配即建站，
+ * 租户号走地址的查询参数带给向导第一步预填，用户到那一页不用再挑一遍租户（N1：分配即建站，
  * 租户侧永远没有「申请建站」这个入口，需求只能由平台录进来）。
+ *
+ * 落点是五步向导而不是那张独立录入页：独立页的路由留着（老收藏夹与文档链接不断），
+ * 但它 `meta.hidden`、不在菜单里——从这一行跳过去等于把人送进一条没有回程的路。
+ * 2026-10-26 拍板：这一颗跟着入口改，跳向导第一步。
  */
 const goIntake = (tenantId: number) => {
-  router.push({ name: 'workspace-portal-brief-new', query: { tenantId: String(tenantId) } })
+  router.push({ name: 'workspace-portal-wizard', query: { step: 'intake', tenantId: String(tenantId) } })
 }
 
 const loadDeliveryStateOptions = async () => {

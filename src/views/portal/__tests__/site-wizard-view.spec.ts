@@ -750,6 +750,37 @@ describe('新建网站向导', () => {
     expect(pushSpy).not.toHaveBeenCalled()
   })
 
+  /**
+   * 「租户管理 > 去录前采」那条链接带 `?step=intake&tenantId=15` 进来时，第一步摊开的必须是一张空单。
+   *
+   * 以前这一格会把列表里的第一张老单自动打开（`loadBriefs` 无条件取 `briefs[0]`），于是那条链接
+   * 的落点变成「看别人那张单」，而它承诺的是「给这家录一单」——界面报的话和它干的事不是一件事。
+   * 老单的入口仍在旁边那个下拉里，想看得自己点（下一条用例钉的就是这条路）。
+   */
+  it('带着租户号进第一步：摊开空单并把这家预填，不自动打开列表里那张老单', async () => {
+    document.body.innerHTML = ''
+    routeState.query = { step: 'intake', tenantId: '15' }
+    vi.mocked(siteBriefsApi.list).mockResolvedValue(briefsPage([brief({ id: 7, status: 'draft' })]))
+    vi.mocked(siteBriefsApi.get).mockResolvedValue(brief({ id: 7, status: 'draft' }) as any)
+    vi.mocked(vocabularyApi.adminVocabulary).mockResolvedValue(VOCAB_WITH_QUESTIONS as any)
+    vi.mocked(siteBriefsApi.create).mockResolvedValue(brief({ id: 90, status: 'draft' }) as any)
+    vi.mocked(siteSpecApi.read).mockResolvedValue(specDoc({ briefId: 90 }))
+    vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
+
+    const wrapper = mounted()
+    await flushPromises()
+
+    // 一发 `get(7)` 都没发：那一单没有被自动打开（列表照旧取到，下拉里仍选得动它）
+    expect(siteBriefsApi.list).toHaveBeenCalledTimes(1)
+    expect(siteBriefsApi.get).not.toHaveBeenCalled()
+    expect(replaceSpy).not.toHaveBeenCalledWith(expect.objectContaining({ query: expect.objectContaining({ briefId: '7' }) }))
+
+    // 摊开的是空白那一单，且那一家已经预填（这句话就是页面上报给用户的来意）
+    expect(document.querySelector('.brief-intake__question'), '空单的题没摊开').toBeTruthy()
+    expect(inputOfQuestion(wrapper, '品牌全称'), '空单上品牌那一题没挂出来').toBeTruthy()
+    expect(bodyText()).toContain('租户是从「租户管理」那一行带过来的（#15）')
+  })
+
   it('先看老单再点「录一份新需求单」：套数与档位回到词表默认，不把上一单的读数带进新单', async () => {
     document.body.innerHTML = ''
     routeState.query = { step: 'intake', tenantId: '15' }
@@ -763,6 +794,12 @@ describe('新建网站向导', () => {
     vi.mocked(briefGenerationApi.candidates).mockResolvedValue([])
 
     const wrapper = mounted()
+    await flushPromises()
+    // 老单现在要从下拉里自己点（第一个 `.pick` 就是「选一张需求单」那一格，它排在嵌入表单之前）
+    const briefPick = document.body.querySelectorAll('.pick')[0] as HTMLSelectElement
+    expect(briefPick, '需求单下拉没渲出来').toBeTruthy()
+    briefPick.value = '7'
+    briefPick.dispatchEvent(new Event('change'))
     await flushPromises()
     expect(siteBriefsApi.get).toHaveBeenCalledWith(7)
 
@@ -781,6 +818,8 @@ describe('新建网站向导', () => {
     expect(payload.candidateCount).toBe(3)
     expect(payload.demoContentMode).toBe('full')
     expect(payload.brandName).toBe('新的一单')
+    // 那条链接带过来的租户号在「换看老单」之后仍管着空白单：给同一家再录一单不必重挑
+    expect(payload.tenantId).toBe(15)
   })
 
   // ---- M-P8：读数搬进向导（他拍板那条「一步只摊开一步的事」），下面这些用例钉的是「摆在这一屏」而不是「跳了页」 ----
