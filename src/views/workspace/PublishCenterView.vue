@@ -240,7 +240,16 @@
               </template>
             </template>
             <template #emptyText>
-              <a-empty description="队列中暂无任务" />
+              <!-- 这一格以前钉的是界面自己编的一句现成话，于是后端答「这一档读不到」
+                   「这一页翻过了头」时界面照样念成「队列是空的」。哪一种空由后端答，界面逐字念（M-P80）。
+                   这一屏没有「新建队列任务」这个动作（任务是「发布候选」那一屏排进来的），所以不摆那颗按钮。
+                   注：这一句注释里不许抄那四个字，模板注释会被测试的 html() 读到并当成界面真渲染过。 -->
+              <empty-list-hint
+                :loading="queueLoading"
+                :read-failed="queueReadFailed"
+                :empty-line="queueEmptyLine"
+                :empty-reason="queueEmptyReason"
+              />
             </template>
           </a-table>
         </a-tab-pane>
@@ -602,6 +611,9 @@ const queueQuery = reactive<{ status?: string; keyword: string; page: number; si
   size: 10,
 })
 const queueTotal = ref(0)
+const queueEmptyLine = ref('')
+const queueEmptyReason = ref<EmptyReason>(null)
+const queueReadFailed = ref('')
 
 const queueStatusOptions = [
   { value: 'pending', label: '待发布' },
@@ -660,6 +672,9 @@ function handleQueueTableChange(pag: any) {
 
 async function loadQueue() {
   queueLoading.value = true
+  queueEmptyLine.value = ''
+  queueEmptyReason.value = null
+  queueReadFailed.value = ''
   try {
     const res = await publishQueueApi.list({
       status: queueQuery.status,
@@ -670,10 +685,19 @@ async function loadQueue() {
     }) as any
     queueList.value = res?.records || []
     queueTotal.value = res?.total || 0
+    queueEmptyLine.value = res?.emptyLine || ''
+    queueEmptyReason.value = asEmptyReason(res?.emptyReason)
+    if (shouldJumpBackToFirstPage(queueEmptyReason.value, queueQuery.page)) {
+      queueQuery.page = 1
+      await loadQueue()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error: any) {
     queueList.value = []
     queueTotal.value = 0
     message.error(error?.message || '加载发布队列失败')
+    // 读失败与「队列是空的」是两件事：这一句只交给界面自己说，别再落回那句硬编码的「队列中暂无任务」
+    queueReadFailed.value = describeHttpError(error)
   } finally {
     queueLoading.value = false
   }

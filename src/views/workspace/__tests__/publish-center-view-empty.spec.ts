@@ -424,6 +424,111 @@ describe('PublishCenterView 发布候选页签的空态成因', () => {
   })
 })
 
+/** 主语的唯一出处是后端 `PublishQueueController.PUBLISH_QUEUE_EMPTY_WHAT`；这里抄的是它的原文 */
+const THREE_QUEUE_EMPTIES: Array<[string, string]> = [
+  ['NONE', '发布队列任务：这一档查过了，一条都没有。'],
+  ['NOT_VISIBLE', '发布队列任务：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'],
+  ['OUT_OF_RANGE', '发布队列任务：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。']
+]
+
+const QUEUE_ROW = {
+  id: 71,
+  articleId: 41,
+  title: 'M-P80 探针：排着的一条',
+  status: 'pending',
+  priority: 5,
+  scheduledTime: '2026-10-27T09:00:00'
+}
+
+describe('PublishCenterView 待发布队列页签的空态成因', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(publishQueueApi.list).mockReset()
+    document.body.innerHTML = ''
+  })
+
+  /** 队列那一屏：切到「待发布队列」页签，队列读口按用例给，其余两读口一发能过的 */
+  async function mountQueue(
+    rows: any[],
+    pageExtras: Omit<PageShape, 'records' | 'total'> = {},
+    failWith?: Error
+  ) {
+    const list = vi.mocked(publishQueueApi.list)
+    if (failWith) {
+      list.mockRejectedValue(failWith)
+    } else {
+      list.mockResolvedValue({ records: rows, total: rows.length, ...pageExtras } as any)
+    }
+    vi.mocked(articleApi.list).mockResolvedValue({ records: [CANDIDATE_ROW], total: 1 } as any)
+    vi.mocked(publishApi.records).mockResolvedValue({ records: [RECORD_ROW], total: 1 } as any)
+    vi.mocked(publishQueueApi.getStats).mockResolvedValue({ pending: 1, publishing: 0, todayPublished: 0, failed: 0 } as any)
+    vi.mocked(publishApi.recordStats).mockResolvedValue({ total: 1, successCount: 1, successRate: 100 } as any)
+
+    const wrapper = mountCenter()
+    await flushPromises()
+    await clickTab(wrapper, '待发布队列')
+    return wrapper
+  }
+
+  const queuePane = (wrapper: any) => paneOf(wrapper, 'queue')
+
+  it.each(THREE_QUEUE_EMPTIES)('后端回 %s 那一档时逐字念那一句，硬编码的「队列中暂无任务」不再出现', async (reason, line) => {
+    const wrapper = await mountQueue([], { emptyReason: reason, emptyLine: line })
+
+    expect(hintOf(queuePane(wrapper))).toBe(line)
+    expect(wrapper.html()).not.toContain('队列中暂无任务')
+    expect(wrapper.html()).not.toContain('暂无数据')
+  })
+
+  it('后端没回是哪一种空时念「界面不替它猜」，不蒙成「一条都没有」', async () => {
+    const wrapper = await mountQueue([], { emptyReason: null, emptyLine: null })
+
+    const said = hintOf(queuePane(wrapper))
+    expect(said).toContain('后端没回是哪一种空')
+    expect(said).not.toContain('一条都没有')
+    expect(wrapper.html()).not.toContain('队列中暂无任务')
+  })
+
+  it('读失败那一发说的是读失败，不是「队列是空的」', async () => {
+    const wrapper = await mountQueue([], {}, new Error('队列读口断了'))
+
+    const said = hintOf(queuePane(wrapper))
+    expect(said).toContain('这一发读失败：队列读口断了')
+    expect(said).toContain('读失败不是「这一档没有」')
+    expect(said).not.toContain('一条都没有')
+    expect(wrapper.html()).not.toContain('队列中暂无任务')
+  })
+
+  it('后端回「这一页翻过了头」时界面自己翻回第一页再读一遍', async () => {
+    const list = vi.mocked(publishQueueApi.list)
+    const wrapper = await mountQueue([QUEUE_ROW], { emptyReason: null, emptyLine: null })
+    list
+      .mockResolvedValueOnce({ records: [], total: 23, emptyReason: 'OUT_OF_RANGE', emptyLine: THREE_QUEUE_EMPTIES[2][1] } as any)
+      .mockResolvedValueOnce({ records: [], total: 0, emptyReason: 'NONE', emptyLine: THREE_QUEUE_EMPTIES[0][1] } as any)
+
+    await queuePane(wrapper).find('.go-page').trigger('click')
+    await flushPromises()
+
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, size: 10 }))
+    expect(message.info).toHaveBeenCalledWith(JUMP_BACK_NOTICE)
+    expect(hintOf(queuePane(wrapper))).toBe(THREE_QUEUE_EMPTIES[0][1])
+  })
+
+  it('「真的没有」那一档也不摆新建按钮：队列任务是「发布候选」那一屏排进来的，这一屏没有这个动作', async () => {
+    const wrapper = await mountQueue([], { emptyReason: 'NONE', emptyLine: THREE_QUEUE_EMPTIES[0][1] })
+
+    expect(hintOf(queuePane(wrapper))).toBe(THREE_QUEUE_EMPTIES[0][1])
+    expect(queuePane(wrapper).find('.create-on-empty').exists()).toBe(false)
+  })
+
+  it('有行的时候根本不渲空态那一句', async () => {
+    const wrapper = await mountQueue([QUEUE_ROW], { emptyReason: null, emptyLine: null })
+
+    expect(queuePane(wrapper).find('.empty').exists()).toBe(false)
+    expect(wrapper.html()).not.toContain('一条都没有')
+  })
+})
+
 describe('PublishCenterView 顶部统计卡：那一发没答回来时摆 — 不摆 0', () => {
   beforeEach(() => {
     vi.clearAllMocks()
