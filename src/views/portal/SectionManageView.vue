@@ -2,11 +2,14 @@
   <div class="section-admin-page">
     <a-form layout="inline" class="section-admin-page__filter">
       <a-form-item label="站点">
-        <a-select v-model:value="siteId" style="width: 220px" :options="siteOptions" @change="load" />
+        <!-- 宽到能装下整条「站名 #编号 · 状态 · 租户」：这一列原来只有 220px，站名一长就只剩省略号，
+             而超管选站靠的就是那三个读数（2026-10-27 流程评审拍板③）。 -->
+        <a-select v-model:value="siteId" style="width: 460px" :options="siteOptions"
+                  :placeholder="sitePlaceholder" @change="load" />
       </a-form-item>
       <a-form-item class="toolbar-actions">
         <a-space>
-          <a-button :loading="loading" @click="load">刷新</a-button>
+          <a-button :loading="loading" @click="refresh">刷新</a-button>
         </a-space>
       </a-form-item>
     </a-form>
@@ -27,6 +30,11 @@
     <a-alert v-if="sitesNote" type="warning" show-icon class="section-admin-page__notice">
       <template #message>{{ sitesNote }}</template>
     </a-alert>
+    <!-- 站点没选之前不摆导航预览、也不摆卡片：这一页读的是「某一个站点」的栏目，一个都还没选就等于什么都还没读。
+         以前它是进页面自动取列表里第一个站点——那一屏看着像「平台只有这一站的栏目」，其实是界面替你选了一个。 -->
+    <a-alert v-if="pickNotice" type="info" show-icon class="section-admin-page__notice">
+      <template #message>{{ pickNotice }}</template>
+    </a-alert>
     <a-alert v-if="loadError" type="error" show-icon class="section-admin-page__notice" :message="loadError" />
     <a-alert v-if="saveError" type="error" show-icon class="section-admin-page__notice">
       <template #message>
@@ -38,7 +46,7 @@
     <!-- 导航实时预览：动的就是页头那一排栏目名，草稿一改这里立刻跟着变。
          为什么不复用 SiteHeaderBlock：那个是访客端的页头，要吃 shell 与真栏目接口才能拼出地址与折叠态，
          这一条只要「人现在起的名字排在第几个」，套上来只会把没开通的东西也渲一遍（那是假预览）。 -->
-    <div class="section-admin-page__nav">
+    <div v-if="siteChosen" class="section-admin-page__nav">
       <span class="section-admin-page__nav-label">顶部导航预览</span>
       <template v-if="navPreview.length">
         <span v-for="row in navPreview" :key="row.key" class="section-admin-page__nav-item">
@@ -50,7 +58,7 @@
       </span>
     </div>
 
-    <div class="section-admin-page__toolbar">
+    <div v-if="siteChosen" class="section-admin-page__toolbar">
       <a-space wrap>
         <a-button type="primary" :disabled="!dirtyCount" :loading="saving" @click="saveAll">
           保存到站点{{ dirtyCount ? `（${dirtyCount} 处改动）` : '' }}
@@ -62,7 +70,7 @@
       </a-space>
     </div>
 
-    <a-spin :spinning="loading">
+    <a-spin v-if="siteChosen" :spinning="loading">
       <div class="section-admin-page__grid">
         <a-card v-for="(record, position) in orderedRows" :key="record.key" size="small"
                 class="section-card" :class="{ 'section-card--off': !draft(record.key).enabled }">
@@ -136,10 +144,12 @@
       </div>
     </a-spin>
 
-    <SectionAdviceCard v-if="adviceBriefId !== null" class="section-admin-page__advice" mode="apply"
+    <!-- 建议卡要在站点选好之后才摆：「采纳」是把建议填进这一页的草稿，草稿还没读出来时点它，
+         每一条都会对上词表里那些 key 之外的东西，报回一句「对不上」——那是界面自己造的假失败。 -->
+    <SectionAdviceCard v-if="adviceBriefId !== null && siteChosen" class="section-admin-page__advice" mode="apply"
                        :brief-id="adviceBriefId" :site-id="siteId" :local-edits-pending="dirtyCount > 0"
                        @apply="applyAdvice" />
-    <p v-else class="section-admin-page__muted section-admin-page__advice-hint">
+    <p v-else-if="adviceBriefId === null" class="section-admin-page__muted section-admin-page__advice-hint">
       这一页没有挂建议卡：栏目建议是按需求单出的，从需求单详情点进来（地址上带 briefId）才会看到那一张。
     </p>
   </div>
@@ -151,7 +161,8 @@ import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { portalSectionsApi, type SectionAdviceItem, type SectionBulkItem, type SectionState } from '../../api/portalSections'
 import { portalPagesApi, type PreviewPage } from '../../api/portalPages'
-import { siteApi } from '../../api/workspace'
+import { siteApi, tenantApi } from '../../api/workspace'
+import { siteStatusText } from '../../api/siteBriefs'
 import { useAuthStore } from '../../stores/auth'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 import SectionAdviceCard from './SectionAdviceCard.vue'
@@ -181,8 +192,21 @@ interface Draft {
   navSort: number;
 }
 
-const sites = ref<Array<{ id: number; name: string }>>([])
+/** 下拉里每一项要摆的四个读数：站名、编号、状态、归属租户（2026-10-27 流程评审拍板③） */
+interface SitePick {
+  id: number;
+  name?: string | null;
+  status?: string | null;
+  tenantId?: number | null;
+}
+
+const sites = ref<SitePick[]>([])
 const sitesNote = ref('')
+/**
+ * 租户名只是把「这一站归谁」说清楚，取不到就退回「租户 #编号」，不编一个名字出来
+ * （与站点清单 `SitesView` 同一走法、同一个 `tenantApi.list()`，不抄第二份租户清单）。
+ */
+const tenantNames = ref<Record<number, string>>({})
 const auth = useAuthStore()
 const canReadSites = computed(() => auth.hasPermission('portal:build:manage'))
 const siteId = ref<number | null>(null)
@@ -200,7 +224,44 @@ const adviceBriefId = computed<number | null>(() => {
   return text && Number.isFinite(parsed) && parsed > 0 ? parsed : null
 })
 
-const siteOptions = computed(() => sites.value.map(site => ({ value: site.id, label: site.name })))
+/**
+ * 下拉那一行摆全四个读数：`站名 #编号 · 状态 · 租户`。
+ *
+ * <p>原来只有 `site.name`：平台上有几十座站、名字还会重复（候选站叫「XX 的方案 1/2/3」，
+ * 归档的旧方案同名），只看名字就等于让超管凭印象猜自己点进了哪一座——而这一页点下去改的是那一站的栏目，
+ * 保存还是整批写。状态非摆不可是因为 <code>archived</code> 的那一套写不进栏目（2026-10-27 拍板④）。</p>
+ */
+const siteOptions = computed(() => sites.value.map(site => ({
+  value: site.id,
+  label: `${site.name || '未命名站点'} #${site.id} · ${siteStatusText(site.status)} · ${tenantLabel(site.tenantId)}`
+})))
+
+const siteChosen = computed(() => siteId.value !== null)
+
+const sitePlaceholder = computed(() => {
+  if (!canReadSites.value) return '这个账号读不到站点清单'
+  if (!sites.value.length) return '没有可选的站点'
+  return '选一个站点（这一页不替你选）'
+})
+
+/**
+ * 站点没选之前那一页什么都没读，所以这里要摆一句「还没读」。
+ *
+ * <p>站点清单本身有问题时（缺码 / 那一发失败 / 一家都没有）成因已经写在上面的 `sitesNote` 里，
+ * 这里不再重复一遍。</p>
+ */
+const pickNotice = computed(() => {
+  if (siteChosen.value || sitesNote.value) {
+    return ''
+  }
+  return '先从上面选一个站点：栏目是挂在某一个站点上的，这一页不替你选第一个。'
+    + '选了哪一座，下面的卡片、顶部导航预览和那颗「保存到站点」动的就都是哪一座。'
+})
+
+function tenantLabel(tenantId?: number | null): string {
+  if (!tenantId) return '未绑定租户'
+  return tenantNames.value[tenantId] || `租户 #${tenantId}`
+}
 
 /**
  * 卡片顺序 = 当前草稿的导航顺序（稳定排序：同值仍按接口回的那份词表序，
@@ -410,22 +471,65 @@ async function togglePreview(record: SectionState) {
   }
 }
 
-onMounted(async () => {
-  // 站点清单是 portal:build:manage 的口，这一页按 portal:build:section 放行：缺码就不发，
-  // 并把下拉为什么是空的写在明处——不然「一个站点都没有」会被读成平台没站点。
+/**
+ * 站点清单自己那一发（缺码 / 失败 / 空）都在这一处说话，界面不许留一个「不知道为什么是空的」下拉。
+ *
+ * <p>这一页按 `portal:build:section` 放行，而清单是 `portal:build:manage` 的口，所以缺码要先挡住再发请求：
+ * 不然 403 会被读成「平台没有站点」。</p>
+ */
+async function loadSites() {
   if (!canReadSites.value) {
     sitesNote.value = '这个账号没有 portal:build:manage，站点清单读不出来：没有站点可选，这一页就列不出栏目（这一页本身要的是 portal:build:section）'
-  } else {
-    try {
-      const siteList = await siteApi.list()
-      sites.value = (siteList || []).map(site => ({ id: site.id, name: site.name }))
-      siteId.value = sites.value.length > 0 ? sites.value[0].id : null
-    } catch {
-      // 站点列表拿不到就先空着，让「刷新」按钮保留一次重试的机会
-    }
+    return
   }
+  sitesNote.value = ''
+  try {
+    const siteList = await siteApi.list()
+    sites.value = (siteList || []).map(site => ({
+      id: site.id,
+      name: site.name,
+      status: site.status,
+      tenantId: site.tenantId
+    }))
+    if (!sites.value.length) {
+      sitesNote.value = '平台一个站点都还没有：栏目是挂在站点上的，没有站点这一页就无从列起。'
+        + '先去「站点与租户 > 站点清单」开一座，或走「建站 > 新建网站」出一套。'
+    }
+  } catch (error: any) {
+    // 失败要说成失败：这一发没回来时，下拉里「一个站点都没有」是界面自己编的读数
+    sites.value = []
+    sitesNote.value = `站点清单没取到（后端原话：${error?.message || '未知原因'}）：`
+      + '这不是「平台没有站点」，是这一发失败了，点上面那颗「刷新」再试一次'
+  }
+  if (siteId.value !== null && !sites.value.some(site => site.id === siteId.value)) {
+    // 选中的那一站不在刚取回的清单里（清单读失败时整份就是空的）：留着那个号就是让界面拿一个没读到的站点摆卡片
+    siteId.value = null
+  }
+  void loadTenantNames()
+}
+
+async function loadTenantNames() {
+  try {
+    const list = await tenantApi.list()
+    const map: Record<number, string> = {}
+    ;(list || []).forEach(tenant => {
+      if (tenant?.id != null) {
+        map[tenant.id] = tenant.name || tenant.code || `租户 #${tenant.id}`
+      }
+    })
+    tenantNames.value = map
+  } catch {
+    // 名字只是让下拉更好读，读不到就退回「租户 #编号」：这一页不能因为少一个名字就读不了栏目
+  }
+}
+
+/** 「刷新」刷的是这一页的两发：站点清单没取到时，只重发栏目那一发永远还是空的 */
+async function refresh() {
+  await loadSites()
   await load()
-})
+}
+
+onMounted(refresh)
 </script>
 
 <style scoped lang="less">

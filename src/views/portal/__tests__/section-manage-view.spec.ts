@@ -4,7 +4,7 @@ import { Button, Card, Input, Switch, message } from 'ant-design-vue'
 import SectionManageView from '../SectionManageView.vue'
 import { portalSectionsApi } from '../../../api/portalSections'
 import { portalPagesApi } from '../../../api/portalPages'
-import { siteApi } from '../../../api/workspace'
+import { siteApi, tenantApi } from '../../../api/workspace'
 
 /**
  * 超管栏目卡片页（Spec §5.2 / §7.2 + Spec-D D4，N5：栏目归超管）。
@@ -15,7 +15,9 @@ import { siteApi } from '../../../api/workspace'
  *    「改完就知道访客看到什么」）；
  * 3. 保存只发<strong>一条</strong> bulk 请求，载荷是全部栏目的五项字段（换序天然动两栏，
  *    少发一栏就会留下一对相同的 navSort）；界面拿后端回的全量生效态覆盖本地，不自己数「改了几条」；
- * 4. 后端整批拒时那句中文原因必须挂在页面上，而且草稿不许被清空——人改的名字不能因为一次失败就找不回。
+ * 4. 后端整批拒时那句中文原因必须挂在页面上，而且草稿不许被清空——人改的名字不能因为一次失败就找不回；
+ * 5. 站点要人点名（2026-10-27 流程评审拍板③）：进页面不自动选第一个，下拉那一行摆
+ *    「站名 #编号 · 状态 · 租户」，没选之前卡片与导航预览一张都不摆。
  *
  * 全部挂在真实控件上：真 Button/Input/Switch/Card，点真 DOM 节点、读真 DOM 文本。
  */
@@ -54,8 +56,20 @@ vi.mock('../../../api/portalSections', () => ({
     generateAdvice: vi.fn()
   }
 }))
-vi.mock('../../../api/workspace', () => ({ siteApi: { list: vi.fn() } }))
+vi.mock('../../../api/workspace', () => ({
+  siteApi: { list: vi.fn() },
+  // 下拉那一行要摆「归谁」，用的就是站点清单同一份 tenantApi.list()；桩给一个，测的走法才和界面真的一样
+  tenantApi: { list: vi.fn() }
+}))
 vi.mock('../../../api/portalPages', () => ({ portalPagesApi: { preview: vi.fn() } }))
+
+// 下拉那一行「正式站/候选站/已归档候选」那几个字，读的是 siteBriefs 里唯一那份站点状态说法，
+// 这一份必须走真实现（桩掉它等于测我自己抄的标签）。它本身只依赖 http，而 http 会顺带把
+// 整个 router 拖进来（真 createRouter），所以这里只换掉网络口。
+vi.mock('../../../api/http', () => ({
+  default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  currentAuthToken: () => ''
+}))
 
 const PASS_THROUGH = (name: string) => ({
   name,
@@ -73,6 +87,21 @@ const ADVICE_STUB = {
   name: 'SectionAdviceCard',
   props: ['briefId', 'siteId', 'mode', 'localEditsPending'],
   template: '<div class="advice-stub"></div>'
+}
+
+/**
+ * 站点下拉要真的能选：用原生 select 顶掉 a-select，选中一项同时发 `update:value` 与 `change`
+ * （真 a-select 就是发这两个，这一页的取数挂在 `change` 上）。
+ * 桩只发一个的话，「点了站点才查那一站的栏目」这条在测试里永远走不到。
+ */
+const SITE_SELECT_STUB = {
+  name: 'a-select',
+  props: ['value', 'options', 'placeholder'],
+  emits: ['update:value', 'change'],
+  template: `<select class="site-pick" :data-placeholder="placeholder"
+    @change="$emit('update:value', Number($event.target.value)); $emit('change', Number($event.target.value))">
+    <option v-for="opt in options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+  </select>`
 }
 
 function state(
@@ -94,11 +123,40 @@ function state(
   }
 }
 
+/** 整页共用的那一套桩：两条「自己挂、不点站点」的用例也吃这一份，别留第二套形状 */
+const STUBS = {
+  'a-select': SITE_SELECT_STUB,
+  'a-alert': PASS_THROUGH('a-alert'),
+  'a-form': PASS_THROUGH('a-form'),
+  'a-form-item': PASS_THROUGH('a-form-item'),
+  'a-space': PASS_THROUGH('a-space'),
+  'a-spin': PASS_THROUGH('a-spin'),
+  'a-tag': PASS_THROUGH('a-tag'),
+  'a-descriptions': PASS_THROUGH('a-descriptions'),
+  'a-descriptions-item': PASS_THROUGH('a-descriptions-item'),
+  'a-card': Card,
+  'a-button': Button,
+  'a-input': Input,
+  'a-switch': Switch,
+  PortalViewportPreview: PREVIEW_STUB,
+  SectionAdviceCard: ADVICE_STUB
+}
+
+function mountBare() {
+  return mount(SectionManageView, { attachTo: document.body, global: { stubs: STUBS } })
+}
+
 async function mountView(
   states = [state('news', '资讯', { navSort: 1 }), state('jobs', '招聘', { navSort: 2 })],
-  sites: Array<{ id: number; name: string }> = [{ id: 3, name: '演示站' }]
+  sites: Array<Record<string, any>> = [{ id: 3, name: '演示站', status: 'enabled', tenantId: 15 }],
+  tenants: Array<Record<string, any>> | 'failed' = [{ id: 15, name: '甲租户' }]
 ) {
   vi.mocked(siteApi.list).mockResolvedValue(sites as any)
+  if (tenants === 'failed') {
+    vi.mocked(tenantApi.list).mockRejectedValue(new Error('这个账号读不到租户清单'))
+  } else {
+    vi.mocked(tenantApi.list).mockResolvedValue(tenants as any)
+  }
   vi.mocked(portalSectionsApi.adminList).mockResolvedValue(states as any)
   // bulk 口的口径是「回改完后的全量生效态」：这里按请求体把每一行的五项值写回，回的就是这份新状态
   vi.mocked(portalSectionsApi.adminBulkUpdate).mockImplementation(async (_siteId: number, items: any[]) =>
@@ -106,30 +164,28 @@ async function mountView(
       const sent = items.find(item => item.key === row.key)
       return sent ? { ...row, ...sent, key: row.key } : { ...row }
     }) as any)
-  const wrapper = mount(SectionManageView, {
-    attachTo: document.body,
-    global: {
-      stubs: {
-        'a-select': { name: 'ASelect', props: ['value', 'options'], template: '<select />' },
-        'a-alert': PASS_THROUGH('a-alert'),
-        'a-form': PASS_THROUGH('a-form'),
-        'a-form-item': PASS_THROUGH('a-form-item'),
-        'a-space': PASS_THROUGH('a-space'),
-        'a-spin': PASS_THROUGH('a-spin'),
-        'a-tag': PASS_THROUGH('a-tag'),
-        'a-descriptions': PASS_THROUGH('a-descriptions'),
-        'a-descriptions-item': PASS_THROUGH('a-descriptions-item'),
-        'a-card': Card,
-        'a-button': Button,
-        'a-input': Input,
-        'a-switch': Switch,
-        PortalViewportPreview: PREVIEW_STUB,
-        SectionAdviceCard: ADVICE_STUB
-      }
-    }
-  })
+  const wrapper = mountBare()
   await flushPromises()
+  // 站点是点出来的，不是界面替你选的（2026-10-27 流程评审拍板③）：
+  // 所以「已经读到栏目」的那些用例，都要先走这一发真实点单。
+  // 下拉里真摆了可选站点才点：有一条用例要的就是「根本没得选」（缺 manage 那一发没发出去）
+  if (siteOptionLabels().length) {
+    await pickSite(Number(sites[0].id))
+  }
   return wrapper
+}
+
+/** 在站点下拉里点名一个站点：走 `change` 那条真路，不碰组件内部状态 */
+async function pickSite(id: number) {
+  const select = document.querySelector('.site-pick') as HTMLSelectElement
+  expect(select, '界面上应有那个站点下拉').toBeTruthy()
+  select.value = String(id)
+  select.dispatchEvent(new Event('change', { bubbles: true }))
+  await flushPromises()
+}
+
+function siteOptionLabels() {
+  return [...document.querySelectorAll('.site-pick option')].map(node => (node.textContent || '').trim())
 }
 
 function cards() {
@@ -164,6 +220,13 @@ function navItems() {
 
 function toolbarButtons() {
   return [...document.querySelectorAll('.section-admin-page__toolbar button')] as HTMLButtonElement[]
+}
+
+/** 筛选栏那颗「刷新」：站点清单读失败后唯一的重试路（antd 会在两个汉字按钮中间塞一个空格，先抹掉空白） */
+function refreshButton() {
+  return [...document.querySelectorAll('.section-admin-page__filter button')].find(node =>
+    (node.textContent || '').replace(/\s+/g, '').includes('刷新')
+  ) as HTMLButtonElement | undefined
 }
 
 function bulkButton(): HTMLButtonElement {
@@ -223,6 +286,81 @@ describe('卡片来自接口，一张卡一个栏目', () => {
     expect(nameInput(0).value).toBe('招聘')
     expect(sortOf(0)).toBe('10')
     expect(nameInput(1).value).toBe('资讯')
+  })
+})
+
+describe('站点是点出来的，下拉那一行把判断要用的读数都摆出来（2026-10-27 流程评审拍板③）', () => {
+  it('进页面只发站点清单那一发：栏目口一次不发、卡片一张不摆，并说清「先选一个站点」', async () => {
+    document.body.innerHTML = ''
+    vi.mocked(siteApi.list).mockResolvedValue([
+      { id: 3, name: '演示站', status: 'enabled', tenantId: 15 },
+      { id: 9, name: '另一站', status: 'candidate', tenantId: 15 }
+    ] as any)
+    vi.mocked(tenantApi.list).mockResolvedValue([{ id: 15, name: '甲租户' }] as any)
+    const wrapper = mountBare()
+    await flushPromises()
+
+    expect(siteApi.list).toHaveBeenCalledTimes(1)
+    expect(portalSectionsApi.adminList).not.toHaveBeenCalled()
+    expect(cards()).toHaveLength(0)
+    // 那一屏不能摆一条空导航：那会被读成「这一站一个栏目都没有」
+    expect(document.querySelectorAll('.section-admin-page__nav-item')).toHaveLength(0)
+    expect(document.querySelectorAll('.section-admin-page__toolbar')).toHaveLength(0)
+    expect(bodyText()).toContain('先从上面选一个站点')
+    expect(bodyText()).not.toContain('访客看到的顶部导航就是空的')
+
+    await pickSite(9)
+    expect(portalSectionsApi.adminList).toHaveBeenCalledWith(9)
+    wrapper.unmount()
+  })
+
+  it('下拉每一行是「站名 #编号 · 状态 · 租户」：同名站、归档站靠这三个读数分得开', async () => {
+    await mountView([state('news', '资讯')], [
+      { id: 3, name: '甲家的站', status: 'enabled', tenantId: 15 },
+      { id: 7, name: '甲家的站', status: 'archived', tenantId: 16 },
+      { id: 8, name: '没有归属的站', status: 'candidate', tenantId: null }
+    ], [{ id: 15, name: '甲租户' }, { id: 16, name: '乙租户' }])
+
+    expect(siteOptionLabels()).toEqual([
+      '甲家的站 #3 · 正式站 · 甲租户',
+      // 归档那一套的栏目写不进去（拍板④），所以「已归档候选」必须在选之前就读得到
+      '甲家的站 #7 · 已归档候选 · 乙租户',
+      '没有归属的站 #8 · 候选站 · 未绑定租户'
+    ])
+  })
+
+  it('租户名读不到时退回「租户 #编号」，不把归属编成一个名字、也不因此读不了栏目', async () => {
+    await mountView([state('news', '资讯')], [{ id: 3, name: '演示站', status: 'enabled', tenantId: 15 }], 'failed')
+
+    expect(siteOptionLabels()).toEqual(['演示站 #3 · 正式站 · 租户 #15'])
+    expect(portalSectionsApi.adminList).toHaveBeenCalledWith(3)
+  })
+
+  it('站点清单那一发失败：说的是「没取到、点刷新重试」，不是「平台没有站点」', async () => {
+    document.body.innerHTML = ''
+    vi.mocked(siteApi.list).mockRejectedValue(new Error('服务暂时不可用'))
+    vi.mocked(tenantApi.list).mockResolvedValue([] as any)
+    const wrapper = mountBare()
+    await flushPromises()
+
+    expect(bodyText()).toContain('站点清单没取到（后端原话：服务暂时不可用）')
+    expect(bodyText()).toContain('这不是「平台没有站点」')
+    expect(portalSectionsApi.adminList).not.toHaveBeenCalled()
+
+    vi.mocked(siteApi.list).mockResolvedValue([{ id: 3, name: '演示站', status: 'enabled', tenantId: 15 }] as any)
+    await click(refreshButton())
+    expect(siteApi.list).toHaveBeenCalledTimes(2)
+    await pickSite(3)
+    expect(portalSectionsApi.adminList).toHaveBeenCalledWith(3)
+    wrapper.unmount()
+  })
+
+  it('平台真的一座站点都没有：那句话说的是没有，并且不给一个空下拉凑读数', async () => {
+    await mountView([state('news', '资讯')], [])
+
+    expect(bodyText()).toContain('平台一个站点都还没有')
+    expect(siteOptionLabels()).toEqual([])
+    expect(portalSectionsApi.adminList).not.toHaveBeenCalled()
   })
 })
 
