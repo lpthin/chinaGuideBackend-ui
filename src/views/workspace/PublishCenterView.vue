@@ -1,34 +1,41 @@
 <template>
   <div class="publish-center-page">
     <a-row :gutter="16" class="stat-row">
+      <!-- 统计那一发没答回来时摆 `—` 不摆 0：0 说的是「查过了，结果就是空」，而那一发根本没答
+           （M-P79，与 M-P77 聚类那一屏同一个缺陷形状）。 -->
       <a-col :span="4">
         <a-card class="stat-card" hoverable @click="filterQueue('pending')">
-          <a-statistic title="队列待发布" :value="queueStats.pending" />
+          <a-statistic title="队列待发布" :value="queueCardsUnreadable ? '—' : queueStats.pending" />
         </a-card>
       </a-col>
       <a-col :span="4">
         <a-card class="stat-card" hoverable @click="filterQueue('publishing')">
-          <a-statistic title="发布中" :value="queueStats.publishing" />
+          <a-statistic title="发布中" :value="queueCardsUnreadable ? '—' : queueStats.publishing" />
         </a-card>
       </a-col>
       <a-col :span="4">
         <a-card class="stat-card" hoverable @click="filterQueue('failed')">
-          <a-statistic title="发布失败" :value="queueStats.failed" />
+          <a-statistic title="发布失败" :value="queueCardsUnreadable ? '—' : queueStats.failed" />
         </a-card>
       </a-col>
       <a-col :span="4">
         <a-card class="stat-card">
-          <a-statistic title="今日队列完成" :value="queueStats.todayPublished" />
+          <a-statistic title="今日队列完成" :value="queueCardsUnreadable ? '—' : queueStats.todayPublished" />
         </a-card>
       </a-col>
       <a-col :span="4">
         <a-card class="stat-card" hoverable @click="filterRecords('success')">
-          <a-statistic title="发布记录成功" :value="recordStats.successCount" />
+          <a-statistic title="发布记录成功" :value="recordCardsUnreadable ? '—' : recordStats.successCount" />
         </a-card>
       </a-col>
       <a-col :span="4">
         <a-card class="stat-card">
-          <a-statistic title="成功率" :value="recordStats.successRate" suffix="%" :precision="2" />
+          <a-statistic
+            title="成功率"
+            :value="recordCardsUnreadable ? '—' : recordStats.successRate"
+            :suffix="recordCardsUnreadable ? '' : '%'"
+            :precision="2"
+          />
         </a-card>
       </a-col>
     </a-row>
@@ -98,7 +105,18 @@
               </template>
             </template>
             <template #emptyText>
-              <a-empty description="没有审核通过的文章，请先在「审核管理」通过文章" />
+              <!-- 这一格以前钉的是界面自己编的一句现成话，于是后端答「这一档读不到」「这一发读失败」
+                   时界面照样念成「这一档没有」。哪一种空由后端答，界面逐字念（M-P79）。
+                   「真的没有」那一档才摆那颗跳转按钮——读不到与翻过头都不是说「这一档还空着」。 -->
+              <empty-list-hint
+                :loading="candidateLoading"
+                :read-failed="candidateReadFailed"
+                :empty-line="candidateEmptyLine"
+                :empty-reason="candidateEmptyReason"
+                can-create
+                create-label="去审核管理通过文章"
+                @create="goReview"
+              />
             </template>
           </a-table>
         </a-tab-pane>
@@ -392,6 +410,9 @@ const submitting = ref(false)
 
 const queueStats = reactive({ pending: 0, publishing: 0, todayPublished: 0, failed: 0 })
 const recordStats = reactive({ total: 0, successCount: 0, failedCount: 0, cancelledCount: 0, todayCount: 0, successRate: 0 })
+// 统计那一发有没有答回来：没答回来时那几张卡摆 `—`，不许停在 0 上（0 说的是「查过了，一条都没有」）
+const queueStatsUnreadable = ref(false)
+const recordStatsUnreadable = ref(false)
 
 // ---------------- 发布候选 ----------------
 const candidateLoading = ref(false)
@@ -399,6 +420,16 @@ const candidates = ref<any[]>([])
 const selectedArticleIds = ref<number[]>([])
 const candidateQuery = reactive({ page: 1, size: 10 })
 const candidateTotal = ref(0)
+const candidateEmptyLine = ref('')
+const candidateEmptyReason = ref<EmptyReason>(null)
+const candidateReadFailed = ref('')
+
+// 现场补的第二种：选中身份在这张表里读不到时，顶部六张卡也不许停在 0 上。
+// 判据取发布候选那一发的答语——这一发每次进屏、每次换身份都会发，是这一屏的探路读口。
+// 与 AuditLogView / CategoriesPanel 那一屏同一条规则（读失败或读不到都摆 `—`）。
+const identityUnreadable = computed(() => candidateEmptyReason.value === 'NOT_VISIBLE')
+const queueCardsUnreadable = computed(() => queueStatsUnreadable.value || identityUnreadable.value)
+const recordCardsUnreadable = computed(() => recordStatsUnreadable.value || identityUnreadable.value)
 
 const candidateColumns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 90 },
@@ -428,8 +459,16 @@ function handleCandidateTableChange(pag: any) {
   loadCandidates()
 }
 
+/** 「真的没有」那一档下面那颗按钮：这一屏没「新建文章」这个动作，能走的是去审核管理把文章通过 */
+function goReview() {
+  router.push({ name: 'workspace-review' })
+}
+
 async function loadCandidates() {
   candidateLoading.value = true
+  candidateEmptyLine.value = ''
+  candidateEmptyReason.value = null
+  candidateReadFailed.value = ''
   try {
     const res = await articleApi.list({
       status: 'approved',
@@ -439,10 +478,20 @@ async function loadCandidates() {
     }) as any
     candidates.value = res?.records || []
     candidateTotal.value = res?.total || 0
+    candidateEmptyLine.value = res?.emptyLine || ''
+    candidateEmptyReason.value = asEmptyReason(res?.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(candidateEmptyReason.value, candidateQuery.page)) {
+      candidateQuery.page = 1
+      await loadCandidates()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error: any) {
     candidates.value = []
     candidateTotal.value = 0
     message.error(error?.message || '加载发布候选失败')
+    // 读失败与「这一档没有」是两件事：这一句只交给界面自己说，别让它落回那句硬编码的「没有审核通过的文章」
+    candidateReadFailed.value = describeHttpError(error)
   } finally {
     candidateLoading.value = false
   }
@@ -776,6 +825,7 @@ async function loadStats() {
   const tenantId = authStore.selectedTenantId ?? undefined
   try {
     const data = await publishQueueApi.getStats(tenantId) as any
+    queueStatsUnreadable.value = !data
     if (data) {
       queueStats.pending = data.pending ?? 0
       queueStats.publishing = data.publishing ?? 0
@@ -783,10 +833,12 @@ async function loadStats() {
       queueStats.failed = data.failed ?? 0
     }
   } catch (error: any) {
+    queueStatsUnreadable.value = true
     message.error(error?.message || '加载队列统计失败')
   }
   try {
     const data = await publishApi.recordStats({ tenantId }) as any
+    recordStatsUnreadable.value = !data
     if (data) {
       recordStats.total = data.total ?? 0
       recordStats.successCount = data.successCount ?? 0
@@ -796,6 +848,7 @@ async function loadStats() {
       recordStats.successRate = data.successRate ?? 0
     }
   } catch (error: any) {
+    recordStatsUnreadable.value = true
     message.error(error?.message || '加载发布记录统计失败')
   }
 }
