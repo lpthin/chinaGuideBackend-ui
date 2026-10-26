@@ -97,9 +97,12 @@ export const MENU_GROUPS: MenuGroupDef[] = [
   { key: 'knowledge', label: '知识库', domain: 'tenant', icon: 'book', hint: 'AI 写作与答疑的资料来源' },
   { key: 'site-content', label: '网站内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看到的东西，含企业信息与站点设置' },
   { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', hint: '流量、引用、GEO 体检与客户经营' },
-  // ===== 平台管理（6 组 34 项）=====
+  // ===== 平台管理（6 组 32 项）=====
+  // 「站点与租户」排在「建站」前面是**真实依赖**：建网站之前必须先有租户（后端
+  // TenantGuard.requireTenantId 没有租户就直接拒），栏目又是挂在站点上的。
+  // 以前这两组的上下顺序是反的，用户先进「建站」再回头找租户从哪来。
+  { key: 'build-assets', label: '站点与租户', domain: 'platform', icon: 'database', hint: '先建租户，再建站点，然后给站点开栏目' },
   { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', hint: '新建网站向导（需求单 → 说明书 → 出方案 → 候选 → 转正），含提示词、区块与骨架' },
-  { key: 'build-assets', label: '站点与租户', domain: 'platform', icon: 'database', hint: '站点、租户与栏目开通' },
   { key: 'build-quality', label: '平台质量', domain: 'platform', icon: 'safety', hint: '页面巡检、引用探测、整站组装与改版工单' },
   { key: 'billing', label: '计费', domain: 'platform', icon: 'account-book', hint: '账单、订单、钱包与发票' },
   { key: 'ai', label: 'AI 配置', domain: 'platform', icon: 'robot', hint: '模型、向量化、用量与生成模板' },
@@ -229,6 +232,18 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
 }
 
 /**
+ * 组内的上下顺序：只对「顺序本身有意义」的组显式写死，没写到的组仍取路由定义顺序。
+ *
+ * 为什么「站点与租户」这一组必须写死：租户 → 站点 → 栏目是真实依赖（建网站之前先要有租户，
+ * 栏目又挂在站点上），而那三条路由在 `router/index.ts` 里隔了五百行（栏目开通在 `portal/sections`，
+ * 站点清单与租户管理在文件末尾）。靠定义先后排出来的顺序正好是反的：栏目 → 站点 → 租户。
+ * 名单里没写的项排在最后，仍按路由定义顺序。
+ */
+export const MENU_ITEM_ORDER: Record<string, string[]> = {
+  'build-assets': ['workspace-tenant', 'workspace-sites', 'workspace-portal-sections']
+}
+
+/**
  * 有路由但故意不进分组的，逐条写理由（`findMenuOrphanRoutes` 拿这张表放行）。
  * 固定渲染在菜单上/下两端的那些项（工作台、联系平台 / 平台工单队列）也在这里——
  * 它们不是漏挂，是别处渲染。
@@ -354,7 +369,7 @@ export interface MenuLeaf {
    * 被砍掉的那半句（括号语、中英混排的全称）换到 tooltip 里说，不许直接消失。
    */
   tip?: string
-  /** 组内顺序，取路由定义顺序 */
+  /** 路由定义顺序；`MENU_ITEM_ORDER` 写死过的组以那份名单为准，这里只当兜底 */
   order: number
 }
 
@@ -455,11 +470,22 @@ export function buildMenuSections(leaves: MenuLeaf[], view: MenuVisibility): Men
   return DOMAINS.flatMap(entry => {
     const groups = MENU_GROUPS
       .filter(def => def.domain === entry.domain)
-      .map(def => ({ def, items: leaves.filter(leaf => leaf.group === def.key && leafVisible(leaf, view)) }))
+      .map(def => ({ def, items: sortGroupItems(def, leaves.filter(leaf => leaf.group === def.key && leafVisible(leaf, view))) }))
       .filter(group => group.items.length > 0)
     if (!groups.length) return []
     return [{ ...entry, groups }]
   })
+}
+
+/** 组内顺序：`MENU_ITEM_ORDER` 写死过的组按那份名单排，没写到的项排最后、仍按路由定义顺序 */
+function sortGroupItems(def: MenuGroupDef, items: MenuLeaf[]): MenuLeaf[] {
+  const declared = MENU_ITEM_ORDER[def.key]
+  if (!declared) return items
+  const rank = (leaf: MenuLeaf) => {
+    const index = declared.indexOf(leaf.routeName)
+    return index < 0 ? declared.length : index
+  }
+  return [...items].sort((left, right) => rank(left) - rank(right) || left.order - right.order)
 }
 
 /**

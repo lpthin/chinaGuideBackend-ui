@@ -516,7 +516,8 @@ export const routes: RouteRecordRaw[] = [
       },
       {
         // 新建网站向导（Spec-M §3 五步 / §7.1，D3：入口只给超管）。
-        // 它排在「建站」组第一项靠的是路由定义顺序（菜单只认这个顺序，不认路径）。
+        // 它排在「建站」组第一项靠的是路由定义顺序（这一组没在 `MENU_ITEM_ORDER` 里写死顺序；
+        // 「站点与租户」那一组写了，因为那三页的真实依赖跟它们在文件里的先后正好相反）。
         path: 'portal/wizard',
         name: 'workspace-portal-wizard',
         component: SiteWizardView,

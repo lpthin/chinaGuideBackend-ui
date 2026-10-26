@@ -278,6 +278,29 @@ describe('平台段与租户段分家', () => {
     expect(sections.map(section => section.domain)).toEqual(['tenant', 'platform'])
   })
 
+  /**
+   * 2026-10-26 拍板：平台段里「站点与租户」排在「建站」前面，组内三项按 租户 → 站点 → 栏目。
+   *
+   * 判据是真实依赖，不是名字像不像：建网站之前必须先有租户（后端没有租户就直接拒），
+   * 栏目又挂在站点上。以前这两组的上下顺序、组内三项的顺序都是 `router/index.ts` 里
+   * 定义先后碰出来的，碰出来的结果正好反着（栏目 → 站点 → 租户，且建站组压在租户组上面），
+   * 所以这里把「排对了」写成一条要遵守的规则，而不是留一句「记得注意顺序」。
+   */
+  it('平台段先租户后建站：组顺序与「站点与租户」组内顺序都按真实依赖排', () => {
+    const renderOrder = (groupKey: string) =>
+      buildMenuSections(leaves, SUPER)
+        .flatMap(section => section.groups)
+        .find(group => group.def.key === groupKey)
+        ?.items.map(item => item.label) ?? []
+    const platformGroups = buildMenuSections(leaves, SUPER)
+      .find(section => section.domain === 'platform')
+      ?.groups.map(group => group.def.key) ?? []
+    expect(platformGroups.slice(0, 2), '「站点与租户」没排在「建站」前面').toEqual(['build-assets', 'build'])
+    expect(renderOrder('build-assets'), '组内应当是 租户 → 站点 → 栏目').toEqual(['租户管理', '站点清单', '栏目开通'])
+    // 路由定义顺序给的是反的那一份 ⇒ 这一条能钉住「顺序是写出来的，不是碰出来的」
+    expect(renderOrder('build')[0], '「新建网站」被挤出建站组第一项').toBe('新建网站')
+  })
+
   it('超管一项都不该漏：组表里的每一项对他都渲染', () => {
     const visible = buildMenuSections(leaves, SUPER)
       .flatMap(section => section.groups.flatMap(group => group.items.map(item => item.label)))
