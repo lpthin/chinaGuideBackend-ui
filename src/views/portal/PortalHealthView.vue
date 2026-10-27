@@ -54,9 +54,7 @@
       <span class="portal-health-page__muted">（同一页里几条是不同的毛病，各占一格，不按页合并计数）</span>
     </p>
 
-    <state-block v-if="!loading && findings.length === 0" state="empty" title="没有待处理的巡检结果——还没扫过的话，点右上角「立即巡检」" />
     <data-table
-      v-else
       :data-source="findings"
       :columns="columns"
       :loading="loading"
@@ -66,6 +64,24 @@
       v-model:expandedRowKeys="expandedKeys"
       :pagination="{ pageSize: 10, showTotal: (total: number) => `共 ${total} 条` }"
     >
+      <template #emptyText>
+        <!-- 这一格为什么是空的由后端那一发答，界面逐字念（M-P83）。
+             换之前这里写死了一句「这个站没毛病」式的话，于是「选中的这一家读不到」和
+             「那一发读失败」都被念成「这个站是健康的」。
+             「还没扫过」是这一屏自己的下一步，不是后端的成因，所以另起一行：读失败时不摆，
+             「这一档读不到」（NOT_VISIBLE）时也不摆——那一家连身份都认不出来，「这一站还没扫过」
+             根本不成其为原因，摆出来等于给了人一条走不通的路。 -->
+        <empty-list-hint
+          :loading="loading"
+          :read-failed="listReadFailed"
+          :empty-line="listEmptyLine"
+          :empty-reason="listEmptyReason"
+        />
+        <p v-if="!loading && !listReadFailed && listEmptyReason !== 'NOT_VISIBLE'"
+           class="portal-health-page__empty-howto">
+          这里没行也可能是选中的这一站还没扫过——点右上角「立即巡检」先扫一遍，扫出来的问题才会列在这里。
+        </p>
+      </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">
           <a-tag color="blue">{{ typeLabel(record.findingType) }}</a-tag>
@@ -274,9 +290,11 @@ import SiteValidationStrip from './SiteValidationStrip.vue'
 import { siteApi } from '../../api/workspace'
 import { formatDateTime } from '../../utils/format'
 import { PH_DASH } from '../../utils/display'
+import { describeHttpError } from '../../api/http'
+import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
-import StateBlock from '../../components/StateBlock.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
@@ -299,6 +317,10 @@ const findings = ref<HealthFinding[]>([])
 const pages = ref<Array<{ id: number; title: string | null; slug: string | null }>>([])
 const sites = ref<Array<{ id: number; name: string }>>([])
 const pagesNote = ref('')
+/** 这一格这一发没行时的三种念法，各一格：后端答的成因、后端没答、以及这一发读失败 */
+const listEmptyLine = ref('')
+const listEmptyReason = ref<EmptyReason>(null)
+const listReadFailed = ref('')
 const loading = ref(false)
 const scanning = ref(false)
 const saving = ref(false)
@@ -452,13 +474,22 @@ async function copyText(text: string, okMessage: string) {
 
 async function load() {
   loading.value = true
+  listReadFailed.value = ''
+  listEmptyLine.value = ''
+  listEmptyReason.value = null
   try {
-    findings.value = await portalHealthApi.findings({
+    const read = await portalHealthApi.findings({
       siteId: filters.siteId,
       status: filters.status,
       type: filters.type
     })
+    findings.value = read?.records || []
+    listEmptyLine.value = read?.emptyLine || ''
+    listEmptyReason.value = asEmptyReason(read?.emptyReason)
   } catch (error) {
+    // 读失败与「这一档没有」是两件事：旧行要清掉，否则界面一边摆着上一发的行、一边念「读失败」
+    findings.value = []
+    listReadFailed.value = describeHttpError(error)
     message.error((error as Error).message || '巡检结果加载失败')
   } finally {
     loading.value = false
@@ -685,6 +716,13 @@ onMounted(async () => {
 
 .portal-health-page__muted {
   color: rgba(0, 0, 0, 0.45);
+}
+
+/* 后端那句成因下面的这一行：怎么让这里有行，是这一屏自己的下一步 */
+.portal-health-page__empty-howto {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 12px;
 }
 
 .portal-health-page__grouping {

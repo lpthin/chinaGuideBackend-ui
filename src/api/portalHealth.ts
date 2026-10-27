@@ -1,4 +1,5 @@
 import http from './http'
+import type { PageResult } from '../types/portal'
 
 /**
  * 门户页面巡检（Spec §8.2）的管理端接口。
@@ -124,9 +125,15 @@ export const portalHealthApi = {
   /** 词表：类型（含中文名、修法说明、AI 能不能出手）+ 状态标签 */
   options: () => http.get<HealthOptions>('/portal/health/options'),
 
-  /** 默认只看待处理：status 不传时后端按 open 查，翻历史要显式给值 */
+  /**
+   * 默认只看待处理：status 不传时后端按 open 查，翻历史要显式给值。
+   *
+   * <p>M-P83：后端这一口从裸数组换成有名字的分页读壳（`records` + 两格成因）。这一屏原本写死一句
+   * 「没有待处理的巡检结果」，于是「这一档读不到」和「那一发读失败」都被念成「这个站是健康的」。
+   * 现在那一格由后端答是哪一种空，界面逐字念。</p>
+   */
   findings: (params?: { siteId?: number | null; status?: string | null; type?: string | null }) =>
-    http.get<HealthFinding[]>('/portal/health/findings', {
+    http.get<PageResult<HealthFinding>>('/portal/health/findings', {
       params: {
         siteId: params?.siteId ?? undefined,
         status: params?.status || undefined,

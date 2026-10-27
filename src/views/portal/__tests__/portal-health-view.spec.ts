@@ -187,11 +187,11 @@ describe('PortalHealthView', () => {
     vi.clearAllMocks()
     document.body.innerHTML = ''
     vi.mocked(portalHealthApi.options).mockResolvedValue(OPTIONS as any)
-    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+    vi.mocked(portalHealthApi.findings).mockResolvedValue(pagedResult([
       finding(1, 'seo_missing'),
       finding(2, 'content_stale'),
       finding(3, 'link_dead')
-    ] as any)
+    ]) as any)
     vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([{ id: 43, title: '联系我们', slug: 'contact' }] as any))
     vi.mocked(siteApi.list).mockResolvedValue([{ id: 1, name: '小山口腔' }] as any)
   })
@@ -208,11 +208,11 @@ describe('PortalHealthView', () => {
 
   /** 与后端 aiFix 的「一条 finding 只出手一次」对上：入口收了，产出必须还点得开 */
   it('出过产出的那一条不再给第二次 AI 入口，只给已有的产出', async () => {
-    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+    vi.mocked(portalHealthApi.findings).mockResolvedValue(pagedResult([
       { ...finding(1, 'seo_missing'), suggestionJson: '{"seoTitle":"上一轮出的"}' },
       { ...finding(2, 'content_stale'), draftId: 880 },
       finding(3, 'link_dead')
-    ] as any)
+    ]) as any)
     const wrapper = await mountView(['portal:build:health', 'portal:build:review'])
     expect(byText('让 AI 出 SEO 建议').length).toBe(0)
     expect(byText('让 AI 出改版草稿').length).toBe(0)
@@ -310,9 +310,9 @@ describe('PortalHealthView', () => {
   })
 
   it('没有 portal:build:review 时不去取草稿正文，只说明为什么看不到', async () => {
-    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+    vi.mocked(portalHealthApi.findings).mockResolvedValue(pagedResult([
       { ...finding(4, 'content_stale'), draftId: 880 }
-    ] as any)
+    ]) as any)
     const wrapper = await mountView(['portal:build:health'])
 
     // 展开这一行（视图里的「草稿 #880」那个链接）
@@ -339,9 +339,9 @@ describe('PortalHealthView', () => {
   }
 
   it('有建议又管得到页面时，展开就能看到「应用到页面」，点它是后端那一条端点', async () => {
-    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+    vi.mocked(portalHealthApi.findings).mockResolvedValue(pagedResult([
       { ...finding(1, 'seo_missing'), suggestionJson: SEO_SUGGESTION }
-    ] as any)
+    ]) as any)
     vi.mocked(portalHealthApi.applySuggestion).mockResolvedValue({} as any)
     const wrapper = await mountView(['portal:build:health', 'portal:build:manage', 'portal:page:manage'])
 
@@ -361,9 +361,9 @@ describe('PortalHealthView', () => {
   })
 
   it('已经应用过的那一条只给「撤销应用」，并把覆盖前的那份说清楚', async () => {
-    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+    vi.mocked(portalHealthApi.findings).mockResolvedValue(pagedResult([
       { ...finding(1, 'seo_missing'), suggestionJson: APPLIED_SUGGESTION }
-    ] as any)
+    ]) as any)
     vi.mocked(portalHealthApi.undoApply).mockResolvedValue({} as any)
     const wrapper = await mountView(['portal:build:health', 'portal:build:manage', 'portal:page:manage'])
 
@@ -382,9 +382,9 @@ describe('PortalHealthView', () => {
 
   /** 权限不够时这一页退化回「复制」，但仍然说清缺的是哪个码，而不是让人猜按钮为什么不在 */
   it('没有 portal:build:manage 时不给写入按钮，只给手工贴回的说明', async () => {
-    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+    vi.mocked(portalHealthApi.findings).mockResolvedValue(pagedResult([
       { ...finding(1, 'seo_missing'), suggestionJson: SEO_SUGGESTION }
-    ] as any)
+    ]) as any)
     const wrapper = await mountView(['portal:build:health'])
 
     const row = await expandRow()
@@ -451,11 +451,11 @@ it('只有 page:manage 时页面下拉照发，站点口与写入按钮都不出
 
   it('跨页那三条新类型：中文名照后端念，AI 入口一个都不长，筛选下拉里也带着这三条', async () => {
     vi.mocked(portalHealthApi.options).mockResolvedValue(CROSS_PAGE_OPTIONS as any)
-    vi.mocked(portalHealthApi.findings).mockResolvedValue([
+    vi.mocked(portalHealthApi.findings).mockResolvedValue(pagedResult([
       finding(11, 'nav_mismatch'),
       finding(12, 'header_asset_mismatch'),
       finding(13, 'term_mismatch')
-    ] as any)
+    ]) as any)
     const wrapper = await mountView(['portal:build:health'])
 
     const text = wrapper.text()
@@ -491,7 +491,7 @@ it('只有 page:manage 时页面下拉照发，站点口与写入按钮都不出
       },
       statuses: CROSS_PAGE_OPTIONS.statuses
     } as any)
-    vi.mocked(portalHealthApi.findings).mockResolvedValue([finding(13, 'term_mismatch')] as any)
+    vi.mocked(portalHealthApi.findings).mockResolvedValue(pagedResult([finding(13, 'term_mismatch')]) as any)
     const wrapper = await mountView(['portal:build:health'])
     expect(wrapper.text()).toContain('栏目叫法不统一')
     expect(wrapper.text()).not.toContain('栏目用词不一致')
