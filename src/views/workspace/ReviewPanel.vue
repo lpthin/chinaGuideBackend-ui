@@ -1,7 +1,9 @@
 <template>
   <div class="review-panel-page">
     <a-spin :spinning="loading">
-      <!-- 顶部数据概览区：全部取自 reviewApi.getReviewStats -->
+      <!-- 顶部数据概览区：全部取自 reviewApi.getReviewStats。
+           那四张卡读的是另一支口，它对认不出的租户只回 0，所以「这一发读失败」或「选中那一家读不到」时
+           一律摆 `—`，不摆 0（与发布中心、审计日志、栏目管理那几屏同一条规则，M-P79 定下）。 -->
       <a-row :gutter="16" class="stats-row">
         <a-col :xs="24" :sm="12" :md="6">
           <a-card class="stat-card" hoverable>
@@ -10,7 +12,7 @@
                 <ClockCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.pendingCount }}</div>
+                <div class="stat-value">{{ cardsUnreadable ? '—' : stats.pendingCount }}</div>
                 <div class="stat-title">待审核文章数</div>
               </div>
             </div>
@@ -23,7 +25,7 @@
                 <CheckCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.approvedCount }}</div>
+                <div class="stat-value">{{ cardsUnreadable ? '—' : stats.approvedCount }}</div>
                 <div class="stat-title">已通过文章数</div>
               </div>
             </div>
@@ -36,7 +38,7 @@
                 <CloseCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.rejectedCount }}</div>
+                <div class="stat-value">{{ cardsUnreadable ? '—' : stats.rejectedCount }}</div>
                 <div class="stat-title">已驳回文章数</div>
               </div>
             </div>
@@ -49,7 +51,7 @@
                 <DashboardOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.passRate }}%</div>
+                <div class="stat-value">{{ cardsUnreadable ? '—' : `${stats.passRate}%` }}</div>
                 <div class="stat-title">审核通过率</div>
               </div>
             </div>
@@ -118,6 +120,11 @@
                 <UnorderedListOutlined />
                 <span>文章列表</span>
                 <span class="list-count">{{ filteredArticles.length }}</span>
+                <!-- 这一口一次只回一页（后端默认 20 行），全档条数是同一发回的 total。
+                     不摆这一句时，那个数字会被读成「待审就这么多篇」。 -->
+                <span v-if="listTotal > articles.length" class="list-page-note">
+                  本页 {{ articles.length }} / 共 {{ listTotal }} 篇
+                </span>
               </div>
             </template>
             <div class="article-list">
@@ -161,7 +168,20 @@
                   </div>
                 </div>
               </div>
-              <a-empty v-if="!filteredArticles.length" description="暂无待审核文章" class="empty-list" />
+              <!-- 这一格为什么是空的，由后端那一发答，界面逐字念（M-P82）。
+                   有行而筛选没命中是界面这一侧的过滤，不该记在后端的成因账上，所以另说一句。 -->
+              <div v-if="!filteredArticles.length" class="empty-list">
+                <empty-list-hint
+                  v-if="!articles.length"
+                  :loading="loading"
+                  :read-failed="listReadFailed"
+                  :empty-line="listEmptyLine"
+                  :empty-reason="listEmptyReason"
+                />
+                <p v-else class="filter-miss">
+                  这一页读到 {{ articles.length }} 篇，按现在的筛选（{{ filterLabel }}）没有匹配的行——不是这一档没有要审的文章。
+                </p>
+              </div>
             </div>
           </a-card>
         </a-col>
@@ -463,6 +483,9 @@ import {
   UnorderedListOutlined,
 } from '@ant-design/icons-vue'
 import { reviewApi } from '../../api'
+import { describeHttpError } from '../../api/http'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import { articleStatusMeta } from '../../utils/contentStatus'
 import { formatDateTime, formatDecimal, formatPercent } from '../../utils/format'
@@ -511,6 +534,18 @@ const articles = ref<any[]>([])
 const currentArticle = ref<any>(null)
 const selectedRows = ref<any[]>([])
 
+// 待审列表这一发读回来的成因（M-P82）：那一句「这一种空是哪一种」由后端答，界面逐字念。
+// 这一屏没有分页控件、每次只读第一页，所以「这一页翻过了头」那一档在这一屏读不到；
+// total 只用来标明「屏幕上这几行是全档的一页」，不许它被读成待审总数。
+const listTotal = ref(0)
+const listEmptyLine = ref('')
+const listEmptyReason = ref<EmptyReason>(null)
+const listReadFailed = ref('')
+
+// 顶部四张卡读的是另一支口（getReviewStats），它对认不出的租户只回 0，
+// 所以这一发读失败或读不到时摆 `—`，不摆 0
+const cardsUnreadable = computed(() => !!listReadFailed.value || listEmptyReason.value === 'NOT_VISIBLE')
+
 const rejectReason = ref('')
 const rejectDetail = ref('')
 const batchRejectReason = ref('')
@@ -528,6 +563,18 @@ const filteredArticles = computed(() => {
     )
   }
   return result
+})
+
+/** 筛选没命中那一句话要把「按什么筛的」念出来，否则那一句说不清是谁把行挡住 */
+const filterLabel = computed(() => {
+  const parts: string[] = []
+  if (statusFilter.value !== 'all') {
+    parts.push(`状态＝${articleStatusMeta(statusFilter.value as 'pending_review').label}`)
+  }
+  if (searchKeyword.value) {
+    parts.push(`关键词「${searchKeyword.value}」`)
+  }
+  return parts.join('、')
 })
 
 function getPriorityColor(priority?: number) {
@@ -654,12 +701,21 @@ async function loadReviewStats() {
 
 async function loadData() {
   loading.value = true
+  listReadFailed.value = ''
+  listEmptyLine.value = ''
+  listEmptyReason.value = null
   try {
     const articlesRes = await reviewApi.pendingList({ tenantId: authStore.selectedTenantId ?? undefined }) as any
-    const records = articlesRes?.records || articlesRes || []
-    articles.value = records
+    articles.value = articlesRes?.records || []
+    listTotal.value = articlesRes?.total || 0
+    listEmptyLine.value = articlesRes?.emptyLine || ''
+    listEmptyReason.value = asEmptyReason(articlesRes?.emptyReason)
     await loadReviewStats()
   } catch (error) {
+    // 读失败与「这一档没有」是两件事：旧行要清掉，否则界面一边摆着上一发的行、一边念「读失败」
+    articles.value = []
+    listTotal.value = 0
+    listReadFailed.value = describeHttpError(error)
     message.error('数据加载失败')
     logError('workspace/review-panel', error)
   } finally {
@@ -1020,6 +1076,13 @@ onUnmounted(() => {
     font-size: 12px;
     font-weight: 500;
   }
+
+  .list-page-note {
+    margin-left: 8px;
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 12px;
+    font-weight: 400;
+  }
 }
 
 .article-list {
@@ -1115,6 +1178,14 @@ onUnmounted(() => {
 
 .empty-list {
   padding: 40px 0;
+}
+
+/* 列表有行、筛选没命中时那一句：说的是界面这一侧的过滤，不是后端那一档空 */
+.filter-miss {
+  margin: 0;
+  text-align: center;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
 }
 
 .detail-panel {
