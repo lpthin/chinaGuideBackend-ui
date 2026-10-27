@@ -452,10 +452,9 @@
                 placeholder="按类型筛选"
                 allowClear
               >
-                <a-select-option value="chat">聊天模型</a-select-option>
-                <a-select-option value="vision">视觉模型</a-select-option>
-                <a-select-option value="embedding">向量模型</a-select-option>
-                <a-select-option value="image">图像模型</a-select-option>
+                <a-select-option v-for="(label, value) in LOG_TYPE_OPTIONS" :key="value" :value="value">
+                  {{ label }}
+                </a-select-option>
               </a-select>
               <a-input-search
                 v-model:value="logFilter.keyword"
@@ -483,6 +482,23 @@
               :pagination="false"
               :row-key="(record: any) => record.id"
             >
+              <template #emptyText>
+                <div class="logs-empty">
+                  <!-- 这一格为什么没行，后端答得出就逐字念它那一句；答不出用组件那句兜底，
+                       不替它挑一种成因。「有行、本地筛选没命中」是界面这一侧的过滤，
+                       不该记在后端的成因账上，所以另说一句。 -->
+                  <empty-list-hint
+                    v-if="!logList.length"
+                    :loading="loading"
+                    :read-failed="logsReadFailed"
+                    :empty-line="logsEmptyLine"
+                    :empty-reason="logsEmptyReason"
+                  />
+                  <p v-else-if="!paginatedLogs.length" class="filter-miss">
+                    这一页读到 {{ logList.length }} 条，按现在的筛选（{{ logFilterLabel }}）没有匹配的行——不是这一档没有调用日志。
+                  </p>
+                </div>
+              </template>
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'status'">
                   <a-tag :color="record.status === 'success' ? 'green' : 'red'">
@@ -540,11 +556,19 @@ import FilterBar from '../../components/FilterBar.vue'
 import { statsApi } from '../../api/billing'
 import { geoQuotaApi, type GeoQuotaStatus } from '../../api/geoQuota'
 import StateBlock from '../../components/StateBlock.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { PH_DASH } from '../../utils/display'
 import { logError } from '../../utils/errorLog'
+import { describeHttpError } from '../../api/http'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 
 const authStore = useAuthStore()
 
@@ -782,6 +806,14 @@ const getPieGradient = () => {
   return `conic-gradient(${gradient})`
 }
 
+/** 类型筛选项的唯一一份词表：下拉框与「筛选没命中」那句念的都从这一处取 */
+const LOG_TYPE_OPTIONS: Record<string, string> = {
+  chat: '聊天模型',
+  vision: '视觉模型',
+  embedding: '向量模型',
+  image: '图像模型',
+}
+
 const logFilter = reactive({
   type: undefined as string | undefined,
   keyword: '',
@@ -944,6 +976,28 @@ const statsTokenBasis = computed<string | null>(() => {
 const logsTokenBasis = ref<string | null>(null)
 
 /**
+ * 「调用日志」那张表这一格为什么是空的，三种念法各占一格（M-P84）。
+ *
+ * 换之前这一格是 ant-design-vue 的默认「暂无数据」：于是「选中的这一家在这张表里读不到行」、
+ * 「这一页翻过了头」和「这一发请求压根没打回来」都被念成同一个「暂无数据」，
+ * 而这一屏的表是真分页（后端 selectPage + 页面下面那条翻页条），三种都点得出来。
+ * 成因那句话由后端发（唯一出处 EmptyResultReasons），界面逐字念、不改写、不合并。
+ */
+const logsEmptyLine = ref('')
+const logsEmptyReason = ref<EmptyReason>(null)
+const logsReadFailed = ref('')
+
+/** 本地筛选生效时那句「没命中」要念出人按什么筛的 */
+const logFilterLabel = computed(() => {
+  const parts: string[] = []
+  const type = logFilter.type
+  if (type) parts.push(`类型「${LOG_TYPE_OPTIONS[type] ?? type}」`)
+  const keyword = logFilter.keyword.trim()
+  if (keyword) parts.push(`关键词「${keyword}」`)
+  return parts.join(' + ')
+})
+
+/**
  * 费用的念法。三位一体：null = 「未配价」（这一台模型没定价，钱这个数压根不存在），
  * 0 = 「¥0.00」（定过价、就是免费），有数就报数。
  *
@@ -1058,6 +1112,9 @@ watch(timeRange, () => {
 })
 
 const loadLogs = async () => {
+  logsEmptyLine.value = ''
+  logsEmptyReason.value = null
+  logsReadFailed.value = ''
   try {
     const params = {
       ...getCommonParams(),
@@ -1069,12 +1126,23 @@ const loadLogs = async () => {
     logList.value = result.records ?? []
     logPagination.total = result.total ?? 0
     logsTokenBasis.value = result.tokenBasis ?? null
+    logsEmptyLine.value = result.emptyLine ?? ''
+    logsEmptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不能只给一句解释：把页码挪回第一页，翻页条那个 watcher 会照新页码重读一遍。
+    // 这里不自己再发一发，否则同一页读两遍；挪页码也不会死循环（第一页没行后端判的是「真的没有」）。
+    if (shouldJumpBackToFirstPage(logsEmptyReason.value, logPagination.current)) {
+      logPagination.current = 1
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
-    message.error('加载调用日志失败')
+    const reason = describeHttpError(error)
+    message.error(`加载调用日志失败：${reason}`)
     logError('ai/model-usage-view', 'Failed to load logs:', error)
     logList.value = []
     logPagination.total = 0
     logsTokenBasis.value = null
+    // 读失败与「这一格没行」是两件事：清掉行数不许顺手把它报成「这一家没有调用日志」
+    logsReadFailed.value = reason
   }
 }
 
@@ -1609,5 +1677,18 @@ onMounted(() => {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+
+/* 表格空态那一格：占位与全站一致，句子由后端发 */
+.logs-empty {
+  padding: 32px 0;
+}
+
+/* 「有行、筛选没命中」那句：说的是界面这一侧的过滤，不是后端那一档空 */
+.filter-miss {
+  margin: 0;
+  text-align: center;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
 }
 </style>

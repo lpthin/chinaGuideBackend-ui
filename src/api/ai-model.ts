@@ -200,10 +200,20 @@ export const aiModelApi = {
     http.get<any[]>('/ai/model/trend', { params }),
 
   // 获取调用日志列表
+  // M-P84：后端这一口从 Map 分页壳换成有名字的返回体，回包里多出「这一页是第几页、共几页」
+  // 与「这一发为什么是空的」那两格。空的三种成因（真的没有 / 这一家读不到 / 这一页翻过了头）
+  // 以前在这张表上分不出来，界面只能写死一句「暂无数据」。
   getLogs: (params?: AiStatsQuery & { page?: number; size?: number }) =>
     http.get<{
       records: any[]
       total: number
+      page: number
+      size: number
+      pages: number
+      /** 后端答的成因码：NONE / NOT_VISIBLE / OUT_OF_RANGE，null 就是这一发没答 */
+      emptyReason?: string | null
+      /** 成因那句原文（唯一出处在后端 EmptyResultReasons），界面逐字念、不改写 */
+      emptyLine?: string | null
       windowFrom?: string
       windowTo?: string
       /** 每行「Token」那一列的尺子说明（字数除以 4，是下界不是账单） */

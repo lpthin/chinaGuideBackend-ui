@@ -7,6 +7,7 @@ import { aiModelApi } from '../../../api/ai-model'
 import { statsApi } from '../../../api/billing'
 import { geoQuotaApi } from '../../../api/geoQuota'
 import { useAuthStore } from '../../../stores/auth'
+import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
 
 /**
  * 「模型用量」页的诚实性（Spec-G P2 界面那一半，§G5 前半 F5）。
@@ -96,6 +97,32 @@ const RADIO_BUTTON_STUB = {
   template: '<button class="radio-btn" @click="$parent.$emit(\'update:value\', value)"><slot /></button>',
 }
 
+/**
+ * 日志筛选那一排要挂成真控件：类型下拉与关键词搜索在界面上是 v-model 的两个入口，
+ * 替件若不回写 v-model，用例就只能去改组件状态，测的不再是「人点了一下会发生什么」。
+ * 这里按 ant-design-vue 真的事件名回写（a-select → update:value，a-input-search → search + update:value）。
+ */
+const SELECT_STUB = {
+  name: 'ASelect',
+  props: ['value'],
+  emits: ['update:value'],
+  template: '<select class="select-stub" :value="value || \'\'"'
+    + ' @change="$emit(\'update:value\', $event.target.value || undefined)"><slot /></select>',
+}
+const OPTION_STUB = {
+  name: 'ASelectOption',
+  props: ['value'],
+  template: '<option class="option-stub" :value="value"><slot /></option>',
+}
+const INPUT_SEARCH_STUB = {
+  name: 'AInputSearch',
+  props: ['value'],
+  emits: ['update:value', 'search'],
+  template: '<input class="input-search" :value="value ?? \'\'"'
+    + ' @input="$emit(\'update:value\', $event.target.value)"'
+    + ' @keyup.enter="$emit(\'search\', $event.target.value)" />',
+}
+
 const globalStubs = {
   'a-card': SLOT('ACard'),
   'a-row': SLOT('ARow'),
@@ -108,9 +135,9 @@ const globalStubs = {
   'a-radio-button': RADIO_BUTTON_STUB,
   'a-range-picker': { name: 'ARangePicker', props: ['value'], template: '<i class="range-picker" />' },
   'a-progress': { name: 'AProgress', props: ['percent'], template: '<i class="progress-stub" :data-percent="percent" />' },
-  'a-select': SLOT('ASelect'),
-  'a-select-option': SLOT('ASelectOption'),
-  'a-input-search': { name: 'AInputSearch', props: ['value'], template: '<i class="input-search" />' },
+  'a-select': SELECT_STUB,
+  'a-select-option': OPTION_STUB,
+  'a-input-search': INPUT_SEARCH_STUB,
   /**
    * 数字输入框要挂成真的 `<input>`：用例填的是屏幕上那一格，不是绕过去改组件状态。
    * 清空（不限制）在界面上就是把这一格留空，所以空串必须回 null 而不是 0——0 是「上限为零」，
@@ -123,7 +150,16 @@ const globalStubs = {
     template: '<input class="input-number" :placeholder="placeholder" :value="value ?? \'\'"'
       + ' @input="$emit(\'update:value\', $event.target.value === \'\' ? null : Number($event.target.value))" />',
   },
-  'a-table': { name: 'ATable', props: ['dataSource', 'columns'], template: '<div class="table-stub" />' },
+  /**
+   * 表格替件得把 `#emptyText` 那一格放出来，否则这一屏「为什么是空的」那三种念法在测里根本渲染不出来。
+   * 真的 a-table 只在没行时渲染它；这一页在那一格内部按「有没有行」自己判过，
+   * 所以替件无条件渲染得到的是同一个可见结果。
+   */
+  'a-table': {
+    name: 'ATable',
+    props: ['dataSource', 'columns'],
+    template: '<div class="table-stub"><slot name="emptyText" /></div>',
+  },
   'a-pagination': { name: 'APagination', props: ['total'], template: '<i class="pagination-stub" />' },
   'a-tag': { name: 'ATag', props: ['color'], template: '<span class="tag-stub"><slot /></span>' },
   DollarOutlined: ICON,
@@ -717,5 +753,149 @@ describe('超管在本页设 GEO 池的水位（N2 的写入口）', () => {
     await flushPromises()
     expect(message.error).toHaveBeenCalledWith('GEO_QUOTA_VALUE_INVALID: 0 个 token 不是「不设上限」')
     expect(message.success).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 「调用日志」那张表的空态（M-P84）。
+ *
+ * 这一张表是真分页（后端 selectPage + 页面下面那条翻页条），所以它这一格没行有三种完全不同的成因，
+ * 换之前只有一种长相：ant-design-vue 默认的「暂无数据」。于是——
+ * - 选中的那一家在这张表里根本没有行（读不到），被念成「这一家一次都没调用过」；
+ * - 这一页翻过了头，被念成「没有」；
+ * - 请求压根没打回来（读失败），也被念成「没有」，而且和「共 0 条」摆在一起像查过了。
+ * 现在后端随数把成因带回来，界面逐字念；后端没答就用自己的兜底句，不替它挑一种成因。
+ *
+ * 那三句原文的出处在后端（`EmptyResultReasons.sentence`，主语取 `AiStatsController.EMPTY_WHAT`），
+ * 这里照抄只为让用例念的是屏幕上真会出现的那一串，界面不许存第二份。
+ */
+const WHAT = 'AI 调用日志'
+const LINE_NONE = `${WHAT}：这一档查过了，一条都没有。`
+const LINE_NOT_VISIBLE = `${WHAT}：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。`
+const LINE_OUT_OF_RANGE = `${WHAT}：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。`
+
+function logsPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    records: [],
+    total: 0,
+    page: 1,
+    size: 20,
+    pages: 0,
+    tokenBasis: '按字数尺估算的下界',
+    ...overrides,
+  } as never
+}
+
+const CHAT_ROWS = [
+  { id: 9001, model: 'qwen3-max', type: 'chat', prompt: 'sha256:a', tokens: 120, cost: 0.01, status: 'success', duration: 700 },
+  { id: 9002, model: 'qwen3-max', type: 'chat', prompt: 'sha256:b', tokens: 80, cost: 0, status: 'failed', duration: 1200 },
+  { id: 9003, model: 'doubao-pro', type: 'chat', prompt: 'sha256:c', tokens: 60, cost: null, status: 'success', duration: 500 },
+]
+
+describe('调用日志那张表的空态：那三种空在界面上分得开', () => {
+  it('后端答「这一档读不到」：逐字念那一句，不许念成「一条都没有」', async () => {
+    const wrapper = await mountView()
+    vi.mocked(aiModelApi.getLogs).mockResolvedValue(logsPayload({
+      emptyReason: 'NOT_VISIBLE',
+      emptyLine: LINE_NOT_VISIBLE,
+    }))
+    const vm = wrapper.vm as any
+    vm.logPagination.current = 1
+    await vm.loadLogs()
+    await flushPromises()
+    const cell = wrapper.find('.logs-empty')
+    expect(cell.text()).toBe(LINE_NOT_VISIBLE)
+    expect(cell.text()).toContain('读不到')
+    expect(cell.text()).not.toContain('一条都没有')
+    // 这一格自己也不许多出一份「没有」
+    expect(wrapper.text()).not.toContain('暂无数据')
+  })
+
+  it('后端没答是哪一种空：界面用自己那句兜底，不替它挑一种成因', async () => {
+    const wrapper = await mountView()
+    // mountView 的默认桩就是「没有 emptyReason 这一格」的老响应
+    const cell = wrapper.find('.logs-empty')
+    expect(cell.text()).toContain('后端没回是哪一种空')
+    expect(cell.text()).not.toContain('一条都没有')
+    expect(cell.text()).not.toContain('读不到')
+  })
+
+  it('这一发读失败：念的是读失败，顺手清掉的行数不许报成「这一档没有日志」', async () => {
+    const wrapper = await mountView()
+    vi.mocked(aiModelApi.getLogs).mockRejectedValue(new Error('无法连接服务器，请确认后端已启动'))
+    const vm = wrapper.vm as any
+    await vm.loadLogs()
+    await flushPromises()
+    const cell = wrapper.find('.logs-empty')
+    expect(cell.text()).toContain('这一发读失败：无法连接服务器，请确认后端已启动')
+    expect(cell.text()).toContain('读失败不是「这一档没有」')
+    expect(cell.text()).not.toContain('一条都没有')
+    expect(message.error).toHaveBeenCalledWith('加载调用日志失败：无法连接服务器，请确认后端已启动')
+  })
+
+  it('后端答「这一页翻过了头」：页码自己回到第一页重读，那句提示说的是界面替你翻的', async () => {
+    const wrapper = await mountView()
+    vi.mocked(aiModelApi.getLogs)
+      .mockResolvedValueOnce(logsPayload({
+        total: 47, pages: 3, page: 9,
+        emptyReason: 'OUT_OF_RANGE',
+        emptyLine: LINE_OUT_OF_RANGE,
+      }))
+      .mockResolvedValue(logsPayload({
+        records: CHAT_ROWS, total: 47, pages: 3, page: 1, emptyReason: null, emptyLine: null,
+      }))
+    const vm = wrapper.vm as any
+    vm.logPagination.current = 9
+    await vm.loadLogs()
+    await flushPromises()
+    // 不是一句解释就完事：页码挪回第一页，并按新页码重新读了一遍
+    expect(vm.logPagination.current).toBe(1)
+    expect(message.info).toHaveBeenCalledWith(JUMP_BACK_NOTICE)
+    const calls = vi.mocked(aiModelApi.getLogs).mock.calls
+    expect((calls[calls.length - 1][0] as Record<string, unknown>).page).toBe(1)
+    // 挪回来之后读到行，那一句「翻过了头」就不该还挂在表里
+    expect(wrapper.find('.logs-empty').text()).toBe('')
+  })
+
+  it('表里有行：那一句成因整个不出现', async () => {
+    const wrapper = await mountView()
+    vi.mocked(aiModelApi.getLogs).mockResolvedValue(logsPayload({
+      records: CHAT_ROWS, total: 3, pages: 1, emptyReason: 'NONE', emptyLine: LINE_NONE,
+    }))
+    const vm = wrapper.vm as any
+    await vm.loadLogs()
+    await flushPromises()
+    expect(wrapper.find('.logs-empty').text()).toBe('')
+  })
+
+  it('有行、本地筛选没命中：说的是这一页读到几条、按什么筛的，不是这一档没有日志', async () => {
+    const wrapper = await mountView()
+    vi.mocked(aiModelApi.getLogs).mockResolvedValue(logsPayload({
+      records: CHAT_ROWS, total: 3, pages: 1,
+    }))
+    const vm = wrapper.vm as any
+    await vm.loadLogs()
+    await flushPromises()
+    // 挂的是真的下拉框：选中的是屏幕上那一颗选项，不是绕过去改状态
+    await wrapper.find('.select-stub').setValue('vision')
+    await flushPromises()
+    const miss = wrapper.find('.filter-miss')
+    expect(miss.text()).toContain('这一页读到 3 条')
+    expect(miss.text()).toContain('类型「视觉模型」')
+    expect(miss.text()).toContain('不是这一档没有调用日志')
+    // 这一形不是后端那一档空，成因那一句与「没有」都不许出现
+    expect(wrapper.find('.logs-empty').text()).not.toContain('一条都没有')
+    expect(wrapper.find('.logs-empty').text()).not.toContain('读不到')
+
+    await wrapper.find('.input-search').setValue('登录')
+    await flushPromises()
+    expect(wrapper.find('.filter-miss').text()).toContain('类型「视觉模型」 + 关键词「登录」')
+  })
+
+  it('类型的四个选项与那句筛选说明同一个出处：词表不在这一屏抄第二份', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.findAll('.option-stub').map(n => n.text())).toEqual(
+      ['聊天模型', '视觉模型', '向量模型', '图像模型'],
+    )
   })
 })
