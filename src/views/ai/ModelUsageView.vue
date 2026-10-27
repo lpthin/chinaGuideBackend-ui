@@ -448,14 +448,13 @@
             <filter-bar>
               <a-select
                 v-model:value="logFilter.type"
-                style="width: 140px"
+                style="width: 220px"
                 placeholder="按类型筛选"
                 allowClear
-              >
-                <a-select-option v-for="(label, value) in LOG_TYPE_OPTIONS" :key="value" :value="value">
-                  {{ label }}
-                </a-select-option>
-              </a-select>
+                show-search
+                :options="logTypeOptions"
+                :filter-option="matchesPurposeOption"
+              />
               <a-input-search
                 v-model:value="logFilter.keyword"
                 placeholder="搜索日志内容"
@@ -561,6 +560,7 @@ import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { PH_DASH } from '../../utils/display'
+import { AI_CALL_PURPOSE_GROUPS, UNGROUPED_PURPOSE_TITLE, aiCallPurposeLabel, matchesPurposeOption } from '../../utils/aiCallPurpose'
 import { logError } from '../../utils/errorLog'
 import { describeHttpError } from '../../api/http'
 import {
@@ -806,14 +806,7 @@ const getPieGradient = () => {
   return `conic-gradient(${gradient})`
 }
 
-/** 类型筛选项的唯一一份词表：下拉框与「筛选没命中」那句念的都从这一处取 */
-const LOG_TYPE_OPTIONS: Record<string, string> = {
-  chat: '聊天模型',
-  vision: '视觉模型',
-  embedding: '向量模型',
-  image: '图像模型',
-}
-
+/** 类型筛选项的词表在 utils/aiCallPurpose，下拉、表格那一格、那句筛选说明三处都从它取 */
 const logFilter = reactive({
   type: undefined as string | undefined,
   keyword: '',
@@ -826,6 +819,43 @@ const logPagination = reactive({
 })
 
 const logList = ref<any[]>([])
+
+/**
+ * 下拉真正摆的那些组：词表里登记过的，加上「这一页读到但词表没登记」的原码。
+ *
+ * <p>后一组是故意留的口：库里以后新增一种用途而这里没补名字时，它至少还能按原码筛，
+ * 不会退回成「选哪一档都筛不到行」那一形。</p>
+ */
+const logTypeGroups = computed(() => {
+  const known = new Set(AI_CALL_PURPOSE_GROUPS.flatMap((group) => group.options.map((o) => o.value)))
+  const seen = new Set<string>()
+  logList.value.forEach((row: any) => {
+    const value = String(row?.type ?? '').toLowerCase()
+    if (value && !known.has(value)) seen.add(value)
+  })
+  const groups = AI_CALL_PURPOSE_GROUPS.map((group) => ({
+    title: group.title,
+    options: group.options.map((o) => ({ ...o })),
+  }))
+  if (seen.size) {
+    groups.push({
+      title: UNGROUPED_PURPOSE_TITLE,
+      options: [...seen].sort().map((value) => ({ value, label: value })),
+    })
+  }
+  return groups
+})
+
+/**
+ * 交给下拉的那份数据：组名 + 组里每档的取值和人话名。
+ *
+ * 走 `:options` 数据而不是 `<a-select-option>` 插槽——插槽那形下 antd 把选项文字算成子节点 vnode，
+ * 搜索回调拿到的 label 不是字符串，输中文名一条也筛不出来（现场实测「配图」0 条，「site_brief_image」才中）。
+ */
+const logTypeOptions = computed(() => logTypeGroups.value.map((group) => ({
+  label: group.title,
+  options: group.options,
+})))
 
 /** 后端 GET /ai/model/logs 只接受 tenantId/page/size，类型与关键词只能在已加载的本页数据里筛 */
 const localFilterActive = computed(() => Boolean(logFilter.type || logFilter.keyword.trim()))
@@ -863,15 +893,8 @@ const logColumns = [
     title: '类型',
     dataIndex: 'type',
     key: 'type',
-    width: 100,
-    customRender: ({ record }: { record: any }) => {
-      const typeMap: Record<string, string> = {
-        chat: '聊天',
-        embedding: '向量',
-        image: '图像',
-      }
-      return typeMap[record.type] || record.type
-    },
+    width: 150,
+    customRender: ({ record }: { record: any }) => aiCallPurposeLabel(record.type),
   },
   {
     title: '提示词',
@@ -991,7 +1014,7 @@ const logsReadFailed = ref('')
 const logFilterLabel = computed(() => {
   const parts: string[] = []
   const type = logFilter.type
-  if (type) parts.push(`类型「${LOG_TYPE_OPTIONS[type] ?? type}」`)
+  if (type) parts.push(`类型「${aiCallPurposeLabel(type)}」`)
   const keyword = logFilter.keyword.trim()
   if (keyword) parts.push(`关键词「${keyword}」`)
   return parts.join(' + ')

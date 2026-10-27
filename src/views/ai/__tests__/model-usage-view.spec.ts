@@ -1,13 +1,27 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
+
+/**
+ * 全局 setup 里那个 ResizeObserver 桩是 `vi.fn()`，真的 ant 控件用 `new` 调它会直接被拒；
+ * resize-observer-polyfill 在模块加载那一刻就把全局那一个抓走了，所以这份必须顶到 import 之前。
+ */
+vi.hoisted(() => {
+  ;(globalThis as any).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+})
+
 import { flushPromises, mount } from '@vue/test-utils'
 import dayjs from 'dayjs'
-import { message } from 'ant-design-vue'
+import { Select, message } from 'ant-design-vue'
 import ModelUsageView from '../ModelUsageView.vue'
 import { aiModelApi } from '../../../api/ai-model'
 import { statsApi } from '../../../api/billing'
 import { geoQuotaApi } from '../../../api/geoQuota'
 import { useAuthStore } from '../../../stores/auth'
 import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
+import { AI_CALL_PURPOSE_GROUPS, UNGROUPED_PURPOSE_TITLE } from '../../../utils/aiCallPurpose'
 
 /**
  * 「模型用量」页的诚实性（Spec-G P2 界面那一半，§G5 前半 F5）。
@@ -101,18 +115,19 @@ const RADIO_BUTTON_STUB = {
  * 日志筛选那一排要挂成真控件：类型下拉与关键词搜索在界面上是 v-model 的两个入口，
  * 替件若不回写 v-model，用例就只能去改组件状态，测的不再是「人点了一下会发生什么」。
  * 这里按 ant-design-vue 真的事件名回写（a-select → update:value，a-input-search → search + update:value）。
+ *
+ * 这一颗按 `options` 数据形出叶子：界面上走的就是数据形，替件若还按插槽渲染，
+ * 「点一下选项」这条路在测里就断了。搜索那一段不归替件管，另有真件用例（见 mountPageRealSelect）。
  */
 const SELECT_STUB = {
   name: 'ASelect',
-  props: ['value'],
+  props: ['value', 'options'],
   emits: ['update:value'],
   template: '<select class="select-stub" :value="value || \'\'"'
-    + ' @change="$emit(\'update:value\', $event.target.value || undefined)"><slot /></select>',
-}
-const OPTION_STUB = {
-  name: 'ASelectOption',
-  props: ['value'],
-  template: '<option class="option-stub" :value="value"><slot /></option>',
+    + ' @change="$emit(\'update:value\', $event.target.value || undefined)">'
+    + '<option value="">（不筛）</option>'
+    + '<option v-for="leaf in (options || []).flatMap((g) => g.options)" :key="leaf.value" :value="leaf.value">'
+    + '{{ leaf.label }}</option></select>',
 }
 const INPUT_SEARCH_STUB = {
   name: 'AInputSearch',
@@ -136,7 +151,6 @@ const globalStubs = {
   'a-range-picker': { name: 'ARangePicker', props: ['value'], template: '<i class="range-picker" />' },
   'a-progress': { name: 'AProgress', props: ['percent'], template: '<i class="progress-stub" :data-percent="percent" />' },
   'a-select': SELECT_STUB,
-  'a-select-option': OPTION_STUB,
   'a-input-search': INPUT_SEARCH_STUB,
   /**
    * 数字输入框要挂成真的 `<input>`：用例填的是屏幕上那一格，不是绕过去改组件状态。
@@ -204,7 +218,37 @@ function mountPage() {
 
 afterEach(() => {
   liveWrappers.splice(0).forEach((wrapper) => wrapper.unmount())
+  // 真下拉的浮层是挂到 body 上的，替件那一形不会留下这种节点；不清会把上一条用例的选项读进下一条
+  document.body.innerHTML = ''
 })
+
+/**
+ * 类型下拉这一颗挂成真件。
+ *
+ * 替件（`SELECT_STUB` 那个 `<select>`）只把插槽里的东西照原样渲染，压根不走 antd 的搜索回调，
+ * 于是「输中文名一条也筛不出来」这一形在它里面看不见 —— 现场实测过插槽那形：输「配图」0 条，只有输原码才中。
+ * 这一颗要测的就是搜索那一段，必须用真件。
+ */
+function mountPageRealSelect() {
+  const wrapper = mount(ModelUsageView, {
+    attachTo: document.body,
+    global: {
+      components: { 'a-select': Select },
+      stubs: { ...globalStubs, 'a-select': false },
+    },
+  })
+  liveWrappers.push(wrapper)
+  return wrapper
+}
+
+/** 打开下拉 → 往里打字，读界面上真剩下来的那些档名 */
+async function typeInTypeSelect(wrapper: ReturnType<typeof mount>, text: string) {
+  await wrapper.find('.ant-select-selector').trigger('mousedown')
+  await wrapper.vm.$nextTick()
+  await wrapper.find('.ant-select-selection-search-input').setValue(text)
+  await wrapper.vm.$nextTick()
+  return Array.from(document.querySelectorAll('.ant-select-item-option-content')).map((n) => n.textContent)
+}
 
 async function mountView(stats: Record<string, unknown> = STATS) {
   vi.mocked(aiModelApi.getStats).mockResolvedValue(stats as never)
@@ -787,9 +831,9 @@ function logsPayload(overrides: Record<string, unknown> = {}) {
 }
 
 const CHAT_ROWS = [
-  { id: 9001, model: 'qwen3-max', type: 'chat', prompt: 'sha256:a', tokens: 120, cost: 0.01, status: 'success', duration: 700 },
-  { id: 9002, model: 'qwen3-max', type: 'chat', prompt: 'sha256:b', tokens: 80, cost: 0, status: 'failed', duration: 1200 },
-  { id: 9003, model: 'doubao-pro', type: 'chat', prompt: 'sha256:c', tokens: 60, cost: null, status: 'success', duration: 500 },
+  { id: 9001, model: 'qwen3-max', type: 'article_generate', prompt: 'sha256:a', tokens: 120, cost: 0.01, status: 'success', duration: 700 },
+  { id: 9002, model: 'qwen3-max', type: 'article_generate', prompt: 'sha256:b', tokens: 80, cost: 0, status: 'failed', duration: 1200 },
+  { id: 9003, model: 'doubao-pro', type: 'article_generate', prompt: 'sha256:c', tokens: 60, cost: null, status: 'success', duration: 500 },
 ]
 
 describe('调用日志那张表的空态：那三种空在界面上分得开', () => {
@@ -877,11 +921,11 @@ describe('调用日志那张表的空态：那三种空在界面上分得开', (
     await vm.loadLogs()
     await flushPromises()
     // 挂的是真的下拉框：选中的是屏幕上那一颗选项，不是绕过去改状态
-    await wrapper.find('.select-stub').setValue('vision')
+    await wrapper.find('.select-stub').setValue('translation')
     await flushPromises()
     const miss = wrapper.find('.filter-miss')
     expect(miss.text()).toContain('这一页读到 3 条')
-    expect(miss.text()).toContain('类型「视觉模型」')
+    expect(miss.text()).toContain('类型「文章翻译」')
     expect(miss.text()).toContain('不是这一档没有调用日志')
     // 这一形不是后端那一档空，成因那一句与「没有」都不许出现
     expect(wrapper.find('.logs-empty').text()).not.toContain('一条都没有')
@@ -889,13 +933,66 @@ describe('调用日志那张表的空态：那三种空在界面上分得开', (
 
     await wrapper.find('.input-search').setValue('登录')
     await flushPromises()
-    expect(wrapper.find('.filter-miss').text()).toContain('类型「视觉模型」 + 关键词「登录」')
+    expect(wrapper.find('.filter-miss').text()).toContain('类型「文章翻译」 + 关键词「登录」')
   })
 
-  it('类型的四个选项与那句筛选说明同一个出处：词表不在这一屏抄第二份', async () => {
-    const wrapper = await mountView()
-    expect(wrapper.findAll('.option-stub').map(n => n.text())).toEqual(
-      ['聊天模型', '视觉模型', '向量模型', '图像模型'],
+  it('类型下拉摆的是库里真会出现的那些用途，不是模型类型那四个词', async () => {
+    const wrapper = mountPageRealSelect()
+    await flushPromises()
+    // 递给下拉的那一份逐字等于词表，界面不再自己抄第二份名字
+    const handed = ((wrapper.vm as any).logTypeOptions as any[]).flatMap((g) => g.options)
+    expect(handed.map((o) => o.value)).toEqual(
+      AI_CALL_PURPOSE_GROUPS.flatMap((group) => group.options.map((o) => o.value)),
     )
+    expect(handed.map((o) => o.label)).toContain('文章翻译')
+
+    // 真件里也真的摆出来了：按组名搜，剩下的就是那一组的人话名
+    expect(await typeInTypeSelect(wrapper, '建站方案')).toEqual(
+      AI_CALL_PURPOSE_GROUPS.find((g) => g.title === '建站方案')!.options.map((o) => o.label),
+    )
+    // 旧词表那四个是「模型类型」，拿它筛这一列永远筛不到，不许再回到界面上
+    for (const legacy of ['聊天模型', '视觉模型', '向量模型', '图像模型']) {
+      expect(await typeInTypeSelect(wrapper, legacy)).toEqual([])
+    }
+  })
+
+  it('下拉能按人话名搜：输「配图」只剩那一档（走的是数据形，不是插槽）', async () => {
+    const wrapper = mountPageRealSelect()
+    await flushPromises()
+    expect(await typeInTypeSelect(wrapper, '配图')).toEqual(['网站配图生成'])
+    expect(await typeInTypeSelect(wrapper, '翻译')).toEqual(['文章翻译'])
+    // 原码照旧搜得着：词表没登记的那一档靠的就是这条路
+    expect(await typeInTypeSelect(wrapper, 'translation')).toEqual(['文章翻译'])
+    // 组名里含 GEO，antd 把整组留下（连原码不含 geo 的「品牌引用探测」也在）——按组筛是这一档的用法
+    expect(await typeInTypeSelect(wrapper, 'GEO')).toEqual(
+      AI_CALL_PURPOSE_GROUPS.find((g) => g.title === 'GEO / SEO 诊断')!.options.map((o) => o.label),
+    )
+    expect(await typeInTypeSelect(wrapper, '没有这一档')).toEqual([])
+  })
+
+  it('表里那一格与下拉同一个出处：登记过的念人话名，没登记的原样念码', async () => {
+    const wrapper = await mountView()
+    const typeCol = (wrapper.vm as any).logColumns.find((c: any) => c.key === 'type')
+    expect(typeCol.customRender({ record: { type: 'article_generate' } })).toBe('文章生成')
+    expect(typeCol.customRender({ record: { type: 'some_future_purpose' } })).toBe('some_future_purpose')
+  })
+
+  it('这一页读到但词表还没登记的类型也会摆进下拉：新用途不至于一上来就筛不到', async () => {
+    vi.mocked(aiModelApi.getLogs).mockResolvedValue(logsPayload({
+      records: [{ id: 9100, model: 'qwen3-max', type: 'some_future_purpose', prompt: 'sha256:z', tokens: 10, cost: 0, status: 'success', duration: 100 }],
+      total: 1, pages: 1, emptyReason: 'NONE', emptyLine: LINE_NONE,
+    }))
+    const wrapper = mountPageRealSelect()
+    await flushPromises()
+    expect(await typeInTypeSelect(wrapper, '还没登记')).toEqual(['some_future_purpose'])
+    expect(Array.from(document.querySelectorAll('.ant-select-item-group')).map((n) => n.textContent))
+      .toContain(UNGROUPED_PURPOSE_TITLE)
+    // 真人是点这一档，不是改组件状态：点下去留下的就是这一行，而不是「没有匹配的行」
+    const option = document.querySelector('.ant-select-item-option') as HTMLElement
+    option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    option.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(wrapper.find('.filter-miss').exists()).toBe(false)
+    expect(wrapper.find('.logs-empty').text()).toBe('')
   })
 })
