@@ -34,6 +34,19 @@
         row-key="id"
         @change="handleTableChange"
       >
+        <!-- 这一屏的空会被读成「系统一个角色都没有」，所以是哪一种空只认后端（M-P85）。
+             新建的入口只在「真的没有」那一档摆：读失败与翻过头都不是「这一档还空着」。 -->
+        <template #emptyText>
+          <empty-list-hint
+            :loading="loading"
+            :read-failed="readFailed"
+            :empty-line="emptyLine"
+            :empty-reason="emptyReason"
+            can-create
+            create-label="新增角色"
+            @create="handleAdd"
+          />
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'permissions'">
             <a-space size="small" wrap>
@@ -142,8 +155,15 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { Role } from '../../types'
@@ -152,6 +172,9 @@ const authStore = useAuthStore()
 
 const loading = ref(false)
 const searchKeyword = ref('')
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 const modalVisible = ref(false)
 const permissionModalVisible = ref(false)
 const formRef = ref()
@@ -248,6 +271,9 @@ const columns = [
 
 async function loadRoles() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const result = await adminApi.roles.list({
       page: pagination.current,
@@ -256,7 +282,19 @@ async function loadRoles() {
     })
     roles.value = result.records || []
     pagination.total = result.total || 0
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current)) {
+      pagination.current = 1
+      await loadRoles()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
+    // 读失败与「这一档没有角色」是两件事：旧行必须清掉，否则界面会把上一批发来的行继续当成这一发的读数
+    roles.value = []
+    pagination.total = 0
+    readFailed.value = describeHttpError(error)
     message.error(`加载角色列表失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
