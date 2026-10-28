@@ -88,7 +88,7 @@
     <!-- 角色编辑弹窗 -->
     <a-modal
       v-model:open="modalVisible"
-      title="编辑角色"
+      :title="formState.id ? '编辑角色' : '新增角色'"
       width="600px"
       @ok="handleSubmit"
       @cancel="handleModalCancel"
@@ -120,8 +120,8 @@
         </a-form-item>
         <a-form-item label="状态" name="status">
           <a-radio-group v-model:value="formState.status">
-            <a-radio value="active">启用</a-radio>
-            <a-radio value="inactive">禁用</a-radio>
+            <a-radio value="enabled">启用</a-radio>
+            <a-radio value="disabled">禁用</a-radio>
           </a-radio-group>
         </a-form-item>
       </a-form>
@@ -166,7 +166,7 @@ import {
 } from '../../utils/emptyPage'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
-import type { Role } from '../../types'
+import type { Role, RoleStatus } from '../../types'
 
 const authStore = useAuthStore()
 
@@ -198,16 +198,18 @@ const formState = reactive({
   name: '',
   code: '',
   description: '',
-  status: 'active' as 'active' | 'inactive',
+  status: 'enabled' as RoleStatus,
 })
 
-const ROLE_STATUS: Record<string, { label: string; color: string }> = {
-  active: { label: '启用', color: 'green' },
-  inactive: { label: '禁用', color: 'default' },
+// 词表认库里 role.status 的真值（现读 8 行全 'enabled'，列默认值也是 'enabled'）。
+// 旧代码写的是 active/inactive：界面提交进去会和库里已有的值混成两套词。
+const ROLE_STATUS: Record<RoleStatus, { label: string; color: string }> = {
+  enabled: { label: '启用', color: 'green' },
+  disabled: { label: '禁用', color: 'default' },
 }
 
 function statusMeta(status?: string) {
-  const meta = status ? ROLE_STATUS[status] : undefined
+  const meta = status ? ROLE_STATUS[status as RoleStatus] : undefined
   return meta || { label: status || '-', color: 'default' }
 }
 
@@ -330,7 +332,7 @@ function handleAdd() {
   formState.name = ''
   formState.code = ''
   formState.description = ''
-  formState.status = 'active'
+  formState.status = 'enabled'
   modalVisible.value = true
 }
 

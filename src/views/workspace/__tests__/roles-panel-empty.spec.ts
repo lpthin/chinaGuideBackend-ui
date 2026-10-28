@@ -14,10 +14,11 @@ import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
  * 2. 读失败那一发只弹顶部一条会自己消失的红条，行照旧留着，于是首屏失败看着像「这一家没配角色」；
  * 3. 后端回的是 MyBatis-Plus 的 Page，只有 total，答不出是哪一种空。
  *
- * 钉九件，全部挂真实控件（翻页走表格自己的 change 事件，不直接改 pagination）：
+ * 钉十四件，前面那些全部挂真实控件（翻页走表格自己的 change 事件，不直接改 pagination）：
  * 请求带页码、后端总条数摆进分页器、三种空各念各的、后端没答时界面不猜、
  * 读失败说的是读失败并且清掉旧行、翻过头自动回第一页、只有「真的没有」摆新建、
  * 空那一格那颗新建真的开得这一屏自己的弹窗（工具栏那颗与它同名，选择器必须收到 `.empty` 里面）、有行不渲空态。
+ * 后三件是 M-P85-8 加的角色状态用词：那一列念中文不摆原码、新建的选项值是库里那两个字、提交的是 enabled。
  */
 
 vi.mock('ant-design-vue', async () => {
@@ -77,7 +78,9 @@ const TABLE_STUB = {
           ? h('div', { class: 'empty' }, slots.emptyText ? slots.emptyText({}) : '暂无数据')
           : rows.map((record) =>
               h('div', { class: 'row', 'data-row': record.id }, [
-                h('span', { class: 'cell-name' }, String(record.name))
+                h('span', { class: 'cell-name' }, String(record.name)),
+                h('span', { class: 'cell-status' }, slots.bodyCell?.({ column: { key: 'status' }, record })),
+              h('span', { class: 'cell-actions' }, slots.bodyCell?.({ column: { key: 'actions' }, record }))
               ])
             )
       ])
@@ -85,12 +88,20 @@ const TABLE_STUB = {
   }
 }
 
-/** 关着的弹窗不许把它的表单与「暂无」字样漏进同一页 */
+/** 关着的弹窗不许把它的表单与「暂无」字样漏进同一页；那颗「确定」是真发到 @ok 的 */
 const MODAL_STUB = {
   name: 'AModal',
   props: { open: { type: Boolean, default: false }, title: { type: String, default: '' } },
-  setup(props: any, { slots }: any) {
-    return () => (props.open ? h('div', { class: 'modal-stub' }, slots.default?.()) : null)
+  emits: ['ok'],
+  setup(props: any, { slots, emit }: any) {
+    return () =>
+      props.open
+        ? h('div', { class: 'modal-stub' }, [
+            h('span', { class: 'modal-title' }, props.title),
+            slots.default?.(),
+            h('button', { class: 'modal-ok', onClick: () => emit('ok') }, '确定')
+          ])
+        : null
   }
 }
 
@@ -134,12 +145,16 @@ async function mountView(
         'a-input-search': { name: 'AInputSearch', template: '<input class="search-stub" />' },
         'a-input': { name: 'AInput', template: '<input class="input-stub" />' },
         'a-textarea': { name: 'ATextarea', template: '<textarea class="textarea-stub"></textarea>' },
-        'a-form': { name: 'AForm', template: '<form class="form-stub"><slot /></form>' },
+        'a-form': {
+          name: 'AForm',
+          methods: { validate: () => Promise.resolve() },
+          template: '<form class="form-stub"><slot /></form>'
+        },
         'a-form-item': { name: 'AFormItem', template: '<div class="form-item-stub"><slot /></div>' },
         'a-row': { name: 'ARow', template: '<div class="row-stub"><slot /></div>' },
         'a-col': { name: 'ACol', template: '<div class="col-stub"><slot /></div>' },
-        'a-radio-group': { name: 'ARadioGroup', template: '<div class="radio-group-stub"><slot /></div>' },
-        'a-radio': { name: 'ARadio', template: '<label class="radio-stub"><slot /></label>' },
+        'a-radio-group': { name: 'ARadioGroup', props: ['value'], template: '<div class="radio-group-stub" :data-value="value"><slot /></div>' },
+        'a-radio': { name: 'ARadio', props: ['value'], template: '<label class="radio-stub" :data-value="value"><slot /></label>' },
         'a-tree': { name: 'ATree', template: '<div class="tree-stub"></div>' },
         'a-tag': { name: 'ATag', template: '<span class="tag-stub"><slot /></span>' },
         'a-space': PASS_THROUGH('ASpace'),
@@ -265,5 +280,57 @@ describe('RolesPanel 的空态成因与分页', () => {
 
     expect(wrapper.find('.empty').exists()).toBe(false)
     expect(wrapper.html()).not.toContain('一条都没有')
+  })
+
+  // 以下三支钉的是「角色状态那一列用哪套词」（M-P85-8，他 10-28 弹窗拍板：界面与写口往库里真值看齐）。
+  // 库里 role.status 现读只有 enabled（列默认值也是它），旧代码界面用 active/inactive ⇒ 页面上摆的是英文原码。
+  it('状态那一列念中文，不把库里的原码摆出来', async () => {
+    const wrapper = await mountView([ROW, { ...ROW, id: 2, name: '只读用户', status: 'disabled' }])
+
+    const cells = wrapper.findAll('.cell-status').map((cell) => cell.text())
+    expect(cells).toEqual(['启用', '禁用'])
+    expect(wrapper.html()).not.toContain('enabled')
+    expect(wrapper.html()).not.toContain('disabled')
+  })
+
+  it('新建那颗选项的值是库里那两个字，默认选中「启用」', async () => {
+    const wrapper = await mountView([], { emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] })
+    await wrapper.find('.empty .create-on-empty').trigger('click')
+    await flushPromises()
+
+    const group = wrapper.find('.radio-group-stub')
+    expect(group.attributes('data-value')).toBe('enabled')
+    expect(wrapper.findAll('.radio-stub').map((radio) => radio.attributes('data-value'))).toEqual([
+      'enabled',
+      'disabled'
+    ])
+    expect(wrapper.findAll('.radio-stub').map((radio) => radio.text())).toEqual(['启用', '禁用'])
+  })
+
+  it('界面新建提交给后端的 status 是 enabled，不是 active', async () => {
+    vi.mocked(adminApi.roles.create).mockResolvedValue({ id: 99 } as any)
+    const wrapper = await mountView([], { emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] })
+    await wrapper.find('.empty .create-on-empty').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('.modal-ok').trigger('click')
+    await flushPromises()
+
+    expect(adminApi.roles.create).toHaveBeenCalledWith(expect.objectContaining({ status: 'enabled' }))
+  })
+
+  // 走查这一屏时撞到的第二件事：弹窗标题原来写死「编辑角色」，点「新增角色」也念这一句 ⇒ 当场修
+  it('弹窗标题跟着动作走：新增念「新增角色」，编辑念「编辑角色」', async () => {
+    const wrapper = await mountView([ROW])
+
+    const addButton = wrapper.findAll('.button-stub').find((button) => button.text().includes('新增角色'))
+    expect(addButton).toBeTruthy()
+    await addButton!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.modal-title').text()).toBe('新增角色')
+
+    await wrapper.find('.cell-actions .button-stub').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.modal-title').text()).toBe('编辑角色')
   })
 })

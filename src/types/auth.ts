@@ -49,13 +49,17 @@ export interface ChangePasswordRequest {
 }
 
 // 角色
+// 这一族词的唯一出处：库里 role.status 现读只有 'enabled'（列默认值也是它），
+// 旧版本这里写的是 active/inactive，界面提交进去会和库里混成两套词。
+export type RoleStatus = 'enabled' | 'disabled'
+
 export interface Role {
   id: number
   tenantId: number
   name: string
   code: string
   description?: string
-  status: 'active' | 'inactive'
+  status: RoleStatus
   sort: number
   createdAt: string
   updatedAt: string
@@ -105,7 +109,7 @@ export interface UserQuery {
 export interface RoleQuery {
   tenantId: number
   keyword?: string
-  status?: 'active' | 'inactive'
+  status?: RoleStatus
   page?: number
   size?: number
 }
@@ -131,7 +135,7 @@ export interface RoleForm {
   name: string
   code: string
   description?: string
-  status: 'active' | 'inactive'
+  status: RoleStatus
   sort?: number
   permissionIds?: number[]
 }
