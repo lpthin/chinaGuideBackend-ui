@@ -10,7 +10,7 @@
                 <WalletOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ formatAmount(walletInfo.balance) }}</div>
+                <div class="stat-value">{{ statText(walletInfo.balance) }}</div>
                 <div class="stat-title">当前余额</div>
               </div>
             </div>
@@ -23,7 +23,7 @@
                 <ArrowUpOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ formatAmount(walletInfo.totalRecharge) }}</div>
+                <div class="stat-value">{{ statText(walletInfo.totalRecharge) }}</div>
                 <div class="stat-title">总充值</div>
               </div>
             </div>
@@ -36,8 +36,10 @@
                 <CreditCardOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ formatAmount(walletInfo.creditLimit) }}</div>
-                <div class="stat-title">可用额度</div>
+                <!-- 这一张原来读的是 creditLimit：后端那一格是写死的 50000.00，库里那一列没人读
+                     （M-P90 拍板：改成读真有的 available_balance，标题一并换成「可用余额」） -->
+                <div class="stat-value">{{ statText(walletInfo.availableBalance) }}</div>
+                <div class="stat-title">可用余额</div>
               </div>
             </div>
           </a-card>
@@ -49,7 +51,7 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ formatAmount(walletInfo.frozenBalance) }}</div>
+                <div class="stat-value">{{ statText(walletInfo.frozenBalance) }}</div>
                 <div class="stat-title">冻结金额</div>
               </div>
             </div>
@@ -66,14 +68,15 @@
             style="width: 120px"
             placeholder="类型"
             allowClear
-            @change="loadTransactionList"
+            @change="handleFilterChange"
           >
-            <a-select-option value="recharge">充值</a-select-option>
-            <a-select-option value="charge">消费</a-select-option>
-            <a-select-option value="refund">退款</a-select-option>
+            <a-select-option v-for="t in TRANSACTION_TYPES" :key="t.code" :value="t.code">
+              {{ t.name }}
+            </a-select-option>
           </a-select>
           <a-range-picker
             v-model:value="dateRange"
+            value-format="YYYY-MM-DD"
             style="width: 240px"
             @change="handleDateChange"
           />
@@ -82,7 +85,7 @@
             placeholder="搜索描述"
             style="width: 200px"
             enter-button
-            @search="loadTransactionList"
+            @search="handleFilterChange"
           />
           <template #actions>
             <a-space>
@@ -108,13 +111,13 @@
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'type'">
-              <a-tag :color="getTypeColor(record.type)">
-                {{ getTypeName(record.type) }}
+              <a-tag :color="typeOf(record.type).color">
+                {{ typeOf(record.type).name }}
               </a-tag>
             </template>
             <template v-if="column.key === 'amount'">
-              <span :class="record.type === 'recharge' || record.type === 'refund' ? 'amount-in' : 'amount-out'">
-                {{ record.type === 'recharge' || record.type === 'refund' ? '+' : '-' }}¥{{ formatAmount(record.amount) }}
+              <span :class="amountClass(record.type)">
+                {{ amountLabel(record.type, record.amount) }}
               </span>
             </template>
             <template v-if="column.key === 'balanceAfter'">
@@ -123,6 +126,17 @@
             <template v-if="column.key === 'createdAt'">
               {{ formatDateTime(record.createdAt) }}
             </template>
+          </template>
+          <template #emptyText>
+            <!-- 这一屏的空原本是 antd 的默认「暂无数据」：「这一档真的没消费过」「这一页翻过了头」
+                 「选中的那一家读不到」「这一发读失败」四种念法长成一个样（M-P90）。
+                 这里不摆「新建」入口：这一屏没有能造出流水行的人手工（写入另开一批）。 -->
+            <empty-list-hint
+              :loading="tableLoading"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+            />
           </template>
         </a-table>
       </a-card>
@@ -182,10 +196,18 @@ import {
   FileTextOutlined,
 } from '@ant-design/icons-vue'
 import { walletApi } from '../../api/billing'
+import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  JUMP_BACK_NOTICE,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 
 const authStore = useAuthStore()
 
@@ -194,12 +216,53 @@ const tableLoading = ref(false)
 const rechargeModalVisible = ref(false)
 const dateRange = ref<[string, string] | undefined>()
 
+/**
+ * 流水类型的唯一词表（M-P90）：`billing_transaction.type` 那一列存的是 RECHARGE/CONSUME/REFUND/TRANSFER
+ * （见 schema 那行列注释「类型:RECHARGE-充值,CONSUME-消费,REFUND-退款,TRANSFER-转账」）。
+ * 上一版界面往下发的是 recharge/charge/refund 三个小写值，库里一个大写、且消费写的是 CONSUME，
+ * 所以「消费」那一档永远筛不出行；下拉选项、行里的标签、金额正负号现在都读这一份。
+ */
+const TRANSACTION_TYPES: readonly { code: string; name: string; color: string; inflow: boolean }[] = [
+  { code: 'RECHARGE', name: '充值', color: 'green', inflow: true },
+  { code: 'CONSUME', name: '消费', color: 'red', inflow: false },
+  { code: 'REFUND', name: '退款', color: 'blue', inflow: true },
+  { code: 'TRANSFER', name: '转账', color: 'orange', inflow: true },
+]
+
+function typeOf(code: string) {
+  return (
+    TRANSACTION_TYPES.find(t => t.code === code) ?? {
+      code,
+      name: code || '-',
+      color: 'default',
+      inflow: true,
+    }
+  )
+}
+
+function amountClass(code: string): string {
+  return typeOf(code).inflow ? 'amount-in' : 'amount-out'
+}
+
+function amountLabel(code: string, amount: number): string {
+  const inflow = typeOf(code).inflow
+  return `${inflow ? '+' : '-'}¥${formatAmount(amount)}`
+}
+
+/** 钱包那一发读失败时四张卡都不许念 0：0 是「查过了、余额是零」的结论 */
+const walletReadFailed = ref('')
+
 const walletInfo = reactive({
   balance: 0,
   totalRecharge: 0,
-  creditLimit: 0,
+  availableBalance: 0,
   frozenBalance: 0,
 })
+
+/** 这一页为什么是空的（M-P90）：读失败 / 后端答的成因两句，各占一格 */
+const readFailed = ref('')
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
 
 const queryParams = reactive({
   type: undefined as string | undefined,
@@ -243,26 +306,16 @@ function formatAmount(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function getTypeName(type: string): string {
-  const map: Record<string, string> = {
-    recharge: '充值',
-    charge: '消费',
-    refund: '退款',
-    transfer: '转账',
-    withdraw: '提现',
-  }
-  return map[type] || type
+/** 四张卡上的钱：钱包那一发读失败就说「没取到」，不许念成 ¥0.00 */
+function statText(amount: number): string {
+  if (walletReadFailed.value) return '没取到'
+  return `¥${formatAmount(amount)}`
 }
 
-function getTypeColor(type: string): string {
-  const map: Record<string, string> = {
-    recharge: 'green',
-    charge: 'red',
-    refund: 'blue',
-    transfer: 'orange',
-    withdraw: 'purple',
-  }
-  return map[type] || 'default'
+/** 筛选项一变就回第一页：否则「第 9 页 + 新条件」读回来的空页会被念成「这一档没有」 */
+function handleFilterChange() {
+  paginationConfig.current = 1
+  loadTransactionList()
 }
 
 function handleDateChange(dates: [string, string] | undefined) {
@@ -273,23 +326,30 @@ function handleDateChange(dates: [string, string] | undefined) {
     queryParams.startDate = undefined
     queryParams.endDate = undefined
   }
-  loadTransactionList()
+  handleFilterChange()
 }
 
 async function loadWalletInfo() {
   const tenantId = authStore.selectedTenantId || authStore.tenantId
   loading.value = true
+  walletReadFailed.value = ''
   try {
     const res = await walletApi.getInfo(tenantId)
     if (res) {
       walletInfo.balance = res.balance || 0
       walletInfo.totalRecharge = res.totalRecharge || 0
-      walletInfo.creditLimit = res.creditLimit || 0
+      walletInfo.availableBalance = res.availableBalance || 0
       walletInfo.frozenBalance = res.frozenBalance || 0
     }
   } catch (error) {
-    message.error('加载钱包信息失败')
+    // 读失败不把上一轮的旧数字继续摆着：那一眼看上去像「余额还是这些」
     logError('billing/wallet-view', error)
+    walletInfo.balance = 0
+    walletInfo.totalRecharge = 0
+    walletInfo.availableBalance = 0
+    walletInfo.frozenBalance = 0
+    walletReadFailed.value = describeHttpError(error)
+    message.error(`加载钱包信息失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }
@@ -298,6 +358,9 @@ async function loadWalletInfo() {
 async function loadTransactionList() {
   const tenantId = authStore.selectedTenantId || authStore.tenantId
   tableLoading.value = true
+  readFailed.value = ''
+  emptyLine.value = ''
+  emptyReason.value = null
   try {
     const params: any = {
       tenantId,
@@ -312,10 +375,21 @@ async function loadTransactionList() {
     const res = await walletApi.getTransactions(params)
     transactionListData.value = res.records || []
     paginationConfig.total = res.total || 0
+    emptyLine.value = res.emptyLine || ''
+    emptyReason.value = asEmptyReason(res.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, paginationConfig.current)) {
+      paginationConfig.current = 1
+      await loadTransactionList()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
     logError('billing/wallet-view', 'Failed to load transactions:', error)
-    message.error('加载交易记录失败')
+    // 读失败不是「一分钱都没花过」：旧行与总条数一起清掉，让这一格念出失败那一句
     transactionListData.value = []
+    paginationConfig.total = 0
+    readFailed.value = describeHttpError(error)
+    message.error(`加载交易记录失败：${describeHttpError(error)}`)
   } finally {
     tableLoading.value = false
   }
@@ -372,7 +446,16 @@ async function handleExport() {
     if (queryParams.endDate) params.endDate = queryParams.endDate
 
     const res = await walletApi.exportTransactions(params)
-    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const blob = res as unknown as Blob
+    // 上一版后端那一口回的是 `ApiResponse.ok(new byte[0])`（一段 JSON，不是文件），界面照样念「导出成功」。
+    // 现在认回包形状：不是 CSV 就不念成功，是 CSV 就把导出去了几行说清楚。
+    if (!blob.type.toLowerCase().includes('csv')) {
+      message.error(`导出没拿到文件（后端回的是 ${blob.type || '未知类型'}）`)
+      return
+    }
+    const text = await blob.text()
+    const rows = text.split('\n').filter(line => line.trim().length > 0).length - 1
+    const url = window.URL.createObjectURL(new Blob([blob]))
     const link = document.createElement('a')
     link.href = url
     link.setAttribute('download', `交易记录_${new Date().toISOString().slice(0, 10)}.csv`)
@@ -380,9 +463,9 @@ async function handleExport() {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    message.success('导出成功')
+    message.success(rows > 0 ? `已导出 ${rows} 行明细` : '按这些筛选条件一行都没导出，文件里只有表头')
   } catch (error) {
-    message.error('导出失败')
+    message.error(`导出失败：${describeHttpError(error)}`)
     logError('billing/wallet-view', error)
   } finally {
     exportLoading.value = false

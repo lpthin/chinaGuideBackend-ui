@@ -251,9 +251,9 @@ export const walletApi = {
   getInfo: (tenantId: number) =>
     http.get<any>('/billing/wallet/info', { params: { tenantId } }),
 
-  // 获取交易记录
+  // 获取交易记录（M-P90：回包多了 emptyReason/emptyLine 两格，说明这一页为什么是空的）
   getTransactions: (params: { tenantId: number; type?: string; startDate?: string; endDate?: string; keyword?: string; page?: number; size?: number }) =>
-    http.get<PageResult<any>>('/billing/transactions', { params }),
+    http.get<PageResult<any> & EmptyCauseFields>('/billing/transactions', { params }),
 
   // 充值
   recharge: (tenantId: number, amount: number, paymentMethod: string) =>
