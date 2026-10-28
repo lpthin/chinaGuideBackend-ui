@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { Button, InputNumber, RadioGroup, Switch, message } from 'ant-design-vue'
 import InteractionView from '../InteractionView.vue'
 import { interactionApi, type InteractionConfig, type InteractionSeedTask } from '../../../api/interaction'
+import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
 
 /**
  * 后台「读者互动」这一页的形状（P9-C 拍板 1/2/4 的界面那一半）。
@@ -120,6 +121,10 @@ async function mountView(options: {
   queueError?: string
   seedError?: string
   statsError?: string
+  /** 覆盖队列那一口的回包（M-P87：成因两格与翻页那一发都要能摆出来） */
+  commentsPayload?: any
+  /** 覆盖排产那一口的回包（换壳后是 records 那一形） */
+  seedPayload?: any
 } = {}) {
   authState.permissions = options.permissions ?? [VIEW, MANAGE]
   authState.selectedTenantId = null
@@ -132,7 +137,7 @@ async function mountView(options: {
   if (options.queueError) {
     vi.mocked(interactionApi.comments).mockRejectedValue(new Error(options.queueError))
   } else {
-    vi.mocked(interactionApi.comments).mockResolvedValue({
+    vi.mocked(interactionApi.comments).mockResolvedValue((options.commentsPayload ?? {
       items: [
         {
           id: 1, articleId: 231, articleTitle: '签证攻略', authorName: '读者甲',
@@ -151,16 +156,29 @@ async function mountView(options: {
         }
       ],
       total: 3,
-      counts: { pending: 2, approved: 1, rejected: 0 }
-    } as any)
+      page: 1,
+      size: 20,
+      pages: 1,
+      counts: { pending: 2, approved: 1, rejected: 0 },
+      emptyReason: null,
+      emptyLine: null
+    }) as any)
   }
   if (options.seedError) {
     vi.mocked(interactionApi.seedTasks).mockRejectedValue(new Error(options.seedError))
   } else {
-    vi.mocked(interactionApi.seedTasks).mockResolvedValue([
-      seedTask(),
-      seedTask({ id: 8, status: 'SKIPPED', skipReason: 'SWITCH_OFF', skipReasonText: '这篇的示例评论开关已经关掉，到点的那一条没有补' })
-    ] as any)
+    vi.mocked(interactionApi.seedTasks).mockResolvedValue((options.seedPayload ?? {
+      records: [
+        seedTask(),
+        seedTask({ id: 8, status: 'SKIPPED', skipReason: 'SWITCH_OFF', skipReasonText: '这篇的示例评论开关已经关掉，到点的那一条没有补' })
+      ],
+      total: 2,
+      page: 1,
+      size: 2,
+      pages: 1,
+      emptyReason: null,
+      emptyLine: null
+    }) as any)
   }
   if (options.statsError) {
     vi.mocked(interactionApi.stats).mockRejectedValue(new Error(options.statsError))
@@ -184,7 +202,12 @@ async function mountView(options: {
         'a-space': PASS_THROUGH('ASpace'),
         'a-tag': PASS_THROUGH('ATag'),
         'a-select': { name: 'ASelect', props: ['value', 'options'], template: '<select class="select-stub"><slot /></select>' },
-        'a-pagination': { name: 'APagination', props: ['total', 'pageSize', 'current'], template: '<div class="pager-stub" />' },
+        'a-pagination': {
+          name: 'APagination',
+          props: ['total', 'pageSize', 'current'],
+          emits: ['change'],
+          template: '<div class="pager-stub" @click="$emit(\'change\', 4)" />'
+        },
         'a-popconfirm': PASS_THROUGH('APopconfirm'),
         FilterBar: PASS_THROUGH('FilterBar'),
         'a-button': Button,
@@ -266,6 +289,28 @@ describe('配置卡', () => {
 })
 
 describe('待审队列', () => {
+  const QUEUE_EMPTIES: Array<[string, string]> = [
+    ['NONE', '读者评论：这一档查过了，一条都没有。'],
+    ['NOT_VISIBLE', '读者评论：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'],
+    ['OUT_OF_RANGE', '读者评论：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。']
+  ]
+
+  const emptyLineText = (wrapper: any, tableIndex: number) =>
+    wrapper.findAll('.table-stub')[tableIndex].find('.empty-line').text().trim()
+
+  function commentsPayload(overrides: Record<string, unknown> = {}) {
+    return {
+      items: [],
+      total: 0,
+      page: 1,
+      size: 20,
+      pages: 0,
+      counts: { pending: 0, approved: 0, rejected: 0 },
+      emptyReason: 'NONE',
+      emptyLine: QUEUE_EMPTIES[0][1],
+      ...overrides
+    }
+  }
   it('三个动作传的是 approve / reject / remove', async () => {
     const wrapper = await mountView()
     const rows = wrapper.findAll('.row')
@@ -303,7 +348,40 @@ describe('待审队列', () => {
     const wrapper = await mountView({ queueError: '队列接口 500' })
 
     expect(wrapper.text()).toContain('队列接口 500')
-    expect(wrapper.text()).not.toContain('没有等待处理的评论')
+    expect(wrapper.find('.empty-line').exists()).toBe(false)
+  })
+
+  it.each(QUEUE_EMPTIES)('队列空且后端回 %s 时逐字念那一句，不再写死「没有等待处理的评论」', async (reason, line) => {
+    const wrapper = await mountView({ commentsPayload: commentsPayload({ emptyReason: reason, emptyLine: line }) })
+
+    expect(emptyLineText(wrapper, 0)).toBe(line)
+    expect(wrapper.html()).not.toContain('没有等待处理的评论')
+    expect(wrapper.html()).not.toContain('暂无数据')
+  })
+
+  it('队列空而后端没回是哪一种空时念「界面不替它猜」，不蒙成「真的没有」', async () => {
+    const wrapper = await mountView({ commentsPayload: commentsPayload({ emptyReason: null, emptyLine: null }) })
+
+    const said = emptyLineText(wrapper, 0)
+    expect(said).toContain('后端没回是哪一种空')
+    expect(said).not.toContain('一条都没有')
+  })
+
+  it('队列回「这一页翻过了头」时界面自己翻回第一页再读一遍', async () => {
+    const wrapper = await mountView({ commentsPayload: commentsPayload({ total: 41, pages: 3 }) })
+    const comments = vi.mocked(interactionApi.comments)
+    comments.mockImplementation(async (params: any) => (params?.page === 4
+      ? commentsPayload({ total: 41, page: 4, pages: 3, emptyReason: 'OUT_OF_RANGE', emptyLine: QUEUE_EMPTIES[2][1] })
+      : commentsPayload({ total: 41, page: params?.page ?? 1, pages: 3 })) as any)
+
+    await wrapper.find('.pager-stub').trigger('click')
+    await flushPromises()
+
+    expect(comments).toHaveBeenCalledTimes(3)
+    const lastCall = comments.mock.calls[comments.mock.calls.length - 1]
+    expect(lastCall[0] as any).toEqual(expect.objectContaining({ page: 1 }))
+    expect(message.info).toHaveBeenCalledWith(JUMP_BACK_NOTICE)
+    expect(emptyLineText(wrapper, 0)).toBe(QUEUE_EMPTIES[0][1])
   })
 
   it('缺 manage 码时队列只读，不摆三个动作', async () => {
@@ -345,6 +423,41 @@ describe('总账与排产计划', () => {
     const wrapper = await mountView({ seedError: '排产接口 500' })
 
     expect(wrapper.text()).toContain('排产接口 500')
-    expect(wrapper.text()).not.toContain('还没有排产计划')
+    expect(wrapper.html()).not.toContain('还没有排产计划')
+    expect(wrapper.find('.empty-line').exists()).toBe(false)
+  })
+
+  const SEED_EMPTIES: Array<[string, string]> = [
+    ['NONE', '示例评论排产计划：这一档查过了，一条都没有。'],
+    ['NOT_VISIBLE', '示例评论排产计划：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。']
+  ]
+
+  function seedPayload(overrides: Record<string, unknown> = {}) {
+    return {
+      records: [],
+      total: 0,
+      page: 1,
+      size: 1,
+      pages: 0,
+      emptyReason: 'NONE',
+      emptyLine: SEED_EMPTIES[0][1],
+      ...overrides
+    }
+  }
+
+  it.each(SEED_EMPTIES)('排产为空且后端回 %s 时逐字念那一句，不再写死「还没有排产计划」', async (reason, line) => {
+    const wrapper = await mountView({ seedPayload: seedPayload({ emptyReason: reason, emptyLine: line }) })
+
+    expect(wrapper.findAll('.table-stub')[1].find('.empty-line').text().trim()).toBe(line)
+    expect(wrapper.html()).not.toContain('还没有排产计划')
+    expect(wrapper.html()).not.toContain('暂无数据')
+  })
+
+  it('排产空而后端没回是哪一种空时念「界面不替它猜」，不蒙成「真的没有」', async () => {
+    const wrapper = await mountView({ seedPayload: seedPayload({ emptyReason: null, emptyLine: null }) })
+
+    const said = wrapper.findAll('.table-stub')[1].find('.empty-line').text().trim()
+    expect(said).toContain('后端没回是哪一种空')
+    expect(said).not.toContain('一条都没有')
   })
 })

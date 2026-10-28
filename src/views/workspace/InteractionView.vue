@@ -117,7 +117,12 @@
         size="small"
       >
         <template #emptyText>
-          <div class="empty-hint">{{ statusFilter === 'pending' ? '没有等待处理的评论。' : '这一档里没有记录。' }}</div>
+          <!-- 这一屏的空会被读成「这家没人评论 / 这条链什么都没干」，所以只认后端回的那一句（N-05） -->
+          <empty-list-hint
+            :loading="queueLoading"
+            :empty-line="queueEmptyLine"
+            :empty-reason="queueEmptyReason"
+          />
         </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'status'">
@@ -183,7 +188,11 @@
         size="small"
       >
         <template #emptyText>
-          <div class="empty-hint">还没有排产计划：开着「AI 示例评论」再发布一篇稿子，这里才会出现时刻。</div>
+          <empty-list-hint
+            :loading="seedLoading"
+            :empty-line="seedEmptyLine"
+            :empty-reason="seedEmptyReason"
+          />
         </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'fireAt'">
@@ -207,6 +216,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   interactionApi,
   type InteractionCommentItem,
@@ -216,6 +226,7 @@ import {
 } from '../../api/interaction'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
+import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 
 /**
  * 后台「读者互动」（P9-C，G-08）。
@@ -256,6 +267,8 @@ const stats = ref<InteractionStats | null>(null)
 const queueLoading = ref(false)
 const queueError = ref('')
 const comments = ref<InteractionCommentItem[]>([])
+const queueEmptyLine = ref('')
+const queueEmptyReason = ref<EmptyReason>(null)
 const statusFilter = ref('pending')
 const page = ref(1)
 const pageSize = ref(20)
@@ -264,6 +277,8 @@ const total = ref(0)
 const seedLoading = ref(false)
 const seedError = ref('')
 const seedTasks = ref<InteractionSeedTask[]>([])
+const seedEmptyLine = ref('')
+const seedEmptyReason = ref<EmptyReason>(null)
 
 const statusOptions = [
   { value: 'pending', label: '待审' },
@@ -403,10 +418,21 @@ async function loadQueue() {
     const data = await interactionApi.comments({ status: statusFilter.value, page: page.value, size: pageSize.value }, tenantId.value)
     comments.value = data?.items ?? []
     total.value = data?.total ?? 0
+    queueEmptyLine.value = data?.emptyLine ?? ''
+    queueEmptyReason.value = asEmptyReason(data?.emptyReason)
     queueError.value = ''
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍（判据在 emptyPage，最多多发一发）
+    if (shouldJumpBackToFirstPage(queueEmptyReason.value, page.value)) {
+      page.value = 1
+      await loadQueue()
+      message.info(JUMP_BACK_NOTICE)
+      return
+    }
   } catch (error: any) {
     comments.value = []
     total.value = 0
+    queueEmptyLine.value = ''
+    queueEmptyReason.value = null
     queueError.value = error?.message || '队列读取失败'
   } finally {
     queueLoading.value = false
@@ -432,10 +458,14 @@ async function loadSeedTasks() {
   seedLoading.value = true
   try {
     const data = await interactionApi.seedTasks(20, tenantId.value)
-    seedTasks.value = Array.isArray(data) ? data : []
+    seedTasks.value = Array.isArray(data?.records) ? data.records : []
+    seedEmptyLine.value = data?.emptyLine ?? ''
+    seedEmptyReason.value = asEmptyReason(data?.emptyReason)
     seedError.value = ''
   } catch (error: any) {
     seedTasks.value = []
+    seedEmptyLine.value = ''
+    seedEmptyReason.value = null
     seedError.value = error?.message || '排产计划读取失败'
   } finally {
     seedLoading.value = false
@@ -530,13 +560,8 @@ onMounted(() => {
 }
 
 .note-text,
-.muted,
-.empty-hint {
+.muted {
   color: #8c8c8c;
   font-size: 13px;
-}
-
-.empty-hint {
-  padding: 16px 0;
 }
 </style>

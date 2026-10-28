@@ -1,4 +1,5 @@
 import http from './http'
+import type { EmptyCauseFields } from '../types/emptyResult'
 
 /**
  * 后台「读者互动」那一页的四口，对应后端 `WorkspaceInteractionController`（P9-C / G-08）。
@@ -58,9 +59,12 @@ export interface InteractionCommentItem {
   reviewedAt: string | null
 }
 
-export interface InteractionCommentPage {
+export interface InteractionCommentPage extends EmptyCauseFields {
   items: InteractionCommentItem[]
   total: number
+  page: number
+  size: number
+  pages: number
   counts: { pending: number, approved: number, rejected: number }
 }
 
@@ -91,6 +95,18 @@ export interface InteractionSeedTask {
   note: string | null
 }
 
+/**
+ * 排产计划那一口回的壳（M-P87）：这一口一直是不分页的「最近 N 条」，
+ * 后端按「一次装完」摆成一页（records/total/page/size/pages），空的时候另带两格成因
+ */
+export interface InteractionSeedTaskPage extends EmptyCauseFields {
+  records: InteractionSeedTask[]
+  total: number
+  page: number
+  size: number
+  pages: number
+}
+
 export const interactionApi = {
   config: (tenantId?: number) =>
     http.get<InteractionConfig>('/workspace/interaction/config', { params: { tenantId } }),
@@ -110,5 +126,5 @@ export const interactionApi = {
     http.get<InteractionStats>('/workspace/interaction/stats', { params: { tenantId } }),
 
   seedTasks: (limit = 20, tenantId?: number) =>
-    http.get<InteractionSeedTask[]>('/workspace/interaction/seed-tasks', { params: { tenantId, limit } })
+    http.get<InteractionSeedTaskPage>('/workspace/interaction/seed-tasks', { params: { tenantId, limit } })
 }
