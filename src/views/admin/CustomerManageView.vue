@@ -10,7 +10,7 @@
                 <TeamOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ customerStats.total }}</div>
+                <div class="stat-value">{{ statText(paginationConfig.total) }}</div>
                 <div class="stat-title">客户总数</div>
               </div>
             </div>
@@ -23,8 +23,8 @@
                 <CheckCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ customerStats.active }}</div>
-                <div class="stat-title">活跃客户</div>
+                <div class="stat-value">{{ statText(customerStats.active) }}</div>
+                <div class="stat-title">本页活跃</div>
               </div>
             </div>
           </a-card>
@@ -36,8 +36,8 @@
                 <UserOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ customerStats.newThisMonth }}</div>
-                <div class="stat-title">本月新增</div>
+                <div class="stat-value">{{ statText(customerStats.newThisMonth) }}</div>
+                <div class="stat-title">本页本月新增</div>
               </div>
             </div>
           </a-card>
@@ -49,8 +49,8 @@
                 <ExclamationCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ customerStats.inactive }}</div>
-                <div class="stat-title">未激活</div>
+                <div class="stat-value">{{ statText(customerStats.inactive) }}</div>
+                <div class="stat-title">本页未激活</div>
               </div>
             </div>
           </a-card>
@@ -79,6 +79,10 @@
             <a-select-option value="inactive">未激活</a-select-option>
             <a-select-option value="disabled">已禁用</a-select-option>
           </a-select>
+          <!-- 这一页的表单一直有「新建」那一路，但界面上没有入口：按钮摆在这里，空态那一句也指回来 -->
+          <template #actions>
+            <a-button type="primary" @click="openCreate">新建客户</a-button>
+          </template>
         </filter-bar>
       </a-card>
 
@@ -121,6 +125,20 @@
                 </a-button>
               </a-space>
             </template>
+          </template>
+          <template #emptyText>
+            <!-- 这一屏的空原本是 antd 的默认「暂无数据」：「这一档真的没有」「这一页翻过了头」
+                 「选中的那一家读不到」「这一发读失败」四种念法长成一个样（M-P89）。
+                 这一页有「新建客户」这个动作，所以「真的没有」那一档下面会摆一颗新建按钮。 -->
+            <empty-list-hint
+              :loading="tableLoading"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+              can-create
+              create-label="新建客户"
+              @create="openCreate"
+            />
           </template>
         </a-table>
       </a-card>
@@ -200,10 +218,18 @@ import {
   ExclamationCircleOutlined,
 } from '@ant-design/icons-vue'
 import { customerApi } from '../../api/billing'
+import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  JUMP_BACK_NOTICE,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 
 const authStore = useAuthStore()
 
@@ -215,11 +241,15 @@ const currentCustomer = ref<any>(null)
 const editingCustomer = ref<any>(null)
 
 const customerStats = reactive({
-  total: 0,
   active: 0,
   inactive: 0,
   newThisMonth: 0,
 })
+
+/** 这一页为什么是空的（M-P89）：读失败 / 后端答的成因两句，各占一格 */
+const readFailed = ref('')
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
 
 const queryParams = reactive({
   keyword: '',
@@ -254,7 +284,8 @@ const columns = [
 const customerListData = ref<any[]>([])
 
 function updateStats() {
-  customerStats.total = customerListData.value.length
+  // 三张卡说的是「这一页」的分布（后端口径里没有按状态的汇总读数），标题就写「本页…」；
+  // 「客户总数」那张走 paginationConfig.total（后端同一个查询带回来的总条数），不再数这一页的行数
   customerStats.active = customerListData.value.filter(c => c.status === 'active').length
   customerStats.inactive = customerListData.value.filter(c => c.status === 'inactive').length
   customerStats.newThisMonth = customerListData.value.filter(c => {
@@ -262,6 +293,13 @@ function updateStats() {
     const now = new Date()
     return regDate.getMonth() === now.getMonth() && regDate.getFullYear() === now.getFullYear()
   }).length
+}
+
+/** 读失败与「这一家读不到」都不许念成 0：0 是一个查过之后的结论 */
+function statText(count: number): string | number {
+  if (readFailed.value) return '没取到'
+  if (emptyReason.value === 'NOT_VISIBLE') return '读不到'
+  return count
 }
 
 const editForm = reactive({
@@ -314,6 +352,9 @@ function getLevelColor(level: string): string {
 async function loadCustomerList() {
   const tenantId = authStore.selectedTenantId || authStore.tenantId
   tableLoading.value = true
+  readFailed.value = ''
+  emptyLine.value = ''
+  emptyReason.value = null
   try {
     const params: any = {
       tenantId,
@@ -326,14 +367,38 @@ async function loadCustomerList() {
     const res = await customerApi.list(params)
     customerListData.value = res.records || []
     paginationConfig.total = res.total || 0
+    emptyLine.value = res.emptyLine || ''
+    emptyReason.value = asEmptyReason(res.emptyReason)
     updateStats()
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, paginationConfig.current)) {
+      paginationConfig.current = 1
+      await loadCustomerList()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
+    // 读失败不是「一个客户都没有」：旧行清掉，让这一格念出失败那一句
     logError('admin/customer-manage-view', 'Failed to load customers:', error)
-    message.error('加载客户列表失败')
     customerListData.value = []
+    paginationConfig.total = 0
+    updateStats()
+    readFailed.value = describeHttpError(error)
+    message.error(`加载客户列表失败：${describeHttpError(error)}`)
   } finally {
     tableLoading.value = false
   }
+}
+
+/** 「新建客户」：表单一直有这一路，M-P89 起界面上有入口（筛选栏右侧 + 空态那一句下面） */
+function openCreate() {
+  editingCustomer.value = null
+  editForm.companyName = ''
+  editForm.contactPerson = ''
+  editForm.phone = ''
+  editForm.email = ''
+  editForm.level = 'normal'
+  editForm.remark = ''
+  editModalVisible.value = true
 }
 
 watch(
@@ -368,8 +433,8 @@ async function toggleStatus(customer: any) {
     onOk: async () => {
       try {
         await customerApi.toggleStatus(customer.id, newStatus)
-        customer.status = newStatus
-        updateStats()
+        // 状态是筛选条件之一（也可能把这一行筛走），改完重新读一遍，别只改这一格
+        await loadCustomerList()
         message.success(`${action}成功`)
       } catch (error) {
         logError('admin/customer-manage-view', `Failed to ${action} customer:`, error)

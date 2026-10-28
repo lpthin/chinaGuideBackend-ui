@@ -13,6 +13,7 @@ import type {
   TransactionQuery,
   PageResult,
 } from '../types/billing'
+import type { EmptyCauseFields } from '../types/emptyResult'
 
 // 账单 API
 export const invoiceApi = {
@@ -265,9 +266,9 @@ export const walletApi = {
 
 // 客户管理 API
 export const customerApi = {
-  // 获取客户列表
+  // 获取客户列表（M-P89：回包多了 emptyReason/emptyLine 两格，说明这一页为什么是空的）
   list: (params: { tenantId: number; status?: string; keyword?: string; page?: number; size?: number }) =>
-    http.get<PageResult<any>>('/billing/customers', { params }),
+    http.get<PageResult<any> & EmptyCauseFields>('/billing/customers', { params }),
 
   // 获取客户详情
   get: (id: number) =>
