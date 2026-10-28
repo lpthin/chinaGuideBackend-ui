@@ -1,7 +1,11 @@
 import http from './http'
 import type { PageResult, PageParams } from '../types'
 
-export type TemplateType = 'hot_keyword' | 'case' | 'system' | 'custom'
+/**
+ * 模板类型的词表唯一出处在后端 `GET /article-templates/types`（分类同理在 `/categories`）。
+ * 这一支 TS 联合类型只是给表单字段用，界面上的选项与中文名一律从那两个口读，不在这儿抄第二份。
+ */
+export type TemplateType = 'hotword' | 'case' | 'system' | 'custom'
 
 export interface TemplateVariable {
   name: string
@@ -44,7 +48,11 @@ export interface ArticleTemplate {
 }
 
 export interface ArticleTemplateQuery extends PageParams {
-  type?: TemplateType
+  /**
+   * 参数名与后端 `SoftArticleTemplateController#list` 的 `@RequestParam` 逐字一致。
+   * 这里从前写的是 `type`：后端没有这一支参数，于是「模板类型」那一格点了不取数（M-P86 实测）。
+   */
+  templateType?: TemplateType
   category?: string
   keyword?: string
   status?: string

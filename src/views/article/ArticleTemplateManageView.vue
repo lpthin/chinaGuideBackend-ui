@@ -64,7 +64,7 @@
         <!-- 整排筛选/动作原先挤在卡片 #extra，移入卡体第一行的 FilterBar -->
         <filter-bar>
           <a-select
-            v-model:value="queryParams.type"
+            v-model:value="queryParams.templateType"
             style="width: 140px"
             placeholder="模板类型"
             allowClear
@@ -129,11 +129,28 @@
             :row-key="(record: any) => record.id"
             @change="handleTableChange"
           >
+            <!-- 这一屏的空从前只有一句写死的「暂无模板」：「这一家真的一个模板都没有」「这一页翻过了头」
+                 「这一发读失败」「上一批的行还挂着」四种念法长成一个样（M-P86）。
+                 新建的入口只在「真的没有」那一档摆：读不到与翻过头都不是「这一档还空着」。 -->
+            <template #emptyText>
+              <empty-list-hint
+                :loading="loading"
+                :read-failed="readFailed"
+                :empty-line="emptyLine"
+                :empty-reason="emptyReason"
+                can-create
+                create-label="新建模板"
+                @create="openModal()"
+              />
+            </template>
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'type'">
                 <a-tag :color="getTypeColor(record.type)">
                   {{ getTypeLabel(record.type) }}
                 </a-tag>
+              </template>
+              <template v-if="column.key === 'category'">
+                {{ getCategoryLabel(record.category) }}
               </template>
               <template v-if="column.key === 'status'">
                 <a-tag :color="record.status === 'active' ? 'green' : 'default'">
@@ -230,7 +247,17 @@
               </a-card>
             </a-col>
           </a-row>
-          <a-empty v-if="templateList.length === 0" description="暂无模板" />
+          <!-- 卡片那一档说的是同一张表的同一发读数，所以念法与列表那一档走同一个出处 -->
+          <empty-list-hint
+            v-if="templateList.length === 0"
+            :loading="loading"
+            :read-failed="readFailed"
+            :empty-line="emptyLine"
+            :empty-reason="emptyReason"
+            can-create
+            create-label="新建模板"
+            @create="openModal()"
+          />
         </div>
       </a-card>
     </a-spin>
@@ -397,6 +424,7 @@ import {
   type ArticleTemplate,
   type ArticleTemplateForm,
   type TemplateStats,
+  type TemplateType,
   type TemplateVariable,
   type TemplateVersion,
 } from '../../api/articleTemplate'
@@ -404,6 +432,13 @@ import { formatDateTime } from '@/utils/format'
 import { describeHttpError } from '@/api/http'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  JUMP_BACK_NOTICE,
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  type EmptyReason,
+} from '../../utils/emptyPage'
 
 const authStore = useAuthStore()
 
@@ -415,6 +450,11 @@ const viewMode = ref<'list' | 'card'>('list')
 const isEdit = ref(false)
 const formRef = ref()
 
+// 这一格没行时是哪一种空，只认后端回的那两格（M-P86）；读失败是第三件事，单独存
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
+
 const stats = reactive<TemplateStats>({
   totalCount: 0,
   systemCount: 0,
@@ -423,24 +463,41 @@ const stats = reactive<TemplateStats>({
   customCount: 0,
 })
 
-const typeOptions = ref([
-  { value: 'hot_keyword', label: '热词模板' },
-  { value: 'case', label: '案例模板' },
-  { value: 'system', label: '系统模板' },
-  { value: 'custom', label: '自定义' },
-])
+// 两只下拉的选项与中文名唯一出处是后端的 /types 与 /categories。
+// 这里从前硬编码两份：类型写的是库里没有的 hot_keyword，分类那六档（tech/finance/health/…）
+// 在库里全是 0 行——每一档点下去都是「没有」，而库里真有行的那四档根本没让人选（M-P86 实测）。
+const typeOptions = ref<{ value: string; label: string }[]>([])
+const categoryOptions = ref<{ value: string; label: string }[]>([])
 
-const categoryOptions = ref([
-  { value: 'tech', label: '科技' },
-  { value: 'finance', label: '财经' },
-  { value: 'health', label: '健康' },
-  { value: 'education', label: '教育' },
-  { value: 'entertainment', label: '娱乐' },
-  { value: 'general', label: '通用' },
-])
+async function loadVocabulary() {
+  try {
+    const [types, categories] = await Promise.all([
+      articleTemplateApi.types(),
+      articleTemplateApi.categories(),
+    ])
+    typeOptions.value = types || []
+    categoryOptions.value = categories || []
+  } catch (e) {
+    logError('article/article-template-manage-view', '加载模板词表失败', e)
+    message.error(`加载模板类型与分类词表失败：${describeHttpError(e)}`)
+  }
+}
+
+/** 类型那一格的中文名：读的是词表那一支，读失败时退化成库里那个原词，不自己编 */
+function getTypeLabel(type?: string | null): string {
+  if (!type) return '-'
+  return typeOptions.value.find(t => t.value === type)?.label || type
+}
+
+/** 分类那一格同理：库里存的是英文码，中文名只从 /categories 那一支读 */
+function getCategoryLabel(category?: string | null): string {
+  if (!category) return '-'
+  return categoryOptions.value.find(c => c.value === category)?.label || category
+}
 
 const queryParams = reactive({
-  type: null as string | null,
+  // 参数名与后端 @RequestParam 逐字一致：从前发的是 type，后端没人读，点「模板类型」等于没筛
+  templateType: null as TemplateType | null,
   category: null as string | null,
   keyword: '',
 })
@@ -482,24 +539,15 @@ const columns = [
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 280 },
 ]
 
-function getTypeColor(type: string): string {
+// 颜色是这一屏的观感，不进词表；键与后端 /types 那四档对齐（从前这里第一个键写的是 hot_keyword，库里没有）
+function getTypeColor(type?: string | null): string {
   const map: Record<string, string> = {
-    hot_keyword: 'orange',
+    hotword: 'orange',
     case: 'green',
     system: 'blue',
     custom: 'purple',
   }
-  return map[type] || 'default'
-}
-
-function getTypeLabel(type: string): string {
-  const map: Record<string, string> = {
-    hot_keyword: '热词模板',
-    case: '案例模板',
-    system: '系统模板',
-    custom: '自定义',
-  }
-  return map[type] || type
+  return (type && map[type]) || 'default'
 }
 
 async function loadStats() {
@@ -513,19 +561,34 @@ async function loadStats() {
 
 async function loadTemplates() {
   loading.value = true
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
   try {
     const data = await articleTemplateApi.list({
       page: paginationConfig.current,
       size: paginationConfig.pageSize,
-      type: queryParams.type as any || undefined,
+      templateType: queryParams.templateType || undefined,
       category: queryParams.category || undefined,
       keyword: queryParams.keyword || undefined,
     })
     templateList.value = data.records
     paginationConfig.total = data.total
+    emptyLine.value = data.emptyLine || ''
+    emptyReason.value = asEmptyReason(data.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, paginationConfig.current)) {
+      paginationConfig.current = 1
+      await loadTemplates()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (e) {
     logError('article/article-template-manage-view', '加载模板列表失败', e)
-    message.error('加载模板列表失败')
+    // 读失败与「这一档没有模板」是两件事：旧行必须清掉，否则界面会把上一批发来的行继续当成这一发的读数
+    templateList.value = []
+    paginationConfig.total = 0
+    readFailed.value = describeHttpError(e)
+    message.error(`加载模板列表失败：${describeHttpError(e)}`)
   } finally {
     loading.value = false
   }
@@ -653,6 +716,8 @@ function insertVariable(name: string) {
 }
 
 onMounted(async () => {
+  // 词表先读：那一行的「类型」标签念的是这一支，读在它之后会闪一下英文原词
+  await loadVocabulary()
   await loadStats()
   await loadTemplates()
 })
