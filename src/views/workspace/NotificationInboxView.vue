@@ -26,9 +26,7 @@
       </a-form-item>
     </a-form>
 
-    <a-alert v-if="error" type="error" show-icon class="notification-inbox__notice" :message="error" />
-
-    <a-table v-else :data-source="records" :columns="columns" :loading="loading" row-key="id"
+    <a-table :data-source="records" :columns="columns" :loading="loading" row-key="id"
              :pagination="pagination" @change="onTableChange">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">
@@ -53,10 +51,15 @@
         </template>
       </template>
       <template #emptyText>
-        <div class="notification-inbox__empty">
-          按当前筛选没有待办。这一句只说明这张表里按 status/type 没查到记录；
-          上一轮巡检到底欠着几条，看的是「页面巡检」那一格回的结果与这条待办的内容。
-        </div>
+        <!-- 这一屏的空从前只有一句写死的「按当前筛选没有待办」：「这一档真的没有」「这一页翻过了头」
+             「选中的那一家读不到」「这一发读失败」四种念法长成一个样（M-P88）。
+             这一页没有「新建待办」这个动作，所以不摆新建入口。 -->
+        <empty-list-hint
+          :loading="loading"
+          :read-failed="readFailed"
+          :empty-line="emptyLine"
+          :empty-reason="emptyReason"
+        />
       </template>
     </a-table>
 
@@ -69,8 +72,16 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { message } from 'ant-design-vue'
 import { describeHttpError } from '../../api/http'
 import { notificationsApi, type NotificationRecord } from '../../api/notifications'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import {
+  asEmptyReason,
+  shouldJumpBackToFirstPage,
+  JUMP_BACK_NOTICE,
+  type EmptyReason
+} from '../../utils/emptyPage'
 
 /**
  * 超管待办（Spec §13.3-6 的最后一公里）。
@@ -79,7 +90,9 @@ import { notificationsApi, type NotificationRecord } from '../../api/notificatio
  * 1. 行数据、未读数、「全部标为已读」改了几条，全部来自 `/api/notifications`；
  * 2. 状态文案：库里存 unread/read 两个值，界面上说未读/已读——这是纯展示层的说法，
  *    不是后端词表；出现第三个值时原样写出来，不替它归成「已读」；
- * 3. 「标为已读」只对未读那一行可点，已读的行不给出一个点了只会重复写的按钮。
+ * 3. 「标为已读」只对未读那一行可点，已读的行不给出一个点了只会重复写的按钮；
+ * 4. 空表那一格逐字念后端回的成因（M-P88）：真的没有 / 这一页翻过了头 / 选中的那一家读不到 /
+ *    这一发读失败，四种不许长成一个样；「翻过了头」由界面自己翻回第一页再读一遍。
  */
 
 const UNREAD = 'unread'
@@ -96,7 +109,9 @@ const typeFilter = ref('')
 
 const loading = ref(false)
 const readingAll = ref(false)
-const error = ref('')
+const readFailed = ref('')
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
 const markedAll = ref<number | null>(null)
 
 const statusOptions = [
@@ -130,18 +145,29 @@ function statusText(value: string): string {
 
 async function load() {
   loading.value = true
-  error.value = ''
+  readFailed.value = ''
+  emptyLine.value = ''
+  emptyReason.value = null
   try {
     const result = await notificationsApi.list({
       page: page.value, size: size.value, status: status.value, type: typeFilter.value
     })
     records.value = result.records || []
     total.value = result.total || 0
+    emptyLine.value = result.emptyLine || ''
+    emptyReason.value = asEmptyReason(result.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(emptyReason.value, page.value)) {
+      page.value = 1
+      await load()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (err) {
-    // 取不到就说取不到：把失败渲染成一张空表，看起来就像「没有待办」
-    error.value = describeHttpError(err)
+    // 读失败不是「这一档没有」：旧行清掉，让这一格念出失败那一句
     records.value = []
     total.value = 0
+    readFailed.value = describeHttpError(err)
+    message.error(`加载待办列表失败：${describeHttpError(err)}`)
   } finally {
     loading.value = false
   }
@@ -171,20 +197,20 @@ async function markRead(record: NotificationRecord) {
     await notificationsApi.read(record.id)
     await Promise.all([load(), loadUnread()])
   } catch (err) {
-    error.value = describeHttpError(err)
+    message.error(`标为已读失败：${describeHttpError(err)}`)
   }
 }
 
 /** 后端回的是「改了几条」，界面就报几条：不写「已全部标记」这种把结果自己圆掉的话 */
 async function readAll() {
   readingAll.value = true
-  error.value = ''
+  readFailed.value = ''
   try {
     const changed = await notificationsApi.readAll()
     markedAll.value = typeof changed === 'number' ? changed : 0
     await reload()
   } catch (err) {
-    error.value = describeHttpError(err)
+    message.error(`全部标为已读失败：${describeHttpError(err)}`)
   } finally {
     readingAll.value = false
   }
@@ -212,11 +238,6 @@ onMounted(() => reload())
   &__type {
     font-family: Consolas, Monaco, monospace;
     font-size: 12px;
-  }
-
-  &__empty {
-    padding: 16px;
-    color: rgba(0, 0, 0, 0.45);
   }
 
   &__count {

@@ -1,4 +1,5 @@
 import http from './http'
+import type { EmptyCauseFields } from '../types/emptyResult'
 
 /**
  * 站内待办（`/api/notifications`）的接口层。
@@ -31,11 +32,12 @@ export interface NotificationRecord {
 }
 
 /** 列表是分页的：records + total，缺任何一个都会把「还有下一页」显示成「只有这些」 */
-export interface NotificationPage {
+export interface NotificationPage extends EmptyCauseFields {
   records: NotificationRecord[]
   total: number
   page: number
   size: number
+  pages?: number
 }
 
 export interface NotificationFilters {
