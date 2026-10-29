@@ -1,6 +1,14 @@
 <template>
   <div class="data-report-page">
     <a-spin :spinning="loading">
+      <a-alert
+        v-if="!tenantId"
+        type="info"
+        show-icon
+        style="margin-bottom: 16px"
+        message="还没选租户"
+        description="页面顶部的租户下拉里先选一家，这里才会显示这家的报表。"
+      />
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
@@ -9,7 +17,7 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalArticles }}</div>
+                <div class="stat-value">{{ fmtCount(stats.totalArticles) }}</div>
                 <div class="stat-title">文章总数</div>
               </div>
             </div>
@@ -22,7 +30,7 @@
                 <EyeOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalViews.toLocaleString() }}</div>
+                <div class="stat-value">{{ fmtCount(stats.totalViews) }}</div>
                 <div class="stat-title">总浏览量</div>
               </div>
             </div>
@@ -35,7 +43,7 @@
                 <UserOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalUsers }}</div>
+                <div class="stat-value">{{ fmtCount(stats.totalUsers) }}</div>
                 <div class="stat-title">活跃用户</div>
               </div>
             </div>
@@ -48,7 +56,7 @@
                 <LikeOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalLikes.toLocaleString() }}</div>
+                <div class="stat-value">{{ fmtCount(stats.totalLikes) }}</div>
                 <div class="stat-title">总互动量</div>
               </div>
             </div>
@@ -59,25 +67,27 @@
       <a-card :bordered="false">
         <!-- 筛选原塞在卡片 #title 槽（overflow:hidden 窄容器会裁切堆行），改用 FilterBar：筛选靠左、动作靠右 -->
         <filter-bar>
-          <a-select
-            v-model:value="queryParams.reportType"
-            style="width: 150px"
-            placeholder="报表类型"
-            @change="loadData"
-          >
-            <a-select-option value="article">文章数据</a-select-option>
-            <a-select-option value="knowledge">知识库数据</a-select-option>
-            <a-select-option value="user">用户数据</a-select-option>
-            <a-select-option value="traffic">流量数据</a-select-option>
-          </a-select>
           <a-range-picker
             v-model:value="queryParams.dateRange"
-            style="width: 300px"
+            value-format="YYYY-MM-DD"
+            style="width: 280px"
+            :placeholder="['开始日期', '结束日期']"
             @change="loadData"
           />
           <template #actions>
             <a-space>
-              <a-button type="primary" @click="exportReport">
+              <!-- 这一格只决定「导出哪一份」，点它不该重新拉一遍页面上的图表 -->
+              <a-select
+                v-model:value="queryParams.reportType"
+                style="width: 150px"
+                aria-label="导出内容"
+              >
+                <a-select-option value="article">导出：文章数据</a-select-option>
+                <a-select-option value="knowledge">导出：知识库文档</a-select-option>
+                <a-select-option value="user">导出：用户数据</a-select-option>
+                <a-select-option value="traffic">导出：流量数据</a-select-option>
+              </a-select>
+              <a-button type="primary" :loading="exporting" @click="exportReport">
                 <template #icon><DownloadOutlined /></template>
                 导出报表
               </a-button>
@@ -107,7 +117,7 @@
                         </div>
                       </div>
                     </template>
-                    <a-empty v-else description="暂无数据" />
+                    <a-empty v-else :description="emptyText('trend')" />
                   </div>
                 </a-card>
               </a-col>
@@ -131,7 +141,7 @@
                         </div>
                       </div>
                     </template>
-                    <a-empty v-else description="暂无数据" />
+                    <a-empty v-else :description="emptyText('category')" />
                   </div>
                 </a-card>
               </a-col>
@@ -155,7 +165,7 @@
                         </div>
                       </div>
                     </template>
-                    <a-empty v-else description="暂无数据" />
+                    <a-empty v-else :description="emptyText('growth')" />
                   </div>
                 </a-card>
               </a-col>
@@ -177,7 +187,7 @@
                       </template>
                     </a-list>
                   </template>
-                  <a-empty v-else description="暂无数据" />
+                  <a-empty v-else :description="emptyText('activity')" />
                 </a-card>
               </a-col>
             </a-row>
@@ -210,7 +220,7 @@
                         </div>
                       </div>
                     </template>
-                    <a-empty v-else description="暂无数据" />
+                    <a-empty v-else :description="emptyText('source')" />
                   </div>
                 </a-card>
               </a-col>
@@ -235,7 +245,7 @@
                         </div>
                       </div>
                     </template>
-                    <a-empty v-else description="暂无数据" />
+                    <a-empty v-else :description="emptyText('device')" />
                   </div>
                 </a-card>
               </a-col>
@@ -277,17 +287,75 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const activeTab = ref('overview')
 
-const stats = reactive({
-  totalArticles: 0,
-  totalViews: 0,
-  totalUsers: 0,
-  totalLikes: 0,
+/** 读不到就是 null、界面摆「—」：这四格以前恒 0，读失败和「真的是 0」长得一模一样 */
+const stats = reactive<{
+  totalArticles: number | null
+  totalViews: number | null
+  totalUsers: number | null
+  totalLikes: number | null
+}>({
+  totalArticles: null,
+  totalViews: null,
+  totalUsers: null,
+  totalLikes: null,
+})
+
+type SectionKey = 'trend' | 'category' | 'growth' | 'activity' | 'source' | 'device'
+
+const sectionNames: Record<SectionKey, string> = {
+  trend: '流量趋势',
+  category: '分类占比',
+  growth: '用户增长趋势',
+  activity: '用户活跃度',
+  source: '流量来源',
+  device: '设备分布',
+}
+
+/** 哪一块是「这次没取到」，而不是「这段时间真的没有数据」——这两件事不许写成同一句话 */
+const failed = reactive<Record<SectionKey, boolean>>({
+  trend: false,
+  category: false,
+  growth: false,
+  activity: false,
+  source: false,
+  device: false,
 })
 
 const queryParams = reactive({
+  /** 只决定导出哪一份，不参与页面取数 */
   reportType: 'article',
-  dateRange: [] as any[],
+  /** 先头 a-range-picker 的 value-format 已把它变成 ['YYYY-MM-DD','YYYY-MM-DD'] 字符串；清空时是 null */
+  dateRange: null as string[] | null,
 })
+
+const exporting = ref(false)
+
+const hasDateRange = computed(
+  () => Array.isArray(queryParams.dateRange) && queryParams.dateRange.length === 2
+)
+
+/** 超管看选中的那一家，普通用户看自己登录态里那家；以前只认选中态，普通租户管理员整屏恒 0 */
+const tenantId = computed<number>(() => authStore.selectedTenantId || authStore.tenantId || 0)
+
+function emptyText(key: SectionKey): string {
+  return failed[key]
+    ? `${sectionNames[key]}这次没取到，页面顶部的提示里有原因；把日期改一下再试`
+    : '这段时间没有数据'
+}
+
+function fmtCount(value: number | null | undefined): string {
+  return value === null || value === undefined ? '—' : value.toLocaleString()
+}
+
+function asCount(value: unknown): number | null {
+  return typeof value === 'number' ? value : null
+}
+
+/** 选了区间就按区间查；没选就让后端按各自默认口径（最近 7 天 / 6 个月 / 30 天） */
+function dateParams(): { startDate?: string; endDate?: string } {
+  if (!hasDateRange.value) return {}
+  return { startDate: queryParams.dateRange![0], endDate: queryParams.dateRange![1] }
+}
 
 const chartData = ref<{ date: string; value: number }[]>([])
 const maxValue = computed(() => {
@@ -375,84 +443,158 @@ function mapDeviceDistribution(data: DeviceDistributionItem[]): { name: string; 
   }))
 }
 
-function getTenantId(): number {
-  return authStore.selectedTenantId || 0
+function errText(error: unknown): string {
+  return (error as Error | null)?.message || '未知原因'
+}
+
+function clearStats() {
+  stats.totalArticles = null
+  stats.totalViews = null
+  stats.totalUsers = null
+  stats.totalLikes = null
 }
 
 async function loadStats() {
+  if (!tenantId.value) {
+    clearStats()
+    return
+  }
   try {
-    const res = await operationApi.getStats(getTenantId())
-    Object.assign(stats, res as any)
+    const { startDate, endDate } = dateParams()
+    const res: any = await operationApi.getStats(tenantId.value, startDate, endDate)
+    stats.totalArticles = asCount(res?.totalArticles)
+    stats.totalViews = asCount(res?.totalViews)
+    stats.totalUsers = asCount(res?.totalUsers)
+    stats.totalLikes = asCount(res?.totalLikes)
   } catch (error) {
+    clearStats()
     logError('operation/data-report-view', '加载统计数据失败', error)
-    message.error('加载统计数据失败')
+    message.error(`四张统计卡这次没取到：${errText(error)}`)
   }
 }
 
 async function loadTrafficTrend() {
+  if (!tenantId.value) {
+    chartData.value = []
+    return
+  }
   try {
-    const res = await operationApi.getTrafficTrend(getTenantId(), 7)
-    chartData.value = mapTrafficTrend(res as any)
+    const { startDate, endDate } = dateParams()
+    const res: any = await operationApi.getTrafficTrend(tenantId.value, 7, startDate, endDate)
+    chartData.value = mapTrafficTrend(res || [])
+    failed.trend = false
   } catch (error) {
+    chartData.value = []
+    failed.trend = true
     logError('operation/data-report-view', '加载流量趋势失败', error)
-    message.error('加载流量趋势失败')
+    message.error(`流量趋势这次没取到：${errText(error)}`)
   }
 }
 
 async function loadCategoryDistribution() {
+  if (!tenantId.value) {
+    categoryData.value = []
+    return
+  }
   try {
-    const res = await operationApi.getCategoryDistribution(getTenantId())
-    categoryData.value = mapCategoryDistribution(res as any)
+    const { startDate, endDate } = dateParams()
+    const res: any = await operationApi.getCategoryDistribution(tenantId.value, startDate, endDate)
+    categoryData.value = mapCategoryDistribution(res || [])
+    failed.category = false
   } catch (error) {
+    categoryData.value = []
+    failed.category = true
     logError('operation/data-report-view', '加载分类分布失败', error)
-    message.error('加载分类分布失败')
+    message.error(`分类占比这次没取到：${errText(error)}`)
   }
 }
 
 async function loadUserGrowth() {
+  if (!tenantId.value) {
+    userGrowthData.value = []
+    return
+  }
   try {
-    const res = await operationApi.getUserGrowth(getTenantId(), 6)
-    userGrowthData.value = mapUserGrowth(res as any)
+    const { startDate, endDate } = dateParams()
+    const res: any = await operationApi.getUserGrowth(tenantId.value, 6, startDate, endDate)
+    userGrowthData.value = mapUserGrowth(res || [])
+    failed.growth = false
   } catch (error) {
+    userGrowthData.value = []
+    failed.growth = true
     logError('operation/data-report-view', '加载用户增长失败', error)
-    message.error('加载用户增长失败')
+    message.error(`用户增长趋势这次没取到：${errText(error)}`)
   }
 }
 
 async function loadUserActivity() {
+  if (!tenantId.value) {
+    userActivityData.value = []
+    return
+  }
   try {
-    const res = await operationApi.getUserActivity(getTenantId())
-    userActivityData.value = mapUserActivity(res as any)
+    const { startDate, endDate } = dateParams()
+    const res: any = await operationApi.getUserActivity(tenantId.value, startDate, endDate)
+    userActivityData.value = mapUserActivity(res || [])
+    failed.activity = false
   } catch (error) {
+    userActivityData.value = []
+    failed.activity = true
     logError('operation/data-report-view', '加载用户活跃度失败', error)
-    message.error('加载用户活跃度失败')
+    message.error(`用户活跃度这次没取到：${errText(error)}`)
   }
 }
 
 async function loadTrafficSource() {
+  if (!tenantId.value) {
+    sourceData.value = []
+    return
+  }
   try {
-    const res = await operationApi.getTrafficSource(getTenantId())
-    sourceData.value = mapTrafficSource(res as any)
+    const { startDate, endDate } = dateParams()
+    const res: any = await operationApi.getTrafficSource(tenantId.value, startDate, endDate)
+    sourceData.value = mapTrafficSource(res || [])
+    failed.source = false
   } catch (error) {
+    sourceData.value = []
+    failed.source = true
     logError('operation/data-report-view', '加载流量来源失败', error)
-    message.error('加载流量来源失败')
+    message.error(`流量来源这次没取到：${errText(error)}`)
   }
 }
 
 async function loadDeviceDistribution() {
+  if (!tenantId.value) {
+    deviceData.value = []
+    return
+  }
   try {
-    const res = await operationApi.getDeviceDistribution(getTenantId())
-    deviceData.value = mapDeviceDistribution(res as any)
+    const { startDate, endDate } = dateParams()
+    const res: any = await operationApi.getDeviceDistribution(tenantId.value, startDate, endDate)
+    deviceData.value = mapDeviceDistribution(res || [])
+    failed.device = false
   } catch (error) {
+    deviceData.value = []
+    failed.device = true
     logError('operation/data-report-view', '加载设备分布失败', error)
-    message.error('加载设备分布失败')
+    message.error(`设备分布这次没取到：${errText(error)}`)
   }
 }
 
 async function loadAllData() {
-  if (!authStore.selectedTenantId) return
+  if (!tenantId.value) {
+    clearStats()
+    chartData.value = []
+    categoryData.value = []
+    userGrowthData.value = []
+    userActivityData.value = []
+    sourceData.value = []
+    deviceData.value = []
+    return
+  }
   loading.value = true
   try {
+    // 七个口各自把失败原因说出来，这里不再叠一句笼统的「数据加载失败」
     await Promise.all([
       loadStats(),
       loadTrafficTrend(),
@@ -462,15 +604,16 @@ async function loadAllData() {
       loadTrafficSource(),
       loadDeviceDistribution(),
     ])
-  } catch (error) {
-    logError('operation/data-report-view', '数据加载失败', error)
-    message.error('数据加载失败')
   } finally {
     loading.value = false
   }
 }
 
 function loadData() {
+  if (hasDateRange.value && queryParams.dateRange![0] > queryParams.dateRange![1]) {
+    message.warning('开始日期不能晚于结束日期：把日期改一下，页面留着上一份读数不动')
+    return
+  }
   loadAllData()
 }
 
@@ -485,38 +628,81 @@ function downloadBlob(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url)
 }
 
-async function exportReport() {
+const exportLabels: Record<string, string> = {
+  article: '文章数据',
+  knowledge: '知识库文档',
+  user: '用户数据',
+  traffic: '流量数据',
+}
+
+/** 后端把单元格里的换行压成了空格，所以一行就是一条记录；第一行是表头 */
+function countCsvRows(csv: string): number {
+  const lines = csv.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim() !== '')
+  return Math.max(0, lines.length - 1)
+}
+
+function jsonReason(text: string): string {
   try {
-    message.loading({ content: '正在生成报表...', key: 'export' })
-    const typeMap: Record<string, 'article' | 'traffic' | 'user'> = {
-      article: 'article',
-      knowledge: 'article',
-      user: 'user',
-      traffic: 'traffic'
-    }
-    const exportType = typeMap[queryParams.reportType] || 'article'
-    const blob: any = await operationApi.exportStats(getTenantId(), exportType, 'excel')
-    const filenameMap: Record<string, string> = {
-      article: '文章数据报表.csv',
-      knowledge: '知识库数据报表.csv',
-      user: '用户数据报表.csv',
-      traffic: '流量数据报表.csv'
-    }
-    const filename = filenameMap[queryParams.reportType] || '统计报表.csv'
-    downloadBlob(blob, filename)
-    message.success({ content: '报表导出成功', key: 'export' })
-  } catch (error) {
-    logError('operation/data-report-view', '导出失败', error)
-    message.error({ content: '导出失败', key: 'export' })
+    const body = JSON.parse(text)
+    return body?.message || body?.msg || String(body?.code ?? '') || '后端拒绝了这次导出'
+  } catch {
+    return text.slice(0, 200) || '后端拒绝了这次导出'
   }
 }
 
-watch(
-  () => authStore.selectedTenantId,
-  () => {
-    loadAllData()
+async function exportReport() {
+  if (!tenantId.value) {
+    message.warning('先在页面顶部选一家租户，再导出这家的报表')
+    return
   }
-)
+  if (hasDateRange.value && queryParams.dateRange![0] > queryParams.dateRange![1]) {
+    message.warning('开始日期不能晚于结束日期，先改日期再导出')
+    return
+  }
+  const type = queryParams.reportType
+  const label = exportLabels[type] || type
+  exporting.value = true
+  message.loading({ content: `正在导出${label}…`, key: 'export' })
+  try {
+    const { startDate, endDate } = dateParams()
+    const payload: any = await operationApi.exportStats(
+      tenantId.value,
+      type as 'article' | 'knowledge' | 'user' | 'traffic',
+      startDate,
+      endDate
+    )
+    // responseType:'blob' 下，后端拒绝时回来的也是 Blob（内容其实是 JSON）；
+    // 不看形状就 downloadBlob，等于把一句错误原因存成 .csv 还念「导出成功」
+    if (!(payload instanceof Blob)) {
+      message.error({ content: '没导出：后端回的既不是文件也不是错误说明', key: 'export' })
+      return
+    }
+    // 成功那一支后端一定回 text/csv；导到一半炸掉时后端回的是 500 + 一句「导出失败: …」，
+    // 不看类型就存盘，等于把报错正文存成 .csv 还念「已导出」
+    const bodyType = (payload.type || '').toLowerCase()
+    if (bodyType.includes('json') || !bodyType.includes('csv')) {
+      message.error({ content: `没导出：${jsonReason(await payload.text())}`, key: 'export' })
+      return
+    }
+    if (payload.size === 0) {
+      message.error({ content: '没导出：拿到的是空文件', key: 'export' })
+      return
+    }
+    const rows = countCsvRows(await payload.text())
+    const range = hasDateRange.value ? `_${queryParams.dateRange![0]}_${queryParams.dateRange![1]}` : ''
+    downloadBlob(payload, `${label}${range}.csv`)
+    message.success({ content: `已导出${label}，共 ${rows} 行`, key: 'export' })
+  } catch (error) {
+    logError('operation/data-report-view', '导出失败', error)
+    message.error({ content: `没导出：${errText(error)}`, key: 'export' })
+  } finally {
+    exporting.value = false
+  }
+}
+
+watch(tenantId, () => {
+  loadAllData()
+})
 
 onMounted(() => {
   loadAllData()

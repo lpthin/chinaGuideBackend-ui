@@ -144,33 +144,45 @@ export const operationApi = {
   getStats: (tenantId: number, startDate?: string, endDate?: string) =>
     http.get<OperationStats>('/operation/stats', { params: { tenantId, startDate, endDate } }),
 
-  // 获取流量趋势
-  getTrafficTrend: (tenantId: number, days: number = 7) =>
-    http.get<TrafficTrendItem[]>('/operation/traffic/trend', { params: { tenantId, days } }),
+  // 获取流量趋势（给了日期区间时后端按区间出桶，days 只在没选区间的兜底场景生效）
+  getTrafficTrend: (tenantId: number, days: number = 7, startDate?: string, endDate?: string) =>
+    http.get<TrafficTrendItem[]>('/operation/traffic/trend', {
+      params: { tenantId, days, startDate, endDate }
+    }),
 
   // 获取分类分布
-  getCategoryDistribution: (tenantId: number) =>
-    http.get<CategoryDistributionItem[]>('/operation/category/distribution', { params: { tenantId } }),
+  getCategoryDistribution: (tenantId: number, startDate?: string, endDate?: string) =>
+    http.get<CategoryDistributionItem[]>('/operation/category/distribution', {
+      params: { tenantId, startDate, endDate }
+    }),
 
   // 获取用户统计
   getUserStats: (tenantId: number) =>
     http.get<UserStats>('/operation/user/stats', { params: { tenantId } }),
 
   // 获取用户增长
-  getUserGrowth: (tenantId: number, months: number = 6) =>
-    http.get<UserGrowthItem[]>('/operation/user/growth', { params: { tenantId, months } }),
+  getUserGrowth: (tenantId: number, months: number = 6, startDate?: string, endDate?: string) =>
+    http.get<UserGrowthItem[]>('/operation/user/growth', {
+      params: { tenantId, months, startDate, endDate }
+    }),
 
   // 获取用户活跃度
-  getUserActivity: (tenantId: number) =>
-    http.get<UserActivityItem[]>('/operation/user/activity', { params: { tenantId } }),
+  getUserActivity: (tenantId: number, startDate?: string, endDate?: string) =>
+    http.get<UserActivityItem[]>('/operation/user/activity', {
+      params: { tenantId, startDate, endDate }
+    }),
 
   // 获取流量来源
-  getTrafficSource: (tenantId: number) =>
-    http.get<TrafficSourceItem[]>('/operation/traffic/source', { params: { tenantId } }),
+  getTrafficSource: (tenantId: number, startDate?: string, endDate?: string) =>
+    http.get<TrafficSourceItem[]>('/operation/traffic/source', {
+      params: { tenantId, startDate, endDate }
+    }),
 
   // 获取设备分布
-  getDeviceDistribution: (tenantId: number) =>
-    http.get<DeviceDistributionItem[]>('/operation/device/distribution', { params: { tenantId } }),
+  getDeviceDistribution: (tenantId: number, startDate?: string, endDate?: string) =>
+    http.get<DeviceDistributionItem[]>('/operation/device/distribution', {
+      params: { tenantId, startDate, endDate }
+    }),
 
   // 获取运营看板总览
   getDashboard: (tenantId: number) =>
@@ -186,10 +198,19 @@ export const operationApi = {
       }
     }>('/operation/dashboard', { params: { tenantId } }),
 
-  // 导出统计报表
-  exportStats: (tenantId: number, type: 'article' | 'traffic' | 'user' = 'article', format: 'excel' | 'csv' = 'excel') =>
+  /**
+   * 导出统计报表。后端回的一律是 CSV 文件（带 BOM、附件头）。
+   * 参数不对（比如不认识的导出内容）时后端回的是 <b>JSON</b> 错误包而不是文件，
+   * 所以调用方必须看 responseType:'blob' 拿到的载荷形状再决定是存文件还是报错。
+   */
+  exportStats: (
+    tenantId: number,
+    type: 'article' | 'knowledge' | 'user' | 'traffic' = 'article',
+    startDate?: string,
+    endDate?: string
+  ) =>
     http.get('/operation/stats/export', {
-      params: { tenantId, type, format },
+      params: { tenantId, type, startDate, endDate },
       responseType: 'blob'
     })
 }
