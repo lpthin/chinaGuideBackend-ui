@@ -26,7 +26,7 @@
             <span v-if="invoice.paidAmount" class="amount-paid">¥{{ formatAmount(invoice.paidAmount) }}</span>
             <span v-else>-</span>
           </a-descriptions-item>
-          <a-descriptions-item label="支付方式">{{ getPaymentMethodName(invoice.paymentMethod) }}</a-descriptions-item>
+          <a-descriptions-item label="支付方式">{{ paymentMethodLabel(invoice.paymentMethod) }}</a-descriptions-item>
           <a-descriptions-item label="到期日">{{ formatDate(invoice.dueDate) }}</a-descriptions-item>
           <a-descriptions-item label="支付时间" :span="1">{{ invoice.paidAt ? formatDateTime(invoice.paidAt, true) : '-' }}</a-descriptions-item>
           <a-descriptions-item label="创建时间" :span="1">{{ formatDateTime(invoice.createdAt, true) }}</a-descriptions-item>
@@ -34,7 +34,13 @@
 
         <!-- 账单明细 -->
         <a-divider orientation="left">账单明细</a-divider>
+        <!-- 上一版这里摆的是后端编的三行（999 / 39 / 100），无论哪张账单都念这三个数。
+             库里没有存明细的地方，所以没有明细就直说，不再借三行假数填这一格。 -->
+        <p v-if="!(invoice.items || []).length" class="no-items-hint">
+          这一张账单只记了应付总额，系统里没有逐条明细可读。
+        </p>
         <a-table
+          v-else
           :scroll="{ x: 'max-content' }"
           :columns="itemColumns"
           :data-source="invoice.items || []"
@@ -84,8 +90,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
-import { InvoiceStatus, PaymentMethod, Currency, ProductType } from '../../types/billing'
+import { InvoiceStatus, Currency, ProductType } from '../../types/billing'
 import type { Invoice, InvoiceItem } from '../../types/billing'
+import { paymentMethodLabel } from '../../utils/paymentMethod'
+import { foldInvoiceStatus, invoiceStatusLabel, invoiceStatusColor } from '../../utils/invoiceStatus'
 import { invoiceApi } from '../../api/billing'
 import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime } from '../../utils/format'
@@ -122,31 +130,10 @@ watch(() => [props.open, props.invoiceId], ([newOpen, newInvoiceId]) => {
   }
 })
 
-function mapPaymentStatus(paymentStatus?: string): InvoiceStatus {
-  if (!paymentStatus) return InvoiceStatus.PENDING
-  const statusMap: Record<string, InvoiceStatus> = {
-    UNPAID: InvoiceStatus.PENDING,
-    PAID: InvoiceStatus.PAID,
-  }
-  return statusMap[paymentStatus.toUpperCase()] || InvoiceStatus.PENDING
-}
-
-function mapPaymentMethod(method?: string): PaymentMethod | undefined {
-  if (!method) return undefined
-  const methodMap: Record<string, PaymentMethod> = {
-    ALIPAY: PaymentMethod.ALIPAY,
-    WECHAT: PaymentMethod.WECHAT,
-    BANK_TRANSFER: PaymentMethod.BANK_TRANSFER,
-    CREDIT_CARD: PaymentMethod.CREDIT_CARD,
-    BALANCE: PaymentMethod.BALANCE,
-    alipay: PaymentMethod.ALIPAY,
-    wechat: PaymentMethod.WECHAT,
-    bank_transfer: PaymentMethod.BANK_TRANSFER,
-    credit_card: PaymentMethod.CREDIT_CARD,
-    balance: PaymentMethod.BALANCE,
-  }
-  return methodMap[method]
-}
+// 详情口回的是 billing_invoice 那两个原始列：status（ISSUED/PAID/CANCELLED/OVERDUE）
+// 与 payment_status（UNPAID/PAID/PARTIAL），都是库里的大写代码。
+// 折成一档 + 中文念法的词表只有一个出处，见 utils/invoiceStatus.ts
+//（以前这里、费用页、开票详情各抄一份，同一张账单三屏三种说法）
 
 function mapProductType(type?: string): ProductType {
   if (!type) return ProductType.SUBSCRIPTION
@@ -180,7 +167,7 @@ function adaptInvoice(invoiceData: any, items: any[]): Invoice {
   const id = Number(invoiceData.id)
   const amount = invoiceData.totalAmount !== undefined ? Number(invoiceData.totalAmount) : Number(invoiceData.amount) || 0
   const paidAmount = invoiceData.paidAmount !== undefined ? Number(invoiceData.paidAmount) : undefined
-  const status = mapPaymentStatus(invoiceData.paymentStatus || invoiceData.status)
+  const status = foldInvoiceStatus(invoiceData.status, invoiceData.paymentStatus)
   const billingDate = formatDate(invoiceData.billingDate)
   const billingStartDate = invoiceData.billingStartDate ? formatDate(invoiceData.billingStartDate) : billingDate
   const billingEndDate = invoiceData.billingEndDate ? formatDate(invoiceData.billingEndDate) : billingDate
@@ -200,7 +187,7 @@ function adaptInvoice(invoiceData: any, items: any[]): Invoice {
     dueDate: formatDate(invoiceData.dueDate),
     paidAt: paidAmount ? formatDateTime(invoiceData.paidAt) : undefined,
     paidAmount,
-    paymentMethod: mapPaymentMethod(invoiceData.paymentMethod),
+    paymentMethod: invoiceData.paymentMethod,
     paymentTransactionId: invoiceData.paymentTransactionId,
     remark: invoiceData.remark,
     invoiceUrl: invoiceData.pdfUrl || invoiceData.invoiceUrl,
@@ -260,45 +247,23 @@ function formatAmount(amount: number): string {
 }
 
 function getStatusName(status: InvoiceStatus): string {
-  const nameMap: Record<InvoiceStatus, string> = {
-    [InvoiceStatus.DRAFT]: '草稿',
-    [InvoiceStatus.PENDING]: '待支付',
-    [InvoiceStatus.PAID]: '已支付',
-    [InvoiceStatus.OVERDUE]: '已逾期',
-    [InvoiceStatus.CANCELLED]: '已取消',
-    [InvoiceStatus.REFUNDED]: '已退款',
-  }
-  return nameMap[status] || status
+  return invoiceStatusLabel(status)
 }
 
 function getStatusColor(status: InvoiceStatus): string {
-  const colorMap: Record<InvoiceStatus, string> = {
-    [InvoiceStatus.DRAFT]: 'default',
-    [InvoiceStatus.PENDING]: 'orange',
-    [InvoiceStatus.PAID]: 'green',
-    [InvoiceStatus.OVERDUE]: 'red',
-    [InvoiceStatus.CANCELLED]: 'default',
-    [InvoiceStatus.REFUNDED]: 'blue',
-  }
-  return colorMap[status] || 'default'
-}
-
-function getPaymentMethodName(method?: PaymentMethod): string {
-  if (!method) return '-'
-  const nameMap: Record<PaymentMethod, string> = {
-    [PaymentMethod.ALIPAY]: '支付宝',
-    [PaymentMethod.WECHAT]: '微信支付',
-    [PaymentMethod.BANK_TRANSFER]: '银行转账',
-    [PaymentMethod.CREDIT_CARD]: '信用卡',
-    [PaymentMethod.BALANCE]: '余额支付',
-  }
-  return nameMap[method] || method
+  return invoiceStatusColor(status)
 }
 </script>
 
 <style scoped lang="less">
 .invoice-detail {
   padding: 8px;
+}
+
+.no-items-hint {
+  margin: 0 0 8px;
+  color: #8c8c8c;
+  font-size: 13px;
 }
 
 .amount-highlight {

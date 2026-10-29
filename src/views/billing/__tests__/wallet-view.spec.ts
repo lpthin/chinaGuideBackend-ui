@@ -78,10 +78,13 @@ const TABLE_STUB = {
 
 function walletRead(overrides: Record<string, unknown> = {}) {
   return {
+    // ACTIVE 是后端 BillingWalletController 那一格的真值；这家还没钱包行时回 NONE
+    walletState: 'ACTIVE',
     balance: 380,
     totalRecharge: 1000,
     availableBalance: 300,
     frozenBalance: 80,
+    // 上一版后端把这一格写死成 50000.00，库里没有这一列；留着是为了钉「界面不念它」
     creditLimit: 50000,
     ...overrides
   }
@@ -154,6 +157,7 @@ async function mountView(options: Options = {}) {
         'a-radio-group': PASS_THROUGH('ARadioGroup'),
         'a-radio': PASS_THROUGH('ARadio'),
         'a-textarea': PASS_THROUGH('ATextarea'),
+        'a-alert': PASS_THROUGH('AAlert'),
         'a-form': PASS_THROUGH('AForm'),
         'a-form-item': PASS_THROUGH('AFormItem'),
         'a-button': Button,
@@ -253,6 +257,23 @@ describe('四张卡读的是库里真有的那些列', () => {
     expect(stats(wrapper)).toEqual(['¥380.00', '¥1,000.00', '¥300.00', '¥80.00'])
     expect(wrapper.text()).not.toContain('50,000.00')
   })
+
+  it('这家还没有钱包（后端回 walletState=NONE）：四张卡摆 —，下面那句说的是「还没有」', async () => {
+    const wrapper = await mountView({
+      wallet: walletRead({ walletState: 'NONE', balance: undefined, totalRecharge: undefined, availableBalance: undefined, frozenBalance: undefined })
+    })
+    expect(stats(wrapper)).toEqual(['—', '—', '—', '—'])
+    expect(wrapper.find('.AAlert-stub').attributes('message')).toContain('这家还没有钱包')
+    // 「还没有钱包」不等于「读失败」，那一发是打成功的
+    expect(wrapper.find('.AAlert-stub').attributes('message')).not.toContain('没读到')
+  })
+
+  it('读失败与还没有钱包分两句说：读失败那句要带上失败原因', async () => {
+    const wrapper = await mountView({ walletError: '网关超时' })
+    const notice = wrapper.find('.AAlert-stub').attributes('message')
+    expect(notice).toContain('钱包没读到')
+    expect(notice).toContain('网关超时')
+  })
 })
 
 describe('类型那一格：界面发的值、行里的标签、金额正负号读同一份词表', () => {
@@ -280,6 +301,23 @@ describe('类型那一格：界面发的值、行里的标签、金额正负号�
     expect(text[0]).toContain('-¥120.00')
     expect(text[1]).toContain('充值')
     expect(text[1]).toContain('+¥120.00')
+  })
+
+  it('提现那一行念负号：符号认这一行自己的余额链，不认类型猜的进账', async () => {
+    // 现场跑出来的那一形：提现记成 TRANSFER，700 → 580。
+    // 改前符号按类型猜（转账=进账），这一行在界面上念成「+¥120.00」，一笔往外走的钱看着像进账。
+    const wrapper = await mountView({
+      records: [
+        transaction(33, { type: 'TRANSFER', balanceBefore: 700, balanceAfter: 580, description: '余额提现出账' }),
+        transaction(34, { type: 'TRANSFER', amount: 50, balanceBefore: 580, balanceAfter: 630, description: '收到租户 558 的转账' })
+      ]
+    })
+    const text = rows(wrapper).map((node: any) => node.text())
+    expect(text[0]).toContain('-¥120.00')
+    expect(text[1]).toContain('+¥50.00')
+    const spans = wrapper.findAll('.amount-out, .amount-in')
+    expect(spans[0].classes()).toContain('amount-out')
+    expect(spans[1].classes()).toContain('amount-in')
   })
 })
 

@@ -59,6 +59,15 @@
         </a-col>
       </a-row>
 
+      <!-- 「还没有钱包」与「这一发没读到」是两件事，都不许被四张 ¥0.00 的卡糊过去 -->
+      <a-alert
+        v-if="walletNotice"
+        :message="walletNotice"
+        type="warning"
+        show-icon
+        style="margin-bottom: 16px"
+      />
+
       <!-- 消费明细列表 -->
       <a-card title="消费明细" :bordered="false">
         <!-- 充值/导出原占独立卡片、筛选又挤在 #extra，合并进一个 FilterBar（筛选靠左、按钮靠右） -->
@@ -116,8 +125,8 @@
               </a-tag>
             </template>
             <template v-if="column.key === 'amount'">
-              <span :class="amountClass(record.type)">
-                {{ amountLabel(record.type, record.amount) }}
+              <span :class="amountClass(record)">
+                {{ amountLabel(record) }}
               </span>
             </template>
             <template v-if="column.key === 'balanceAfter'">
@@ -164,15 +173,11 @@
           />
         </a-form-item>
         <a-form-item label="支付方式" required>
+          <!-- 值用库里那种大写代码，中文由 paymentMethod.ts 那张词表翻；
+               这一档只开三种（余额支付拿来自充余额没有意义），名字与后端词表同源 -->
           <a-radio-group v-model:value="rechargeForm.paymentMethod">
-            <a-radio value="alipay">
-              <span>支付宝</span>
-            </a-radio>
-            <a-radio value="wechat">
-              <span>微信支付</span>
-            </a-radio>
-            <a-radio value="bank_transfer">
-              <span>银行转账</span>
+            <a-radio v-for="code in RECHARGE_METHODS" :key="code" :value="code">
+              <span>{{ paymentMethodLabel(code) }}</span>
             </a-radio>
           </a-radio-group>
         </a-form-item>
@@ -185,7 +190,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   WalletOutlined,
@@ -200,6 +205,8 @@ import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import { walletIsActive } from '../../utils/walletState'
+import { paymentMethodLabel, type PaymentMethodCode } from '../../utils/paymentMethod'
 import FilterBar from '../../components/FilterBar.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
@@ -240,17 +247,32 @@ function typeOf(code: string) {
   )
 }
 
-function amountClass(code: string): string {
-  return typeOf(code).inflow ? 'amount-in' : 'amount-out'
+function amountClass(record: any): string {
+  return isOutflow(record) ? 'amount-out' : 'amount-in'
 }
 
-function amountLabel(code: string, amount: number): string {
-  const inflow = typeOf(code).inflow
-  return `${inflow ? '+' : '-'}¥${formatAmount(amount)}`
+function amountLabel(record: any): string {
+  return `${isOutflow(record) ? '-' : '+'}¥${formatAmount(Number(record.amount))}`
+}
+
+/**
+ * 这一行是钱进来还是出去，认它自己的余额链（balanceBefore → balanceAfter）。
+ * 改前是拿类型猜的：转账那档写死 inflow:true，于是「余额提现出账」那一行
+ * 在界面上念成「+¥120.00」并染成进来那种颜色——一笔往外走的钱看着像进账。
+ * 行里没带这两个数（老数据/读不到）才退回按类型猜。
+ */
+function isOutflow(record: any): boolean {
+  const before = Number(record?.balanceBefore)
+  const after = Number(record?.balanceAfter)
+  if (Number.isFinite(before) && Number.isFinite(after)) return after < before
+  return !typeOf(String(record?.type ?? '')).inflow
 }
 
 /** 钱包那一发读失败时四张卡都不许念 0：0 是「查过了、余额是零」的结论 */
 const walletReadFailed = ref('')
+
+/** 后端答的 walletState=NONE：这家确实还没有钱包行。这与「没读到」是两件事，念法也不同 */
+const walletMissing = ref(false)
 
 const walletInfo = reactive({
   balance: 0,
@@ -296,9 +318,13 @@ const columns = [
 
 const transactionListData = ref<any[]>([])
 
+// 充值这一档只开三种方式；名字与大写代码都出自 paymentMethod.ts 那张词表。
+// 缺省值以前写死成 alipay：客户没点、界面也照样记一笔「支付宝」，后端现已改成点名才落账（M-P91 拍板 4）。
+const RECHARGE_METHODS: PaymentMethodCode[] = ['ALIPAY', 'WECHAT', 'BANK_TRANSFER']
+
 const rechargeForm = reactive({
   amount: 100,
-  paymentMethod: 'alipay',
+  paymentMethod: '' as PaymentMethodCode | '',
   remark: '',
 })
 
@@ -309,8 +335,17 @@ function formatAmount(amount: number): string {
 /** 四张卡上的钱：钱包那一发读失败就说「没取到」，不许念成 ¥0.00 */
 function statText(amount: number): string {
   if (walletReadFailed.value) return '没取到'
+  // 这家还没开过钱包时后端那一格回的是 null，不是零钱——摆 ¥0.00 会让人以为「查过了，就是零」
+  if (walletMissing.value) return '—'
   return `¥${formatAmount(amount)}`
 }
+
+/** 四张卡下面那句话：把「还没有钱包」与「这一发没读到」分开念 */
+const walletNotice = computed(() => {
+  if (walletReadFailed.value) return `钱包没读到：${walletReadFailed.value}`
+  if (walletMissing.value) return '这家还没有钱包，充值后这里会显示余额'
+  return ''
+})
 
 /** 筛选项一变就回第一页：否则「第 9 页 + 新条件」读回来的空页会被念成「这一档没有」 */
 function handleFilterChange() {
@@ -333,9 +368,12 @@ async function loadWalletInfo() {
   const tenantId = authStore.selectedTenantId || authStore.tenantId
   loading.value = true
   walletReadFailed.value = ''
+  walletMissing.value = false
   try {
     const res = await walletApi.getInfo(tenantId)
     if (res) {
+      // walletState 的两个字面串出自后端 BillingWalletController（utils/walletState.ts 是唯一出处）
+      walletMissing.value = !walletIsActive(res)
       walletInfo.balance = res.balance || 0
       walletInfo.totalRecharge = res.totalRecharge || 0
       walletInfo.availableBalance = res.availableBalance || 0
@@ -348,6 +386,7 @@ async function loadWalletInfo() {
     walletInfo.totalRecharge = 0
     walletInfo.availableBalance = 0
     walletInfo.frozenBalance = 0
+    walletMissing.value = false
     walletReadFailed.value = describeHttpError(error)
     message.error(`加载钱包信息失败：${describeHttpError(error)}`)
   } finally {
@@ -405,7 +444,7 @@ watch(
 
 function showRechargeModal() {
   rechargeForm.amount = 100
-  rechargeForm.paymentMethod = 'alipay'
+  rechargeForm.paymentMethod = ''
   rechargeForm.remark = ''
   rechargeModalVisible.value = true
 }
@@ -417,6 +456,10 @@ async function handleConfirmRecharge() {
     message.error('请输入正确的充值金额')
     return
   }
+  if (!rechargeForm.paymentMethod) {
+    message.error('请选择支付方式')
+    return
+  }
   const tenantId = authStore.selectedTenantId || authStore.tenantId
   rechargeLoading.value = true
   try {
@@ -426,7 +469,7 @@ async function handleConfirmRecharge() {
     await loadWalletInfo()
     await loadTransactionList()
   } catch (error) {
-    message.error('充值失败')
+    message.error(`充值失败：${describeHttpError(error)}`)
     logError('billing/wallet-view', error)
   } finally {
     rechargeLoading.value = false

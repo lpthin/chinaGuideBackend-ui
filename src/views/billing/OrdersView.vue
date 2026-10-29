@@ -61,23 +61,23 @@
       <a-card title="订单列表" :bordered="false">
         <!-- 状态筛选原占独立卡片、导出又挤在 #extra，合并进一个 FilterBar（筛选靠左、导出靠右） -->
         <filter-bar>
+          <!-- 状态值与库里那一列同形（大写代码），中文由 orderStatus.ts 那张词表翻 -->
           <a-radio-group v-model:value="queryParams.status" @change="handleStatusChange">
             <a-radio-button value="">全部</a-radio-button>
-            <a-radio-button value="pending">待支付</a-radio-button>
-            <a-radio-button value="paid">已支付</a-radio-button>
-            <a-radio-button value="cancelled">已取消</a-radio-button>
-            <a-radio-button value="refunded">已退款</a-radio-button>
+            <a-radio-button v-for="code in ORDER_STATUS_ORDER" :key="code" :value="code">
+              {{ orderStatusLabel(code) }}
+            </a-radio-button>
           </a-radio-group>
           <a-input-search
             v-model:value="queryParams.keyword"
-            placeholder="搜索订单号/商品名称"
+            placeholder="搜索订单号/流水号"
             style="width: 250px"
             enter-button
             @search="handleSearch"
           />
           <template #actions>
             <a-space>
-              <a-button @click="handleExport">
+              <a-button :loading="exportLoading" @click="handleExport">
                 <template #icon><ExportOutlined /></template>
                 导出
               </a-button>
@@ -100,13 +100,16 @@
             <template v-if="column.key === 'amount'">
               <span class="amount">¥{{ formatAmount(record.amount) }}</span>
             </template>
+            <template v-if="column.key === 'productName'">
+              {{ productNameOf(record) }}
+            </template>
             <template v-if="column.key === 'status'">
-              <a-tag :color="getStatusColor(record.status)">
-                {{ getStatusName(record.status) }}
+              <a-tag :color="orderStatusColor(record.status)">
+                {{ orderStatusLabel(record.status) }}
               </a-tag>
             </template>
             <template v-if="column.key === 'paymentMethod'">
-              {{ getPaymentMethodName(record.paymentMethod) }}
+              {{ paymentMethodLabel(record.paymentMethod) }}
             </template>
             <template v-if="column.key === 'createdAt'">
               {{ formatDateTime(record.createdAt) }}
@@ -133,18 +136,21 @@
       <a-descriptions :column="2" bordered v-if="currentOrder">
         <a-descriptions-item label="订单编号">{{ currentOrder.orderNo }}</a-descriptions-item>
         <a-descriptions-item label="订单状态">
-          <a-tag :color="getStatusColor(currentOrder.status)">
-            {{ getStatusName(currentOrder.status) }}
+          <a-tag :color="orderStatusColor(currentOrder.status)">
+            {{ orderStatusLabel(currentOrder.status) }}
           </a-tag>
         </a-descriptions-item>
-        <a-descriptions-item label="商品名称" :span="2">{{ currentOrder.productName }}</a-descriptions-item>
+        <a-descriptions-item label="商品名称" :span="2">{{ productNameOf(currentOrder) }}</a-descriptions-item>
         <a-descriptions-item label="订单金额">
           <span class="amount">¥{{ formatAmount(currentOrder.amount) }}</span>
         </a-descriptions-item>
         <a-descriptions-item label="实付金额">
-          <span class="amount">¥{{ formatAmount(currentOrder.paidAmount || 0) }}</span>
+          <!-- 以前读的是 paidAmount：后端那一列叫 actualAmount，这个键根本不存在，
+               于是一律折成 0，界面念「实付金额 ¥0.00」，而库里那一行实付 200。 -->
+          <span class="amount">¥{{ formatAmount(Number(currentOrder.actualAmount ?? 0)) }}</span>
         </a-descriptions-item>
-        <a-descriptions-item label="支付方式">{{ getPaymentMethodName(currentOrder.paymentMethod) }}</a-descriptions-item>
+        <a-descriptions-item label="交易流水号">{{ currentOrder.transactionId || '—' }}</a-descriptions-item>
+        <a-descriptions-item label="支付方式">{{ paymentMethodLabel(currentOrder.paymentMethod) }}</a-descriptions-item>
         <a-descriptions-item label="创建时间">{{ formatDateTime(currentOrder.createdAt) }}</a-descriptions-item>
         <a-descriptions-item label="支付时间" :span="2">{{ formatDateTime(currentOrder.paidAt) }}</a-descriptions-item>
         <a-descriptions-item label="备注" :span="2">{{ currentOrder.remark || '-' }}</a-descriptions-item>
@@ -167,12 +173,16 @@ import { orderApi } from '../../api/billing'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import { describeHttpError } from '../../api/http'
+import { ORDER_STATUS_ORDER, orderStatusColor, orderStatusLabel, countByStatus, foldOrderStatus } from '../../utils/orderStatus'
+import { paymentMethodLabel } from '../../utils/paymentMethod'
 import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 
 const loading = ref(false)
 const tableLoading = ref(false)
+const exportLoading = ref(false)
 const detailModalVisible = ref(false)
 const currentOrder = ref<any>(null)
 
@@ -215,12 +225,15 @@ const columns = [
 
 const orderListData = ref<any[]>([])
 
+// 四张统计卡以前按小写比对库里的状态：库里存的是大写代码，比不中，于是这三张卡恒为 0。
+// 计数与比对统一走 orderStatus.ts 那张词表，折成大写再归类。
 function updateStats(records: any[] = orderListData.value) {
   orderStats.total = paginationConfig.total
-  orderStats.pending = records.filter(o => o.status === 'pending').length
-  orderStats.paid = records.filter(o => o.status === 'paid').length
-  orderStats.cancelled = records.filter(o => o.status === 'cancelled').length
-  orderStats.refunded = records.filter(o => o.status === 'refunded').length
+  const counts = countByStatus(records)
+  orderStats.pending = counts.PENDING
+  orderStats.paid = counts.PAID
+  orderStats.cancelled = counts.CANCELLED
+  orderStats.refunded = counts.REFUNDED
 }
 
 function handleSearch() {
@@ -232,36 +245,13 @@ function formatAmount(amount: number): string {
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function getStatusName(status: string): string {
-  const map: Record<string, string> = {
-    pending: '待支付',
-    paid: '已支付',
-    cancelled: '已取消',
-    refunded: '已退款',
-  }
-  return map[status] || status
-}
-
-function getStatusColor(status: string): string {
-  const map: Record<string, string> = {
-    pending: 'orange',
-    paid: 'green',
-    cancelled: 'default',
-    refunded: 'blue',
-  }
-  return map[status] || 'default'
-}
-
-function getPaymentMethodName(method: string): string {
-  if (!method) return '-'
-  const map: Record<string, string> = {
-    alipay: '支付宝',
-    wechat: '微信支付',
-    bank_transfer: '银行转账',
-    credit_card: '信用卡',
-    balance: '余额支付',
-  }
-  return map[method] || method
+/**
+ * 充值订单这张表里没有「商品」这一列（库里只有金额、支付方式、状态、流水号、备注），
+ * 界面上却摆了一格「商品名称」，每一行都空着，看不出是「没有商品」还是「数据没读到」。
+ * 读不到就明摆「—」。
+ */
+function productNameOf(order: any): string {
+  return order?.productName || '—'
 }
 
 function handleStatusChange() {
@@ -314,11 +304,22 @@ async function showOrderDetail(order: any) {
 
 async function handleExport() {
   const tenantId = authStore.selectedTenantId || authStore.tenantId
+  exportLoading.value = true
   try {
     const params: any = { tenantId }
-    if (queryParams.status) params.status = queryParams.status
+    if (queryParams.status) params.status = foldOrderStatus(queryParams.status) ?? undefined
+
     const res = await orderApi.export(params)
-    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const blob = res as unknown as Blob
+    // 上一版无论后端回什么都念「导出成功」：回的是 JSON 错误壳也照样下出一个假文件。
+    // 现在认载荷形状，不是 CSV 就明说没导出。
+    if (!blob.type?.toLowerCase().includes('csv')) {
+      message.error(`导出没拿到文件（后端回的是 ${blob.type || '未知类型'}）`)
+      return
+    }
+    const text = await blob.text()
+    const rows = text.split('\n').filter(line => line.trim().length > 0).length - 1
+    const url = window.URL.createObjectURL(new Blob([blob]))
     const link = document.createElement('a')
     link.href = url
     link.setAttribute('download', `orders_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.csv`)
@@ -326,10 +327,12 @@ async function handleExport() {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    message.success('导出成功')
+    message.success(rows > 0 ? `已导出 ${rows} 张订单` : '按这些筛选条件一张都没导出，文件里只有表头')
   } catch (error) {
     logError('billing/orders-view', 'Failed to export orders:', error)
-    message.error('导出失败')
+    message.error(`导出失败：${describeHttpError(error)}`)
+  } finally {
+    exportLoading.value = false
   }
 }
 

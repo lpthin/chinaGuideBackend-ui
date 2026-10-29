@@ -2,6 +2,8 @@
 import http from './http'
 import type {
   Invoice,
+  InvoiceCreatePayload,
+  InvoiceStatistics,
   Payment,
   Transaction,
   AccountBalance,
@@ -29,16 +31,21 @@ export const invoiceApi = {
   getDetail: (id: number) =>
     http.get<{ invoice: any; items: any[] }>(`/billing/invoices/${id}/detail`),
 
-  // 创建账单
-  create: (data: Partial<Invoice>) =>
+  // 创建账单：写口吃的是实体那几列（totalAmount / invoiceType / taxNo / contactEmail），
+  // 不是界面以前自造的 amount / type / taxNumber / email —— 那四个键后端一个都不认，整段丢掉
+  create: (data: InvoiceCreatePayload) =>
     http.post<Invoice>('/billing/invoices', data),
+
+  // 账单统计：全量的份数与金额（界面上那四张卡以前拿本页十条求和冒充总额）
+  statistics: (params: { tenantId: number; startDate?: string; endDate?: string }) =>
+    http.get<InvoiceStatistics>('/billing/invoices/statistics', { params }),
 
   // 支付账单
   pay: (id: number, data?: { paymentMethod?: string }) =>
     http.post(`/billing/invoices/${id}/pay`, data),
 
   // 导出发票列表
-  export: (params: { tenantId: number; status?: string; paymentStatus?: string; startDate?: string; endDate?: string }) =>
+  export: (params: { tenantId: number; status?: string; paymentStatus?: string; startDate?: string; endDate?: string; keyword?: string }) =>
     http.get('/billing/invoices/export', {
       params,
       responseType: 'blob',
@@ -207,9 +214,10 @@ export const invoiceInfoApi = {
 
 // 支付方式 API
 export const paymentMethodApi = {
-  // 获取可用支付方式
+  // 获取可用支付方式（后端 BillingPaymentMethodController 回的是 code/name/icon/enabled，
+  // 以前这里声明成 type，照着它写的消费者会拿到 undefined）
   list: (tenantId: number) =>
-    http.get<{ type: string; name: string; icon: string; enabled: boolean }[]>('/billing/payment-methods', {
+    http.get<{ code: string; name: string; icon: string; enabled: boolean }[]>('/billing/payment-methods', {
       params: { tenantId },
     }),
 

@@ -9,7 +9,7 @@
                 <WalletOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ formatAmount(accountBalance.availableBalance) }}</div>
+                <div class="stat-value">{{ walletStatText(accountBalance.availableBalance) }}</div>
                 <div class="stat-title">可用余额</div>
               </div>
             </div>
@@ -27,7 +27,7 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ pagination.total }}</div>
-                <div class="stat-title">账单总数</div>
+                <div class="stat-title">{{ filterActive ? '筛选命中条数' : '账单总数' }}</div>
               </div>
             </div>
           </a-card>
@@ -57,13 +57,24 @@
                 <BankOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ formatAmount(accountBalance.creditLimit) }}</div>
-                <div class="stat-title">信用额度</div>
+                <!-- 这一张以前读的是「信用额度」：后端那一格写死 50000.00，库里没有这一列（M-P91 拍板 2）。
+                     换成读真有的 frozen_balance，标题一并改口 -->
+                <div class="stat-value">{{ walletStatText(accountBalance.frozenBalance) }}</div>
+                <div class="stat-title">冻结金额</div>
               </div>
             </div>
           </a-card>
         </a-col>
       </a-row>
+
+      <!-- 「这家还没有钱包」与「这一发没读到」分开念，四张卡不许用 ¥0.00 糊过去 -->
+      <a-alert
+        v-if="walletNotice"
+        :message="walletNotice"
+        type="warning"
+        show-icon
+        style="margin-bottom: 16px"
+      />
 
       <a-card title="充值套餐" :bordered="false" style="margin-bottom: 16px">
         <a-row :gutter="16">
@@ -130,7 +141,7 @@
           />
           <template #actions>
             <a-space>
-              <a-button @click="handleExport">导出</a-button>
+              <a-button :loading="exportLoading" @click="handleExport">导出</a-button>
             </a-space>
           </template>
         </filter-bar>
@@ -147,6 +158,10 @@
             <template v-if="column.key === 'invoiceNo'">
               <a @click="viewInvoiceDetail(record)">{{ record.invoiceNo }}</a>
             </template>
+            <template v-if="column.key === 'title'">
+              <!-- 读口以前会把没填的抬头编成「账单」，现在原样回 null：没填就摆「—」，不替它起名 -->
+              {{ record.title || '—' }}
+            </template>
             <template v-if="column.key === 'amount'">
               <span class="amount">¥{{ formatAmount(record.amount) }}</span>
             </template>
@@ -156,7 +171,7 @@
               </a-tag>
             </template>
             <template v-if="column.key === 'paymentMethod'">
-              {{ getPaymentMethodName(record.paymentMethod) }}
+              {{ paymentMethodLabel(record.paymentMethod) }}
             </template>
             <template v-if="column.key === 'actions'">
               <a-space>
@@ -198,10 +213,12 @@
           />
         </a-form-item>
         <a-form-item label="支付方式">
+          <!-- 值用库里那种大写代码，中文由 paymentMethod.ts 那张词表翻；
+               充值方式不再预先选中，让点的人自己点名（后端会校验） -->
           <a-radio-group v-model:value="rechargeForm.paymentMethod">
-            <a-radio value="alipay">支付宝</a-radio>
-            <a-radio value="wechat">微信支付</a-radio>
-            <a-radio value="bank_transfer">银行转账</a-radio>
+            <a-radio v-for="code in RECHARGE_METHODS" :key="code" :value="code">
+              <span>{{ paymentMethodLabel(code) }}</span>
+            </a-radio>
           </a-radio-group>
         </a-form-item>
       </a-form>
@@ -218,7 +235,7 @@
           <a-input-number
             v-model:value="withdrawForm.amount"
             :min="1"
-            :max="accountBalance.availableBalance"
+            :max="accountBalance.availableBalance ?? undefined"
             :formatter="(value: number) => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')"
             :parser="(value: string) => value.replace(/\¥\s?|(,*)/g, '')"
             style="width: 100%"
@@ -243,7 +260,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   WalletOutlined,
@@ -251,11 +268,14 @@ import {
   DollarOutlined,
   BankOutlined,
 } from '@ant-design/icons-vue'
-import { InvoiceStatus, PaymentMethod, Currency } from '../../types/billing'
+import { InvoiceStatus, Currency } from '../../types/billing'
+import { invoiceStatusLabel, invoiceStatusColor } from '../../utils/invoiceStatus'
 import type { Invoice, RechargePackage } from '../../types/billing'
 import { walletApi, packageApi, statsApi, invoiceApi, balanceApi } from '../../api/billing'
 import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime, formatDecimal } from '../../utils/format'
+import { paymentMethodLabel, type PaymentMethodCode } from '../../utils/paymentMethod'
+import { walletIsActive } from '../../utils/walletState'
 import { useAuthStore } from '../../stores/auth'
 import InvoiceDetailDrawer from './InvoiceDetailDrawer.vue'
 import FilterBar from '../../components/FilterBar.vue'
@@ -266,21 +286,26 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const tableLoading = ref(false)
 const rechargeLoading = ref(false)
+const exportLoading = ref(false)
 const rechargeModalVisible = ref(false)
 const withdrawModalVisible = ref(false)
 const detailDrawerVisible = ref(false)
 const currentInvoiceId = ref<number | null>(null)
 const dateRange = ref<[string, string] | undefined>()
 
+// 卡片上那两个金额是「读回来的」，读不到就是 null，不许用 0 冒充「查过了，就是零钱」
 const accountBalance = reactive({
-  balance: 0,
-  frozenBalance: 0,
-  availableBalance: 0,
+  balance: null as number | null,
+  frozenBalance: null as number | null,
+  availableBalance: null as number | null,
   currency: Currency.CNY,
-  creditLimit: 0,
-  totalIncome: 0,
-  totalExpense: 0,
+  totalIncome: null as number | null,
+  totalExpense: null as number | null,
 })
+
+// 「这家还没有钱包」与「这一发没读到」是两件事，分开记（见 utils/walletState.ts）
+const walletMissing = ref(false)
+const walletReadFailed = ref('')
 
 const consumptionStats = reactive({
   monthAmount: 0,
@@ -326,9 +351,13 @@ const invoiceColumns = [
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 150 },
 ]
 
+// 充值这一档只开三种方式（与钱包屏那一档保持一致）；中文与大写代码都出自 paymentMethod.ts 那张词表。
+// 后端接受词表里的五种，这里只摆这三种是界面选择，不是后端闸。
+const RECHARGE_METHODS: PaymentMethodCode[] = ['ALIPAY', 'WECHAT', 'BANK_TRANSFER']
+
 const rechargeForm = reactive({
   amount: 100,
-  paymentMethod: 'alipay',
+  paymentMethod: '' as PaymentMethodCode | '',
 })
 
 const withdrawForm = reactive({
@@ -346,55 +375,57 @@ function formatAmount(amount?: number | null): string {
 }
 
 function getStatusName(status: InvoiceStatus): string {
-  const nameMap: Record<InvoiceStatus, string> = {
-    [InvoiceStatus.DRAFT]: '草稿',
-    [InvoiceStatus.PENDING]: '待支付',
-    [InvoiceStatus.PAID]: '已支付',
-    [InvoiceStatus.OVERDUE]: '已逾期',
-    [InvoiceStatus.CANCELLED]: '已取消',
-    [InvoiceStatus.REFUNDED]: '已退款',
-  }
-  return nameMap[status] || status
+  return invoiceStatusLabel(status)
 }
 
 function getStatusColor(status: InvoiceStatus): string {
-  const colorMap: Record<InvoiceStatus, string> = {
-    [InvoiceStatus.DRAFT]: 'default',
-    [InvoiceStatus.PENDING]: 'orange',
-    [InvoiceStatus.PAID]: 'green',
-    [InvoiceStatus.OVERDUE]: 'red',
-    [InvoiceStatus.CANCELLED]: 'default',
-    [InvoiceStatus.REFUNDED]: 'blue',
-  }
-  return colorMap[status] || 'default'
+  return invoiceStatusColor(status)
 }
 
-function getPaymentMethodName(method?: PaymentMethod | string): string {
-  if (!method) return '-'
-  const nameMap: Record<string, string> = {
-    [PaymentMethod.ALIPAY]: '支付宝',
-    [PaymentMethod.WECHAT]: '微信支付',
-    [PaymentMethod.BANK_TRANSFER]: '银行转账',
-    [PaymentMethod.CREDIT_CARD]: '信用卡',
-    [PaymentMethod.BALANCE]: '余额支付',
-  }
-  return nameMap[method] || method
+/** 第二张卡的数就是列表的总数：一有筛选它就不是「账单总数」了，标题跟着改口 */
+const filterActive = computed(() =>
+  Boolean(queryParams.status || queryParams.keyword || queryParams.startDate || queryParams.endDate)
+)
+
+/** 卡片上的钱：读失败说「没取到」，这家没开过钱包说「—」，都不许念成 ¥0.00 */
+function walletStatText(amount: number | null): string {
+  if (walletReadFailed.value) return '没取到'
+  if (amount === null || amount === undefined) return '—'
+  return `¥${formatAmount(amount)}`
 }
+
+/** 四张卡下面那句话：把「还没有钱包」与「这一发没读到」分开念 */
+const walletNotice = computed(() => {
+  if (walletReadFailed.value) return `钱包没读到：${walletReadFailed.value}`
+  if (walletMissing.value) return '这家还没有钱包，充值后这里会显示余额'
+  return ''
+})
 
 async function loadWalletInfo() {
   const tenantId = getTenantId()
+  walletReadFailed.value = ''
+  walletMissing.value = false
   try {
     const res = await walletApi.getInfo(tenantId)
     if (res) {
-      accountBalance.balance = res.balance || 0
-      accountBalance.frozenBalance = res.frozenAmount || res.frozenBalance || 0
-      accountBalance.availableBalance = res.availableBalance || 0
-      accountBalance.creditLimit = res.creditLimit || 0
-      accountBalance.totalIncome = res.totalRecharge || res.totalIncome || 0
-      accountBalance.totalExpense = res.totalConsume || res.totalExpense || 0
+      // walletState 的两个字面串出自后端 BillingWalletController（utils/walletState.ts 是唯一出处）
+      walletMissing.value = !walletIsActive(res)
+      accountBalance.balance = res.balance ?? null
+      accountBalance.frozenBalance = walletMissing.value ? null : (res.frozenAmount ?? res.frozenBalance ?? 0)
+      accountBalance.availableBalance = walletMissing.value ? null : (res.availableBalance ?? 0)
+      accountBalance.totalIncome = res.totalRecharge ?? res.totalIncome ?? null
+      accountBalance.totalExpense = res.totalConsume ?? res.totalExpense ?? null
     }
   } catch (error: any) {
     logError('billing/billing-view', '加载钱包信息失败:', error)
+    // 读失败不把上一轮的旧数字继续摆着：那一眼看上去像「余额还是这些」
+    accountBalance.balance = null
+    accountBalance.frozenBalance = null
+    accountBalance.availableBalance = null
+    accountBalance.totalIncome = null
+    accountBalance.totalExpense = null
+    walletMissing.value = false
+    walletReadFailed.value = describeHttpError(error)
     message.error(`加载钱包信息失败：${describeHttpError(error)}`)
   }
 }
@@ -480,14 +511,24 @@ function handleDateChange(dates: [string, string] | undefined) {
 
 async function handleExport() {
   const tenantId = getTenantId()
+  exportLoading.value = true
   try {
     const params: any = { tenantId }
     if (queryParams.status) params.status = queryParams.status
     if (queryParams.startDate) params.startDate = queryParams.startDate
     if (queryParams.endDate) params.endDate = queryParams.endDate
-    
+
     const res = await invoiceApi.export(params)
-    const url = window.URL.createObjectURL(new Blob([res as any]))
+    const blob = res as unknown as Blob
+    // 上一版不分形状就念「导出成功」：后端那一口要是回了 JSON（错误包），界面也会说导出好了。
+    // 现在认回包形状：不是 CSV 就不念成功，是 CSV 就把导出去几行说清楚。
+    if (!blob.type?.toLowerCase().includes('csv')) {
+      message.error(`导出没拿到文件（后端回的是 ${blob.type || '未知类型'}）`)
+      return
+    }
+    const text = await blob.text()
+    const rows = text.split('\n').filter(line => line.trim().length > 0).length - 1
+    const url = window.URL.createObjectURL(new Blob([blob]))
     const link = document.createElement('a')
     link.href = url
     link.setAttribute('download', `账单导出_${new Date().toISOString().slice(0, 10)}.csv`)
@@ -495,16 +536,18 @@ async function handleExport() {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    message.success('导出成功')
+    message.success(rows > 0 ? `已导出 ${rows} 张账单` : '按这些筛选条件一张都没导出，文件里只有表头')
   } catch (error: any) {
     logError('billing/billing-view', '导出失败:', error)
     message.error(`导出失败：${describeHttpError(error)}`)
+  } finally {
+    exportLoading.value = false
   }
 }
 
 function showRechargeModal() {
   rechargeForm.amount = 100
-  rechargeForm.paymentMethod = 'alipay'
+  rechargeForm.paymentMethod = ''
   rechargeModalVisible.value = true
 }
 
@@ -519,6 +562,10 @@ async function handleConfirmRecharge() {
     message.warning('请输入充值金额')
     return
   }
+  if (!rechargeForm.paymentMethod) {
+    message.error('请选择支付方式')
+    return
+  }
   const tenantId = getTenantId()
   rechargeLoading.value = true
   try {
@@ -529,7 +576,7 @@ async function handleConfirmRecharge() {
     await loadStats()
   } catch (error: any) {
     logError('billing/billing-view', '充值失败:', error)
-    message.error(error.message || '充值失败')
+    message.error(`充值失败：${describeHttpError(error)}`)
   } finally {
     rechargeLoading.value = false
   }
@@ -544,13 +591,20 @@ async function handleConfirmWithdraw() {
     message.warning('请选择提现账户')
     return
   }
+  if (accountBalance.availableBalance === null) {
+    // 余额没读到就不让点：这时候说什么「不能超过可用余额」都是空口保证，后端才是真正的闸
+    message.warning('可用余额还没读到，请刷新页面后再提现')
+    return
+  }
   if (withdrawForm.amount > accountBalance.availableBalance) {
     message.warning('提现金额不能超过可用余额')
     return
   }
-  
+
   const tenantId = getTenantId()
   try {
+    // 后端 /billing/balance/withdraw 只认 amount，这两个「提现账户」是界面自己摆的、提交上去没人读
+    // （M-P91 收口时登记为待拍板，不在这一批偷偷改口径）
     const accountInfo = {
       accountId: withdrawForm.accountId,
       accountType: withdrawForm.accountId === '1' ? 'bank' : 'alipay',
@@ -561,7 +615,7 @@ async function handleConfirmWithdraw() {
     await loadWalletInfo()
   } catch (error: any) {
     logError('billing/billing-view', '提现失败:', error)
-    message.error(error.message || '提现失败')
+    message.error(`提现失败：${describeHttpError(error)}`)
   }
 }
 
@@ -569,7 +623,7 @@ function handleRechargePackage(packageId: number) {
   const pkg = rechargePackages.value.find(p => p.id === packageId)
   if (pkg) {
     rechargeForm.amount = pkg.discountAmount
-    rechargeForm.paymentMethod = 'alipay'
+    rechargeForm.paymentMethod = ''
     rechargeModalVisible.value = true
   }
 }
@@ -581,14 +635,14 @@ function viewInvoiceDetail(record: Invoice) {
 
 async function handlePay(record: Invoice) {
   try {
-    await invoiceApi.pay(record.id, { paymentMethod: 'balance' })
+    await invoiceApi.pay(record.id, { paymentMethod: 'BALANCE' })
     message.success('支付成功')
     await loadInvoices()
     await loadWalletInfo()
     await loadStats()
   } catch (error: any) {
     logError('billing/billing-view', '支付失败:', error)
-    message.error(error.message || '支付失败')
+    message.error(`支付失败：${describeHttpError(error)}`)
   }
 }
 

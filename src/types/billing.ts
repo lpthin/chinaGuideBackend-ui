@@ -1,4 +1,6 @@
 // 计费系统类型定义
+// 支付方式这一族的大写代码与中文念法只有一张表：src/utils/paymentMethod.ts
+import type { PaymentMethodCode } from '../utils/paymentMethod'
 
 // 货币类型
 export enum Currency {
@@ -17,14 +19,10 @@ export enum InvoiceStatus {
   REFUNDED = 'refunded',
 }
 
-// 支付方式
-export enum PaymentMethod {
-  ALIPAY = 'alipay',
-  WECHAT = 'wechat',
-  BANK_TRANSFER = 'bank_transfer',
-  CREDIT_CARD = 'credit_card',
-  BALANCE = 'balance',
-}
+// 支付方式：库里那一列存的是大写代码（WECHAT/ALIPAY/BANK_TRANSFER/CREDIT_CARD/BALANCE），
+// 代码清单与中文念法都在 src/utils/paymentMethod.ts，这里只给它起个别名，不再抄第二份名单
+//（以前这里是小写枚举，界面拿它去比库里的大写代码，比不中）
+export type PaymentMethod = PaymentMethodCode
 
 // 支付状态
 export enum PaymentStatus {
@@ -35,13 +33,13 @@ export enum PaymentStatus {
   PARTIAL_REFUND = 'partial_refund',
 }
 
-// 交易类型
+// 交易类型：与 billing_transaction.type 那一列的真值同名（后端 BillingTransactionTypes）
+// 界面念法见 WalletView 里那张词表；以前这里是 charge/withdraw，库里一个大写都没有，等于一张没人对过的名单
 export enum TransactionType {
-  CHARGE = 'charge',
-  REFUND = 'refund',
-  TRANSFER = 'transfer',
-  WITHDRAW = 'withdraw',
-  RECHARGE = 'recharge',
+  RECHARGE = 'RECHARGE',
+  CONSUME = 'CONSUME',
+  REFUND = 'REFUND',
+  TRANSFER = 'TRANSFER',
 }
 
 // 账单周期
@@ -77,17 +75,50 @@ export interface Invoice {
   dueDate?: string
   paidAt?: string
   paidAmount?: number
-  paymentMethod?: PaymentMethod
+  // 库里那一列的原始代码；写这一列只用词表里的代码，读的时候词表认不出就原样摆出来，不编名字
+  paymentMethod?: string
   paymentTransactionId?: string
   remark?: string
   invoiceUrl?: string
   discountAmount?: number
-  type?: string
-  taxNumber?: string
-  email?: string
+  // 下面四格是库里那四列本来的名字（invoice_type / tax_no / contact_email / unpaid_amount）。
+  // 以前这里写的是界面自造的 type / taxNumber / email，读口根本不投影这些键，
+  // 于是「税号」列恒空、「个人/企业」每行硬念一个，写回去时后端一个键也不认。
+  invoiceType?: string
+  taxNo?: string
+  contactEmail?: string
+  unpaidAmount?: number
+  totalAmount?: number
+  billingDate?: string
+  paymentStatus?: string
   createdAt: string
   updatedAt: string
   items?: InvoiceItem[]
+}
+
+/**
+ * 申请开票那一发的载荷：键名必须是后端实体自己那几列。
+ * 写成 amount/type/taxNumber/email 时 Spring 会静默丢掉不认识的键，
+ * 界面念「开票申请已提交」，库里落一条金额、税号、类型、邮箱全空的行。
+ */
+export interface InvoiceCreatePayload {
+  tenantId: number
+  title: string
+  invoiceType?: string
+  taxNo?: string
+  totalAmount: number
+  contactEmail?: string
+  remark?: string
+}
+
+/** 账单统计口：全量的份数与金额，不是本页十条求和 */
+export interface InvoiceStatistics {
+  totalCount: number
+  paidCount: number
+  unpaidCount: number
+  totalAmount: number
+  paidAmount: number
+  unpaidAmount: number
 }
 
 // 账单项目
@@ -150,7 +181,8 @@ export interface AccountBalance {
   frozenBalance: number
   availableBalance: number
   currency: Currency
-  creditLimit?: number
+  // 这里以前有一格 creditLimit?: number：后端那一格是写死的 50000.00，billing_wallet 表里没有 credit_limit 这一列
+  // （M-P91 拍板 2 已把那一格从后端读口摘掉，类型里也不留，免得又有人接它）
   totalIncome: number
   totalExpense: number
   lastSettlementDate?: string
