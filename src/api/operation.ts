@@ -9,6 +9,7 @@ import type {
   DataReportForm,
   PageResult,
   OperationStats,
+  OperationDashboard,
   TrafficTrendItem,
   CategoryDistributionItem,
   UserStats,
@@ -184,19 +185,9 @@ export const operationApi = {
       params: { tenantId, startDate, endDate }
     }),
 
-  // 获取运营看板总览
+  // 获取运营看板总览（读不到那一家时带 tenantUnreadable + 成因）
   getDashboard: (tenantId: number) =>
-    http.get<{
-      today: { views: number; articles: number; activeUsers: number }
-      weeklyTrend: TrafficTrendItem[]
-      keyMetrics: {
-        totalArticles: number
-        totalViews: number
-        totalComments: number
-        totalLikes: number
-        totalUsers: number
-      }
-    }>('/operation/dashboard', { params: { tenantId } }),
+    http.get<OperationDashboard>('/operation/dashboard', { params: { tenantId } }),
 
   /**
    * 导出统计报表。后端回的一律是 CSV 文件（带 BOM、附件头）。

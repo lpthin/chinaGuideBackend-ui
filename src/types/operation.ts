@@ -14,6 +14,27 @@ export interface TrafficTrendItem {
   articles: number
 }
 
+/**
+ * 运营概览（`GET /operation/dashboard`）。
+ * `tenantUnreadable` 为真表示这一家读不到——此时两个空态字段带着后端给的成因，
+ * 界面摆「—」并念那一句，不能把读不到摆成 0。
+ */
+export interface OperationDashboard {
+  today: { views: number; articles: number; activeUsers: number }
+  weeklyTrend: TrafficTrendItem[]
+  keyMetrics: {
+    totalArticles: number
+    totalViews: number
+    totalComments: number
+    totalLikes: number
+    totalUsers: number
+    totalCases: number
+  }
+  tenantUnreadable?: boolean
+  emptyReason?: string
+  emptyLine?: string
+}
+
 export interface CategoryDistributionItem {
   categoryId: number
   categoryName: string
