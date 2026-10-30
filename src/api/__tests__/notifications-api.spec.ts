@@ -65,12 +65,44 @@ describe('notificationsApi', () => {
   it('未读数、单条已读、全部已读各打自己那条端点', async () => {
     const http = await httpMock()
     await notificationsApi.unreadCount()
-    expect(http.get).toHaveBeenLastCalledWith('/notifications/unread-count')
+    expect(http.get).toHaveBeenLastCalledWith('/notifications/unread-count', {
+      params: { type: undefined }
+    })
 
     await notificationsApi.read(12)
     expect(http.post).toHaveBeenLastCalledWith('/notifications/12/read')
 
     await notificationsApi.readAll()
-    expect(http.post).toHaveBeenLastCalledWith('/notifications/read-all')
+    expect(http.post).toHaveBeenLastCalledWith('/notifications/read-all', undefined, {
+      params: { type: undefined }
+    })
+  })
+
+  /**
+   * 「全部标为已读」不可撤销：筛了类型就必须把类型送出去，否则后端会动到屏上看不见的那些。
+   * 空白的类型框等于没筛（否则会拼成「只看类型为空的」），两头发出去的都是 undefined。
+   */
+  it('类型条件如实送出去，空白类型等于没筛', async () => {
+    const http = await httpMock()
+
+    await notificationsApi.unreadCount(' AI ')
+    expect(http.get).toHaveBeenLastCalledWith('/notifications/unread-count', {
+      params: { type: 'AI' }
+    })
+
+    await notificationsApi.readAll(' AI ')
+    expect(http.post).toHaveBeenLastCalledWith('/notifications/read-all', undefined, {
+      params: { type: 'AI' }
+    })
+
+    await notificationsApi.unreadCount('   ')
+    expect(http.get).toHaveBeenLastCalledWith('/notifications/unread-count', {
+      params: { type: undefined }
+    })
+
+    await notificationsApi.readAll('')
+    expect(http.post).toHaveBeenLastCalledWith('/notifications/read-all', undefined, {
+      params: { type: undefined }
+    })
   })
 })

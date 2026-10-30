@@ -60,11 +60,23 @@ export const notificationsApi = {
       }
     }),
 
-  /** 未读有几条：后端按四个口径给，这一页只用 total */
-  unreadCount: () => http.get<{ total: number; system: number; audit: number; ai: number }>('/notifications/unread-count'),
+  /**
+   * 未读有几条：后端按四个口径给，这一页只用 total。
+   * 传了类型就只数这一类——屏上筛了哪一类，这一句就只念哪一类。
+   */
+  unreadCount: (type?: string) =>
+    http.get<{ total: number; system: number; audit: number; ai: number }>('/notifications/unread-count', {
+      params: { type: type?.trim() || undefined }
+    }),
 
   read: (id: number) => http.post<NotificationRecord>(`/notifications/${id}/read`),
 
-  /** 返回的是被改动了几条，不是剩余未读数 */
-  readAll: () => http.post<number>('/notifications/read-all')
+  /**
+   * 返回的是被改动了几条，不是剩余未读数。
+   * 这一步不可撤销（没有「标回未读」的口），所以范围必须跟列表同源：筛了类型就只动那一类。
+   */
+  readAll: (type?: string) =>
+    http.post<number>('/notifications/read-all', undefined, {
+      params: { type: type?.trim() || undefined }
+    })
 }

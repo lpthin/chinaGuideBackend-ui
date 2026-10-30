@@ -283,3 +283,62 @@ describe('两条已读动作：一条按 id 打，一条报后端那个数', () 
     })
   })
 })
+
+/**
+ * 「全部标为已读」不可撤销，所以它动的范围必须跟屏上看得见的那一份同源（M-P95）。
+ * 三条：
+ * 1. 类型框筛了哪一类，列表 / 未读数 / 全部标为已读 三处都只带这一类；
+ * 2. 输入框里敲了还没提交的字不算数——按钮动的仍是上一份生效条件；
+ * 3. 列表切到「已读」那颗按钮不给点：那一屏没有可标为未读的行，点了只会动到看不见的那些。
+ */
+describe('筛了什么就只动什么，念的也是同一份范围', () => {
+  function typeBox(wrapper: any) {
+    return wrapper.findAll('input').find(
+      (node: any) => node.attributes('placeholder') === '照后端写入时那个类型码填'
+    )
+  }
+
+  it('筛了类型：列表、未读数、全部标为已读 都只带这一类', async () => {
+    const wrapper = await mountView({ records: [record(1, 'unread')], unread: 5 })
+    await typeBox(wrapper).setValue('  AI  ')
+    click(byText('刷新')[0])
+    await flushPromises()
+
+    expect(notificationsApi.list).toHaveBeenLastCalledWith({
+      page: 1, size: 20, status: 'unread', type: 'AI'
+    })
+    expect(notificationsApi.unreadCount).toHaveBeenLastCalledWith('AI')
+    // 未读数那一句也按同一份条件念，不是全类型的总数
+    expect(wrapper.text()).toContain('只看类型码「AI」')
+    expect(byText('全部标为已读')[0].getAttribute('title')).toBe('只动类型码「AI」的未读行')
+
+    click(byText('全部标为已读')[0])
+    await flushPromises()
+    expect(notificationsApi.readAll).toHaveBeenLastCalledWith('AI')
+    expect(wrapper.text()).toContain('刚把 2 条标为已读，只看类型码「AI」')
+  })
+
+  it('输入框里还没提交的字不算生效条件：按钮动的还是上一份', async () => {
+    const wrapper = await mountView()
+    await typeBox(wrapper).setValue('AI')
+    expect(wrapper.text()).toContain('全部类型')
+    click(byText('全部标为已读')[0])
+    await flushPromises()
+    expect(notificationsApi.readAll).toHaveBeenLastCalledWith(undefined)
+  })
+
+  it('列表切到「已读」时那颗按钮不给点，并说清为什么要切回来', async () => {
+    const wrapper = await mountView({ records: [record(2, 'read')], unread: 7 })
+    const select = wrapper.findAllComponents(Select)[0]
+    select.vm.$emit('update:value', 'read')
+    select.vm.$emit('change', 'read')
+    await flushPromises()
+
+    const button = byText('全部标为已读')[0] as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    expect(button.getAttribute('title')).toContain('状态切回')
+    click(button)
+    await flushPromises()
+    expect(notificationsApi.readAll).not.toHaveBeenCalled()
+  })
+})

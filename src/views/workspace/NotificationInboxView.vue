@@ -20,7 +20,11 @@
       <a-form-item class="toolbar-actions">
         <a-space>
           <a-button @click="reload">刷新</a-button>
-          <a-button type="primary" :disabled="loading || unread === null || unread === 0"
+          <a-button type="primary"
+                    :disabled="loading || unread === null || unread === 0 || status === READ"
+                    :title="status === READ
+                      ? '列表现在看的是已读，这一屏没有可标为未读的行；要标请把状态切回「未读」或「全部」'
+                      : `只动${scopeWhat}的未读行`"
                     :loading="readingAll" @click="readAll">全部标为已读</a-button>
         </a-space>
       </a-form-item>
@@ -64,8 +68,8 @@
     </a-table>
 
     <p class="notification-inbox__count">
-      未读 {{ unread === null ? '没取到' : unread }} 条（未读数与列表分开取，任一失败都只说自己的那段）。
-      <span v-if="markedAll !== null">刚把 {{ markedAll }} 条标为已读。</span>
+      未读 {{ unread === null ? '没取到' : unread }} 条，{{ scopeText }}（未读数与列表分开取，任一失败都只说自己的那段）。
+      <span v-if="markedAll !== null">刚把 {{ markedAll }} 条标为已读，{{ scopeText }}。</span>
     </p>
   </div>
 </template>
@@ -93,6 +97,9 @@ import {
  * 3. 「标为已读」只对未读那一行可点，已读的行不给出一个点了只会重复写的按钮；
  * 4. 空表那一格逐字念后端回的成因（M-P88）：真的没有 / 这一页翻过了头 / 选中的那一家读不到 /
  *    这一发读失败，四种不许长成一个样；「翻过了头」由界面自己翻回第一页再读一遍。
+ * 5. 「全部标为已读」不可撤销，所以范围必须跟屏上看得见的同源（M-P95）：类型框里筛了哪一类，
+ *    就只把这一类送上去；未读数那一句也按同一份条件念，不许拿全类型的总数报在筛过类型的屏上；
+ *    列表切到「已读」时按钮不给点——那一屏没有可标为未读的行，点了只会动到看不见的那些。
  */
 
 const UNREAD = 'unread'
@@ -106,6 +113,11 @@ const unread = ref<number | null>(null)
 
 const status = ref<string | undefined>(UNREAD)
 const typeFilter = ref('')
+/** 已经生效的那一份类型条件：列表、未读数、按钮范围都读它，不读输入框里还没提交的字 */
+const appliedType = ref('')
+const scopeText = computed(() => (appliedType.value ? `只看类型码「${appliedType.value}」` : '全部类型'))
+/** 同一份范围的另一种说法：放进「只动……的未读行」这句里才通顺 */
+const scopeWhat = computed(() => (appliedType.value ? `类型码「${appliedType.value}」` : '全部类型'))
 
 const loading = ref(false)
 const readingAll = ref(false)
@@ -150,7 +162,7 @@ async function load() {
   emptyReason.value = null
   try {
     const result = await notificationsApi.list({
-      page: page.value, size: size.value, status: status.value, type: typeFilter.value
+      page: page.value, size: size.value, status: status.value, type: appliedType.value
     })
     records.value = result.records || []
     total.value = result.total || 0
@@ -175,7 +187,7 @@ async function load() {
 
 async function loadUnread() {
   try {
-    unread.value = (await notificationsApi.unreadCount()).total
+    unread.value = (await notificationsApi.unreadCount(appliedType.value || undefined)).total
   } catch {
     unread.value = null
   }
@@ -183,6 +195,8 @@ async function loadUnread() {
 
 function reload() {
   page.value = 1
+  // 点了刷新/切筛选才把输入框里的字算成生效条件：之后列表、未读数、按钮范围都只认它
+  appliedType.value = typeFilter.value.trim()
   return Promise.all([load(), loadUnread()])
 }
 
@@ -206,7 +220,7 @@ async function readAll() {
   readingAll.value = true
   readFailed.value = ''
   try {
-    const changed = await notificationsApi.readAll()
+    const changed = await notificationsApi.readAll(appliedType.value || undefined)
     markedAll.value = typeof changed === 'number' ? changed : 0
     await reload()
   } catch (err) {
