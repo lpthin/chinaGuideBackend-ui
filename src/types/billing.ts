@@ -1,6 +1,7 @@
 // 计费系统类型定义
 // 支付方式这一族的大写代码与中文念法只有一张表：src/utils/paymentMethod.ts
 import type { PaymentMethodCode } from '../utils/paymentMethod'
+import type { EmptyReason } from '../utils/emptyPage'
 
 // 货币类型
 export enum Currency {
@@ -191,40 +192,32 @@ export interface AccountBalance {
   updatedAt: string
 }
 
-// 消费统计
+/**
+ * `GET /api/billing/stats` 现测回包（2026-10-30）的那十格，多一格不写。
+ *
+ * 以前这一份类型里写着 `totalAmount`／`period`／`periodType`／`breakdown`／`dailyData`／
+ * `comparison`／`topServices`——后端一个字都没回过，界面上也没有一行读它们。类型编得比接口全，
+ * 下一个接这一屏的人就会去读一个永远是 undefined 的格子，再把它当 0 摆出去。
+ */
 export interface ConsumptionStats {
-  tenantId: number
-  totalAmount: number
-  currency: Currency
-  period: string
-  periodType: 'day' | 'week' | 'month' | 'year'
-  thisMonthExpense?: number
-  lastMonthExpense?: number
-  monthOverMonthGrowth?: number
-  pendingInvoices?: number
-  pendingAmount?: number
-  lastMonthInvoices?: number
-  breakdown: {
-    productType: ProductType
-    productName: string
-    amount: number
-    percentage: number
-  }[]
-  dailyData: {
-    date: string
-    amount: number
-  }[]
-  comparison: {
-    lastPeriodAmount: number
-    growthRate: number
-    growthAmount: number
-  }
-  topServices: {
-    name: string
-    amount: number
-    usage: number
-    unit: string
-  }[]
+  balance: number
+  totalIncome: number
+  totalExpense: number
+  thisMonthExpense: number
+  lastMonthExpense: number
+  /**
+   * 环比涨跌百分比。上月一分钱没花就没有分母，这个数不存在，后端回 null（以前它写死 100）。
+   * 界面此时念「上月没有消费，比不出涨跌」，不许摆 0% 或 +100%。
+   */
+  monthOverMonthGrowth: number | null
+  pendingInvoices: number
+  pendingAmount: number
+  lastMonthInvoices: number
+  /** 「这一家在这个库里没有身份」，与「这一家这个月没花钱」是两件事 */
+  tenantUnreadable: boolean
+  /** 只在读不到时才有；成因的唯一出处是后端 `EmptyResultReasons`，界面不另编一句 */
+  emptyReason?: EmptyReason
+  emptyLine?: string
 }
 
 // 充值套餐

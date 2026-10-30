@@ -131,11 +131,16 @@ export const statsApi = {
   overview: (tenantId: number) =>
     http.get<any>('/billing/stats/overview', { params: { tenantId } }),
 
-  // 获取消费统计
-  getStats: (tenantId: number, periodType?: string, startDate?: string, endDate?: string) =>
-    http.get<ConsumptionStats>('/billing/stats', {
-      params: { tenantId, periodType, startDate, endDate },
-    }),
+  /**
+   * 消费统计。
+   *
+   * 以前这里还发 `periodType`/`startDate`/`endDate` 三格，而 `/billing/stats` 的口上只有 `tenantId`
+   * 一个参数（现测 2026-10-30：这三格出现在 URL 里，后端一个字不消费，带与不带回的是同一份数）。
+   * 发出去没人接，比根本没有这三个参数更坏：看代码的人以为这一屏能按周期筛。所以删掉。
+   * 要真按周期统计得先立口径（哪张表、跨月流水算哪个月），那是新功能不是修缺陷。
+   */
+  getStats: (tenantId: number) =>
+    http.get<ConsumptionStats>('/billing/stats', { params: { tenantId } }),
 
   // 获取消费趋势
   getTrend: (tenantId: number, days: number = 30) =>
@@ -143,11 +148,11 @@ export const statsApi = {
       params: { tenantId, days },
     }),
 
-  // 获取消费构成
-  getBreakdown: (tenantId: number, startDate?: string, endDate?: string) =>
-    http.get<{ productType: string; productName: string; amount: number; percentage: number }[]>(
+  // 获取消费构成（同 getStats：这一口只认 tenantId，日期参数已按后端删掉）
+  getBreakdown: (tenantId: number) =>
+    http.get<{ productType: string; productName: string; amount: number; percentage: number | null }[]>(
       '/billing/stats/breakdown',
-      { params: { tenantId, startDate, endDate } }
+      { params: { tenantId } }
     ),
 
   // 获取月度消费对比
