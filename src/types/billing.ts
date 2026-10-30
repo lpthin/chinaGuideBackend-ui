@@ -220,6 +220,28 @@ export interface ConsumptionStats {
   emptyLine?: string
 }
 
+/**
+ * `GET /api/billing/stats/overview` 现测回包（2026-10-30，租户 558）的格子，多一格不写。
+ *
+ * 账单管理屏顶部「本月消费」那一张卡读的就是这一口。改前这里 `growthRate` 在上月为 0 时
+ * 后端写死回 100（本月 8.88／上月 0.00 那一发实测就是 100）；现在没有分母时回 null。
+ * 「这家在这库里没有身份」也以前不带成因，整屏 0 让人读成「这家没消费过」，现在跟 `/stats`
+ * 同一把尺（`tenantUnreadable` + `emptyLine`）。
+ */
+export interface OverviewStats {
+  todayConsume: number
+  thisMonthConsume: number
+  lastMonthConsume: number
+  /** 与 `thisMonthConsume` 同一份数的别名格，后端两把都给 */
+  monthAmount: number
+  balance: number
+  /** 没有分母就不存在这个百分比；界面念「上月没有消费，比不出涨跌」，不许摆 0% 或 +100% */
+  growthRate: number | null
+  tenantUnreadable: boolean
+  emptyReason?: EmptyReason
+  emptyLine?: string
+}
+
 // 充值套餐
 export interface RechargePackage {
   id: number

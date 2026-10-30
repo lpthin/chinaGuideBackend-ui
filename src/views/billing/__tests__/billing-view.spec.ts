@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { Button, message } from 'ant-design-vue'
 import BillingView from '../BillingView.vue'
@@ -14,6 +15,13 @@ import { walletApi, packageApi, statsApi, invoiceApi, balanceApi } from '../../.
  *    支付方式在库里是大写代码（ALIPAY），界面拿小写去比，列表那一格念不出来；
  * 3. 「导出」那一发后端要是回了 JSON（错误包），界面照样念「导出成功」。
  * 用例钉这三处，外加「这家还没有钱包」与「这一发没读到」分两句说、提现不许在余额没读到时硬提。
+ *
+ * M-P94 又钉四处（同一屏）：
+ * 4. 这一屏的账以前算给谁是人猜的——`selectedTenantId || tenantId || 1`：超管还没点租户切换时，
+ *    屏上摆的是别家客户的余额、账单和消费，界面一个字不提。现在没选定客户就一发都不发；
+ * 5. 「本月消费」那一张卡把读不到摆成 ¥0.00，环比在接口回 null（没有分母）时又被抹成 0 说成持平；
+ * 6. 列表按关键词筛剩 1 张、点导出下载下来的却是全部 3 张（导出那一发漏带 keyword）；
+ * 7. 日期区间以前根本不发出去（界面选了区间，请求里没有那一格）。
  */
 
 vi.mock('ant-design-vue', async () => {
@@ -32,8 +40,26 @@ vi.mock('../../../api/billing', () => ({
   balanceApi: { withdraw: vi.fn() }
 }))
 
+/**
+ * 登录态里跟这一屏有关的四格（与 `stores/auth.ts` 同形，`reactive` 是为了「中途换客户」那一例：
+ * 真 store 是响应式的，普通对象拧不动界面）。
+ * 改前这一份 mock 只有 `selectedTenantId`／`tenantId`：那时候界面拿的就是 `tenantId`，
+ * 现在界面只认「有没有选定客户」，所以 `isSuperAdmin` 与 `user` 都得摆上，用例才拧得动。
+ */
+const authMock = reactive<{
+  isSuperAdmin: boolean
+  selectedTenantId: number | null
+  selectedTenantCode: string | null
+  user: { tenantId: number } | null
+}>({
+  isSuperAdmin: true,
+  selectedTenantId: 15,
+  selectedTenantCode: 'demo-corp',
+  user: { tenantId: 15 },
+})
+
 vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({ selectedTenantId: 15, tenantId: 15 })
+  useAuthStore: () => authMock
 }))
 
 const PASS_THROUGH = (name: string) => ({
@@ -79,6 +105,10 @@ const DRAWER_STUB = {
   template: '<div class="drawer-stub" />'
 }
 
+/** 后端 `EmptyResultReasons` 那一句话（`/stats/overview` 现测形状），界面原样念，不抄第二份 */
+const OVERVIEW_LINE =
+  '费用总览：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'
+
 function walletRead(overrides: Record<string, unknown> = {}) {
   return {
     walletState: 'ACTIVE',
@@ -109,24 +139,54 @@ function invoiceRow(id: number, overrides: Record<string, unknown> = {}) {
   }
 }
 
+/**
+ * `GET /api/billing/stats/overview` 那一发的形状（`types/billing.ts` 的 `OverviewStats`）。
+ * 默认给的是现场实测过的那一形：上月 0.00、本月 1200，后端没有分母所以 `growthRate` 回 null
+ * （改前它在这一发里写死 100，界面拿 `|| 0` 又抹成 0，两头都不是真话）。
+ */
+function overviewRead(overrides: Record<string, unknown> = {}) {
+  return {
+    todayConsume: 40,
+    thisMonthConsume: 1200,
+    lastMonthConsume: 0,
+    monthAmount: 1200,
+    balance: 380,
+    growthRate: null,
+    tenantUnreadable: false,
+    ...overrides,
+  }
+}
+
 interface Options {
   wallet?: ReturnType<typeof walletRead>
   walletError?: string
   rows?: Array<ReturnType<typeof invoiceRow>>
+  overview?: ReturnType<typeof overviewRead>
+  overviewError?: string
 }
 
 async function mountView(options: Options = {}) {
-  const { wallet = walletRead(), walletError = '', rows = [invoiceRow(1)] } = options
+  const {
+    wallet = walletRead(),
+    walletError = '',
+    rows = [invoiceRow(1)],
+    overview = overviewRead(),
+    overviewError = '',
+  } = options
 
   if (walletError) {
     vi.mocked(walletApi.getInfo).mockRejectedValue(new Error(walletError))
   } else {
     vi.mocked(walletApi.getInfo).mockResolvedValue(wallet as any)
   }
+  if (overviewError) {
+    vi.mocked(statsApi.overview).mockRejectedValue(new Error(overviewError))
+  } else {
+    vi.mocked(statsApi.overview).mockResolvedValue(overview as any)
+  }
   vi.mocked(packageApi.list).mockResolvedValue([
     { id: 11, name: '基础档', originalAmount: 100, discountAmount: 90, bonusAmount: 10, totalAmount: 100, isPopular: false, isRecommended: true },
   ] as any)
-  vi.mocked(statsApi.overview).mockResolvedValue({ thisMonthConsume: 1200, lastMonthConsume: 0 } as any)
   vi.mocked(invoiceApi.list).mockResolvedValue({ records: rows, total: rows.length } as any)
   vi.mocked(invoiceApi.export).mockResolvedValue({ type: 'application/json', text: async () => '{"success":true}' } as any)
   vi.mocked(invoiceApi.pay).mockResolvedValue({} as any)
@@ -203,11 +263,29 @@ function selectByPlaceholder(wrapper: any, placeholder: string) {
   return select
 }
 
+/** 按 placeholder 找那个搜索框（`a-input-search`） */
+function searchByPlaceholder(wrapper: any, placeholder: string) {
+  const node = wrapper.findAllComponents(PASS_THROUGH('AInputSearch')).find((c: any) => c.props('placeholder') === placeholder)
+  if (!node) throw new Error(`界面上没有 placeholder 为「${placeholder}」的搜索框`)
+  return node
+}
+
+/** 日期区间那一格：v-model 走 update:value，@change 才真去取数，两下都要发 */
+function pickDateRange(wrapper: any, range: [string, string]) {
+  const picker = wrapper.findComponent(PASS_THROUGH('ARangePicker'))
+  picker.vm.$emit('update:value', range)
+  picker.vm.$emit('change', range, '')
+}
+
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
   window.URL.createObjectURL = vi.fn(() => 'blob:mp91')
   window.URL.revokeObjectURL = vi.fn()
+  authMock.isSuperAdmin = true
+  authMock.selectedTenantId = 15
+  authMock.selectedTenantCode = 'demo-corp'
+  authMock.user = { tenantId: 15 }
 })
 
 describe('那两张钱卡读的是库里真有的列', () => {
@@ -335,5 +413,143 @@ describe('导出那一发：回的不是文件就不许念成功', () => {
     await flushPromises()
     await flushPromises()
     expect(message.success).toHaveBeenCalledWith('按这些筛选条件一张都没导出，文件里只有表头')
+  })
+
+  it('筛了关键词再点导出：那一发要带上关键词，不许列表筛完 1 张、文件里给全部 3 张', async () => {
+    const wrapper = await mountView()
+    searchByPlaceholder(wrapper, '搜索账单号').vm.$emit('update:value', 'MP94')
+    await flushPromises()
+    clickButton(wrapper, '导出')
+    await flushPromises()
+    expect(invoiceApi.export).toHaveBeenCalledWith(expect.objectContaining({ keyword: 'MP94' }))
+  })
+})
+
+describe('这一屏的账算给谁（M-P94）', () => {
+  it('屏上写清在看哪一家的账，编号与代码都摆出来', async () => {
+    const wrapper = await mountView()
+    const line = wrapper.find('[data-testid="scope-line"]').text()
+    expect(line).toContain('客户「demo-corp」')
+    expect(line).toContain('编号 #15')
+    expect(line).toContain('按这一家分开记')
+  })
+
+  it('超管还没选定客户：余额、套餐、消费、账单四发一次都不发，屏上也不摆任何一家的数', async () => {
+    authMock.selectedTenantId = null
+
+    const wrapper = await mountView()
+
+    expect(wrapper.text()).toContain('还没有选定客户')
+    expect(wrapper.find('[data-testid="scope-line"]').text()).toContain('当前没有选定客户')
+    expect(walletApi.getInfo).not.toHaveBeenCalled()
+    expect(packageApi.list).not.toHaveBeenCalled()
+    expect(statsApi.overview).not.toHaveBeenCalled()
+    expect(invoiceApi.list).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.stat-value')).toHaveLength(0)
+  })
+
+  it('租户管理员看登录态里那一家：屏上说「你所在客户」，取数用的就是那一家编号', async () => {
+    authMock.isSuperAdmin = false
+    authMock.selectedTenantId = null
+    authMock.user = { tenantId: 611 }
+
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-testid="scope-line"]').text()).toContain('你所在客户（编号 #611）')
+    expect(walletApi.getInfo).toHaveBeenCalledWith(611)
+    expect(statsApi.overview).toHaveBeenCalledWith(611)
+    expect(invoiceApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 611 }))
+  })
+
+  it('中途换客户：重新按那一家取数，屏上摆的不是上一家的数', async () => {
+    const wrapper = await mountView()
+    expect(statsApi.overview).toHaveBeenCalledWith(15)
+
+    authMock.selectedTenantId = 16
+    authMock.selectedTenantCode = 'other-corp'
+    await flushPromises()
+
+    expect(statsApi.overview).toHaveBeenCalledWith(16)
+    expect(wrapper.find('[data-testid="scope-line"]').text()).toContain('客户「other-corp」')
+  })
+})
+
+describe('「本月消费」那一格：读不到就说读不到（M-P94）', () => {
+  function monthCard(wrapper: any): string {
+    return wrapper.find('[data-testid="card-month"]').text()
+  }
+
+  function backendReason(wrapper: any): string {
+    const node = wrapper.find('[data-testid="backend-reason"]')
+    return node.exists() ? node.text() : ''
+  }
+
+  it('上月没花钱所以没有分母：念「上月没有消费，比不出涨跌」，不摆 0% 也不摆 +100%', async () => {
+    const wrapper = await mountView({ overview: overviewRead({ growthRate: null, lastMonthConsume: 0 }) })
+    expect(monthCard(wrapper)).toBe('¥1,200.00')
+    expect(wrapper.find('[data-testid="growth-arrow"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="growth-line"]').text()).toBe('上月没有消费，比不出涨跌')
+    expect(wrapper.text()).not.toContain('+100%')
+    expect(wrapper.text()).not.toContain('0.0%')
+  })
+
+  it('后端真给了百分比就照旧画箭头，不藏', async () => {
+    const wrapper = await mountView({ overview: overviewRead({ lastMonthConsume: 1000, growthRate: 20 }) })
+    expect(wrapper.find('[data-testid="growth-line"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="growth-arrow"]').text()).toBe('+20.0%')
+  })
+
+  it('这一家在这库里没有身份：摆 —，成因原样念后端那一句，不说成「这家没花钱」', async () => {
+    const wrapper = await mountView({
+      overview: overviewRead({
+        tenantUnreadable: true,
+        thisMonthConsume: 0,
+        monthAmount: 0,
+        growthRate: null,
+        emptyReason: 'NOT_VISIBLE',
+        emptyLine: OVERVIEW_LINE,
+      })
+    })
+    expect(monthCard(wrapper)).toBe('—')
+    expect(backendReason(wrapper)).toBe(OVERVIEW_LINE)
+    expect(wrapper.find('[data-testid="growth-line"]').text()).toBe('这一家读不到，比不出涨跌')
+  })
+
+  it('这一发没读到：念「没取到」并带上原因，上一轮的旧数不留着', async () => {
+    const wrapper = await mountView({ overviewError: '网关超时' })
+    expect(monthCard(wrapper)).toBe('没取到')
+    expect(backendReason(wrapper)).toContain('本月消费没取到：网关超时')
+    expect(wrapper.find('[data-testid="growth-line"]').text()).toBe('这次没取到，比不出涨跌')
+  })
+
+  it('后端回空包（一个字没回）：不许把「没数」读成「这个月没花钱」', async () => {
+    const wrapper = await mountView({ overview: null as any })
+    expect(monthCard(wrapper)).toBe('没取到')
+    expect(backendReason(wrapper)).toContain('后端一个字没回')
+  })
+})
+
+describe('日期区间以前选了也不发（M-P94）', () => {
+  it('挑了区间，列表那一发就带上 startDate/endDate', async () => {
+    const wrapper = await mountView()
+    vi.mocked(invoiceApi.list).mockClear()
+
+    pickDateRange(wrapper, ['2026-10-01', '2026-10-31'])
+    await flushPromises()
+
+    expect(invoiceApi.list).toHaveBeenCalledWith(
+      expect.objectContaining({ startDate: '2026-10-01', endDate: '2026-10-31' })
+    )
+  })
+
+  it('导出的区间跟列表是同一份条件', async () => {
+    const wrapper = await mountView()
+    pickDateRange(wrapper, ['2026-10-01', '2026-10-31'])
+    await flushPromises()
+    clickButton(wrapper, '导出')
+    await flushPromises()
+    expect(invoiceApi.export).toHaveBeenCalledWith(
+      expect.objectContaining({ startDate: '2026-10-01', endDate: '2026-10-31' })
+    )
   })
 })

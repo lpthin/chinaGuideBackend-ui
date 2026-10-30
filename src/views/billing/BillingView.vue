@@ -1,6 +1,18 @@
 <template>
   <div class="billing-page">
-    <a-spin :spinning="loading">
+    <!-- 这一屏每一张卡的数都是按客户分开记的。改前没选客户时它拿 `|| 1` 兜底，屏上摆的其实是
+         admin 账号名下那一家的账，而界面一个字不提。现在先说清在看谁的账，没选定就不取数。 -->
+    <div class="scope-line" data-testid="scope-line">{{ scopeSentence }}</div>
+
+    <StateBlock
+      v-if="requestedTenantId === null"
+      state="not-measured"
+      title="还没有选定客户"
+      detail="余额、账单、消费都是一户一本地记的，这一屏没有「全平台合计」这一格。"
+      next="在页面顶部的租户切换里选一家客户，这里才摆那一家自己的账。"
+    />
+
+    <a-spin v-else :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
@@ -39,14 +51,22 @@
                 <DollarOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">¥{{ formatAmount(consumptionStats.monthAmount) }}</div>
+                <div class="stat-value" data-testid="card-month">{{ monthStatText }}</div>
                 <div class="stat-title">本月消费</div>
               </div>
             </div>
-            <div class="stat-extra" v-if="consumptionStats.lastMonthAmount > 0">
-              <span :class="consumptionStats.growthRate >= 0 ? 'growth-up' : 'growth-down'">
-                {{ consumptionStats.growthRate >= 0 ? '+' : '' }}{{ formatDecimal(consumptionStats.growthRate, 1) }}%
+            <!-- 改前这一格靠 v-if 在上月为 0 时整块不画，而接口那一发回的是编出来的 +100%：
+                 界面把它藏起来不等于后端没说过。现在「比不出」有三种成因，各说一句，都由
+                 后端那格 growthRate=null 触发，界面不再自己拿上月的数当分母去猜。 -->
+            <div class="stat-extra">
+              <span
+                v-if="growthArrow"
+                :class="growthArrow === 'up' ? 'growth-up' : 'growth-down'"
+                data-testid="growth-arrow"
+              >
+                {{ growthArrow === 'up' ? '+' : '' }}{{ formatDecimal(consumptionStats.growthRate, 1) }}%
               </span>
+              <span v-else class="growth-none" data-testid="growth-line">{{ growthSentence }}</span>
             </div>
           </a-card>
         </a-col>
@@ -75,6 +95,11 @@
         show-icon
         style="margin-bottom: 16px"
       />
+
+      <!-- 「本月消费」这一张卡的成因：后端给了成因就原样念它那一句话，界面不抄第二份 -->
+      <div v-if="overviewNotice" class="scope-line scope-line--warn" data-testid="backend-reason">
+        {{ overviewNotice }}
+      </div>
 
       <a-card title="充值套餐" :bordered="false" style="margin-bottom: 16px">
         <a-row :gutter="16">
@@ -270,7 +295,7 @@ import {
 } from '@ant-design/icons-vue'
 import { InvoiceStatus, Currency } from '../../types/billing'
 import { invoiceStatusLabel, invoiceStatusColor } from '../../utils/invoiceStatus'
-import type { Invoice, RechargePackage } from '../../types/billing'
+import type { Invoice, OverviewStats, RechargePackage } from '../../types/billing'
 import { walletApi, packageApi, statsApi, invoiceApi, balanceApi } from '../../api/billing'
 import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime, formatDecimal } from '../../utils/format'
@@ -279,6 +304,7 @@ import { walletIsActive } from '../../utils/walletState'
 import { useAuthStore } from '../../stores/auth'
 import InvoiceDetailDrawer from './InvoiceDetailDrawer.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import StateBlock from '../../components/StateBlock.vue'
 import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
@@ -307,14 +333,25 @@ const accountBalance = reactive({
 const walletMissing = ref(false)
 const walletReadFailed = ref('')
 
+/**
+ * 「本月消费」那一张卡。三个数都是「读回来的」，读不到一律 null，界面上摆「—」或「没取到」，
+ * 不许用 0 冒充「查过了，就是零」。`growthRate` 只认后端那一格：没有分母就是 null，
+ * 界面不许自己拿上月的数去除（改前后端在上月为 0 时写死回 100，这一发实测就是 +100%）。
+ */
 const consumptionStats = reactive({
-  monthAmount: 0,
-  lastMonthAmount: 0,
-  growthRate: 0,
+  monthAmount: null as number | null,
+  lastMonthAmount: null as number | null,
+  growthRate: null as number | null,
 })
 
+/** 这一张卡这一发是哪一种：还没取 / 取到了 / 这一发没读到 / 这一家在库里没有身份 */
+const overviewState = ref<'idle' | 'ok' | 'failed' | 'unreadable'>('idle')
+const overviewReadFailed = ref('')
+/** 成因那句话只用后端那一份原文（`EmptyResultReasons`），界面不抄第二份 */
+const overviewReason = ref('')
+
 const queryParams = reactive({
-  tenantId: getTenantId(),
+  // 这里以前挂着一个 `tenantId: getTenantId()`：四个加载函数各取各的局部值，这一格没人读
   status: undefined as InvoiceStatus | undefined,
   keyword: '',
   startDate: undefined as string | undefined,
@@ -365,9 +402,32 @@ const withdrawForm = reactive({
   accountId: undefined as string | undefined,
 })
 
-function getTenantId(): number {
-  return authStore.selectedTenantId || authStore.tenantId || 1
-}
+/**
+ * 这一屏的账属于谁。
+ *
+ * 改前这里写的是 `selectedTenantId || tenantId || 1`：`tenantId` 那个 getter 在没人选客户时回的是
+ * 登录账号名下那一家，最后那个 `|| 1` 更会把人指到第一家去。超管打开这一屏、还没点租户切换时，
+ * 屏上摆的其实是 admin 名下那一家的余额、账单和消费，而界面一个字不提。
+ * 现在没选定客户就是 null：一发 `/api/billing/*` 都不发，屏上只说「还没有选定客户」。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeSentence = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，下面不发请求、也不摆任何一家的账。'
+      : '登录信息里没有客户编号，下面不摆数。'
+  }
+  const code = authStore.selectedTenantCode
+  const who = authStore.isSuperAdmin
+    ? `当前看的是${code ? `客户「${code}」` : '选中的那一家客户'}（编号 #${id}）`
+    : `当前看的是你所在客户（编号 #${id}）`
+  return `${who}的账，余额、账单、消费都按这一家分开记。`
+})
 
 function formatAmount(amount?: number | null): string {
   if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return '-'
@@ -401,8 +461,62 @@ const walletNotice = computed(() => {
   return ''
 })
 
+/** 「本月消费」那一格的钱：没取到念「没取到」，读不到或没数摆「—」，都不摆 ¥0.00 */
+const monthStatText = computed(() => {
+  if (overviewState.value === 'failed') return '没取到'
+  const amount = consumptionStats.monthAmount
+  if (amount === null || amount === undefined) return '—'
+  return `¥${formatAmount(amount)}`
+})
+
+/** 只有后端真给了一个百分比才画涨跌；界面不拿上月那一格自己算 */
+const growthArrow = computed<'up' | 'down' | null>(() => {
+  const rate = consumptionStats.growthRate
+  if (rate === null || rate === undefined) return null
+  return rate >= 0 ? 'up' : 'down'
+})
+
+/** 比不出涨跌有三种成因，各说一句；改前那一形是靠 v-if 整块不画，谁也不知道为什么没有 */
+const growthSentence = computed(() => {
+  if (overviewState.value === 'unreadable') return '这一家读不到，比不出涨跌'
+  if (overviewState.value === 'failed') return '这次没取到，比不出涨跌'
+  return '上月没有消费，比不出涨跌'
+})
+
+/** 「本月消费」那张卡下面的成因：后端那句话原样念 */
+const overviewNotice = computed(() => {
+  if (overviewState.value === 'unreadable') return overviewReason.value
+  if (overviewState.value === 'failed') return `本月消费没取到：${overviewReadFailed.value}`
+  return ''
+})
+
+/**
+ * 没选定客户时把上一家的数抹掉。
+ *
+ * 留着不抹，屏上看上去像「这一家的余额还是这些」，而那一串数其实是刚才另一家的。
+ */
+function clearDisplayedNumbers() {
+  accountBalance.balance = null
+  accountBalance.frozenBalance = null
+  accountBalance.availableBalance = null
+  accountBalance.totalIncome = null
+  accountBalance.totalExpense = null
+  walletMissing.value = false
+  walletReadFailed.value = ''
+  consumptionStats.monthAmount = null
+  consumptionStats.lastMonthAmount = null
+  consumptionStats.growthRate = null
+  overviewState.value = 'idle'
+  overviewReadFailed.value = ''
+  overviewReason.value = ''
+  rechargePackages.value = []
+  invoiceList.value = []
+  pagination.total = 0
+}
+
 async function loadWalletInfo() {
-  const tenantId = getTenantId()
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) return
   walletReadFailed.value = ''
   walletMissing.value = false
   try {
@@ -431,7 +545,8 @@ async function loadWalletInfo() {
 }
 
 async function loadPackages() {
-  const tenantId = getTenantId()
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) return
   try {
     const res = await packageApi.list(tenantId)
     rechargePackages.value = res as unknown as RechargePackage[]
@@ -443,22 +558,43 @@ async function loadPackages() {
 }
 
 async function loadStats() {
-  const tenantId = getTenantId()
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) return
+  // 先把上一轮的数抹掉再发这一发：留着不抹，读失败时屏上看着像「数还是这些」
+  consumptionStats.monthAmount = null
+  consumptionStats.lastMonthAmount = null
+  consumptionStats.growthRate = null
+  overviewReadFailed.value = ''
+  overviewReason.value = ''
   try {
-    const res = await statsApi.overview(tenantId)
-    if (res) {
-      consumptionStats.monthAmount = res.thisMonthConsume || res.monthAmount || 0
-      consumptionStats.lastMonthAmount = res.lastMonthConsume || 0
-      consumptionStats.growthRate = res.growthRate || 0
+    const res = (await statsApi.overview(tenantId)) as OverviewStats | null
+    if (!res) {
+      overviewState.value = 'failed'
+      overviewReadFailed.value = '后端一个字没回'
+      return
     }
+    // 「这一家在这库里没有身份」与「这一家这个月没花钱」是两件事，后端分两格说，界面分开念
+    if (res.tenantUnreadable) {
+      overviewState.value = 'unreadable'
+      overviewReason.value = res.emptyLine ?? '这一家读不到'
+      return
+    }
+    overviewState.value = 'ok'
+    consumptionStats.monthAmount = res.thisMonthConsume ?? res.monthAmount ?? null
+    consumptionStats.lastMonthAmount = res.lastMonthConsume ?? null
+    // 改前这里是 `res.growthRate || 0`：后端没有分母时回 null，这一句把「比不出」抹成「持平」
+    consumptionStats.growthRate = res.growthRate ?? null
   } catch (error: any) {
     logError('billing/billing-view', '加载消费统计失败:', error)
+    overviewState.value = 'failed'
+    overviewReadFailed.value = describeHttpError(error)
     message.error(`加载消费统计失败：${describeHttpError(error)}`)
   }
 }
 
 async function loadInvoices() {
-  const tenantId = getTenantId()
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) return
   tableLoading.value = true
   try {
     const params: any = {
@@ -485,6 +621,11 @@ async function loadInvoices() {
 }
 
 async function loadAllData() {
+  if (requestedTenantId.value === null) {
+    // 改前这一发照样出去，参数取的是 `|| 1`：超管没选客户时看的是别人家的账
+    clearDisplayedNumbers()
+    return
+  }
   loading.value = true
   try {
     await Promise.all([
@@ -510,13 +651,17 @@ function handleDateChange(dates: [string, string] | undefined) {
 }
 
 async function handleExport() {
-  const tenantId = getTenantId()
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) return
   exportLoading.value = true
   try {
     const params: any = { tenantId }
     if (queryParams.status) params.status = queryParams.status
     if (queryParams.startDate) params.startDate = queryParams.startDate
     if (queryParams.endDate) params.endDate = queryParams.endDate
+    // 搜索框那一格以前不给导出：列表筛了关键词念 1 张、下载下来的文件里是全部 3 张，
+    // 而导出那一口本来就认 keyword（三列一起 LIKE）。筛了什么就导出什么，两口同一份条件。
+    if (queryParams.keyword) params.keyword = queryParams.keyword
 
     const res = await invoiceApi.export(params)
     const blob = res as unknown as Blob
@@ -566,7 +711,8 @@ async function handleConfirmRecharge() {
     message.error('请选择支付方式')
     return
   }
-  const tenantId = getTenantId()
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) return
   rechargeLoading.value = true
   try {
     await walletApi.recharge(tenantId, rechargeForm.amount, rechargeForm.paymentMethod)
@@ -601,7 +747,8 @@ async function handleConfirmWithdraw() {
     return
   }
 
-  const tenantId = getTenantId()
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) return
   try {
     // 后端 /billing/balance/withdraw 只认 amount，这两个「提现账户」是界面自己摆的、提交上去没人读
     // （M-P91 收口时登记为待拍板，不在这一批偷偷改口径）
@@ -647,8 +794,9 @@ async function handlePay(record: Invoice) {
 }
 
 watch(
-  () => authStore.selectedTenantId,
+  requestedTenantId,
   () => {
+    // 换一家（或退回「没选定客户」）就回到第一页：上一家的翻页位置对这一家没有意义
     pagination.current = 1
     loadAllData()
   }
@@ -662,6 +810,16 @@ onMounted(() => {
 <style scoped lang="less">
 .billing-page {
   width: 100%;
+}
+
+.scope-line {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #595959;
+
+  &--warn {
+    color: #fa8c16;
+  }
 }
 
 .stat-card {
@@ -731,6 +889,12 @@ onMounted(() => {
 
 .growth-down {
   color: #ff4d4f;
+}
+
+/* 比不出涨跌时那一句话：不给涨跌色，免得一句「比不出」被看成「跌」 */
+.growth-none {
+  color: #8c8c8c;
+  font-size: 12px;
 }
 
 .credit-used {
