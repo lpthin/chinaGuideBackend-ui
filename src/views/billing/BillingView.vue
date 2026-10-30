@@ -38,7 +38,9 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ pagination.total }}</div>
+                <!-- 这一格以前读的是列表的 total：读失败时那个数被清成 0，屏上就念成「账单总数 0」。
+                     现在没读到、或这家读不到，都不许摆 0 -->
+                <div class="stat-value" data-testid="card-invoice-total">{{ invoiceTotalText }}</div>
                 <div class="stat-title">{{ filterActive ? '筛选命中条数' : '账单总数' }}</div>
               </div>
             </div>
@@ -179,6 +181,16 @@
           :row-key="(record: any) => record.id"
           :loading="tableLoading"
         >
+          <template #emptyText>
+            <!-- 空列表有三种完全不同的成因（真的没有 / 这一家读不到 / 这一页翻过了头），
+                 还有一种是这次压根没读回来；话由 EmptyListHint 按后端那份成因原文分开念 -->
+            <empty-list-hint
+              :loading="tableLoading"
+              :read-failed="invoiceReadFailed"
+              :empty-line="invoiceEmptyLine"
+              :empty-reason="invoiceEmptyReason"
+            />
+          </template>
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'invoiceNo'">
               <a @click="viewInvoiceDetail(record)">{{ record.invoiceNo }}</a>
@@ -305,6 +317,8 @@ import { useAuthStore } from '../../stores/auth'
 import InvoiceDetailDrawer from './InvoiceDetailDrawer.vue'
 import FilterBar from '../../components/FilterBar.vue'
 import StateBlock from '../../components/StateBlock.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { asEmptyReason, shouldJumpBackToFirstPage, JUMP_BACK_NOTICE, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
@@ -375,6 +389,11 @@ const pagination = reactive({
 const rechargePackages = ref<RechargePackage[]>([])
 
 const invoiceList = ref<Invoice[]>([])
+
+// 账单列表这一发是哪一种：读失败 / 后端答了成因 / 后端没答（null），三件事分开记
+const invoiceReadFailed = ref('')
+const invoiceEmptyLine = ref('')
+const invoiceEmptyReason = ref<EmptyReason>(null)
 
 const invoiceColumns = [
   { title: '账单号', dataIndex: 'invoiceNo', key: 'invoiceNo', width: 180 },
@@ -447,6 +466,16 @@ const filterActive = computed(() =>
   Boolean(queryParams.status || queryParams.keyword || queryParams.startDate || queryParams.endDate)
 )
 
+/**
+ * 这张卡以前永远念 `pagination.total`：读失败时那一格被清成 0，屏上就是「账单总数 0」；
+ * 这一家读不到时也是 0。0 在这里只说一件事——查过了，真的没有——所以另外两种不许摆 0。
+ */
+const invoiceTotalText = computed(() => {
+  if (invoiceReadFailed.value) return '没取到'
+  if (invoiceEmptyReason.value === 'NOT_VISIBLE') return '—'
+  return String(pagination.total)
+})
+
 /** 卡片上的钱：读失败说「没取到」，这家没开过钱包说「—」，都不许念成 ¥0.00 */
 function walletStatText(amount: number | null): string {
   if (walletReadFailed.value) return '没取到'
@@ -511,6 +540,9 @@ function clearDisplayedNumbers() {
   overviewReason.value = ''
   rechargePackages.value = []
   invoiceList.value = []
+  invoiceReadFailed.value = ''
+  invoiceEmptyLine.value = ''
+  invoiceEmptyReason.value = null
   pagination.total = 0
 }
 
@@ -596,6 +628,9 @@ async function loadInvoices() {
   const tenantId = requestedTenantId.value
   if (tenantId === null) return
   tableLoading.value = true
+  invoiceReadFailed.value = ''
+  invoiceEmptyLine.value = ''
+  invoiceEmptyReason.value = null
   try {
     const params: any = {
       tenantId,
@@ -610,11 +645,21 @@ async function loadInvoices() {
     const res = await invoiceApi.list(params)
     invoiceList.value = res.records || []
     pagination.total = res.total || 0
+    invoiceEmptyLine.value = res.emptyLine || ''
+    invoiceEmptyReason.value = asEmptyReason(res.emptyReason)
+    // 「这一页翻过了头」不是一句解释就完事：翻回第一页再读一遍，最多多发一发
+    if (shouldJumpBackToFirstPage(invoiceEmptyReason.value, pagination.current)) {
+      pagination.current = 1
+      await loadInvoices()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error: any) {
     logError('billing/billing-view', '加载账单列表失败:', error)
-    message.error(`加载账单列表失败：${describeHttpError(error)}`)
+    // 读失败不是「一张账单都没有」：行与总条数一起清掉，让这一格念出失败那一句
     invoiceList.value = []
     pagination.total = 0
+    invoiceReadFailed.value = describeHttpError(error)
+    message.error(`加载账单列表失败：${describeHttpError(error)}`)
   } finally {
     tableLoading.value = false
   }

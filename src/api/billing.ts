@@ -19,9 +19,9 @@ import type { EmptyCauseFields } from '../types/emptyResult'
 
 // 账单 API
 export const invoiceApi = {
-  // 获取账单列表
+  // 获取账单列表（M-P97：回包多了 emptyReason/emptyLine 两格，说明这一页为什么是空的）
   list: (params: InvoiceQuery) =>
-    http.get<PageResult<Invoice>>('/billing/invoices', { params }),
+    http.get<PageResult<Invoice> & EmptyCauseFields>('/billing/invoices', { params }),
 
   // 获取账单详情
   get: (id: number) =>

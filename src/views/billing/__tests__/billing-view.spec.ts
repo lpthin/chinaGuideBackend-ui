@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { Button, message } from 'ant-design-vue'
 import BillingView from '../BillingView.vue'
 import { walletApi, packageApi, statsApi, invoiceApi, balanceApi } from '../../../api/billing'
+import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
 
 /**
  * 超管计费「费用」页（M-P91 拍板 2 与 4）。
@@ -96,6 +97,7 @@ const TABLE_STUB = {
           <slot name="bodyCell" :column="column" :record="record" />
         </template>
       </div>
+      <div v-if="!dataSource.length" class="empty-slot"><slot name="emptyText" /></div>
     </div>`
 }
 
@@ -161,6 +163,9 @@ interface Options {
   wallet?: ReturnType<typeof walletRead>
   walletError?: string
   rows?: Array<ReturnType<typeof invoiceRow>>
+  /** 账单列表那一发返回的整包（M-P97 起还要带空态那两格：emptyReason / emptyLine） */
+  invoice?: Record<string, unknown>
+  invoiceError?: string
   overview?: ReturnType<typeof overviewRead>
   overviewError?: string
 }
@@ -170,6 +175,8 @@ async function mountView(options: Options = {}) {
     wallet = walletRead(),
     walletError = '',
     rows = [invoiceRow(1)],
+    invoice,
+    invoiceError = '',
     overview = overviewRead(),
     overviewError = '',
   } = options
@@ -187,7 +194,12 @@ async function mountView(options: Options = {}) {
   vi.mocked(packageApi.list).mockResolvedValue([
     { id: 11, name: '基础档', originalAmount: 100, discountAmount: 90, bonusAmount: 10, totalAmount: 100, isPopular: false, isRecommended: true },
   ] as any)
-  vi.mocked(invoiceApi.list).mockResolvedValue({ records: rows, total: rows.length } as any)
+  vi.mocked(invoiceApi.list).mockResolvedValue(
+    (invoice ?? { records: rows, total: rows.length }) as any
+  )
+  if (invoiceError) {
+    vi.mocked(invoiceApi.list).mockRejectedValue(new Error(invoiceError))
+  }
   vi.mocked(invoiceApi.export).mockResolvedValue({ type: 'application/json', text: async () => '{"success":true}' } as any)
   vi.mocked(invoiceApi.pay).mockResolvedValue({} as any)
   vi.mocked(balanceApi.withdraw).mockResolvedValue({} as any)
@@ -551,5 +563,85 @@ describe('日期区间以前选了也不发（M-P94）', () => {
     expect(invoiceApi.export).toHaveBeenCalledWith(
       expect.objectContaining({ startDate: '2026-10-01', endDate: '2026-10-31' })
     )
+  })
+})
+
+/**
+ * M-P97：账单表以前三种空回的是同一个四格包（没有成因），读失败时「账单总数」那张卡还被清成 0。
+ * 这一组钉的是：四种情形各念各的，卡上的 0 只说「查过了真的没有」。
+ */
+describe('账单表的四种空各说各的（M-P97）', () => {
+  function totalCard(wrapper: any): string {
+    return wrapper.find('[data-testid="card-invoice-total"]').text()
+  }
+
+  function emptySlot(wrapper: any): string {
+    return wrapper.find('.empty-slot').text()
+  }
+
+  const NONE_LINE = '账单：这一档查过了，一条都没有。'
+  const NOT_VISIBLE_LINE =
+    '账单：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'
+  const OUT_OF_RANGE_LINE =
+    '账单：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。'
+
+  it('整档真没有：卡念 0，空态念后端那句「查过了，一条都没有」', async () => {
+    const wrapper = await mountView({
+      invoice: { records: [], total: 0, page: 1, size: 10, pages: 0, emptyReason: 'NONE', emptyLine: NONE_LINE }
+    })
+    expect(totalCard(wrapper)).toBe('0')
+    expect(emptySlot(wrapper)).toContain(NONE_LINE)
+    expect(emptySlot(wrapper)).not.toContain('读失败')
+  })
+
+  it('选中的那一家读不到：卡摆 —，原话照念，不摆 0 也不说成「没有」', async () => {
+    const wrapper = await mountView({
+      invoice: {
+        records: [], total: 0, page: 1, size: 10, pages: 0,
+        emptyReason: 'NOT_VISIBLE', emptyLine: NOT_VISIBLE_LINE
+      }
+    })
+    expect(totalCard(wrapper)).toBe('—')
+    expect(emptySlot(wrapper)).toContain(NOT_VISIBLE_LINE)
+  })
+
+  it('这一页翻过了头：自动翻回第一页再读一发，屏上不把「翻过头」当空态念', async () => {
+    const wrapper = await mountView()
+
+    vi.mocked(invoiceApi.list).mockResolvedValueOnce({
+      records: [], total: 47, page: 2, size: 10, pages: 5,
+      emptyReason: 'OUT_OF_RANGE', emptyLine: OUT_OF_RANGE_LINE
+    } as any)
+    vi.mocked(invoiceApi.list).mockResolvedValueOnce({
+      records: [invoiceRow(2)], total: 47, page: 1, size: 10, pages: 5,
+      emptyReason: null, emptyLine: ''
+    } as any)
+
+    const pager = wrapper.findComponent(TABLE_STUB).props('pagination') as any
+    pager.onChange(2, 10)
+    await flushPromises()
+    await flushPromises()
+
+    const pages = vi.mocked(invoiceApi.list).mock.calls.map(([params]) => (params as any).page)
+    expect(pages).toEqual([1, 2, 1])
+    expect(message.info).toHaveBeenCalledWith(JUMP_BACK_NOTICE)
+    expect(wrapper.findAll('.row')).toHaveLength(1)
+    expect(totalCard(wrapper)).toBe('47')
+    expect(wrapper.text()).not.toContain('翻过了头')
+  })
+
+  it('读失败：卡念「没取到」，空态说清读失败不是「这一档没有」', async () => {
+    const wrapper = await mountView({ invoiceError: '网关超时' })
+    expect(totalCard(wrapper)).toBe('没取到')
+    expect(emptySlot(wrapper)).toContain('这一发读失败：网关超时')
+    expect(emptySlot(wrapper)).toContain('读失败不是「这一档没有」')
+  })
+
+  it('后端只回了旧四格（没答成因）：兜底那句不替它挑一种空', async () => {
+    const wrapper = await mountView({
+      invoice: { records: [], total: 0, page: 1, size: 10 }
+    })
+    expect(totalCard(wrapper)).toBe('0')
+    expect(emptySlot(wrapper)).toContain('后端没回是哪一种空，界面不替它猜')
   })
 })
