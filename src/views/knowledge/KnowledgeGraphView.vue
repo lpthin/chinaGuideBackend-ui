@@ -46,9 +46,11 @@
                 <a-slider v-model:value="nodeLimit" :min="50" :max="500" :step="10" />
                 <div class="slider-value">显示 {{ nodeLimit }} 个节点</div>
               </a-form-item>
-              <a-form-item label="最小关联度">
+              <a-form-item label="最小置信度">
                 <a-slider v-model:value="minConfidence" :min="0" :max="100" :step="5" />
-                <div class="slider-value">最小置信度 {{ minConfidence }}%</div>
+                <div class="slider-value">
+                  {{ minConfidence > 0 ? `只画置信度 ≥ ${minConfidence}% 的实体与关系` : '不过滤（置信度多低都画）' }}
+                </div>
               </a-form-item>
               <a-form-item>
                 <a-space>
@@ -60,22 +62,43 @@
           </a-card>
 
           <a-card title="统计概览" class="stats-card" style="margin-top: 16px">
-            <a-statistic title="实体总数" :value="stats.totalEntities" :value-style="{ color: '#1890ff' }">
+            <a-statistic title="实体总数" :value="statsReady ? stats.totalEntities : '—'" :value-style="{ color: '#1890ff' }">
               <template #prefix><NodeIndexOutlined /></template>
             </a-statistic>
             <a-divider />
-            <a-statistic title="关系总数" :value="stats.totalRelations" :value-style="{ color: '#52c41a' }">
+            <a-statistic title="关系总数" :value="statsReady ? stats.totalRelations : '—'" :value-style="{ color: '#52c41a' }">
               <template #prefix><ApartmentOutlined /></template>
             </a-statistic>
             <a-divider />
-            <a-statistic title="实体类型" :value="stats.entityTypes.length" :value-style="{ color: '#722ed1' }">
+            <a-statistic title="实体类型" :value="statsReady ? stats.entityTypes.length : '—'" :value-style="{ color: '#722ed1' }">
               <template #prefix><AppstoreOutlined /></template>
             </a-statistic>
+            <div class="stats-note">
+              <template v-if="statsReady">
+                这是这一家全部的实体与关系（不受筛选和画布节点数影响）；画布上现在画了
+                {{ graphData?.nodeCount ?? 0 }} 个点、{{ graphData?.linkCount ?? 0 }} 条线。
+              </template>
+              <template v-else>读不到这一家的统计，所以不摆 0（原因见右侧红条）。</template>
+            </div>
           </a-card>
         </a-col>
 
         <a-col :xs="24" :md="showFilterPanel ? 18 : 24">
           <a-card class="graph-card">
+            <a-alert
+              v-if="readError"
+              type="error"
+              show-icon
+              :message="readError"
+              style="margin-bottom: 12px"
+            />
+            <a-alert
+              v-else-if="graphData?.truncated"
+              type="warning"
+              show-icon
+              style="margin-bottom: 12px"
+              :message="`画布只画了最新的 ${graphData?.nodeCount} 个实体，按当前筛选一共命中 ${graphData?.matchedEntities} 个；把「节点数量」拉大能多看一些（最多 500 个）。`"
+            />
             <div class="graph-toolbar">
               <a-space>
                 <a-button-group>
@@ -104,12 +127,15 @@
                 />
               </a-space>
               <a-space v-if="selectedNode">
-                <a-tag color="blue">选中: {{ selectedNode.label }}</a-tag>
+                <a-tag color="blue">选中: {{ selectedNode.name }}</a-tag>
                 <a-button type="link" size="small" @click="focusNeighbors">查看关联</a-button>
                 <a-button type="link" size="small" @click="clearSelection">取消选择</a-button>
               </a-space>
             </div>
-            <div ref="graphRef" class="graph-container" @click="onCanvasClick"></div>
+            <div ref="graphRef" class="graph-container"></div>
+            <div v-if="!loading && !readError && isEmptyGraph" class="graph-empty">
+              <a-empty :description="emptyLine || '这一格没有可画的实体。'" />
+            </div>
             <div v-if="loading" class="graph-loading">
               <a-spin size="large" tip="正在加载知识图谱..." />
             </div>
@@ -118,7 +144,7 @@
           <a-row :gutter="16" style="margin-top: 16px">
             <a-col :xs="24" :md="12">
               <a-card title="最近提取的实体" size="small">
-                <a-list :data-source="recentEntities">
+                <a-list :data-source="recentEntities" :locale="{ emptyText: recentEntityEmptyText }">
                   <template #renderItem="{ item }">
                     <a-list-item>
                       <a-list-item-meta>
@@ -130,7 +156,7 @@
                           <a-tag size="small" :color="getEntityColor(item.type)" style="margin-left: 8px">{{ item.type }}</a-tag>
                         </template>
                         <template #description>
-                          出现 {{ item.occurrences }} 次 · 置信度 {{ (item.confidence * 100).toFixed(0) }}%
+                          关联 {{ item.degree }} 条 · 置信度 {{ formatPercent(item.confidence) }}
                         </template>
                       </a-list-item-meta>
                     </a-list-item>
@@ -140,19 +166,19 @@
             </a-col>
             <a-col :xs="24" :md="12">
               <a-card title="最近提取的关系" size="small">
-                <a-list :data-source="recentRelations">
+                <a-list :data-source="recentRelations" :locale="{ emptyText: recentRelationEmptyText }">
                   <template #renderItem="{ item }">
                     <a-list-item>
                       <a-list-item-meta>
                         <template #title>
-                          <span style="color: #1890ff">{{ item.sourceEntityName || '—' }}</span>
+                          <span style="color: #1890ff">{{ item.sourceName || '—' }}</span>
                           <ArrowRightOutlined style="margin: 0 8px; color: #8c8c8c" />
                           <a-tag size="small">{{ item.relationType }}</a-tag>
                           <ArrowRightOutlined style="margin: 0 8px; color: #8c8c8c" />
-                          <span style="color: #52c41a">{{ item.targetEntityName || '—' }}</span>
+                          <span style="color: #52c41a">{{ item.targetName || '—' }}</span>
                         </template>
                         <template #description>
-                          置信度 {{ (item.confidence * 100).toFixed(0) }}% · 来源: {{ item.sourceDocumentId ? '文档 #' + item.sourceDocumentId : '未知' }}
+                          置信度 {{ formatPercent(item.confidence) }}
                         </template>
                       </a-list-item-meta>
                     </a-list-item>
@@ -294,14 +320,16 @@
     <a-drawer v-model:open="showDetailDrawer" title="节点详情" width="480">
       <div v-if="selectedNode" class="node-detail">
         <a-descriptions title="基本信息" bordered column="1">
-          <a-descriptions-item label="实体名称">{{ selectedNode.label }}</a-descriptions-item>
+          <a-descriptions-item label="实体名称">{{ selectedNode.name }}</a-descriptions-item>
           <a-descriptions-item label="实体类型">
             <a-tag :color="getEntityColor(selectedNode.type)">{{ selectedNode.type }}</a-tag>
           </a-descriptions-item>
-          <a-descriptions-item label="关联数量">{{ selectedNode.value }}</a-descriptions-item>
-          <a-descriptions-item label="来源文档">{{ selectedNode.sourceDocument || '—' }}</a-descriptions-item>
-          <a-descriptions-item label="首次提取时间">{{ formatDateTime(selectedNode.extractTime) }}</a-descriptions-item>
+          <a-descriptions-item label="关联数量">{{ selectedNode.degree }} 条</a-descriptions-item>
+          <a-descriptions-item label="置信度">{{ formatPercent(selectedNode.confidence) }}</a-descriptions-item>
+          <a-descriptions-item label="来源文档">{{ selectedNode.sourceDocumentIds || '—' }}</a-descriptions-item>
+          <a-descriptions-item label="提取时间">{{ selectedNode.createdAt ? formatDateTime(selectedNode.createdAt) : '—' }}</a-descriptions-item>
         </a-descriptions>
+        <div v-if="selectedNode.description" class="node-description">{{ selectedNode.description }}</div>
 
         <a-divider>关联实体</a-divider>
         <a-list :data-source="nodeNeighbors" size="small">
@@ -353,7 +381,7 @@ import {
 } from '@ant-design/icons-vue'
 import { knowledgeGraphApi, knowledgeEntityApi, knowledgeDocumentApi } from '../../api/knowledge'
 import type { ExtractionResult, ExtractedEntity, ExtractedRelation } from '../../api/knowledge'
-import type { KnowledgeDocument, KnowledgeEntity, KnowledgeRelation, KnowledgeGraphData } from '../../types/knowledge'
+import type { KnowledgeDocument, KnowledgeGraphData, GraphNode, GraphLink, GraphTypeCount } from '../../types/knowledge'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logWarn } from '../../utils/errorLog'
@@ -388,12 +416,13 @@ const allRelationsSelected = computed(() => {
 const selectedTypes = ref<string[]>([])
 const selectedRelationTypes = ref<string[]>([])
 const nodeLimit = ref(150)
-const minConfidence = ref(50)
+// 0 = 不过滤。默认必须给 0：给 50 会让首屏把置信度低于一半的实体悄悄藏掉
+const minConfidence = ref(0)
 const searchKeyword = ref('')
-const layoutType = ref<'force' | 'circular'>('force')
-const selectedNode = ref<any>(null)
+const layoutType = ref<'force' | 'circular' | 'radial'>('force')
+const selectedNode = ref<GraphNode | null>(null)
 
-// 实体类型颜色映射
+// 实体类型颜色：已知类型给固定色，其余按名字散列到同一套色板（否则所有类型都是灰的）
 const ENTITY_COLOR_MAP: Record<string, string> = {
   '产品': '#1890ff',
   '技术': '#52c41a',
@@ -401,27 +430,58 @@ const ENTITY_COLOR_MAP: Record<string, string> = {
   '组织': '#fa8c16',
   '地点': '#eb2f96',
   '时间': '#13c2c2',
-  '其他': '#8c8c8c'
+  '其他': '#8c8c8c',
+  'PRODUCT': '#1890ff',
+  'TECHNOLOGY': '#52c41a',
+  'PERSON': '#722ed1',
+  'ORG': '#fa8c16',
+  'ORGANIZATION': '#fa8c16',
+  'LOCATION': '#eb2f96',
+  'TIME': '#13c2c2',
+  'CONCEPT': '#2f54eb',
+  'EVENT': '#faad14',
+  'DOCUMENT': '#08979c'
 }
+const ENTITY_PALETTE = ['#1890ff', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#13c2c2', '#2f54eb', '#faad14', '#08979c']
 
 const getEntityColor = (type: string): string => {
-  return ENTITY_COLOR_MAP[type] || '#8c8c8c'
+  if (!type) return '#8c8c8c'
+  const known = ENTITY_COLOR_MAP[type]
+  if (known) return known
+  let hash = 0
+  for (let i = 0; i < type.length; i++) hash = (hash * 31 + type.charCodeAt(i)) % 997
+  return ENTITY_PALETTE[hash % ENTITY_PALETTE.length]
 }
 
-// 统计数据 - 初始全部为 0，由 API 填充
+const formatPercent = (value?: number) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—'
+  return `${(Number(value) * 100).toFixed(0)}%`
+}
+
+// 统计卡：读不到就说读不到（statsReady=false 时界面摆 —，不摆 0）
 const stats = reactive({
   totalEntities: 0,
   totalRelations: 0,
-  entityTypes: [] as { type: string; count: number }[]
+  entityTypes: [] as GraphTypeCount[]
 })
+const statsReady = ref(false)
+const readError = ref('')
 
 // 实体/关系类型列表 - 由 API 填充
 const entityTypes = ref<{ value: string; label: string; count: number; color: string }[]>([])
 const relationTypes = ref<{ value: string; label: string; count: number }[]>([])
 
 // 最近提取的实体/关系 - 由 API 填充
-const recentEntities = ref<KnowledgeEntity[]>([])
-const recentRelations = ref<KnowledgeRelation[]>([])
+const recentEntities = ref<GraphNode[]>([])
+const recentRelations = ref<GraphLink[]>([])
+
+// 这两块空着的时候也要分清「这一家真的没有」与「这一发读不到」：读失败时念「读不到」，不许念「暂无数据」
+const recentEntityEmptyText = computed(() =>
+  statsReady.value ? '这一家还没有提取过实体' : '读不到这一家的实体（原因见右侧红条）'
+)
+const recentRelationEmptyText = computed(() =>
+  statsReady.value ? '这一家还没有提取过关系' : '读不到这一家的关系（原因见右侧红条）'
+)
 
 // 节点详情抽屉数据 - 由 API 填充
 const nodeNeighbors = ref<{ name: string; type: string; relation: string }[]>([])
@@ -430,69 +490,104 @@ const nodeLocations = ref<{ document: string; text: string }[]>([])
 // 图谱数据 - 由 API 填充
 const graphData = ref<KnowledgeGraphData | null>(null)
 const graphNodes = ref<any[]>([])
+const isEmptyGraph = computed(() => !!graphData.value && (graphData.value.nodes?.length ?? 0) === 0)
+const emptyLine = computed(() => graphData.value?.emptyLine || '')
 
-// 加载知识图谱数据
-const loadGraphData = async () => {
+// 环形成环：度数最大的那个摆圆心，其余按离它几步分环
+const radialPositions = (nodes: any[], links: any[]) => {
+  if (!nodes.length) return
+  const adjacency = new Map<number, Set<number>>()
+  nodes.forEach(n => adjacency.set(n.id, new Set()))
+  links.forEach(l => {
+    adjacency.get(l.source)?.add(l.target)
+    adjacency.get(l.target)?.add(l.source)
+  })
+  const center = [...nodes].sort((a, b) => (b.degree ?? 0) - (a.degree ?? 0))[0]
+  const ringOf = new Map<number, number>([[center.id, 0]])
+  const queue: number[] = [center.id]
+  while (queue.length) {
+    const current = queue.shift() as number
+    for (const next of adjacency.get(current) ?? []) {
+      if (!ringOf.has(next)) {
+        ringOf.set(next, (ringOf.get(current) ?? 0) + 1)
+        queue.push(next)
+      }
+    }
+  }
+  const knownRings = Array.from(ringOf.values())
+  const maxRing = knownRings.length ? Math.max(...knownRings) : 0
+  const buckets = new Map<number, any[]>()
+  nodes.forEach(n => {
+    // 连不到圆心的零星节点摆最外环，不让它们叠在中间
+    const ring = ringOf.get(n.id) ?? maxRing + 1
+    if (!buckets.has(ring)) buckets.set(ring, [])
+    buckets.get(ring)!.push(n)
+  })
+  const outer = Math.max(1, ...Array.from(buckets.keys()))
+  buckets.forEach((list, ring) => {
+    if (ring === 0) {
+      list[0].x = 0
+      list[0].y = 0
+      return
+    }
+    const radius = Math.min(340, (ring / outer) * 340)
+    list.forEach((node, i) => {
+      const angle = (2 * Math.PI * i) / list.length - Math.PI / 2
+      node.x = Math.cos(angle) * radius
+      node.y = Math.sin(angle) * radius * 0.72
+    })
+  })
+}
+
+// 加载知识图谱数据（三个筛选都真发出去；失败时清空且不摆 0）
+const loadGraphData = async (): Promise<boolean> => {
   loading.value = true
   try {
-    const type = selectedTypes.value.length === 1 ? selectedTypes.value[0] : undefined
-    const res: any = await knowledgeGraphApi.getGraph(nodeLimit.value, type)
+    const res: any = await knowledgeGraphApi.getGraph({
+      limit: nodeLimit.value,
+      types: selectedTypes.value,
+      relationTypes: selectedRelationTypes.value,
+      minConfidence: minConfidence.value
+    })
     const data: KnowledgeGraphData | null = res?.data ?? res ?? null
-
     if (!data) {
-      // API 无数据 - 显示空状态
-      graphData.value = null
-      stats.totalEntities = 0
-      stats.totalRelations = 0
-      stats.entityTypes = []
-      entityTypes.value = []
-      relationTypes.value = []
-      recentEntities.value = []
-      recentRelations.value = []
-      initGraph()
-      return
+      throw new Error('后端没有回图谱数据')
     }
 
     graphData.value = data
+    readError.value = ''
+    statsReady.value = true
 
-    // 更新统计数据
-    stats.totalEntities = data.stats?.totalEntities ?? 0
-    stats.totalRelations = data.stats?.totalRelations ?? 0
-    stats.entityTypes = data.stats?.entityTypes ?? []
+    stats.totalEntities = data.totalEntities ?? 0
+    stats.totalRelations = data.totalRelations ?? 0
+    stats.entityTypes = data.entityTypes ?? []
 
-    // 更新实体类型列表（带颜色）
-    entityTypes.value = (data.stats?.entityTypes || []).map(t => ({
+    entityTypes.value = (data.entityTypes || []).map(t => ({
       value: t.type,
       label: t.type,
       count: t.count,
       color: getEntityColor(t.type)
     }))
-
-    // 更新关系类型列表
-    relationTypes.value = (data.stats?.relationTypes || []).map(t => ({
+    relationTypes.value = (data.relationTypes || []).map(t => ({
       value: t.type,
       label: t.type,
       count: t.count
     }))
-
-    // 更新最近实体/关系
-    recentEntities.value = (data.entities || []).slice(0, 5)
-    recentRelations.value = (data.relations || []).slice(0, 5)
+    recentEntities.value = data.recentEntities || []
+    recentRelations.value = data.recentRelations || []
 
     initGraph()
+    return true
   } catch (e: any) {
     logWarn('knowledge/knowledge-graph-view', '加载知识图谱数据失败', e)
-    message.error('加载知识图谱数据失败')
-    // 出错时显示空状态，不使用假数据
+    readError.value = e?.message || '读不到知识图谱：这一发没有拿到答复，下面不是「这一家没有图谱」。'
+    message.error(readError.value)
     graphData.value = null
-    stats.totalEntities = 0
-    stats.totalRelations = 0
-    stats.entityTypes = []
-    entityTypes.value = []
-    relationTypes.value = []
+    statsReady.value = false
     recentEntities.value = []
     recentRelations.value = []
     initGraph()
+    return false
   } finally {
     loading.value = false
   }
@@ -512,38 +607,34 @@ const initGraph = () => {
     itemStyle: { color: e.color }
   }))
 
-  // 构建实体信息映射（用于节点详情抽屉的来源文档/提取时间）
-  const entityMap = new Map<string, KnowledgeEntity>()
-  ;(graphData.value?.entities || []).forEach(e => {
-    entityMap.set(String(e.id), e)
-    entityMap.set(e.name, e)
-  })
+  // 后端 GraphNode 已经带齐界面要的字段（名字/类型/置信度/连线条数/来源文档/时间），不再另建映射
+  const nodes: any[] = (graphData.value?.nodes || []).map(n => ({
+    id: n.id,
+    name: n.name,
+    value: n.degree,
+    category: n.type,
+    // 点的大小按这个点在关系表里连了几条算：孤点小、枢纽大，且一致可解释
+    symbolSize: Math.min(70, 20 + (n.degree || 0) * 6),
+    itemStyle: { color: getEntityColor(n.type) },
+    degree: n.degree,
+    type: n.type,
+    confidence: n.confidence,
+    description: n.description,
+    sourceDocumentIds: n.sourceDocumentIds,
+    createdAt: n.createdAt
+  }))
 
-  // 将后端 GraphNode 转为 ECharts 节点格式
-  const rawNodes = graphData.value?.nodes || []
-  const nodes: any[] = rawNodes.map(n => {
-    const entity = entityMap.get(String(n.id)) || entityMap.get(n.label)
-    return {
-      id: n.id,
-      name: n.label,
-      value: n.size,
-      category: n.type,
-      symbolSize: Math.max(20, n.size || 30),
-      itemStyle: { color: n.color || getEntityColor(n.type) },
-      // 来源文档/提取时间 - 从实体数据中读取，无值时为空字符串（模板显示 "—"）
-      sourceDocument: entity?.sourceDocumentId ? `文档 #${entity.sourceDocumentId}` : '',
-      extractTime: entity?.createdAt || ''
-    }
-  })
-
-  // 将后端 GraphEdge 转为 ECharts 边格式
-  const links: any[] = (graphData.value?.edges || []).map(e => ({
-    source: e.source,
-    target: e.target,
-    value: e.value,
+  const links: any[] = (graphData.value?.links || []).map(l => ({
+    id: l.id,
+    source: l.source,
+    target: l.target,
+    value: l.confidence,
+    sourceName: l.sourceName,
+    targetName: l.targetName,
+    relationType: l.relationType,
     label: {
       show: true,
-      formatter: e.label,
+      formatter: l.relationType,
       fontSize: 10
     }
   }))
@@ -551,14 +642,23 @@ const initGraph = () => {
   // 保存节点引用，供 focusNodeAdjacency 查找索引使用
   graphNodes.value = nodes
 
+  // 「辐射」= 自己算坐标 + layout:none；ECharts 的 graph 没有 radial 这个内置布局
+  const mode = layoutType.value
+  const radial = mode === 'radial'
+  const graphLayout: 'force' | 'circular' | 'none' = radial ? 'none' : mode
+  if (radial) {
+    radialPositions(nodes, links)
+  }
+
   const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'item',
       formatter: (params: any) => {
         if (params.dataType === 'node') {
-          return `${params.name}<br/>类型: ${params.data.category}<br/>关联数: ${params.value}`
+          return `${params.name}<br/>类型: ${params.data.category}<br/>关联数: ${params.value} 条`
         }
-        return `${params.data.source} → ${params.data.target}`
+        return `${params.data.sourceName || params.data.source} → ${params.data.targetName || params.data.target}`
+          + `<br/>${params.data.relationType || ''}`
       }
     },
     legend: {
@@ -573,7 +673,7 @@ const initGraph = () => {
       {
         name: '知识图谱',
         type: 'graph',
-        layout: layoutType.value,
+        layout: graphLayout,
         data: nodes,
         links: links,
         categories: categories,
@@ -627,18 +727,18 @@ const loadNodeNeighbors = async (node: any) => {
     const res: any = await knowledgeGraphApi.getNeighbors(entityId, 1)
     const data: KnowledgeGraphData | null = res?.data ?? res ?? null
     if (!data) return
-    const edges = data.edges || []
-    const neighborNodes = (data.nodes || []).filter(n => String(n.id) !== String(node.id))
+    const links = data.links || []
+    const neighborNodes = (data.nodes || []).filter(n => Number(n.id) !== entityId)
     nodeNeighbors.value = neighborNodes.map(n => {
-      // 查找连接该邻居与选中节点的边，获取关系类型
-      const edge = edges.find(e =>
-        (e.source === String(node.id) && e.target === String(n.id)) ||
-        (e.target === String(node.id) && e.source === String(n.id))
+      // 查找连接该邻居与选中节点的边，取它的关系类型
+      const link = links.find(l =>
+        (l.source === entityId && l.target === Number(n.id)) ||
+        (l.target === entityId && l.source === Number(n.id))
       )
       return {
-        name: n.label,
+        name: n.name,
         type: n.type,
-        relation: edge?.label || '关联'
+        relation: link?.relationType || '关联'
       }
     })
   } catch (e) {
@@ -700,10 +800,11 @@ const searchNode = () => {
 
 // 通过 focusNodeAdjacency 高亮关联节点（其他节点降低透明度）
 const focusNeighbors = () => {
-  if (!chartInstance || !selectedNode.value) return
+  const node = selectedNode.value
+  if (!chartInstance || !node) return
   const idx = graphNodes.value.findIndex(n =>
-    String(n.id) === String(selectedNode.value.id) ||
-    String(n.name) === String(selectedNode.value.name)
+    String(n.id) === String(node.id) ||
+    String(n.name) === String(node.name)
   )
   if (idx < 0) {
     message.warning('未找到当前节点的位置')
@@ -723,25 +824,30 @@ const clearSelection = () => {
   }
 }
 
-const onCanvasClick = (event: MouseEvent) => {
-}
-
+// 只有真拿到数据才念「已应用」；没拿到时 loadGraphData 已经弹过红条，不再补一句假的成功
 const applyFilter = async () => {
-  await loadGraphData()
-  message.success('筛选已应用')
+  const ok = await loadGraphData()
+  if (!ok) return
+  const applied: string[] = []
+  if (selectedTypes.value.length) applied.push(`实体类型 ${selectedTypes.value.join('、')}`)
+  if (selectedRelationTypes.value.length) applied.push(`关系类型 ${selectedRelationTypes.value.join('、')}`)
+  if (minConfidence.value > 0) applied.push(`置信度 ≥ ${minConfidence.value}%`)
+  const scope = applied.length ? applied.join('；') : '不限条件'
+  const data = graphData.value
+  message.success(`已按「${scope}」取数：画布 ${data?.nodeCount ?? 0} 个实体、${data?.linkCount ?? 0} 条关系`)
 }
 
 const resetFilter = () => {
   selectedTypes.value = []
   selectedRelationTypes.value = []
   nodeLimit.value = 150
-  minConfidence.value = 50
+  minConfidence.value = 0
   applyFilter()
 }
 
 const refreshGraph = async () => {
-  await loadGraphData()
-  message.success('图谱已刷新')
+  const ok = await loadGraphData()
+  if (ok) message.success('图谱已刷新')
 }
 
 const rebuildGraph = () => {
@@ -921,6 +1027,11 @@ watch(showFilterPanel, () => {
   })
 })
 
+// 换布局要真的重画（以前这个开关只在下次取数时才生效，点了没反应）
+watch(layoutType, () => {
+  initGraph()
+})
+
 onMounted(() => {
   // 首次加载图谱数据（由 API 返回）
   loadGraphData()
@@ -956,6 +1067,13 @@ onUnmounted(() => {
   text-align: right;
 }
 
+.stats-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8c8c8c;
+  line-height: 1.6;
+}
+
 .graph-card {
   .graph-toolbar {
     display: flex;
@@ -970,6 +1088,19 @@ onUnmounted(() => {
     height: 600px;
     width: 100%;
     position: relative;
+  }
+
+  .graph-empty {
+    position: absolute;
+    top: 72px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 48px;
+    text-align: center;
   }
 
   .graph-loading {
@@ -987,6 +1118,13 @@ onUnmounted(() => {
 }
 
 .node-detail {
+  .node-description {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #595959;
+    line-height: 1.7;
+  }
+
   .location-item {
     .location-doc {
       font-size: 12px;

@@ -97,38 +97,69 @@ export interface KnowledgeRelation {
   createdAt: string
 }
 
-// 知识图谱节点
+// 知识图谱节点（字段名与后端 GraphRead.GraphNodeView 一一对应，界面不许改叫 label/size）
 export interface GraphNode {
-  id: string
-  label: string
+  id: number
+  name: string
   type: string
-  size: number
-  color?: string
-  x?: number
-  y?: number
+  description?: string
+  confidence?: number
+  degree: number
+  sourceDocumentIds?: string
+  createdAt?: string
+  // 邻居那一口标出中心点；搜索那一口标出这一枚是真命中的
+  isCenter?: boolean
+  matched?: boolean
 }
 
-// 知识图谱边
-export interface GraphEdge {
-  id: string
-  source: string
-  target: string
-  label: string
-  value: number
+// 知识图谱边（source/target 是实体的数字 id，两端都在 nodes 里才画得出来）
+export interface GraphLink {
+  id: number
+  source: number
+  target: number
+  sourceName?: string
+  targetName?: string
+  relationType: string
+  description?: string
+  confidence?: number
 }
 
-// 知识图谱数据
+export interface GraphTypeCount {
+  type: string
+  count: number
+}
+
+// 知识图谱数据（GraphRead）
+// 三个数的口径各不相同，界面上要念清楚：totalEntities/totalRelations 是这一家全量、
+// matchedEntities 是筛选之后、nodes 是画布上真画出来的（受 limit 截断，truncated 为 true 时要说明）。
 export interface KnowledgeGraphData {
   nodes: GraphNode[]
-  edges: GraphEdge[]
-  entities: KnowledgeEntity[]
-  relations: KnowledgeRelation[]
-  stats: {
-    totalEntities: number
-    totalRelations: number
-    entityTypes: { type: string; count: number }[]
-    relationTypes: { type: string; count: number }[]
-  }
+  links: GraphLink[]
+  nodeCount: number
+  linkCount: number
+  totalEntities: number
+  totalRelations: number
+  matchedEntities: number
+  entityTypes: GraphTypeCount[]
+  relationTypes: GraphTypeCount[]
+  recentEntities: GraphNode[]
+  recentRelations: GraphLink[]
+  nodeLimit: number
+  truncated: boolean
+  appliedTypes: string[]
+  appliedRelationTypes: string[]
+  appliedMinConfidence: number
+  emptyReason?: string | null
+  emptyLine?: string | null
+  // 邻居那一口（/entities/{id}/neighbors）多回这几项
+  centerId?: number
+  centerName?: string
+  depth?: number
+  // 搜索那一口（/search）多回这几项
+  keyword?: string
+  matchedEntityCount?: number
+  totalNodes?: number
+  totalLinks?: number
 }
 
 // 知识库统计

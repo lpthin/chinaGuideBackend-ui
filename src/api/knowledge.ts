@@ -443,9 +443,21 @@ export const knowledgeRelationApi = {
 
 // 知识图谱 API
 export const knowledgeGraphApi = {
-  // 获取图谱数据
-  getGraph: (limit?: number, type?: string) =>
-    http.get<KnowledgeGraphData>('/knowledge/graph', { params: { limit, type } }),
+  // 获取图谱数据（三个筛选都必须真发出去：后端 GET /knowledge/graph 认 types/relationTypes/minConfidence）
+  getGraph: (query: {
+    limit?: number
+    types?: string[]
+    relationTypes?: string[]
+    minConfidence?: number
+  } = {}) =>
+    http.get<KnowledgeGraphData>('/knowledge/graph', {
+      params: {
+        limit: query.limit,
+        types: query.types && query.types.length ? query.types.join(',') : undefined,
+        relationTypes: query.relationTypes && query.relationTypes.length ? query.relationTypes.join(',') : undefined,
+        minConfidence: query.minConfidence
+      }
+    }),
 
   // 获取实体邻接关系
   getNeighbors: (entityId: number, depth?: number) =>
