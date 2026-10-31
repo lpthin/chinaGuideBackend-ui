@@ -119,9 +119,9 @@ export const knowledgeCardApi = {
 
 // 知识标签 API
 export const knowledgeTagApi = {
-  // 获取标签列表
+  // 获取标签列表（后端回的是不分页的全量读，空态那一句由它答）
   list: (params: KnowledgeTagQuery) =>
-    http.get<KnowledgeTag[]>('/knowledge/tags', { params }),
+    http.get<PageResult<KnowledgeTag>>('/knowledge/tags', { params }),
 
   // 创建标签
   create: (data: KnowledgeTagForm) =>

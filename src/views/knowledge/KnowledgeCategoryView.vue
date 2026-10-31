@@ -1,6 +1,14 @@
 <template>
   <div class="knowledge-category-page">
     <a-spin :spinning="loading">
+      <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
+      <a-alert
+        v-if="statsFailed"
+        class="scope-alert"
+        type="warning"
+        show-icon
+        :message="`下面那张「知识卡片」没从后端读回来：${statsFailed}。这一格摆的是 —，不是 0。`"
+      />
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
@@ -9,7 +17,7 @@
                 <ApartmentOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalCategories }}</div>
+                <div class="stat-value">{{ statText(stats.totalCategories) }}</div>
                 <div class="stat-title">分类总数</div>
               </div>
             </div>
@@ -22,7 +30,7 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalCards }}</div>
+                <div class="stat-value">{{ statText(stats.totalCards) }}</div>
                 <div class="stat-title">知识卡片</div>
               </div>
             </div>
@@ -35,7 +43,7 @@
                 <ArrowUpOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.maxLevel }}</div>
+                <div class="stat-value">{{ statText(stats.maxLevel) }}</div>
                 <div class="stat-title">最大层级</div>
               </div>
             </div>
@@ -66,7 +74,7 @@
                     <template #icon><UpOutlined /></template>
                     收起
                   </a-button>
-                  <a-button type="primary" size="small" @click="showAddModal">
+                  <a-button v-if="requestedTenantId !== null" type="primary" size="small" @click="showAddModal">
                     <template #icon><PlusOutlined /></template>
                     新增
                   </a-button>
@@ -103,7 +111,22 @@
                 </div>
               </template>
             </a-tree>
-            <a-empty v-else :description="searchText ? '未找到匹配分类' : '暂无分类'" />
+            <a-empty
+              v-else-if="searchText"
+              :description="`没找到名字里带「${searchText}」的分类（是在这一屏已读到的 ${categories.length} 个分类里找的）`"
+            />
+            <!-- 「暂无分类」在这一屏会被读成「这家还没建分类」，而它也可能是没发请求或读失败 -->
+            <empty-list-hint
+              v-else
+              :loading="loading"
+              :not-sent="notSentLine"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+              :can-create="canCreateHere"
+              create-label="新增分类"
+              @create="showAddModal"
+            />
           </a-card>
         </a-col>
 
@@ -176,8 +199,8 @@
               </a-space>
             </template>
           </a-card>
-          <a-empty v-else :description="categories.length === 0 ? '请先在左侧创建分类' : '请选择左侧分类进行编辑'">
-            <a-button v-if="categories.length === 0" type="primary" @click="showAddModal">
+          <a-empty v-else :description="rightColumnHint">
+            <a-button v-if="canCreateHere" type="primary" @click="showAddModal">
               <template #icon><PlusOutlined /></template>
               新增分类
             </a-button>
@@ -230,7 +253,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   ApartmentOutlined,
@@ -250,19 +273,81 @@ import type { KnowledgeCategoryStats } from '../../api/knowledge'
 import type { KnowledgeCategory, KnowledgeCategoryForm } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
+import { asEmptyReason, offersCreateOnEmpty, type EmptyReason } from '../../utils/emptyPage'
+import { logError } from '../../utils/errorLog'
 
 const authStore = useAuthStore()
-const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
+
+/**
+ * 这一屏的数属于谁。
+ *
+ * 改前这里是 `selectedTenantId || tenantId || 1`：`tenantId` 那个 getter 在没人选客户时回的是
+ * 登录账号名下那一家，最后那个 `|| 1` 更会把人指到第一家去。超管打开这一屏、还没点租户切换时，
+ * 树上摆的其实是 admin 名下那一家的分类，而界面一个字不提。
+ * 现在没选定客户就是 null：两发请求都不发，屏上只说「还没有选定客户」。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的分类。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  const code = authStore.selectedTenantCode
+  const who = authStore.isSuperAdmin
+    ? `当前看的是${code ? `客户「${code}」` : '选中的那一家客户'}（编号 #${id}）`
+    : `当前看的是你所在客户（编号 #${id}）`
+  return `${who}的资料库项目。`
+})
 
 const loading = ref(false)
 const saving = ref(false)
 const showModal = ref(false)
 const editingCategory = ref<KnowledgeCategory | null>(null)
 
+// 空态与三张卡的话只认后端与这一次读没读回来（N-05）：没发出去 / 读失败 / 后端答了成因 / 后端没答，四件事分开说
+const notSentLine = ref('')
+const readFailed = ref('')
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+/** 「知识卡片」那一格只从 `/categories/stats` 读，它断了不该把树上已经读到的数一起抹掉 */
+const statsFailed = ref('')
+
+/** 三张卡：null 表示「没读到」，界面摆 `—`；摆 0 会被读成「这一家一个分类都没建」 */
 const stats = reactive({
-  totalCategories: 0,
-  totalCards: 0,
-  maxLevel: 0,
+  totalCategories: null as number | null,
+  totalCards: null as number | null,
+  maxLevel: null as number | null,
+})
+
+function statText(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return value.toLocaleString()
+}
+
+/** 该不该摆「新增分类」：选定客户了、这一发读回来了、且后端答的是「真的没有」 */
+const canCreateHere = computed(
+  () =>
+    requestedTenantId.value !== null &&
+    !notSentLine.value &&
+    !readFailed.value &&
+    offersCreateOnEmpty(emptyReason.value)
+)
+
+const rightColumnHint = computed(() => {
+  if (notSentLine.value) return '还没选定客户，左边那一列还没有分类可读。'
+  if (readFailed.value) return `左边那一列没读上来（${readFailed.value}），这里没有可编辑的分类。`
+  // 正在读的时候 categories 还是上一家那份（多半是空的）。这一格不许抢答「这一家还没有分类」：
+  // 1 号那一家有 5 个分类，加载中那一眼读成「一个都没建」就是在撒谎
+  if (loading.value) return '正在读这一家的分类，读回来之前这里不放分类。'
+  if (categories.value.length === 0) return '这一家还没有分类，先在左侧新增一个。'
+  return '请选择左侧分类进行编辑'
 })
 
 const searchText = ref('')
@@ -273,7 +358,9 @@ const categoryStats = ref<KnowledgeCategoryStats[]>([])
 const currentCategory = ref<KnowledgeCategory | null>(null)
 
 const modalForm = reactive<KnowledgeCategoryForm>({
-  tenantId: getTenantId(),
+  // 归属在每次打开新建时按「这一屏选定的那一家」填（见 showAddModal）。
+  // 这里留 0 只是类型占位：0 不是任何一家的编号，真发出去后端的写闸会当面拒（「指定的租户 0 不存在」）。
+  tenantId: 0,
   name: '',
   parentId: null,
   icon: 'folder',
@@ -434,6 +521,8 @@ async function onDrop(info: any) {
 
 function showAddModal() {
   editingCategory.value = null
+  // 新建的行归到哪家只认这一屏选定的那一家（后端的写闸按同一份判，两边不一致会当面拒）
+  modalForm.tenantId = requestedTenantId.value ?? 0
   modalForm.name = ''
   modalForm.parentId = selectedKeys.value.length ? Number(selectedKeys.value[0]) : null
   modalForm.icon = 'folder'
@@ -527,33 +616,86 @@ function resetForm() {
 }
 
 async function loadData() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    // 没选定客户就一发都不发。改前这里发的是 `selectedTenantId || tenantId || 1`：
+    // 超管没选客户时树上摆的其实是 1 号那一家的分类，而界面一个字不提
+    loading.value = false
+    notSentLine.value = '当前没有选定客户，这一发没发出去，所以左侧一棵分类都不是（这不是「这一家没有分类」）。'
+    readFailed.value = ''
+    statsFailed.value = ''
+    emptyLine.value = ''
+    emptyReason.value = null
+    clearRead()
+    stats.totalCategories = null
+    stats.totalCards = null
+    stats.maxLevel = null
+    return
+  }
   loading.value = true
-  try {
-    const [categoriesResult, statsResult] = await Promise.all([
-      knowledgeCategoryApi.all(getTenantId()),
-      knowledgeCategoryApi.stats(getTenantId())
-    ])
+  notSentLine.value = ''
+  readFailed.value = ''
+  statsFailed.value = ''
+  emptyLine.value = ''
+  emptyReason.value = null
+  // 三张卡跟着这一发一起归零：换客户时页首已经先写上新一家的名字，卡里还是上一家的数就是认错人
+  stats.totalCategories = null
+  stats.totalCards = null
+  stats.maxLevel = null
+  // 树与统计各读各的：统计那一口断了，不把树上已经读到的数抹成空；树断了也不会假装卡片读回来了
+  const [allResult, statsResult] = await Promise.allSettled([
+    knowledgeCategoryApi.all(tenantId),
+    knowledgeCategoryApi.stats(tenantId),
+  ])
+
+  if (allResult.status === 'fulfilled') {
     // /categories/all 返回树形结构，本地按 parentId 组树需要平铺列表
-    const list = flattenCategories(categoriesResult.records)
+    const list = flattenCategories(allResult.value.records || [])
     categories.value = list
-    categoryStats.value = statsResult
     stats.totalCategories = list.length
-    stats.totalCards = statsResult.reduce((sum, s) => sum + (s.cardCount || 0), 0)
     stats.maxLevel = getMaxLevel(list)
-    if (list.length && !selectedKeys.value.length) {
+    emptyLine.value = allResult.value.emptyLine || ''
+    emptyReason.value = asEmptyReason(allResult.value.emptyReason)
+    if (list.length && !list.some(item => String(item.id) === selectedKeys.value[0])) {
+      // 换了一家客户：勾选要跟着落到这一家的第一个分类上，不能留着上一家的编号
       selectedKeys.value = [String(list[0].id)]
       currentCategory.value = { ...list[0] }
     }
-  } catch (error) {
+    if (!list.length) {
+      selectedKeys.value = []
+      currentCategory.value = null
+    }
+  } else {
+    const reason = describeHttpError(allResult.reason)
+    readFailed.value = reason
     categories.value = []
-    categoryStats.value = []
-    stats.totalCategories = 0
-    stats.totalCards = 0
-    stats.maxLevel = 0
-    message.error(`加载分类数据失败：${describeHttpError(error)}`)
-  } finally {
-    loading.value = false
+    stats.totalCategories = null
+    stats.maxLevel = null
+    selectedKeys.value = []
+    currentCategory.value = null
+    message.error(`加载分类数据失败：${reason}`)
+    logError('knowledge/category-view', '加载分类失败:', allResult.reason)
   }
+
+  if (statsResult.status === 'fulfilled') {
+    categoryStats.value = statsResult.value || []
+    stats.totalCards = categoryStats.value.reduce((sum, s) => sum + (s.cardCount || 0), 0)
+  } else {
+    statsFailed.value = describeHttpError(statsResult.reason)
+    categoryStats.value = []
+    stats.totalCards = null
+    logError('knowledge/category-view', '加载分类统计失败:', statsResult.reason)
+  }
+
+  loading.value = false
+}
+
+/** 读回来的行清干净（切客户与读失败都走这里），三张卡的数由调用处按「读没读到」分别定 */
+function clearRead() {
+  categories.value = []
+  categoryStats.value = []
+  currentCategory.value = null
+  selectedKeys.value = []
 }
 
 function getMaxLevel(list: KnowledgeCategory[]): number {
@@ -575,12 +717,23 @@ function getMaxLevel(list: KnowledgeCategory[]): number {
 onMounted(() => {
   loadData()
 })
+
+// 右上角换了一家客户就得重取：这一屏的树、三张卡、新建归到哪家，按的都是那一家
+watch(requestedTenantId, () => {
+  clearRead()
+  searchText.value = ''
+  loadData()
+})
 </script>
 
 <style scoped lang="less">
 .knowledge-category-page {
   width: 100%;
   padding: 8px 0;
+}
+
+.scope-alert {
+  margin-bottom: 12px;
 }
 
 .stat-card {

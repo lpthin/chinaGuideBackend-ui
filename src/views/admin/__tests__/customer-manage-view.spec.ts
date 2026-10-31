@@ -77,6 +77,10 @@ const TABLE_STUB = {
     </div>`
 }
 
+/** 本月那一天：按跑测那一刻的月份现取，写死某个月会在跨月当天假红（11-01 就这么红过一次） */
+const now = new Date()
+const THIS_MONTH = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
 function customer(id: number, overrides: Record<string, unknown> = {}) {
   return {
     id,
@@ -87,7 +91,7 @@ function customer(id: number, overrides: Record<string, unknown> = {}) {
     email: '',
     level: 'normal',
     status: 'active',
-    registeredAt: '2026-10-01T10:00:00',
+    registeredAt: `${THIS_MONTH}-05T10:00:00`,
     ...overrides
   }
 }
