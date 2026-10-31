@@ -2,17 +2,37 @@
   <div class="knowledge-dashboard-container">
     <a-page-header title="知识库仪表板" sub-title="企业知识资产管理与数据分析">
       <template #extra>
-        <a-space>
-          <a-range-picker v-model:value="dateRange" @change="refreshData" />
-          <a-button type="primary" @click="refreshData">
-            <template #icon><ReloadOutlined /></template>
-            刷新
-          </a-button>
-        </a-space>
+        <a-button type="primary" :loading="loading" @click="refreshData">
+          <template #icon><ReloadOutlined /></template>
+          刷新
+        </a-button>
       </template>
     </a-page-header>
 
     <div class="dashboard-content">
+      <a-alert
+        v-if="scopeNotice"
+        class="scope-alert"
+        type="info"
+        show-icon
+        :message="scopeNotice"
+      />
+      <!-- 「读不到这一家」与「读失败」分开念：这两种都不能摆成一屏 0 -->
+      <a-alert
+        v-if="dashboardState === 'unreadable'"
+        class="scope-alert"
+        type="warning"
+        show-icon
+        :message="emptyLine"
+      />
+      <a-alert
+        v-if="dashboardState === 'failed'"
+        class="scope-alert"
+        type="error"
+        show-icon
+        :message="`这一屏没读上来：${readError}`"
+      />
+
       <a-row :gutter="[16, 16]" class="stats-row">
         <a-col :xs="24" :sm="12" :md="6" v-for="stat in statsCards" :key="stat.key">
           <a-card class="stat-card" hoverable :bordered="false">
@@ -20,7 +40,7 @@
               <component :is="stat.icon" />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ formatNumber(stat.value) }}</div>
+              <div class="stat-value">{{ countText(stat.value) }}</div>
               <div class="stat-label">{{ stat.label }}</div>
             </div>
           </a-card>
@@ -29,15 +49,18 @@
 
       <a-row :gutter="16">
         <a-col :xs="24" :md="16">
-          <a-card title="增长趋势" class="chart-card">
-            <div v-if="trendData.length > 0" ref="trendChartRef" class="chart-container"></div>
-            <a-empty v-else description="暂无数据" class="chart-empty" />
+          <a-card class="chart-card">
+            <template #title>增长趋势<span class="card-sub">近 7 天（含今天）</span></template>
+            <div v-if="trendNotice" class="chart-empty chart-state">{{ trendNotice }}</div>
+            <div v-else-if="trendData.length > 0" ref="trendChartRef" class="chart-container"></div>
+            <a-empty v-else description="近 7 天里没有新增文档或卡片" class="chart-empty" />
           </a-card>
         </a-col>
         <a-col :xs="24" :md="8">
           <a-card title="分类分布" class="chart-card">
-            <div v-if="categories.length > 0" ref="categoryChartRef" class="chart-container pie-chart"></div>
-            <a-empty v-else description="暂无分类数据" class="chart-empty" />
+            <div v-if="pieNotice" class="chart-empty chart-state">{{ pieNotice }}</div>
+            <div v-else-if="categories.length > 0" ref="categoryChartRef" class="chart-container pie-chart"></div>
+            <a-empty v-else description="这一家还没有分过类的知识内容" class="chart-empty" />
           </a-card>
         </a-col>
       </a-row>
@@ -45,7 +68,8 @@
       <a-row :gutter="16" style="margin-top: 16px">
         <a-col :xs="24" :md="12">
           <a-card title="最近活动" class="activity-card">
-            <a-empty v-if="activities.length === 0" description="暂无活动" />
+            <div v-if="activityNotice" class="activity-state">{{ activityNotice }}</div>
+            <a-empty v-else-if="activities.length === 0" description="这一家还没有上传过资料" />
             <a-timeline v-else>
               <a-timeline-item v-for="activity in activities" :key="activity.id" :color="getActivityColor(activity.type)">
                 <div class="activity-item">
@@ -67,7 +91,7 @@
                   <FileTextOutlined />
                 </div>
                 <div class="status-info">
-                  <div class="status-value">{{ parseStats.total }}</div>
+                  <div class="status-value">{{ countText(parseStats.total) }}</div>
                   <div class="status-label">总文档数</div>
                 </div>
               </div>
@@ -76,7 +100,7 @@
                   <CheckCircleOutlined />
                 </div>
                 <div class="status-info">
-                  <div class="status-value">{{ parseStats.success }}</div>
+                  <div class="status-value">{{ countText(parseStats.success) }}</div>
                   <div class="status-label">已解析</div>
                 </div>
               </div>
@@ -85,7 +109,7 @@
                   <DatabaseOutlined />
                 </div>
                 <div class="status-info">
-                  <div class="status-value">{{ parseStats.vectorized }}</div>
+                  <div class="status-value">{{ countText(parseStats.vectorized) }}</div>
                   <div class="status-label">已向量化</div>
                 </div>
               </div>
@@ -94,7 +118,7 @@
                   <CloudServerOutlined />
                 </div>
                 <div class="status-info">
-                  <div class="status-value">{{ parseStats.chunks }}</div>
+                  <div class="status-value">{{ countText(parseStats.chunks) }}</div>
                   <div class="status-label">知识分块</div>
                 </div>
               </div>
@@ -159,7 +183,7 @@
               <div class="empty-icon">
                 <MessageOutlined />
               </div>
-              <p>开始提问，AI将基于知识库为您解答</p>
+              <p>{{ qaHint }}</p>
             </div>
             <div class="qa-input-wrapper">
               <a-input-search
@@ -169,7 +193,7 @@
                 size="large"
                 @search="askQuestion"
                 :loading="qaLoading"
-                :disabled="qaLoading"
+                :disabled="qaDisabled"
               />
             </div>
           </a-card>
@@ -180,7 +204,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, nextTick, watch, markRaw } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
@@ -199,23 +223,64 @@ import {
 } from '@ant-design/icons-vue'
 import { knowledgeStatsApi, knowledgeCategoryApi, knowledgeDocumentApi, smartQAApi } from '../../api/knowledge'
 import type { StreamQAReference, KnowledgeCategoryStats } from '../../api/knowledge'
-import type { Dayjs } from 'dayjs'
 import { useAuthStore } from '../../stores/auth'
-import { formatNumber } from '../../utils/format'
+import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
 
 const router = useRouter()
 const auth = useAuthStore()
 
-const getTenantId = () => auth.selectedTenantId || 1
+/**
+ * 这一屏的数属于谁。超管没选定客户就是 null ⇒ 一发 `/api/knowledge/*` 都不发。
+ *
+ * 改前这里是 `auth.selectedTenantId || 1`：超管没选客户时悄悄去问 1 号客户，
+ * 租户管理员则永远拿 1（自己的客户编号根本不参与），屏幕照样摆一屏数。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (auth.isSuperAdmin) return auth.selectedTenantId ?? null
+  return auth.user?.tenantId ?? null
+})
 
-const dateRange = ref<[Dayjs, Dayjs] | undefined>()
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return auth.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的数。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不摆数。'
+  }
+  const code = auth.selectedTenantCode
+  const who = auth.isSuperAdmin
+    ? `当前看的是${code ? `客户「${code}」` : '选中的那一家客户'}（编号 #${id}）`
+    : `当前看的是你所在客户（编号 #${id}）`
+  return `${who}的知识库数据。`
+})
+
+type ReadState = 'idle' | 'loading' | 'ok' | 'unreadable' | 'failed'
+
+const loading = ref(false)
+const dashboardState = ref<ReadState>('idle')
+const emptyLine = ref('')
+const readError = ref('')
+
+const trendState = ref<ReadState>('idle')
+const trendError = ref('')
+const categoryState = ref<ReadState>('idle')
+const categoryError = ref('')
+const activityState = ref<ReadState>('idle')
+const activityError = ref('')
+const activityEmptyLine = ref('')
+
+function countText(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return value.toLocaleString()
+}
+
 const trendChartRef = ref<HTMLDivElement>()
 const categoryChartRef = ref<HTMLDivElement>()
 let trendChart: echarts.ECharts | null = null
 let categoryChart: echarts.ECharts | null = null
 
-// 统计数据接口返回结构
+// 统计数据接口返回结构（tenantUnreadable 与成因只有「读不到这一家」时才有）
 interface StatsData {
   totalDocuments: number
   parsedDocuments: number
@@ -223,6 +288,9 @@ interface StatsData {
   totalChunks: number
   totalEntities: number
   totalRelations: number
+  tenantUnreadable?: boolean
+  emptyReason?: string
+  emptyLine?: string
 }
 
 interface TrendItem {
@@ -248,23 +316,22 @@ interface Activity {
   userName: string
 }
 
-const stats = ref<StatsData | null>(null)
 const trendData = ref<TrendItem[]>([])
 const categories = ref<CategoryItem[]>([])
 const activities = ref<Activity[]>([])
 
 const parseStats = reactive({
-  total: 0,
-  success: 0,
-  vectorized: 0,
-  chunks: 0
+  total: null as number | null,
+  success: null as number | null,
+  vectorized: null as number | null,
+  chunks: null as number | null
 })
 
 const statsCards = ref([
-  { key: 'documents', label: '文档总数', value: 0, color: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)', icon: markRaw(FileTextOutlined) },
-  { key: 'parsed', label: '已解析文档', value: 0, color: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)', icon: markRaw(CheckCircleOutlined) },
-  { key: 'vectorized', label: '已向量化', value: 0, color: 'linear-gradient(135deg, #722ed1 0%, #531dab 100%)', icon: markRaw(DatabaseOutlined) },
-  { key: 'entities', label: '知识实体', value: 0, color: 'linear-gradient(135deg, #fa8c16 0%, #d46b08 100%)', icon: markRaw(ShareAltOutlined) }
+  { key: 'documents', label: '文档总数', value: null as number | null, color: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)', icon: markRaw(FileTextOutlined) },
+  { key: 'parsed', label: '已解析文档', value: null as number | null, color: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)', icon: markRaw(CheckCircleOutlined) },
+  { key: 'vectorized', label: '已向量化', value: null as number | null, color: 'linear-gradient(135deg, #722ed1 0%, #531dab 100%)', icon: markRaw(DatabaseOutlined) },
+  { key: 'entities', label: '知识实体', value: null as number | null, color: 'linear-gradient(135deg, #fa8c16 0%, #d46b08 100%)', icon: markRaw(ShareAltOutlined) }
 ])
 
 const currentQuestion = ref('')
@@ -281,16 +348,51 @@ interface QAItem {
 
 const qaHistory = ref<QAItem[]>([])
 
-// 加载统计数据
-const loadStats = async () => {
+const resetAll = () => {
+  dashboardState.value = 'idle'
+  emptyLine.value = ''
+  readError.value = ''
+  statsCards.value.forEach(card => {
+    card.value = null
+  })
+  parseStats.total = null
+  parseStats.success = null
+  parseStats.vectorized = null
+  parseStats.chunks = null
+  trendData.value = []
+  trendState.value = 'idle'
+  trendError.value = ''
+  trendChart?.dispose()
+  trendChart = null
+  categories.value = []
+  categoryState.value = 'idle'
+  categoryError.value = ''
+  categoryChart?.dispose()
+  categoryChart = null
+  activities.value = []
+  activityState.value = 'idle'
+  activityError.value = ''
+  activityEmptyLine.value = ''
+}
+
+// 「读不到这一家」与「这一家真没有」是两件事：前者七个数全是 0，不能当真数摆出去
+const loadStats = async (tenantId: number) => {
+  dashboardState.value = 'loading'
+  readError.value = ''
   try {
-    const res: any = await knowledgeStatsApi.getStats(getTenantId())
+    const res: any = await knowledgeStatsApi.getStats(tenantId)
     const result: StatsData | null = res?.data ?? res ?? null
     if (!result) {
-      stats.value = null
+      dashboardState.value = 'failed'
+      readError.value = '后端一个字没回'
       return
     }
-    stats.value = result
+    if (result.tenantUnreadable) {
+      dashboardState.value = 'unreadable'
+      emptyLine.value = result.emptyLine || '知识库仪表盘读不到这一家：这个编号不存在或已被删除。这不代表这一家「没有内容」。'
+      return
+    }
+    dashboardState.value = 'ok'
 
     statsCards.value[0].value = result.totalDocuments ?? 0
     statsCards.value[1].value = result.parsedDocuments ?? 0
@@ -303,18 +405,21 @@ const loadStats = async () => {
     parseStats.chunks = result.totalChunks ?? 0
   } catch (error) {
     logError('knowledge/knowledge-dashboard-view', '加载统计数据失败:', error)
-    message.error('加载统计数据失败')
-    stats.value = null
+    dashboardState.value = 'failed'
+    readError.value = describeHttpError(error)
   }
 }
 
 // 加载增长趋势数据
-const loadTrend = async () => {
+const loadTrend = async (tenantId: number) => {
+  trendState.value = 'loading'
+  trendError.value = ''
   try {
-    const res: any = await knowledgeStatsApi.getTrend(getTenantId(), 7)
+    const res: any = await knowledgeStatsApi.getTrend(tenantId, 7)
     const result: TrendItem[] | null = res?.data ?? res ?? null
     const list = Array.isArray(result) ? result : []
     trendData.value = list
+    trendState.value = 'ok'
 
     if (list.length === 0) {
       trendChart?.dispose()
@@ -327,15 +432,19 @@ const loadTrend = async () => {
   } catch (error) {
     logError('knowledge/knowledge-dashboard-view', '加载趋势数据失败:', error)
     trendData.value = []
+    trendState.value = 'failed'
+    trendError.value = describeHttpError(error)
     trendChart?.dispose()
     trendChart = null
   }
 }
 
 // 加载分类数据
-const loadCategories = async () => {
+const loadCategories = async (tenantId: number) => {
+  categoryState.value = 'loading'
+  categoryError.value = ''
   try {
-    const res: any = await knowledgeCategoryApi.stats(getTenantId())
+    const res: any = await knowledgeCategoryApi.stats(tenantId)
     const result: KnowledgeCategoryStats[] | null = res?.data ?? res ?? null
     const list = Array.isArray(result) ? result : []
     categories.value = list.filter(item => (item.totalCount || 0) > 0).map(item => ({
@@ -345,6 +454,7 @@ const loadCategories = async () => {
       cardCount: item.cardCount,
       totalCount: item.totalCount
     }))
+    categoryState.value = 'ok'
 
     if (categories.value.length === 0) {
       categoryChart?.dispose()
@@ -357,16 +467,21 @@ const loadCategories = async () => {
   } catch (error) {
     logError('knowledge/knowledge-dashboard-view', '加载分类数据失败:', error)
     categories.value = []
+    categoryState.value = 'failed'
+    categoryError.value = describeHttpError(error)
     categoryChart?.dispose()
     categoryChart = null
   }
 }
 
-// 加载最近活动（从最近上传的文档获取）
-const loadActivities = async () => {
+// 加载最近活动（从最近上传的文档获取，空时原样念后端给的成因）
+const loadActivities = async (tenantId: number) => {
+  activityState.value = 'loading'
+  activityError.value = ''
+  activityEmptyLine.value = ''
   try {
     const res: any = await knowledgeDocumentApi.list({
-      tenantId: getTenantId(),
+      tenantId,
       page: 1,
       size: 5
     } as any)
@@ -383,9 +498,15 @@ const loadActivities = async () => {
         userName: doc.uploadedByName || '未知'
       }
     })
+    if (records.length === 0) {
+      activityEmptyLine.value = result?.emptyLine || ''
+    }
+    activityState.value = 'ok'
   } catch (error) {
     logError('knowledge/knowledge-dashboard-view', '加载活动数据失败:', error)
     activities.value = []
+    activityState.value = 'failed'
+    activityError.value = describeHttpError(error)
   }
 }
 
@@ -510,20 +631,88 @@ const initCategoryChart = () => {
   })
 }
 
+const trendNotice = computed(() => {
+  // 没选定客户时这三段根本没发请求，不能念成「查过了、没有」
+  if (requestedTenantId.value === null) return '没有选定客户，这一段还没查过。'
+  if (dashboardState.value === 'unreadable') return emptyLine.value
+  if (dashboardState.value === 'failed') return `这一屏没读上来：${readError.value}`
+  if (trendState.value === 'failed') return `增长趋势没读上来：${trendError.value}`
+  return ''
+})
+
+const pieNotice = computed(() => {
+  if (requestedTenantId.value === null) return '没有选定客户，这一段还没查过。'
+  if (dashboardState.value === 'unreadable') return emptyLine.value
+  if (dashboardState.value === 'failed') return `这一屏没读上来：${readError.value}`
+  if (categoryState.value === 'failed') return `分类分布没读上来：${categoryError.value}`
+  return ''
+})
+
+const activityNotice = computed(() => {
+  if (requestedTenantId.value === null) return '没有选定客户，这一段还没查过。'
+  if (dashboardState.value === 'unreadable') return emptyLine.value
+  if (dashboardState.value === 'failed') return `这一屏没读上来：${readError.value}`
+  if (activityState.value === 'failed') return `最近活动没读上来：${activityError.value}`
+  if (activityState.value === 'ok' && activities.value.length === 0) return activityEmptyLine.value
+  return ''
+})
+
+const qaBlockedLine = computed(() => {
+  if (requestedTenantId.value === null) return '没有选定客户，问答不发请求。'
+  if (dashboardState.value === 'unreadable') return '这一家读不到，问答不发请求。'
+  if (dashboardState.value === 'failed') return '知识库统计没读上来，问答先不发请求。'
+  return ''
+})
+
+const qaHint = computed(() => qaBlockedLine.value || '开始提问，AI将基于知识库为您解答')
+const qaDisabled = computed(() => qaLoading.value || qaBlockedLine.value !== '')
+
 // 加载全部数据
 const loadAll = async () => {
-  await Promise.all([
-    loadStats(),
-    loadTrend(),
-    loadCategories(),
-    loadActivities()
-  ])
+  const tenantId = requestedTenantId.value
+  resetAll()
+  if (tenantId === null) return
+
+  loading.value = true
+  try {
+    await loadStats(tenantId)
+    // 这一家读不到就别再往下问：后三口只会回空，摆出来的「没有数据」是假的
+    if (dashboardState.value !== 'ok') return
+    await Promise.all([
+      loadTrend(tenantId),
+      loadCategories(tenantId),
+      loadActivities(tenantId)
+    ])
+  } finally {
+    loading.value = false
+  }
 }
 
-// 刷新数据
+// 刷新数据：只有四口都读成时才说「已刷新」，否则把没读上来的名字念出来
 const refreshData = async () => {
+  if (requestedTenantId.value === null) {
+    message.warning('先在右上角选定客户，再刷新')
+    return
+  }
   message.loading({ content: '正在刷新数据...', key: 'refresh' })
   await loadAll()
+  if (dashboardState.value === 'unreadable') {
+    message.warning({ content: '这一家读不到，屏幕上的数不能当真', key: 'refresh' })
+    return
+  }
+  // 统计这一口整屏失败时，后三口根本没发过请求（loadAll 到这就返回了），不能说「其余部分照旧」
+  if (dashboardState.value === 'failed') {
+    message.warning({ content: `这一屏一个数都没读到：${readError.value}`, key: 'refresh' })
+    return
+  }
+  const failed: string[] = []
+  if (trendState.value === 'failed') failed.push('增长趋势')
+  if (categoryState.value === 'failed') failed.push('分类分布')
+  if (activityState.value === 'failed') failed.push('最近活动')
+  if (failed.length > 0) {
+    message.warning({ content: `没读上来：${failed.join('、')}。其余部分照旧`, key: 'refresh' })
+    return
+  }
   message.success({ content: '数据已刷新', key: 'refresh' })
 }
 
@@ -580,7 +769,8 @@ const scrollToBottom = () => {
 
 // AI 智能问答
 const askQuestion = () => {
-  if (!currentQuestion.value.trim() || qaLoading.value) return
+  const tenantId = requestedTenantId.value
+  if (!tenantId || !currentQuestion.value.trim() || qaLoading.value) return
 
   const question = currentQuestion.value.trim()
   currentQuestion.value = ''
@@ -597,7 +787,7 @@ const askQuestion = () => {
 
   const currentIndex = qaHistory.value.length - 1
 
-  stopStream = smartQAApi.streamQA(getTenantId(), question, 5, {
+  stopStream = smartQAApi.streamQA(tenantId, question, 5, {
     onMessage: (content: string) => {
       if (qaHistory.value[currentIndex]) {
         qaHistory.value[currentIndex].answer += content
@@ -647,12 +837,9 @@ const handleResize = () => {
   categoryChart?.resize()
 }
 
-watch(
-  () => auth.selectedTenantId,
-  () => {
-    loadAll()
-  }
-)
+watch(requestedTenantId, () => {
+  loadAll()
+})
 
 onMounted(() => {
   loadAll()
@@ -675,6 +862,29 @@ onUnmounted(() => {
   .dashboard-content {
     padding: 24px;
   }
+
+  .scope-alert {
+    margin-bottom: 16px;
+  }
+}
+
+.card-sub {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #8c8c8c;
+}
+
+.chart-state,
+.activity-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  padding: 16px;
+  color: #8c8c8c;
+  text-align: center;
+  line-height: 1.6;
 }
 
 .stat-card {
