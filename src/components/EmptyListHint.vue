@@ -2,7 +2,8 @@
   <!--
     这一格这一发没行时界面说的那一句（M-P50 拍板 ④ 起头，M-P53 按「只保人会看错的屏」收进一处）。
 
-    分成三份话，各说各的：
+    分成四份话，各说各的：
+    - 没发出去（notSent）：连请求都没发，谈不上有没有行。
     - 读失败：这一发根本没读回来，它和「没行」是两件事，混在一起就是谎报。
     - 后端答了成因：逐字念 `emptyLine`（唯一出处在后端 `EmptyResultReasons.sentence`），界面不改写、不合并。
     - 后端没答（那一格是 null）：用自己这一句兜底，不替它挑一种成因。
@@ -12,7 +13,8 @@
     （OUT_OF_RANGE）都不摆，那两种空不是说「这一档还空着」。
   -->
   <p v-if="!loading" class="empty-line">
-    <template v-if="readFailed">这一发读失败：{{ readFailed }}（读失败不是「这一档没有」）</template>
+    <template v-if="notSent">{{ notSent }}</template>
+    <template v-else-if="readFailed">这一发读失败：{{ readFailed }}（读失败不是「这一档没有」）</template>
     <template v-else-if="emptyLine">{{ emptyLine }}</template>
     <template v-else>这一格这一发没有行（后端没回是哪一种空，界面不替它猜）。</template>
     <a-button
@@ -37,6 +39,8 @@ withDefaults(
     emptyReason?: EmptyReason
     canCreate?: boolean
     createLabel?: string
+    /** 这一发压根没出去（例如超管没选定客户）。它既不是读失败也不是「没行」，得单独说一句 */
+    notSent?: string
   }>(),
   {
     loading: false,
@@ -45,6 +49,7 @@ withDefaults(
     emptyReason: null,
     canCreate: false,
     createLabel: '新建',
+    notSent: '',
   }
 )
 

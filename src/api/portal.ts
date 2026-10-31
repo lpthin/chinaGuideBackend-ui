@@ -16,6 +16,7 @@ import type {
   BannerForm,
   JobPostForm,
   GuestbookReply,
+  GuestbookStats,
   CompanyInfoForm,
   PageResult
 } from '../types/portal'
@@ -136,6 +137,13 @@ export const guestbookApi = {
   /** 预算范围档位的中文标签：那一格库里存的是码，说法只有这一个来源（与 types 同一口径） */
   budgets: () =>
     http.get<Record<string, string>>('/guestbook/budgets'),
+
+  /**
+   * 四个统计数一口回完。后端 `GET /guestbook/stats` 早就在（`GuestbookController#stats`），
+   * 改前这一屏没叫过它，改发四口 `list?page=1&size=1` 只为各拿一个 `total`（M-P100 现测：3/1/2/3 两边逐字相同）。
+   */
+  stats: (tenantId?: number | null) =>
+    http.get<GuestbookStats>('/guestbook/stats', { params: tenantId ? { tenantId } : {} }),
 
   // 回复留言
   reply: (id: number, replyContent: string, replierName?: string) =>

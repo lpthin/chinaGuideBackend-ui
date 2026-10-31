@@ -4,7 +4,24 @@
     </a-page-header>
 
     <div class="content-wrapper">
+      <!-- 这一屏属于哪一家：改前超管没选客户时，界面拿 auth.tenantId 兜底偷偷去问 1 号（M-P100 现测 (b)） -->
+      <a-alert v-if="scopeNotice" class="scope-alert" type="info" show-icon :message="scopeNotice" />
+      <a-alert
+        v-if="statsState === 'failed'"
+        class="scope-alert"
+        type="error"
+        show-icon
+        :message="`那四个数没读上来：${statsError}（读不到不是「这一家没有留言」）`"
+      />
       <a-spin :spinning="loading">
+        <a-row :gutter="16" style="margin-bottom: 4px">
+          <a-col :span="24">
+            <!-- 四张卡的口径写死在屏上：它们数的是这一家全部留言，不跟着下面的筛选走 -->
+            <span class="stats-scope-line">
+              下面四个数数的是这一家<strong>全部留言</strong>（不随下面的状态、类型、关键词筛选变）。
+            </span>
+          </a-col>
+        </a-row>
         <a-row :gutter="16" style="margin-bottom: 16px">
           <a-col :span="6">
             <a-card class="stat-card" hoverable>
@@ -13,7 +30,7 @@
                   <MessageOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.totalMessages }}</div>
+                  <div class="stat-value">{{ statText(stats?.totalMessages) }}</div>
                   <div class="stat-title">留言总数</div>
                 </div>
               </div>
@@ -26,7 +43,7 @@
                   <CheckCircleOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.repliedCount }}</div>
+                  <div class="stat-value">{{ statText(stats?.repliedCount) }}</div>
                   <div class="stat-title">已回复</div>
                 </div>
               </div>
@@ -39,7 +56,7 @@
                   <ClockCircleOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.pendingCount }}</div>
+                  <div class="stat-value">{{ statText(stats?.pendingCount) }}</div>
                   <div class="stat-title">待回复</div>
                 </div>
               </div>
@@ -52,7 +69,7 @@
                   <UserOutlined />
                 </div>
                 <div class="stat-info">
-                  <div class="stat-value">{{ stats.todayCount }}</div>
+                  <div class="stat-value">{{ statText(stats?.todayCount) }}</div>
                   <div class="stat-title">今日新增</div>
                 </div>
               </div>
@@ -106,6 +123,7 @@
             <template #emptyText>
               <empty-list-hint
                 :loading="loading"
+                :not-sent="notSentLine"
                 :read-failed="readFailed"
                 :empty-line="emptyLine"
                 :empty-reason="emptyReason"
@@ -154,7 +172,7 @@
             </template>
           </a-table>
 
-          <div class="pagination-wrapper">
+          <div v-if="!notSentLine" class="pagination-wrapper">
             <a-pagination
               v-model:current="pagination.page"
               v-model:page-size="pagination.size"
@@ -164,7 +182,7 @@
               :page-size-options="['10', '20', '50']"
               @change="loadData"
               @showSizeChange="handleSizeChange"
-              :show-total="(total: number) => `共 ${total} 条`"
+              :show-total="(total: number) => countLabel(total)"
             />
           </div>
         </a-card>
@@ -226,7 +244,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   MessageOutlined,
@@ -235,7 +253,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons-vue'
 import { guestbookApi } from '../../api/portal'
-import type { Guestbook, GuestbookQuery } from '../../types/portal'
+import type { Guestbook, GuestbookQuery, GuestbookStats } from '../../types/portal'
 import { formatDateTime } from '../../utils/format'
 import FilterBar from '../../components/FilterBar.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
@@ -247,19 +265,56 @@ import { logError } from '../../utils/errorLog'
 const auth = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
-// 空态的那一句只认后端（N-05）：读失败 / 后端答了成因 / 后端没答，三件事分开说
+// 空态的那一句只认后端（N-05）：没发出去 / 读失败 / 后端答了成因 / 后端没答，四件事分开说
+const notSentLine = ref('')
 const readFailed = ref('')
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
 const replyModalVisible = ref(false)
 const currentRecord = ref<Guestbook | null>(null)
 
-const stats = reactive({
-  totalMessages: 0,
-  repliedCount: 0,
-  pendingCount: 0,
-  todayCount: 0,
+/**
+ * 这一屏的数属于谁。超管没选定客户就是 null ⇒ 列表和统计一口都不发。
+ * 改前是 `auth.selectedTenantId || auth.tenantId`，而 `auth.tenantId` 兜底成 1，
+ * 所以超管没选客户时这一屏偷偷摆的是 1 号那一家（M-P100 现测 (b)：`selected_tenant_id=null` 仍发 `tenantId=1`）。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (auth.isSuperAdmin) return auth.selectedTenantId ?? null
+  return auth.user?.tenantId ?? null
 })
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return auth.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的数。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  const code = auth.selectedTenantCode
+  const who = auth.isSuperAdmin
+    ? `当前看的是${code ? `客户「${code}」` : '选中的那一家客户'}（编号 #${id}）`
+    : `当前看的是你所在客户（编号 #${id}）`
+  return `${who}的留言数据。`
+})
+
+type StatsState = 'idle' | 'loading' | 'ok' | 'failed'
+
+/** 后端 `GET /guestbook/stats` 一口回四个数；null 表示「没读到」，界面就摆 `—`，不摆 0 */
+const stats = ref<GuestbookStats | null>(null)
+const statsState = ref<StatsState>('idle')
+const statsError = ref('')
+
+/** 读不到就摆 `—`：把「没读到」画成 0 是这一屏原来最主要的假话 */
+function statText(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return value.toLocaleString()
+}
+
+/** 「共 N 条」只在真读回来的时候念数字；没发出去或读失败时它是「没读到」，不是 0 */
+function countLabel(total: number): string {
+  if (notSentLine.value || readFailed.value) return '条数没读到'
+  return `共 ${total} 条`
+}
 
 const queryParams = reactive({
   status: undefined as string | undefined,
@@ -358,9 +413,10 @@ async function handleReplyOk() {
     await guestbookApi.reply(currentRecord.value.id, replyForm.content)
     message.success('回复成功')
     replyModalVisible.value = false
-    await loadData()
+    await refreshAfterChange()
   } catch (error) {
-    message.error('回复失败')
+    // 后端那句原因原文比「回复失败」有用：这一家读不到、这条已被别人回过，是两种不同的下一步
+    message.error(`回复失败：${describeHttpError(error)}`)
     logError('portal/guestbook-manage-view', error)
   } finally {
     saving.value = false
@@ -371,21 +427,35 @@ async function handleDelete(id: number) {
   try {
     await guestbookApi.delete(id)
     message.success('删除成功')
-    await loadData()
+    // 删一条会同时挪动「留言总数」和「待回复/已回复」，两头都得重取一遍
+    await refreshAfterChange()
   } catch (error) {
-    message.error('删除失败')
+    message.error(`删除失败：${describeHttpError(error)}`)
     logError('portal/guestbook-manage-view', error)
   }
 }
 
 async function loadData() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    // 没选定客户时连请求都不发：发出去后端也只会回「请先选择租户」，而界面拿别人的家的数摆在这儿更糟
+    loading.value = false
+    notSentLine.value = '当前没有选定客户，这一发没发出去，所以这里的行一条都不是（不是「这一家没有留言」）。'
+    readFailed.value = ''
+    emptyLine.value = ''
+    emptyReason.value = null
+    messageList.value = []
+    pagination.total = 0
+    return
+  }
   loading.value = true
+  notSentLine.value = ''
   readFailed.value = ''
   emptyLine.value = ''
   emptyReason.value = null
   try {
     const params: GuestbookQuery = {
-      tenantId: auth.selectedTenantId || auth.tenantId,
+      tenantId,
       page: pagination.page,
       size: pagination.size,
       status: queryParams.status || undefined,
@@ -404,7 +474,6 @@ async function loadData() {
       message.info(JUMP_BACK_NOTICE)
       return
     }
-    loadStats()
   } catch (error) {
     readFailed.value = describeHttpError(error)
     messageList.value = []
@@ -416,26 +485,42 @@ async function loadData() {
   }
 }
 
+/**
+ * 四个数一口取回来。改前这里发四口 `list?page=1&size=1` 只为各拿一个 `total`，
+ * 且四发挤在同一个 `try` 里 —— 中间一发断了后面几发根本不发，卡照旧摆 0（M-P100 现测 (c)）。
+ * 它也不再挂在 `loadData()` 的尾巴上：列表与统计各读各的，一边断不影响另一边说真话。
+ */
 async function loadStats() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    stats.value = null
+    statsState.value = 'idle'
+    statsError.value = ''
+    return
+  }
+  statsState.value = 'loading'
+  statsError.value = ''
   try {
-    const tenantId = auth.selectedTenantId || auth.tenantId
-    const allResult = await guestbookApi.list({ tenantId, page: 1, size: 1 })
-    stats.totalMessages = allResult.total || 0
-    
-    const repliedResult = await guestbookApi.list({ tenantId, page: 1, size: 1, status: 'replied' })
-    stats.repliedCount = repliedResult.total || 0
-    
-    const pendingResult = await guestbookApi.list({ tenantId, page: 1, size: 1, status: 'pending' })
-    stats.pendingCount = pendingResult.total || 0
-
-    // 这张卡以前永远是 0：那个数没人取过。今天零点起的条数才是「今日新增」
-    const now = new Date()
-    const startOfToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T00:00:00`
-    const todayResult = await guestbookApi.list({ tenantId, page: 1, size: 1, startDate: startOfToday })
-    stats.todayCount = todayResult.total || 0
+    stats.value = await guestbookApi.stats(tenantId)
+    statsState.value = 'ok'
   } catch (error) {
+    stats.value = null
+    statsState.value = 'failed'
+    statsError.value = describeHttpError(error)
     logError('portal/guestbook-manage-view', '加载统计数据失败:', error)
   }
+}
+
+function loadAll() {
+  // 词表与这一家的数互不依赖：一处断不该把另外两处拖成摆 0
+  loadVocabulary()
+  loadStats()
+  loadData()
+}
+
+/** 回完/删完要两头一起重取：待回复与已回复那两张卡跟这两个动作直接相关 */
+function refreshAfterChange() {
+  return Promise.all([loadData(), loadStats()])
 }
 
 function handleSizeChange(_current: number, size: number) {
@@ -445,8 +530,7 @@ function handleSizeChange(_current: number, size: number) {
 }
 
 onMounted(() => {
-  loadVocabulary()
-  loadData()
+  loadAll()
 })
 </script>
 
@@ -457,6 +541,16 @@ onMounted(() => {
 }
 
 .content-wrapper {
+}
+
+.scope-alert {
+  margin-bottom: 12px;
+}
+
+.stats-scope-line {
+  display: inline-block;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
 }
 
 .stat-card {

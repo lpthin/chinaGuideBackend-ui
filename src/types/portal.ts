@@ -154,6 +154,17 @@ export interface Guestbook {
   createTime?: string | null
 }
 
+/**
+ * `GET /guestbook/stats` 那一口回的四个数，键名与后端 `GuestbookService.getStats` 逐字对齐。
+ * 口径：这一家 `is_deleted=0` 的全部留言，不随列表的状态/类型/关键词筛选变。
+ */
+export interface GuestbookStats {
+  totalMessages: number
+  repliedCount: number
+  pendingCount: number
+  todayCount: number
+}
+
 // 企业信息
 export interface CompanyInfo {
   id: number
