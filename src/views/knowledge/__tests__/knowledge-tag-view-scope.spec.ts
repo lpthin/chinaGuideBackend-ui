@@ -128,9 +128,9 @@ function pageOf(rows: any[], cause: Record<string, any> = {}) {
 
 // 那两句的唯一的出处是后端 EmptyResultReasons.sentence（主语是 KnowledgeTagController.EMPTY_WHAT）：
 // 界面只逐字念，不改写、不合并，所以这里抄的是它真发出去的那一串
-const NONE_LINE = '资料库标签：这一档查过了，一条都没有。'
+const NONE_LINE = '标签：这一档查过了，一条都没有。'
 const NOT_VISIBLE_LINE =
-  '资料库标签：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'
+  '标签：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'
 
 async function mountView() {
   const wrapper = mount(KnowledgeTagView, {

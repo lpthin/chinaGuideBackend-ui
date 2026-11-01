@@ -472,8 +472,8 @@ async function loadStats() {
     const reason = String(error?.message || '')
     // 「没选租户」是这一口最常见的失败原因（超管停在平台档时请求根本不带租户头），
     // 它要说的是去哪儿选，而不是笼统一句读失败；控件名照顶栏那颗分段开关的原话写
-    // 判据只认后端那句原话；后端那一句改口之前，这里的匹配串必须跟着后端留在「租户」
-    statsNote.value = reason.includes('请先选择租户')
+    // 判据只认后端那句原话；后端那一句已改成「请先选择客户」，这里的匹配串跟着后端走
+    statsNote.value = reason.includes('请先选择客户')
       ? '这三个数按「你在这一家客户里的信」算：请先在右上角切到「客户」并选一家，再回来看这一屏'
       : `统计数据读取失败：${reason || '未知原因'}`
     logError('portal/message-manage-view', '加载统计数据失败:', error)

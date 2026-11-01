@@ -175,7 +175,7 @@ describe('读不到这一家 ≠ 这一家没有数据', () => {
       dashboardOf({
         tenantUnreadable: true,
         emptyReason: 'NOT_VISIBLE',
-        emptyLine: '运营概览读不到这一家：这个编号不存在或已被删除。这不代表这一家「没有数据」。'
+        emptyLine: '运营总览：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'
       }) as any
     )
 
@@ -184,7 +184,7 @@ describe('读不到这一家 ≠ 这一家没有数据', () => {
 
     expect(wrapper.findAll('.stat-value').map(node => node.text())).toEqual(['—', '—', '—', '—'])
     const alerts = wrapper.findAll('.alert-msg').map(node => node.text()).join(' | ')
-    expect(alerts).toContain('运营概览读不到这一家')
+    expect(alerts).toContain('运营总览：这一档读不到')
     expect(vi.mocked(operationApi.getTrafficTrend)).not.toHaveBeenCalled()
     expect(vi.mocked(operationApi.getCategoryDistribution)).not.toHaveBeenCalled()
   })

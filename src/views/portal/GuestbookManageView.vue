@@ -438,7 +438,7 @@ async function handleDelete(id: number) {
 async function loadData() {
   const tenantId = requestedTenantId.value
   if (tenantId === null) {
-    // 没选定客户时连请求都不发：发出去后端也只会回「请先选择租户」，而界面拿别人的家的数摆在这儿更糟
+    // 没选定客户时连请求都不发：发出去后端也只会回「请先选择客户」，而界面拿别人的家的数摆在这儿更糟
     loading.value = false
     notSentLine.value = '当前没有选定客户，这一发没发出去，所以这里的行一条都不是（不是「这一家没有留言」）。'
     readFailed.value = ''

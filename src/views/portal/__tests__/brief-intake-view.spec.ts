@@ -700,7 +700,7 @@ describe('page_plan 行编辑器（提示只是提示，闸在服务端）', () 
     wrapper.unmount()
   })
 
-  it('栏目词表走超管自己那一口：不打租户侧 /portal/sections，也不红一句「请先选择租户」（UIB-1）', async () => {
+  it('栏目词表走超管自己那一口：不打租户侧 /portal/sections，也不红一句「请先选择客户」（UIB-1）', async () => {
     // 现场取证的形状：这一页一进来弹过一句红 toast，那是 /api/portal/sections 按登录上下文解析租户、
     // 而超管右上角没选租户时回的 TENANT_REQUIRED。这一单自己的租户写在单上，与那颗切换器无关。
     const wrapper = await mountView()

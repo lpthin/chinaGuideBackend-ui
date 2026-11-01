@@ -228,7 +228,7 @@ export const siteBriefsApi = {
    * 栏目这件事的接口面仍然只有一处）。
    *
    * <p>不取租户侧的 `/portal/sections`：那一口按登录上下文解析租户，超管没在右上角选租户时
-   * 回 `TENANT_REQUIRED`，于是录单页一进来就红一句「请先选择租户」——而这一单的租户在单上写着。
+   * 回 `TENANT_REQUIRED`，于是录单页一进来就红一句「请先选择客户」——而这一单的租户在单上写着。
    * 传 briefId 时后端按这一单绑的站点回覆盖态，没绑站点（或不传）回的是纯词表默认，不是空列表。</p>
    */
   sectionCatalogue: (briefId?: number | null) =>

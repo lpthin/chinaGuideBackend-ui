@@ -428,8 +428,8 @@ describe('总账与排产计划', () => {
   })
 
   const SEED_EMPTIES: Array<[string, string]> = [
-    ['NONE', '示例评论排产计划：这一档查过了，一条都没有。'],
-    ['NOT_VISIBLE', '示例评论排产计划：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。']
+    ['NONE', '示例评论的排产计划：这一档查过了，一条都没有。'],
+    ['NOT_VISIBLE', '示例评论的排产计划：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。']
   ]
 
   function seedPayload(overrides: Record<string, unknown> = {}) {

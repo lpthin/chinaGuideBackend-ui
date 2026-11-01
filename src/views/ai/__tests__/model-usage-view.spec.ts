@@ -813,7 +813,7 @@ describe('超管在本页设 GEO 池的水位（N2 的写入口）', () => {
  * 那三句原文的出处在后端（`EmptyResultReasons.sentence`，主语取 `AiStatsController.EMPTY_WHAT`），
  * 这里照抄只为让用例念的是屏幕上真会出现的那一串，界面不许存第二份。
  */
-const WHAT = 'AI 调用日志'
+const WHAT = '调用日志'
 const LINE_NONE = `${WHAT}：这一档查过了，一条都没有。`
 const LINE_NOT_VISIBLE = `${WHAT}：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。`
 const LINE_OUT_OF_RANGE = `${WHAT}：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。`

@@ -172,7 +172,7 @@ describe('四种空各念各的', () => {
   })
 
   it('真的没有：逐字念后端那一句，并摆一颗新建按钮', async () => {
-    const line = '计费客户：这一档查过了，一条都没有。'
+    const line = '客户：这一档查过了，一条都没有。'
     const wrapper = await mountView({ records: [], total: 0, emptyReason: 'NONE', emptyLine: line })
     expect(wrapper.find('.empty-slot').text()).toContain(line)
     expect(wrapper.find('.empty-slot').find('.create-on-empty').exists()).toBe(true)
@@ -180,7 +180,7 @@ describe('四种空各念各的', () => {
   })
 
   it('选中的那一家读不到：念「读不到」，不摆新建入口，统计卡也不念 0', async () => {
-    const line = '计费客户：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'
+    const line = '客户：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'
     const wrapper = await mountView({ records: [], total: 0, emptyReason: 'NOT_VISIBLE', emptyLine: line })
     expect(wrapper.find('.empty-slot').text()).toContain(line)
     expect(wrapper.find('.empty-slot').text()).not.toContain('一条都没有')
@@ -194,7 +194,7 @@ describe('四种空各念各的', () => {
     vi.mocked(customerApi.list).mockResolvedValueOnce({
       records: [], total: 47, page: 2, size: 10, pages: 5,
       emptyReason: 'OUT_OF_RANGE',
-      emptyLine: '计费客户：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。'
+      emptyLine: '客户：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。'
     } as any)
     // 翻回第一页之后那一发：这一页有行
     vi.mocked(customerApi.list).mockResolvedValueOnce({
@@ -238,7 +238,7 @@ describe('统计卡说的是什么口径', () => {
 
 describe('新建客户的那条路真的能走到', () => {
   it('空态那颗新建按钮点了会打开新建表单', async () => {
-    const wrapper = await mountView({ records: [], total: 0, emptyReason: 'NONE', emptyLine: '计费客户：这一档查过了，一条都没有。' })
+    const wrapper = await mountView({ records: [], total: 0, emptyReason: 'NONE', emptyLine: '客户：这一档查过了，一条都没有。' })
     expect(wrapper.find('.modal-stub').exists()).toBe(false)
     const create = wrapper.find('.create-on-empty')
     create.element.dispatchEvent(new MouseEvent('click', { bubbles: true }))

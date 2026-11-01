@@ -1,6 +1,6 @@
 <template>
   <div class="banner-manage-page">
-    <PageTitle description="管理门户首页轮播与横幅" />
+    <PageTitle description="门户首页顶部那一块：横幅的图片、文字、排序、跳转与上下架" />
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">
@@ -117,7 +117,7 @@
                 </a-space>
               </template>
             </template>
-            <!-- 这一屏的空会被读成「这一家的轮播图没了」：三种空由后端答（M-P73） -->
+            <!-- 这一屏的空会被读成「这一家的横幅没了」：三种空由后端答（M-P73） -->
             <template #emptyText>
               <empty-list-hint
                 :loading="loading"

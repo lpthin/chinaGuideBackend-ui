@@ -7,7 +7,7 @@ import { bannerApi } from '../../../api/portal'
 import { message } from 'ant-design-vue'
 
 /**
- * 轮播图那一屏的空态与统计数（M-P73）：这一屏的空会被读成「这一家的轮播图没了」，
+ * 横幅那一屏的空态与统计数（M-P73）：这一屏的空会被读成「这一家的横幅没了」，
  * 统计数三块更会把「读不到这一家」摆成 0——那是同一句谎报的两种说法。
  *
  * 钉六件：
@@ -84,9 +84,9 @@ const MODAL_STUB = {
 }
 
 const BANNER_LINES: Array<[string, string]> = [
-  ['NONE', '轮播图：这一档查过了，一条都没有。'],
-  ['NOT_VISIBLE', '轮播图：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'],
-  ['OUT_OF_RANGE', '轮播图：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。']
+  ['NONE', '横幅：这一档查过了，一条都没有。'],
+  ['NOT_VISIBLE', '横幅：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'],
+  ['OUT_OF_RANGE', '横幅：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。']
 ]
 
 /** 列表那一发：cause 带成因，total 是后端同一次查询带回的总条数 */
@@ -177,9 +177,9 @@ describe('BannerManageView 的空态与统计数', () => {
   })
 
   it('读失败那一发说的是读失败，不是「这一档没有」', async () => {
-    const wrapper = await mountView({ failWith: new Error('这个账号没有看轮播图的资格') })
+    const wrapper = await mountView({ failWith: new Error('这个账号没有看横幅的资格') })
     const said = hintText(wrapper)
-    expect(said).toContain('这一发读失败：这个账号没有看轮播图的资格')
+    expect(said).toContain('这一发读失败：这个账号没有看横幅的资格')
     expect(said).toContain('读失败不是「这一档没有」')
     wrapper.unmount()
   })

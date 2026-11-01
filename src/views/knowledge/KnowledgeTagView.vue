@@ -148,7 +148,7 @@ const scopeNotice = computed(() => {
   const who = authStore.isSuperAdmin
     ? `当前看的是${code ? `客户「${code}」` : '选中的那一家客户'}（编号 #${id}）`
     : `当前看的是你所在客户（编号 #${id}）`
-  return `${who}的资料库标签。`
+  return `${who}的标签。`
 })
 
 const loading = ref(false)

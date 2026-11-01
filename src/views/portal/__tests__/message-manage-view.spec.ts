@@ -259,7 +259,7 @@ describe('站内信入口按职能收', () => {
 /**
  * 统计那一口的三条数（拍板 A：按登录用户算）。
  *
- * 一：读不到的时候不许说成 0。超管停在平台档时请求不带租户头，后端回 `TENANT_REQUIRED / 请先选择租户`；
+ * 一：读不到的时候不许说成 0。超管停在平台档时请求不带租户头，后端回 `TENANT_REQUIRED / 请先选择客户`；
  * 以前这条失败只进控制台，卡片照显示 0 —— 把「没读到」说成「真的没有」。
  *
  * 二：这一口原本回四个键、背后只有两句 SQL（total/inbox/outbox 都是 `tenant_id + is_deleted`），
@@ -281,8 +281,8 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
     wrapper.unmount()
   })
 
-  it('后端说「请先选择租户」：卡片露「—」并把去哪儿选写在明处', async () => {
-    vi.mocked(portalMessageApi.stats).mockRejectedValue(new Error('请先选择租户'))
+  it('后端说「请先选择客户」：卡片露「—」并把去哪儿选写在明处', async () => {
+    vi.mocked(portalMessageApi.stats).mockRejectedValue(new Error('请先选择客户'))
     const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'])
     expect(alertTexts().join(' ')).toContain('请先在右上角切到「客户」')
     expect(statValues()).toEqual(['—', '—', '—'])
@@ -296,6 +296,18 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
     vi.mocked(portalMessageApi.stats).mockRejectedValue(new Error('数据库连接超时'))
     const wrapper = await mountAs(['CONTENT_EDITOR'], ['portal:siteinfo:manage'])
     expect(alertTexts().join(' ')).toContain('统计数据读取失败：数据库连接超时')
+    expect(statValues()).toEqual(['—', '—', '—'])
+    wrapper.unmount()
+  })
+
+  it('站在这一家里也吃到那句「请先选择客户」：仍说去哪儿选，不说成笼统读失败', async () => {
+    // 上面那条走的是平台档那条短路，碰不到 loadStats 里那句按后端原话匹配的判据；
+    // 这一条把匹配那一支也钉住：后端那句话的字面改了，这里的匹配串要跟着改，否则界面退成「读失败」
+    vi.mocked(portalMessageApi.stats).mockRejectedValue(new Error('请先选择客户'))
+    const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'], { selectedTenantId: 15 })
+    expect(portalMessageApi.stats).toHaveBeenCalledTimes(1)
+    expect(alertTexts().join(' ')).toContain('请先在右上角切到「客户」')
+    expect(document.body.textContent).not.toContain('统计数据读取失败')
     expect(statValues()).toEqual(['—', '—', '—'])
     wrapper.unmount()
   })

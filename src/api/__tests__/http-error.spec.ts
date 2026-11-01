@@ -34,7 +34,7 @@ describe('describeHttpError', () => {
   })
 
   it('拦截器转抛的业务错误（无 HTTP 状态）保留后端中文文案', () => {
-    expect(describeHttpError(new Error('请先选择租户'))).toBe('请先选择租户')
+    expect(describeHttpError(new Error('请先选择客户'))).toBe('请先选择客户')
   })
 
   it('超时不显示英文 timeout', () => {

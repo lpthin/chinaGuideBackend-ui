@@ -15,7 +15,7 @@ export interface TrafficTrendItem {
 }
 
 /**
- * 运营概览（`GET /operation/dashboard`）。
+ * 运营总览（`GET /operation/dashboard`）。
  * `tenantUnreadable` 为真表示这一家读不到——此时两个空态字段带着后端给的成因，
  * 界面摆「—」并念那一句，不能把读不到摆成 0。
  */

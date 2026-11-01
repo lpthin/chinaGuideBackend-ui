@@ -158,9 +158,9 @@ describe('工单两屏的空态成因', () => {
   })
 
   it('读失败那一发说的是读失败，不是「这一档没有」', async () => {
-    const wrapper = await mountView('mine', [], {}, new Error('请先选择租户'))
+    const wrapper = await mountView('mine', [], {}, new Error('请先选择客户'))
     const said = hintText(wrapper)
-    expect(said).toContain('这一发读失败：请先选择租户')
+    expect(said).toContain('这一发读失败：请先选择客户')
     expect(said).toContain('读失败不是「这一档没有」')
     expect(createButton(wrapper).exists()).toBe(false)
     wrapper.unmount()

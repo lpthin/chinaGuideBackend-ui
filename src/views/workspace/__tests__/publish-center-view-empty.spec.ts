@@ -280,9 +280,9 @@ const THREE_EMPTIES: Array<[string, string]> = [
 
 /** 主语的唯一出处是后端 `WorkspaceController.PUBLISHABLE_ARTICLES_EMPTY_WHAT`；这里抄的是它的原文 */
 const THREE_CANDIDATE_EMPTIES: Array<[string, string]> = [
-  ['NONE', '可发布的文章：这一档查过了，一条都没有。'],
-  ['NOT_VISIBLE', '可发布的文章：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'],
-  ['OUT_OF_RANGE', '可发布的文章：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。']
+  ['NONE', '发布候选：这一档查过了，一条都没有。'],
+  ['NOT_VISIBLE', '发布候选：这一档读不到（选中的那个身份在这张表里没有行），所以这里不能说「没有」。'],
+  ['OUT_OF_RANGE', '发布候选：这一页翻过了头，往前面的页翻回来就有；这里没行不等于这一档没有。']
 ]
 
 describe('PublishCenterView 发布记录页签的空态成因', () => {
@@ -599,7 +599,7 @@ describe('PublishCenterView 顶部统计卡：那一发没答回来时摆 — �
       records: rows,
       total: rows.length,
       emptyReason,
-      emptyLine: emptyReason ? `可发布的文章：成因 ${emptyReason}` : null,
+      emptyLine: emptyReason ? `发布候选：成因 ${emptyReason}` : null,
     } as any)
     vi.mocked(publishApi.records).mockResolvedValue({ records: rows, total: rows.length } as any)
     vi.mocked(publishQueueApi.list).mockResolvedValue({ records: [], total: 0 } as any)
