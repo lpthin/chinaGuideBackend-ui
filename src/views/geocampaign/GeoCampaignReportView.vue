@@ -19,7 +19,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { notification } from 'ant-design-vue'
-import PageShell from '../../components/PageShell.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import TrendNote from '../../components/TrendNote.vue'
@@ -55,6 +54,7 @@ import {
   sentimentBar,
   sentimentSegmentClass as segmentClass,
 } from './geoCampaignModel'
+import PageTitle from '../../components/PageTitle.vue'
 
 const props = defineProps<{
   runId?: number | string | null
@@ -67,6 +67,8 @@ const props = defineProps<{
 const route = useRoute()
 
 const id = computed(() => Number(props.runId ?? route.query.runId))
+/** 挂在只读外链那一屏里（令牌进来的），不是一屏自己，屏名由外层那块名牌给 */
+const embedded = computed(() => !id.value && !!props.token)
 /**
  * 这一屏的读法只有一个岔口（`reportAccessOf`）：有令牌走公开口，没令牌按轮次走登录态。
  *
@@ -241,7 +243,15 @@ watch(() => [id.value, props.token], () => void load())
 </script>
 
 <template>
-  <PageShell title="GEO 诊断报告" subtitle="一轮诊断 = 一批题 × 一排平台 × 每题若干次，报告只报这一轮的账">
+  <div class="geo-report">
+    <!--
+      屏名只从路由那一份来（`meta.title`）。挂在只读外链里时不摆：那一屏顶上的名牌已经写着
+      「GEO 诊断报告 · 只读」，再挂一行就是同一屏两个标题。
+    -->
+    <PageTitle
+      v-if="!embedded"
+      description="一轮诊断 = 一批题 × 一排平台 × 每题若干次，报告只报这一轮的账"
+    />
     <StateBlock v-if="!valid" state="error" title="报告地址不完整"
       :detail="token ? '这一条链接读不出它对应的那一轮。' : 'URL 里既没有轮次 id，也没有只读链接的令牌。'"
       :next="token ? '回原处重新点那条链接，或让发链接的人重发一条' : '回工作台或向导第⑤步，从轮次那一排点「看报告」进来'" />
@@ -552,7 +562,7 @@ watch(() => [id.value, props.token], () => void load())
 
       <GeoJudgmentDrawer v-model:open="drawerOpen" :run-id="id" :token="token ?? null" :vocabulary="vocabulary" />
     </template>
-  </PageShell>
+  </div>
 </template>
 
 <style scoped lang="less">

@@ -1,5 +1,6 @@
 <template>
   <div class="portal-workbench-page">
+    <PageTitle />
     <a-form layout="inline" class="portal-workbench-page__filter">
       <a-form-item class="toolbar-actions">
         <a-space>
@@ -71,6 +72,7 @@ import { EditOutlined } from '@ant-design/icons-vue'
 import { portalSectionsApi, type SectionState, type SectionSummary } from '../../api/portalSections'
 import { portalPagesApi } from '../../api/portalPages'
 import { useAuthStore } from '../../stores/auth'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 租户「门户内容工作台」（Spec §7.1）。

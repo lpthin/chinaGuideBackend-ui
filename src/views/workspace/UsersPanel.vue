@@ -1,13 +1,9 @@
 <template>
   <div class="users-panel">
+    <PageTitle />
     <a-card :bordered="false">
-      <template #title>
-        <div class="card-header">
-          <h3>用户管理</h3>
-        </div>
-      </template>
-
-      <!-- 卡片 #title 槽是 overflow:hidden，塞控件会被裁；搜索/状态筛选与新增按钮改走 FilterBar -->
+      <!-- 卡片 #title 槽是 overflow:hidden，塞控件会被裁；搜索/状态筛选与新增按钮改走 FilterBar。
+           卡片头那句「用户管理」撤了：屏名上面刚念过一遍，这里再摆就是同一屏两个标题 -->
       <filter-bar>
         <a-input-search
           v-model:value="searchKeyword"
@@ -237,6 +233,7 @@ import {
   type EmptyReason,
 } from '../../utils/emptyPage'
 import type { Role } from '../../types'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 
@@ -578,19 +575,3 @@ onMounted(() => {
   loadRoles()
 })
 </script>
-
-<style scoped lang="less">
-.users-panel {
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    h3 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-    }
-  }
-}
-</style>

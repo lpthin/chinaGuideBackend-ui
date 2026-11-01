@@ -22,6 +22,7 @@ import {
 import AlertRuleManageView from './AlertRuleManageView.vue'
 import AlertRecordView from './AlertRecordView.vue'
 import AlertChannelView from './AlertChannelView.vue'
+import PageTitle from '../../components/PageTitle.vue'
 
 const VALID_TABS = ['rules', 'records', 'channels'] as const
 type AlertTab = typeof VALID_TABS[number]
@@ -48,6 +49,7 @@ const TABS = [
 
 <template>
   <div class="alert-center">
+    <PageTitle />
     <a-tabs :active-key="activeTab" @change="onTabChange" class="alert-center__tabs">
       <a-tab-pane v-for="tab in TABS" :key="tab.key">
         <template #tab>

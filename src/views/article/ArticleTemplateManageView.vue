@@ -1,5 +1,6 @@
 <template>
   <div class="article-template-manage-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -58,7 +59,8 @@
 
       <a-card :bordered="false">
         <template #title>
-          <span>软文模板管理</span>
+          <!-- 屏名已经念过一遍，这里只说这张卡装着什么 -->
+          <span>模板列表</span>
         </template>
 
         <!-- 整排筛选/动作原先挤在卡片 #extra，移入卡体第一行的 FilterBar -->
@@ -439,6 +441,7 @@ import {
   shouldJumpBackToFirstPage,
   type EmptyReason,
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

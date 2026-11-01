@@ -1,7 +1,6 @@
 <template>
   <div class="showcase-manage-page">
-    <a-page-header title="展示内容" sub-title="团队 / 历程 / 客户标志 / 经营指标 / 客户评价 / 资质荣誉 / 常见问题——门户上这些展示条目的维护口">
-    </a-page-header>
+    <PageTitle description="团队 / 历程 / 客户标志 / 经营指标 / 客户评价 / 资质荣誉 / 常见问题——门户上这些展示条目的维护口" />
 
     <a-alert type="info" show-icon class="showcase-manage-page__notice">
       <template #message>
@@ -201,6 +200,7 @@ import {
   type ShowcaseItem,
   type ShowcaseKind
 } from '../../api/portalShowcase'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 租户侧「展示内容」维护页（Spec-D D2）。

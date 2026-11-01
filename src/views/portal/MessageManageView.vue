@@ -1,5 +1,6 @@
 <template>
   <div class="message-manage-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <div class="content-wrapper">
         <!-- 后端这一口按「当前登录用户 + 当前选中的租户」算，超管没选租户时它直接拒（`TENANT_REQUIRED`）。
@@ -274,6 +275,7 @@ import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyR
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
 const loading = ref(false)

@@ -1,12 +1,14 @@
 <template>
   <div class="system-prompt-panel">
-    <div class="panel-header">
-      <h3>系统Prompt模板管理</h3>
-      <a-button type="primary" @click="openModal()">
-        <template #icon><PlusOutlined /></template>
-        新建模板
-      </a-button>
-    </div>
+    <!-- 原来这里另摆一句「系统Prompt模板管理」：上面那行屏名已经念过一遍，等于一屏两个标题 -->
+    <PageTitle>
+      <template #extra>
+        <a-button type="primary" @click="openModal()">
+          <template #icon><PlusOutlined /></template>
+          新建模板
+        </a-button>
+      </template>
+    </PageTitle>
     <a-table
   :scroll="{ x: 'max-content' }"
   :data-source="templates"
@@ -108,6 +110,7 @@ import {
   shouldJumpBackToFirstPage,
   type EmptyReason,
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 const purposeNames: Record<string, string> = {
   keyword_distill: '关键词蒸馏',
@@ -245,14 +248,5 @@ onMounted(fetchTemplates)
 
 <style scoped>
 .system-prompt-panel {
-}
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-.panel-header h3 {
-  margin: 0;
 }
 </style>

@@ -1,5 +1,6 @@
 <template>
   <div class="tenant-panel">
+    <PageTitle />
     <!-- 统计卡片区域 -->
     <a-row :gutter="16" style="margin-bottom: 16px">
       <a-col :span="8">
@@ -45,8 +46,9 @@
 
     <!-- 租户列表 -->
     <a-card>
+      <!-- 卡片名跟着里面这批数据走：屏名上面已经念过一遍，这里再摆「××管理」就是同一屏两个标题 -->
       <template #title>
-        <span>租户管理</span>
+        <span>客户列表</span>
       </template>
 
       <!-- 原来整条工具栏挤在卡片 #extra 槽里；按约定筛选靠左、动作靠右，统一走 FilterBar -->
@@ -328,6 +330,7 @@ import {
   type TenantCodeCheckState,
 } from './tenantCodeCheck'
 import { suggestTenantCodeFromName } from './tenantCodeSuggest'
+import PageTitle from '../../components/PageTitle.vue'
 
 interface Tenant {
   id: number

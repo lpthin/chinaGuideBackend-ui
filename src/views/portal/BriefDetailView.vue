@@ -37,6 +37,7 @@ import SectionAdviceCard from './SectionAdviceCard.vue'
 import { formatDateTime } from '@/utils/format'
 import type { Site } from '@/types'
 import type { Tenant } from '@/types/workspace'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 需求单详情（Spec-C §3.2「需求单详情 = 后链路的落点」；P3 起「出方案」这条主线也挂在这一页）。
@@ -789,26 +790,26 @@ onUnmounted(stopPolling)
 
 <template>
   <div class="brief-detail">
-    <div class="page-header brief-detail__head">
-      <div>
-        <h3>需求单 #{{ briefId ?? '?' }}</h3>
+    <PageTitle>
+      <div class="brief-detail__head">
+        <!-- 屏名只认路由那一份：原来这里另摆一句「需求单 #N」的大字，等于一屏两个标题，编号并到段落第一句 -->
         <p class="brief-detail__sub">
-          这一页是一条交付单现在走到哪一步的落点：前采答了什么、后端喂给模型的是哪句话、名下列出了哪些站。
+          需求单 #{{ briefId ?? '?' }}：这一页是一条交付单现在走到哪一步的落点——前采答了什么、后端喂给模型的是哪句话、名下列出了哪些站。
         </p>
+        <div class="brief-detail__head-actions">
+          <a-space wrap>
+            <a-tag>{{ statusText }}</a-tag>
+            <a-button @click="goList">返回列表</a-button>
+            <!-- 后端状态机允许改才给编辑入口：不许摆一张填完保存必然被拒的表单（那等于骗人填一遍） -->
+            <a-button v-if="editable" type="primary" @click="goIntake">{{ intakeLabel }}</a-button>
+          </a-space>
+          <p v-if="brief && !editable" class="brief-detail__locked">
+            这一单现在是「{{ statusText }}」，已经不在可编辑状态里（后端只收 {{ editableStatusNames }} 两种状态的修改），
+            所以上面没有编辑按钮：把 13 题改一遍保存会被整单拒掉，这里不摆那种入口。要看答了什么就在下面两格里看。
+          </p>
+        </div>
       </div>
-      <div class="brief-detail__head-actions">
-        <a-space wrap>
-          <a-tag>{{ statusText }}</a-tag>
-          <a-button @click="goList">返回列表</a-button>
-          <!-- 后端状态机允许改才给编辑入口：不许摆一张填完保存必然被拒的表单（那等于骗人填一遍） -->
-          <a-button v-if="editable" type="primary" @click="goIntake">{{ intakeLabel }}</a-button>
-        </a-space>
-        <p v-if="brief && !editable" class="brief-detail__locked">
-          这一单现在是「{{ statusText }}」，已经不在可编辑状态里（后端只收 {{ editableStatusNames }} 两种状态的修改），
-          所以上面没有编辑按钮：把 13 题改一遍保存会被整单拒掉，这里不摆那种入口。要看答了什么就在下面两格里看。
-        </p>
-      </div>
-    </div>
+    </PageTitle>
 
     <a-alert v-if="loadError" type="error" show-icon class="brief-detail__alert">
       <template #message>
@@ -1254,17 +1255,11 @@ onUnmounted(stopPolling)
 </template>
 
 <style scoped>
-.brief-detail .page-header {
-  margin-bottom: 16px;
-}
 .brief-detail__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-}
-.brief-detail__head h3 {
-  margin: 0 0 4px;
 }
 .brief-detail__head-actions {
   text-align: right;

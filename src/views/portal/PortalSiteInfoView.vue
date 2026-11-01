@@ -1,5 +1,6 @@
 <template>
   <div class="site-info-view">
+    <PageTitle />
     <a-card :bordered="false">
       <template #title>
         <span>{{ view?.siteName || '网站信息' }}</span>
@@ -172,6 +173,7 @@ import {
   type SiteInfoFieldView,
   type SiteInfoView
 } from '../../api/portalSiteInfo';
+import PageTitle from '../../components/PageTitle.vue'
 
 const ROBOTS_KEY = 'robots';
 

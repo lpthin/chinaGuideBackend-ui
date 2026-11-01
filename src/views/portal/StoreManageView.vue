@@ -1,7 +1,6 @@
 <template>
   <div class="store-manage-page">
-    <a-page-header title="门店" sub-title="门户「联系我们」页地图上那些点位从这里录">
-    </a-page-header>
+    <PageTitle description="门户「联系我们」页地图上那些点位从这里录" />
 
     <a-alert type="info" show-icon class="store-manage-page__notice">
       <template #message>
@@ -175,6 +174,7 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { portalStoreApi, type StoreForm, type StoreOptions, type StoreRow } from '../../api/portalStores'
 import { formatDateTime } from '../../utils/format'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 租户侧「门店」录入页（Spec-D 收尾那一格：地图有渲染、没人往里写行）。

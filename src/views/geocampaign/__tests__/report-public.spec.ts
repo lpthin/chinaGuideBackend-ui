@@ -39,7 +39,7 @@ vi.mock('../../../api/http', () => ({
   describeHttpError: (e: unknown) => String(e instanceof Error ? e.message : e),
 }))
 
-const routeMock = vi.hoisted(() => ({ params: {} as Record<string, string>, query: {} as Record<string, string> }))
+const routeMock = vi.hoisted(() => ({ params: {} as Record<string, string>, query: {} as Record<string, string>, meta: { title: 'GEO 诊断报告' } }))
 
 vi.mock('vue-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('vue-router')>()

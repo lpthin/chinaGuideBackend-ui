@@ -1,13 +1,13 @@
 <template>
   <div class="knowledge-dashboard-container">
-    <a-page-header title="知识库仪表板" sub-title="企业知识资产管理与数据分析">
+    <PageTitle description="企业知识资产管理与数据分析">
       <template #extra>
         <a-button type="primary" :loading="loading" @click="refreshData">
           <template #icon><ReloadOutlined /></template>
           刷新
         </a-button>
       </template>
-    </a-page-header>
+    </PageTitle>
 
     <div class="dashboard-content">
       <a-alert
@@ -226,6 +226,7 @@ import type { StreamQAReference, KnowledgeCategoryStats } from '../../api/knowle
 import { useAuthStore } from '../../stores/auth'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const router = useRouter()
 const auth = useAuthStore()

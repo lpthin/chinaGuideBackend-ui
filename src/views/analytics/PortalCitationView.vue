@@ -1,5 +1,6 @@
 <template>
   <div class="portal-citation-page">
+    <PageTitle />
     <a-form layout="inline" class="portal-citation-page__filter">
       <a-form-item label="站点">
         <a-select v-model:value="siteId" style="width: 220px" :options="siteOptions" @change="loadAll" />
@@ -156,6 +157,7 @@ import {
   type CitationVocabulary,
   type TrafficSourceResult
 } from '../../api/citation'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 租户侧的「我被 AI 引用了几次、人是从哪来的」（问题三 + 问题七）。

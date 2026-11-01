@@ -1,5 +1,6 @@
 <template>
   <div class="knowledge-tag-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
       <a-card :bordered="false">
@@ -120,6 +121,7 @@ import { asEmptyReason, offersCreateOnEmpty, type EmptyReason } from '../../util
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

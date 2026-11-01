@@ -1,5 +1,6 @@
 <template>
   <div class="portal-launch-page">
+    <PageTitle />
     <a-alert type="info" show-icon class="scope-note">
       <template #message>
         这一页只做一件事：把「租户开通」到「访客能在门户上读到内容、爬虫能抓到」之间还缺的步骤摊开。
@@ -163,6 +164,7 @@ import { backendFileUrl, demoSiteApi, portalVisibilityApi } from '../../api/onbo
 import type { DemoMode, DemoStatusResult, DemoTypeCounts } from '../../api/onboarding'
 import type { CompanyInfo } from '../../types'
 import type { MySite } from '../../api/portalSites'
+import PageTitle from '../../components/PageTitle.vue'
 
 interface SiteBrief {
   id?: number

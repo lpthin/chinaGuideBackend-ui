@@ -30,8 +30,10 @@ vi.mock('../../../stores/auth', () => ({
   useAuthStore: () => authState,
 }))
 
+// PageTitle 读 route.meta.title 拿屏名，桩件不给这一口就是 TypeError
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: pushSpy })
+  useRouter: () => ({ push: pushSpy }),
+  useRoute: () => ({ params: {}, query: {}, meta: { title: '内容工作台' } })
 }))
 
 vi.mock('../../../api/portalSections', () => ({

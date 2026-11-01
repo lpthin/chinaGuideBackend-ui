@@ -1,5 +1,6 @@
 <template>
   <div class="data-report-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-alert
         v-if="!tenantId"
@@ -282,6 +283,7 @@ import type {
   TrafficSourceItem,
   DeviceDistributionItem
 } from '../../types/operation'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 const loading = ref(false)

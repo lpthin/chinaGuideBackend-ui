@@ -1,5 +1,6 @@
 <template>
   <div class="media-storage">
+    <PageTitle />
     <a-alert type="info" show-icon class="media-storage__notice">
       <template #message>
         这一屏管三件事：<strong>新素材写到哪儿</strong>（下面那份配置，全站只有一个人能改）、
@@ -238,6 +239,7 @@ import {
   type MediaStorageState,
   type MediaStorageTestResult
 } from '../../api/mediaStorage'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 超管「素材存储」：OSS 那四个参数现在就在这屏上填，不用改 YAML、不用重启。

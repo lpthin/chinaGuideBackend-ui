@@ -24,8 +24,10 @@ import { tenantApi } from '../../../api/workspace'
 
 const pushSpy = vi.fn()
 
+// PageTitle 读 route.meta.title 拿屏名，桩件不给这一口就是 TypeError
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: pushSpy })
+  useRouter: () => ({ push: pushSpy }),
+  useRoute: () => ({ params: {}, query: {}, meta: { title: '前采需求单' } })
 }))
 
 vi.mock('ant-design-vue', async () => {

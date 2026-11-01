@@ -1,5 +1,6 @@
 <template>
   <div class="review-panel-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <!-- 顶部数据概览区：全部取自 reviewApi.getReviewStats。
            那四张卡读的是另一支口，它对认不出的租户只回 0，所以「这一发读失败」或「选中那一家读不到」时
@@ -490,6 +491,7 @@ import { useAuthStore } from '../../stores/auth'
 import { articleStatusMeta } from '../../utils/contentStatus'
 import { formatDateTime, formatDecimal, formatPercent } from '../../utils/format'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()

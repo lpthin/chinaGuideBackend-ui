@@ -1,5 +1,6 @@
 <template>
   <div class="portal-health-page">
+    <PageTitle />
     <filter-bar>
       <span class="portal-health-page__filter-label">状态</span>
       <a-select
@@ -298,6 +299,7 @@ import EmptyListHint from '../../components/EmptyListHint.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 门户页面巡检视图（Spec §8.2）。

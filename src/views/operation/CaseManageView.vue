@@ -1,5 +1,6 @@
 <template>
   <div class="case-manage-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -336,6 +337,7 @@ import FilterBar from '../../components/FilterBar.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

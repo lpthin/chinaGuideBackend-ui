@@ -1,13 +1,9 @@
 <template>
   <div class="roles-panel">
+    <PageTitle />
     <a-card :bordered="false">
-      <template #title>
-        <div class="card-header">
-          <h3>角色管理</h3>
-        </div>
-      </template>
-
-      <!-- #title 槽只留文字标题：搜索框与新增按钮移进 FilterBar，免得被卡片头 overflow:hidden 裁掉 -->
+      <!-- #title 槽只留文字标题：搜索框与新增按钮移进 FilterBar，免得被卡片头 overflow:hidden 裁掉；
+           卡片头那句「角色管理」撤了：屏名上面刚念过一遍，这里再摆就是同一屏两个标题 -->
       <filter-bar>
         <a-input-search
           v-model:value="searchKeyword"
@@ -167,6 +163,7 @@ import {
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { Role, RoleStatus } from '../../types'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 
@@ -431,19 +428,3 @@ onMounted(() => {
   loadPermissionTree()
 })
 </script>
-
-<style scoped lang="less">
-.roles-panel {
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    h3 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-    }
-  }
-}
-</style>

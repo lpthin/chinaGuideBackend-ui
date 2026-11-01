@@ -1,13 +1,15 @@
 <template>
-  <page-shell title="可抓取性体检" subtitle="爬虫与 AI 引擎今天从站外实际读得到什么——六项实测，读的是配置之外的那一份">
-    <template #actions>
-      <a-space>
-        <a-button :loading="loading" @click="loadAll">刷新</a-button>
-        <a-tooltip :title="RUN_HINT">
-          <a-button type="primary" :disabled="!canRun || needsTenant" :loading="running" @click="runOnce">跑一次</a-button>
-        </a-tooltip>
-      </a-space>
-    </template>
+  <div class="geo-crawlability-page">
+    <PageTitle description="爬虫与 AI 引擎今天从站外实际读得到什么——六项实测，读的是配置之外的那一份">
+      <template #extra>
+        <a-space>
+          <a-button :loading="loading" @click="loadAll">刷新</a-button>
+          <a-tooltip :title="RUN_HINT">
+            <a-button type="primary" :disabled="!canRun || needsTenant" :loading="running" @click="runOnce">跑一次</a-button>
+          </a-tooltip>
+        </a-space>
+      </template>
+    </PageTitle>
 
     <!--
       超管没选定租户时这一页读不出六行（后端 `TENANT_REQUIRED`）。这一态单列在错误态之前：
@@ -95,7 +97,7 @@
         </a-card>
       </template>
     </a-spin>
-  </page-shell>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -115,7 +117,6 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
-import PageShell from '../../components/PageShell.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import {
@@ -147,6 +148,7 @@ import {
   verdictOf,
   whyItMattersOf,
 } from './geoCrawlabilityModel'
+import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
 const canRun = computed(() => auth.hasPermission('seo:audit:run'))

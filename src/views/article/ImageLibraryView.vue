@@ -1,5 +1,6 @@
 <template>
   <div class="image-library-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -366,6 +367,7 @@ import {
   shouldJumpBackToFirstPage,
   type EmptyReason,
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1

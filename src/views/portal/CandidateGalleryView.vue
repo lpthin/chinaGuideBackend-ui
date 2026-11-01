@@ -36,6 +36,7 @@ import { siteApi } from '@/api/workspace'
 import { formatDateTime } from '@/utils/format'
 import { createProposalProgressFollower } from '@/utils/proposalProgressFollow'
 import type { Site as SiteEntity } from '@/types'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 候选画廊（Spec-C §7 新增页 / §3.2「三套候选并排成三列卡」）。
@@ -507,20 +508,19 @@ onUnmounted(() => progressFollow.stop())
 
 <template>
   <div class="candidate-gallery">
-    <div class="page-header candidate-gallery__head">
-      <div>
-        <h3>候选画廊 · 需求单 #{{ briefId ?? '?' }}</h3>
+    <PageTitle>
+      <div class="candidate-gallery__head">
         <p class="candidate-gallery__sub">
-          并排比较每一套：骨架、「这套侧重什么」（plan 落库的 focus 原话）、预览链接、演示内容口径、配图三本账、子任务进度各一列。
+          需求单 #{{ briefId ?? '?' }}：并排比较每一套：骨架、「这套侧重什么」（plan 落库的 focus 原话）、预览链接、演示内容口径、配图三本账、子任务进度各一列。
           候选是按套各一条子任务的——哪套在跑、哪套失败、失败缺什么，都在各自的卡上，这里没有假装同步的总百分比。
         </p>
+        <a-space wrap>
+          <a-tag>{{ briefStatusText }}</a-tag>
+          <a-button @click="loadAll">刷新</a-button>
+          <a-button @click="goDetail">回需求单详情</a-button>
+        </a-space>
       </div>
-      <a-space wrap>
-        <a-tag>{{ briefStatusText }}</a-tag>
-        <a-button @click="loadAll">刷新</a-button>
-        <a-button @click="goDetail">回需求单详情</a-button>
-      </a-space>
-    </div>
+    </PageTitle>
 
     <a-alert v-if="loadError" type="error" show-icon class="candidate-gallery__alert">
       <template #message>
@@ -707,17 +707,11 @@ onUnmounted(() => progressFollow.stop())
 </template>
 
 <style scoped>
-.candidate-gallery .page-header {
-  margin-bottom: 16px;
-}
 .candidate-gallery__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-}
-.candidate-gallery__head h3 {
-  margin: 0 0 4px;
 }
 .candidate-gallery__sub,
 .candidate-gallery__muted {

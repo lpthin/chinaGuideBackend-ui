@@ -1,13 +1,9 @@
 <template>
   <div class="permissions-panel">
+    <PageTitle />
     <a-card :bordered="false">
-      <template #title>
-        <div class="card-header">
-          <h3>权限管理</h3>
-        </div>
-      </template>
-
-      <!-- 筛选与按钮原先塞在卡片 #title 槽（overflow:hidden 会裁切），改走统一的 FilterBar -->
+      <!-- 筛选与按钮原先塞在卡片 #title 槽（overflow:hidden 会裁切），改走统一的 FilterBar；
+           卡片头那句「权限管理」撤了：屏名上面刚念过一遍，这里再摆就是同一屏两个标题 -->
       <filter-bar>
         <a-select
           v-model:value="filterType"
@@ -118,6 +114,7 @@ import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 
@@ -327,19 +324,3 @@ onMounted(() => {
   loadPermissions()
 })
 </script>
-
-<style scoped lang="less">
-.permissions-panel {
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    h3 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-    }
-  }
-}
-</style>

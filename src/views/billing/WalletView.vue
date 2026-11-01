@@ -1,5 +1,6 @@
 <template>
   <div class="wallet-view-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <!-- 顶部余额卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
@@ -215,6 +216,7 @@ import {
   JUMP_BACK_NOTICE,
   type EmptyReason,
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

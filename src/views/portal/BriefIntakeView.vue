@@ -7,9 +7,13 @@
  * 两条入口共用一个提交形状，不存在「向导里那套字段少两栏」的可能。
  * 因此带 `?tenantId=` 的老交棒链接（租户管理、站点清单）一个字都不必改。
  */
+import PageTitle from '../../components/PageTitle.vue'
 import BriefIntakeForm from './BriefIntakeForm.vue'
 </script>
 
 <template>
-  <BriefIntakeForm />
+  <div class="brief-intake-view">
+    <PageTitle />
+    <BriefIntakeForm />
+  </div>
 </template>

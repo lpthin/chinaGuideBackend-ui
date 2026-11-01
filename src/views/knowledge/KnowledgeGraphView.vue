@@ -1,6 +1,6 @@
 <template>
   <div class="knowledge-graph-container">
-    <a-page-header title="知识图谱" sub-title="可视化展示知识库中的实体与关系">
+    <PageTitle description="可视化展示知识库中的实体与关系">
       <template #extra>
         <a-space>
           <a-button @click="showFilterPanel = !showFilterPanel">
@@ -21,7 +21,7 @@
           </a-button>
         </a-space>
       </template>
-    </a-page-header>
+    </PageTitle>
 
     <div class="content-wrapper">
       <a-row :gutter="16">
@@ -385,6 +385,7 @@ import type { KnowledgeDocument, KnowledgeGraphData, GraphNode, GraphLink, Graph
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logWarn } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 const showFilterPanel = ref(true)

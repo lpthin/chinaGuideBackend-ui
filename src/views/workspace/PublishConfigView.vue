@@ -1,5 +1,6 @@
 <template>
   <div class="publish-config-page">
+    <PageTitle />
     <a-tabs v-model:activeKey="activeTab">
       <a-tab-pane key="mode" tab="发布模式配置">
         <a-card :bordered="false">
@@ -139,6 +140,7 @@ import {
 import { publishConfigApi } from '../../api/workspace'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

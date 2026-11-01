@@ -1,5 +1,6 @@
 <template>
   <div class="model-usage-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-card :bordered="false" style="margin-bottom: 16px">
         <a-row :gutter="16" align="middle">
@@ -569,6 +570,7 @@ import {
   shouldJumpBackToFirstPage,
   type EmptyReason,
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

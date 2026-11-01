@@ -1,5 +1,6 @@
 <template>
   <div class="notification-inbox">
+    <PageTitle />
     <a-alert type="info" show-icon class="notification-inbox__notice">
       <template #message>
         这里是站内待办：巡检闭环（跑一轮之后写进来的那一条）与公开页留资都会落到这一张表。
@@ -86,6 +87,7 @@ import {
   JUMP_BACK_NOTICE,
   type EmptyReason
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 超管待办（Spec §13.3-6 的最后一公里）。

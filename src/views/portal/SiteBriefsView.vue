@@ -8,6 +8,7 @@ import { tenantApi } from '@/api/workspace'
 import EmptyListHint from '@/components/EmptyListHint.vue'
 import { asEmptyReason, type EmptyReason } from '@/utils/emptyPage'
 import type { Tenant } from '@/types/workspace'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 前采需求单列表（平台段 · 建站交付，Spec §3.2 / 任务 P1）。
@@ -175,16 +176,15 @@ onMounted(() => {
 
 <template>
   <div class="site-briefs">
-    <div class="page-header">
-      <div>
-        <h3>前采需求单</h3>
+    <PageTitle>
+      <div class="site-briefs__intro">
         <p>超管录一份 13 题的前采需求单（以勾选为主），AI 按这份需求出 1~3 套候选站给客户选。</p>
         <p>
           这一页现在住在「新建网站」向导的第一步里：要走完整条链（说明书 → 出方案 → 候选 → 转正）从那里进，
           在这里只列单、不改状态。
         </p>
       </div>
-    </div>
+    </PageTitle>
 
     <a-form layout="inline" class="site-briefs__toolbar">
       <a-form-item label="租户">
@@ -280,10 +280,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.site-briefs .page-header {
-  margin-bottom: 16px;
-}
-.site-briefs .page-header p {
+.site-briefs__intro p {
   margin: 0;
   color: #6b7280;
   font-size: 14px;

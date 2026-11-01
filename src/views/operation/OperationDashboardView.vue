@@ -1,5 +1,6 @@
 <template>
   <div class="operation-dashboard-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-alert
         v-if="scopeNotice"
@@ -161,6 +162,7 @@ import type {
   TrafficTrendItem,
   CategoryDistributionItem
 } from '../../types/operation'
+import PageTitle from '../../components/PageTitle.vue'
 
 type ReadState = 'idle' | 'loading' | 'ok' | 'unreadable' | 'failed'
 

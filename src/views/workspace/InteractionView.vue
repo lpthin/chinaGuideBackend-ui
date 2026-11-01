@@ -1,5 +1,6 @@
 <template>
   <div class="interaction-page">
+    <PageTitle />
     <a-alert
       class="lead-alert"
       type="info"
@@ -227,6 +228,7 @@ import {
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 后台「读者互动」（P9-C，G-08）。

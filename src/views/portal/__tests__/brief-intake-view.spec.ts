@@ -57,7 +57,7 @@ vi.mock('vue-router', () => ({
     // 「去新建租户」开新标签用的是 resolve（它只算地址，不把人跳走）：mock 里不给这口就是 TypeError
     resolve: (to: any) => ({ href: to?.name === 'workspace-tenant' ? '/workspace/tenant' : '/workspace' })
   }),
-  useRoute: () => ({ params: routeParams.current, query: routeQuery.current })
+  useRoute: () => ({ params: routeParams.current, query: routeQuery.current, meta: { title: '录入前采需求单' } })
 }))
 
 vi.mock('ant-design-vue', async () => {

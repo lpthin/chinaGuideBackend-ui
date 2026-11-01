@@ -1,5 +1,6 @@
 <template>
   <div class="knowledge-category-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
       <a-alert
@@ -276,6 +277,7 @@ import FilterBar from '../../components/FilterBar.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { asEmptyReason, offersCreateOnEmpty, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

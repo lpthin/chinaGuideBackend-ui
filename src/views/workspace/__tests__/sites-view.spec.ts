@@ -27,7 +27,7 @@ const { pushSpy, routeQuery } = vi.hoisted(() => ({
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: pushSpy }),
-  useRoute: () => ({ params: {}, query: routeQuery.current })
+  useRoute: () => ({ params: {}, query: routeQuery.current, meta: { title: '站点清单' } })
 }))
 
 vi.mock('ant-design-vue', async () => {

@@ -1,10 +1,7 @@
 <template>
   <div class="system-settings">
+    <PageTitle />
     <a-card :bordered="false">
-      <template #title>
-        <h3>系统设置</h3>
-      </template>
-
       <a-tabs v-model:activeKey="activeTab" type="card">
         <!-- 站点设置 -->
         <a-tab-pane key="site" tab="站点设置">
@@ -234,6 +231,7 @@ import { imageLibraryApi } from '../../api/article'
 import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
 import type { SiteSettings, AiSettings, WorkflowSettings } from '../../types/workspace'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

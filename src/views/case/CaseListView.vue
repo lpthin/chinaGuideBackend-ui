@@ -1,5 +1,6 @@
 <template>
   <div class="case-list-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -288,6 +289,7 @@ import {
 } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

@@ -1,7 +1,6 @@
 <template>
   <div class="knowledge-search-container">
-    <a-page-header title="知识库搜索" sub-title="全文搜索文档、卡片和实体">
-    </a-page-header>
+    <PageTitle description="全文搜索文档、卡片和实体" />
 
     <div class="search-content">
       <div class="search-bar-section">
@@ -213,6 +212,7 @@ import { formatTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import type { KnowledgeSearchResultItem, KnowledgeSearchQuery } from '../../types/knowledge'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

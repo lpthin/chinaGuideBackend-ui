@@ -1,5 +1,6 @@
 <template>
   <div class="embedding-config-page">
+    <PageTitle />
     <!-- 这一套归谁：2026-11-01 拍板取消客户维度（M-P102），切客户不再影响这一屏 -->
     <a-alert
       class="pool-alert"
@@ -381,6 +382,7 @@ import {
 import { embeddingConfigApi, vectorDbApi, modelConfigApi, aiGenerateApi } from '../../api/ai-model'
 import type { ModelConfig, VectorDatabaseConfig, EmbeddingConfigForm } from '../../types/ai-model'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 // M-P102（2026-11-01 拍板）：向量化配置并成平台一份，这一屏不再问「在看哪一家客户」。
 // 后端那三支口也不再收 tenantId，请求里带着只是一个不起作用的数。

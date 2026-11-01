@@ -30,7 +30,7 @@ const authState = {
 
 vi.mock('../../../stores/auth', () => ({ useAuthStore: () => authState }))
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ path: '/workspace/portal/launch', query: {} }),
+  useRoute: () => ({ path: '/workspace/portal/launch', query: {}, meta: { title: '门户上线' } }),
   useRouter: () => ({ push: vi.fn() }),
 }))
 vi.mock('../../../api', () => ({

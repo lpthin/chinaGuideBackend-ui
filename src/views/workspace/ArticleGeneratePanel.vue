@@ -1,17 +1,15 @@
 <template>
   <div class="article-generate-page">
-    <a-spin :spinning="loading">
-      <!-- 页面头部 -->
-      <div class="page-header">
-        <div class="page-header__left">
-          <h1 class="page-header__title">AI 文章生成</h1>
-          <span class="page-header__subtitle">智能驱动，一键生成高质量内容</span>
-        </div>
+    <!-- 屏名只认路由那一份：这块页头自己写了「AI 文章生成」，菜单念的是「AI生成」 -->
+    <PageTitle description="智能驱动，一键生成高质量内容">
+      <template #extra>
         <a-button @click="showTemplateEditor = true">
           <template #icon><EditOutlined /></template>
           模板管理
         </a-button>
-      </div>
+      </template>
+    </PageTitle>
+    <a-spin :spinning="loading">
 
       <!-- 统计卡片 -->
       <a-row :gutter="16" class="stat-row">
@@ -575,6 +573,7 @@ import type { ArticleKnowledgeSource } from '../../types/article'
 import type { GenerationTaskView } from '../../api/workspace'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -1531,36 +1530,6 @@ onUnmounted(() => {
 
 .article-generate-page {
   width: 100%;
-}
-
-/* 页面头部 */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, #ffffff 0%, @slate-50 100%);
-  border-radius: 12px;
-  border: 1px solid @slate-200;
-
-  &__left {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-  }
-
-  &__title {
-    font-size: 22px;
-    font-weight: 700;
-    color: @slate-800;
-    margin: 0;
-  }
-
-  &__subtitle {
-    font-size: 13px;
-    color: @slate-500;
-  }
 }
 
 /* 统计卡片 */

@@ -33,6 +33,7 @@ import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import { useAuthStore } from '../../stores/auth'
+import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -439,6 +440,7 @@ onMounted(fetchAll)
 
 <template>
   <div class="keyword-library-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <!-- 顶部标题区 -->
       <div class="page-header">
@@ -447,7 +449,7 @@ onMounted(fetchAll)
             <DatabaseOutlined />
           </div>
           <div class="header-info">
-            <h2 class="page-title">热词库（搜索联想）</h2>
+            <!-- 上面那条屏名已经写着「热词库」，这里再摆一遍是同一屏两个标题；这一屏只留解释那两句话 -->
             <p class="page-subtitle">
               <span class="subtitle-text">
                 企业官网 SEO 关键词生产体系 · 单一真实源（SOT）

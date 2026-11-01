@@ -1,5 +1,6 @@
 <template>
   <div class="revision-ticket-page">
+    <PageTitle />
     <a-form layout="inline" class="revision-ticket-page__filter">
       <a-form-item label="状态">
         <a-select
@@ -272,6 +273,7 @@ import DraftReviewCard from './builder/DraftReviewCard.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 改版工单审阅页：客户原话 → 预估 → AI 草稿 → 人工看字段级 diff → 应用/丢弃。

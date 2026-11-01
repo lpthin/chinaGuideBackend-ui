@@ -1,10 +1,11 @@
 <template>
   <div class="media-panel-page">
+    <PageTitle />
     <!-- 分类列表视图 -->
     <template v-if="!currentCategoryId && !unclassifiedMode">
       <div class="panel-header">
         <div>
-          <h2>资料库项目</h2>
+          <!-- 上面那条屏名就是「资料库」，这里再说一遍「资料库项目」是同一屏两个标题；只留这一句怎么做 -->
           <p class="subtitle">创建项目，上传文档和图片，自动解析向量化</p>
         </div>
         <a-button type="primary" @click="showNewCategoryModal = true">
@@ -632,6 +633,7 @@ import {
   shouldJumpBackToFirstPage,
   type EmptyReason,
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 // ==================== 知识库文档相关状态 ====================
 const auth = useAuthStore()

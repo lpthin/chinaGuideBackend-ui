@@ -1,8 +1,7 @@
 <template>
   <div class="support-ticket-page">
-    <a-page-header
-      :title="isQueue ? '平台工单队列' : '联系平台'"
-      :sub-title="isQueue ? '处理租户提交给平台的工单' : '对网站建设有疑问？在这里联系平台，处理结果会显示在下方'"
+    <PageTitle
+      :description="isQueue ? '处理租户提交给平台的工单' : '对网站建设有疑问？在这里联系平台，处理结果会显示在下方'"
     />
 
     <div class="content-wrapper">
@@ -138,6 +137,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const props = withDefaults(defineProps<{ mode?: 'mine' | 'queue' }>(), { mode: 'mine' })
 const isQueue = computed(() => props.mode === 'queue')

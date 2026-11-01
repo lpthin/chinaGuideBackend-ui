@@ -42,7 +42,7 @@ vi.mock('../../../stores/auth', () => ({
 const routeQuery = vi.hoisted(() => ({ current: {} as Record<string, string> }))
 vi.mock('vue-router', async importOriginal => {
   const actual = await importOriginal<Record<string, any>>()
-  return { ...actual, useRoute: () => ({ query: routeQuery.current, params: {} }) }
+  return { ...actual, useRoute: () => ({ query: routeQuery.current, params: {}, meta: { title: '展示内容' } }) }
 })
 
 /**

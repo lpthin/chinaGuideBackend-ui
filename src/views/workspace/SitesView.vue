@@ -11,6 +11,7 @@ import { useSiteStore } from '@/stores/site'
 import { formatDateTime } from '@/utils/format'
 import type { Site } from '../../types'
 import type { Tenant } from '../../types/workspace'
+import PageTitle from '../../components/PageTitle.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -436,22 +437,21 @@ onMounted(() => {
 
 <template>
   <div class="sites-view">
-    <div class="page-header">
-      <div>
-        <h3>站点清单</h3>
-        <p>
-          维护站点画像与归属：域名、租户都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。
-          建站流水线建出来的是 <b>候选站</b>（等客户选中才转正），客户没选中的收进 <b>归档</b>——这两种在下面的行里都单独标色。
-          <b>手建的站点也先落候选</b>（M-P40 拍板：没人确认过的一套不该一建出来就对全世界可读），要对外就在行上点「启用」。
-          已上线的站在编辑弹窗里只在「启用 / 禁用」之间转；转正与归档这里不给下拉——那是流水线推进的结果，
-          在这里改一下字符串就等于撒一个谎。
-        </p>
-      </div>
-      <a-button type="primary" @click="resetForm(); modalVisible = true">
-        <template #icon><PlusOutlined /></template>
-        新建站点
-      </a-button>
-    </div>
+    <PageTitle>
+      <p class="sites-view__intro">
+        维护站点画像与归属：域名、租户都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。
+        建站流水线建出来的是 <b>候选站</b>（等客户选中才转正），客户没选中的收进 <b>归档</b>——这两种在下面的行里都单独标色。
+        <b>手建的站点也先落候选</b>（M-P40 拍板：没人确认过的一套不该一建出来就对全世界可读），要对外就在行上点「启用」。
+        已上线的站在编辑弹窗里只在「启用 / 禁用」之间转；转正与归档这里不给下拉——那是流水线推进的结果，
+        在这里改一下字符串就等于撒一个谎。
+      </p>
+      <template #extra>
+        <a-button type="primary" @click="resetForm(); modalVisible = true">
+          <template #icon><PlusOutlined /></template>
+          新建站点
+        </a-button>
+      </template>
+    </PageTitle>
 
     <a-form layout="inline" class="sites-view__toolbar">
       <a-form-item label="归档候选">
@@ -750,16 +750,7 @@ onMounted(() => {
 <style scoped>
 .sites-view {
 }
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-.page-header h3 {
-  margin: 0 0 8px;
-}
-.page-header p {
+.sites-view__intro {
   margin: 0;
   color: #6b7280;
   font-size: 14px;

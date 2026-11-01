@@ -1,5 +1,6 @@
 <template>
   <div class="billing-stats-page">
+    <PageTitle />
     <!-- 这一屏每一个数都是按客户分开记的。不写清是谁的账，读的人会把「登录账号所属那一家」的数
          当成自己正在看的那一家（改前超管没选客户时，屏上悄悄摆的就是 admin 账号名下租户 1 的账）。 -->
     <div class="scope-line" data-testid="scope-line">{{ scopeSentence }}</div>
@@ -173,6 +174,7 @@ import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import { PH_DASH } from '../../utils/display'
 import StateBlock from '../../components/StateBlock.vue'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

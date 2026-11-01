@@ -1,5 +1,6 @@
 <template>
   <div class="portal-analytics-page">
+    <PageTitle />
     <a-alert type="info" show-icon class="scope-note">
       <template #message>
         本页两块数字口径不同，不能相加：<b>人工浏览</b>来自门户前端埋点（只有真浏览器会执行那段脚本）；
@@ -113,6 +114,7 @@ import type {
   AnalyticsPagesResult,
   AnalyticsTrendResult,
 } from '../../api/analytics'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

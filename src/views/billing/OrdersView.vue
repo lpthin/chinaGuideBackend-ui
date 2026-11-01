@@ -1,5 +1,6 @@
 <template>
   <div class="orders-view-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <!-- 订单统计卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
@@ -177,6 +178,7 @@ import { describeHttpError } from '../../api/http'
 import { ORDER_STATUS_ORDER, orderStatusColor, orderStatusLabel, countByStatus, foldOrderStatus } from '../../utils/orderStatus'
 import { paymentMethodLabel } from '../../utils/paymentMethod'
 import FilterBar from '../../components/FilterBar.vue'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

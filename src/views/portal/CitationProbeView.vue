@@ -1,5 +1,6 @@
 <template>
   <div class="citation-page">
+    <PageTitle />
     <filter-bar>
       <span class="citation-page__filter-label">站点</span>
       <a-select
@@ -299,6 +300,7 @@ import {
   type CitationQuestion,
   type CitationVocabulary
 } from '../../api/citation'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 超管侧的品牌引用探测（决议 N10 方案 B）。

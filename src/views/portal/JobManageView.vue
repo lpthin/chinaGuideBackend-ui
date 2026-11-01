@@ -1,7 +1,6 @@
 <template>
   <div class="job-manage-page">
-    <a-page-header title="招聘管理" sub-title="管理门户网站的招聘职位和简历投递">
-    </a-page-header>
+    <PageTitle description="管理门户网站的招聘职位和简历投递" />
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">
@@ -249,6 +248,7 @@ import EmptyListHint from '../../components/EmptyListHint.vue'
 import { describeHttpError } from '../../api/http'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const loading = ref(false)
 // 空态的那一句只认后端（N-05）：读失败 / 后端答了成因 / 后端没答，三件事分开说

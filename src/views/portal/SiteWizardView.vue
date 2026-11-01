@@ -45,6 +45,7 @@ import FoldedText from '@/components/FoldedText.vue'
 import WizardSteps from '@/components/WizardSteps.vue'
 import { createWizardState, type WizardState, type WizardStepDef } from '@/components/wizardModel'
 import { createProposalProgressFollower } from '@/utils/proposalProgressFollow'
+import PageTitle from '../../components/PageTitle.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -569,9 +570,9 @@ onUnmounted(stopFollowingProgress)
 
 <template>
   <div class="site-wizard">
+    <PageTitle />
     <div class="page-header">
       <div>
-        <h3>新建网站</h3>
         <p>
           五步一条线：录前采需求单 → AI 出说明书、超管逐段改并签字 → 估价并出 1~3 套候选 → 比较与发预览 → 客户选定后转正。
           每一步只摊开这一步自己的读数；花钱、签字那两发动作在那一屏自己的页面上按。

@@ -1,5 +1,6 @@
 <template>
   <div class="section-admin-page">
+    <PageTitle />
     <a-form layout="inline" class="section-admin-page__filter">
       <a-form-item label="站点">
         <!-- 宽到能装下整条「站名 #编号 · 状态 · 租户」：这一列原来只有 220px，站名一长就只剩省略号，
@@ -166,6 +167,7 @@ import { siteStatusText } from '../../api/siteBriefs'
 import { useAuthStore } from '../../stores/auth'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 import SectionAdviceCard from './SectionAdviceCard.vue'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 超管栏目卡片页（Spec §5.2 / §7.2 + Spec-D D4，N5：栏目归超管）。

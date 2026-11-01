@@ -1,10 +1,7 @@
 <template>
   <div class="audit-log">
+    <PageTitle />
     <a-card :bordered="false">
-      <template #title>
-        <h3>审计日志</h3>
-      </template>
-
       <!-- 筛选区 -->
       <a-form layout="inline" :model="filterForm" class="filter-form">
         <a-form-item label="操作类型">
@@ -200,6 +197,7 @@ import {
   shouldJumpBackToFirstPage,
   type EmptyReason
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

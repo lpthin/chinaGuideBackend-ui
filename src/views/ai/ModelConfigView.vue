@@ -1,5 +1,6 @@
 <template>
   <div class="model-config-page">
+    <PageTitle />
     <!-- 这一套归谁：2026-11-01 拍板取消客户维度（M-P102）。改前右上角一切客户这一屏就空了，
          而真在用的那 5 台一个字看不到（取证 scratch/mp102-logs/11-ui-before.txt U2） -->
     <a-alert
@@ -376,6 +377,7 @@ import {
 import { formatDateTime } from '../../utils/format'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import PageTitle from '../../components/PageTitle.vue'
 
 // M-P102（2026-11-01 拍板）：这一屏不再问「在看哪一家客户」。模型池归平台一套、所有客户共用，
 // 后端那一发查询也只认平台那一家，请求里再带 tenantId 已经没有任何作用。

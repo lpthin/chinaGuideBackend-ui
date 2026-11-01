@@ -1,5 +1,6 @@
 <template>
   <div class="page-builder">
+    <PageTitle />
     <a-form layout="inline" class="page-builder__filter">
       <a-form-item label="站点">
         <a-select
@@ -321,6 +322,7 @@ import BlockPropsForm from './builder/BlockPropsForm.vue'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 门户页面搭建器：区块白名单 + design token 白名单，没有任何「写 HTML / 写 CSS」的入口。

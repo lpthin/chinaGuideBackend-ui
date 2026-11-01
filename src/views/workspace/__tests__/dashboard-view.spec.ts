@@ -35,7 +35,7 @@ vi.mock('../../../stores/auth', () => ({
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
-  useRoute: () => ({ params: {}, query: {} }),
+  useRoute: () => ({ params: {}, query: {}, meta: { title: '工作台' } }),
 }))
 
 vi.mock('../../../api', () => ({

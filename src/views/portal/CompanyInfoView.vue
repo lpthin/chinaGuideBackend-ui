@@ -1,13 +1,13 @@
 <template>
   <div class="company-info-page">
-    <a-page-header title="企业信息" sub-title="维护企业基础信息和画像，供行业热词收集、关键词蒸馏和内容生成使用。">
+    <PageTitle description="维护企业基础信息和画像，供行业热词收集、关键词蒸馏和内容生成使用。">
       <template #extra>
         <a-space>
           <a-button @click="handleReset">重置</a-button>
           <a-button type="primary" :loading="saving" @click="handleSave">保存修改</a-button>
         </a-space>
       </template>
-    </a-page-header>
+    </PageTitle>
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">
@@ -437,6 +437,7 @@ import type { BriefVocabularyQuestion, SiteBriefVocabulary } from '@/api/siteBri
 import type { CompanyInfo, CompanyInfoForm } from '@/types/portal'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
 const tenantId = computed(() => auth.selectedTenantId || auth.tenantId)

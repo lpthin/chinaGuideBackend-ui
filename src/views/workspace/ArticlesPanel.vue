@@ -1,5 +1,6 @@
 <template>
   <div class="articles-panel-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <!-- 顶部数据概览区 -->
       <a-row :gutter="[16, 16]" style="margin-bottom: 20px">
@@ -740,6 +741,7 @@ import { describeHttpError } from '../../api/http'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
 

@@ -1,5 +1,6 @@
 <template>
   <div class="invoice-view-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <!-- 开票统计 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
@@ -227,6 +228,7 @@ import FilterBar from '../../components/FilterBar.vue'
 import { foldInvoiceStatus, invoiceStatusLabel, invoiceStatusColor } from '../../utils/invoiceStatus'
 import { InvoiceType, invoiceTypeLabel, invoiceTypeColor, invoiceTypeNeedsTaxNo } from '../../utils/invoiceType'
 import { paymentMethodLabel } from '../../utils/paymentMethod'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

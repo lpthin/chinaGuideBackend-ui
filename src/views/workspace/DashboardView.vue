@@ -1,5 +1,6 @@
 <template>
   <div class="dashboard">
+    <PageTitle />
     <div class="page-header">
       <div class="header-content">
         <div class="header-avatar">
@@ -318,6 +319,7 @@ import { useAuthStore } from '../../stores/auth'
 import type { DashboardStats } from '../../types/workspace'
 import { formatDateTime, formatMoney } from '@/utils/format'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const router = useRouter()
 const auth = useAuthStore()

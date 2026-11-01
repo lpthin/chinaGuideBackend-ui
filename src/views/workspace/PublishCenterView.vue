@@ -1,5 +1,6 @@
 <template>
   <div class="publish-center-page">
+    <PageTitle />
     <a-row :gutter="16" class="stat-row">
       <!-- 统计那一发没答回来时摆 `—` 不摆 0：0 说的是「查过了，结果就是空」，而那一发根本没答
            （M-P79，与 M-P77 聚类那一屏同一个缺陷形状）。 -->
@@ -410,6 +411,7 @@ import type { PublishRecord, PublishTask } from '../../types/workspace'
 import { articleStatusMeta, jobStatusMeta, queueStatusMeta } from '../../utils/contentStatus'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import PageTitle from '../../components/PageTitle.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

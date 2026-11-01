@@ -1,5 +1,6 @@
 <template>
   <div class="categories-panel-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <!-- 顶部数据概览区 -->
       <a-row :gutter="[16, 16]" style="margin-bottom: 20px">
@@ -474,6 +475,7 @@ import { categoryApi } from '../../api'
 import { describeHttpError } from '../../api/http'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const loading = ref(false)
 const saving = ref(false)

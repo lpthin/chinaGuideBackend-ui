@@ -1,5 +1,6 @@
 <template>
   <div class="user-profile-page">
+    <PageTitle />
     <a-row :gutter="24">
       <!-- 左侧：用户卡片 -->
       <a-col :span="8">
@@ -171,6 +172,7 @@ import {
   HistoryOutlined,
   SaveOutlined,
 } from '@ant-design/icons-vue'
+import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
 

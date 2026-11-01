@@ -1,7 +1,6 @@
 <template>
   <div class="banner-manage-page">
-    <a-page-header title="Banner管理" sub-title="管理门户首页轮播与横幅">
-    </a-page-header>
+    <PageTitle description="管理门户首页轮播与横幅" />
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">
@@ -222,6 +221,7 @@ import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
 import FilterBar from '../../components/FilterBar.vue'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const loading = ref(false)
 const saving = ref(false)

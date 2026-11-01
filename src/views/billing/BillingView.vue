@@ -1,5 +1,6 @@
 <template>
   <div class="billing-page">
+    <PageTitle />
     <!-- 这一屏每一张卡的数都是按客户分开记的。改前没选客户时它拿 `|| 1` 兜底，屏上摆的其实是
          admin 账号名下那一家的账，而界面一个字不提。现在先说清在看谁的账，没选定就不取数。 -->
     <div class="scope-line" data-testid="scope-line">{{ scopeSentence }}</div>
@@ -138,7 +139,8 @@
         </a-row>
       </a-card>
 
-      <a-card title="账单管理" :bordered="false">
+      <!-- 卡片名跟着里面这批数据走：屏名「账单管理」上面刚念过，这里再摆一遍是同一屏两个标题 -->
+      <a-card title="账单列表" :bordered="false">
         <!-- 筛选原挤在卡片 #extra、和列表分两处，收进 FilterBar：字段靠左、导出靠右 -->
         <filter-bar>
           <a-select
@@ -320,6 +322,7 @@ import StateBlock from '../../components/StateBlock.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { asEmptyReason, shouldJumpBackToFirstPage, JUMP_BACK_NOTICE, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

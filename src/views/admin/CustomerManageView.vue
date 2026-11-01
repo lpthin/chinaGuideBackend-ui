@@ -1,5 +1,6 @@
 <template>
   <div class="customer-manage-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <!-- 客户统计卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
@@ -230,6 +231,7 @@ import {
   JUMP_BACK_NOTICE,
   type EmptyReason,
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 

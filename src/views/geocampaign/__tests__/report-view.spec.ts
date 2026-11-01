@@ -30,7 +30,7 @@ import type { GeoMetricRow, GeoReport } from '../../../api/geoCampaign'
 // 整体替换 vue-router 会让页面在装配阶段就炸（跟本页要测的东西无关）。
 vi.mock('vue-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('vue-router')>()
-  return { ...actual, useRoute: () => ({ params: {}, query: {} }) }
+  return { ...actual, useRoute: () => ({ params: {}, query: {}, meta: { title: 'GEO 诊断报告' } }) }
 })
 
 // 只替 notification：判定/重算失败时后端那句原因是「数据」，界面上的处置是把它原样递到用户眼前，

@@ -1,5 +1,6 @@
 <template>
-  <page-shell title="GEO总览仪表盘" subtitle="生成引擎优化全局视图">
+  <div class="geoseo-dashboard-page">
+    <PageTitle description="生成引擎优化全局视图" />
     <a-spin :spinning="loading">
       <div class="dashboard-content">
         <!-- 1. 分数那一格：Q2-A 定稿删总分，这里只留「为什么空着」 -->
@@ -80,7 +81,7 @@
         </a-card>
       </div>
     </a-spin>
-  </page-shell>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -92,13 +93,13 @@ import {
   TeamOutlined,
   KeyOutlined,
 } from '@ant-design/icons-vue'
-import PageShell from '../../components/PageShell.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import DataTable from '../../components/DataTable.vue'
 import { METRIC_HARD_RULES } from '../../copy/metrics'
 import { logError } from '../../utils/errorLog'
 import { geoDashboardApi } from '../../api/geoseo'
 import type { GeoDashboard } from '../../types/geoseo'
+import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * GEO 总览（Spec-F §1.3 / §0.4 Q2-A）。

@@ -1,5 +1,6 @@
 <template>
   <div class="article-template-page">
+    <PageTitle />
     <a-row :gutter="16" style="margin-bottom: 16px">
       <a-col :span="6">
         <a-card class="stat-card" hoverable>
@@ -58,7 +59,8 @@
     <a-card :bordered="false">
       <template #title>
         <div class="card-header">
-          <span>生成模板管理</span>
+          <!-- 屏名已经念过一遍，这里只说这张卡装着什么 -->
+          <span>模板列表</span>
         </div>
       </template>
 
@@ -322,6 +324,7 @@ import {
   shouldJumpBackToFirstPage,
   type EmptyReason,
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1

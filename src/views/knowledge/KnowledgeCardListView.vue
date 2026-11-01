@@ -1,5 +1,6 @@
 <template>
   <div class="knowledge-card-list-page">
+    <PageTitle />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -10,7 +11,8 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ pagination.total }}</div>
-                <div class="stat-title">知识卡片</div>
+                <!-- 屏名已经念过一遍，这里只说这一格数的是什么 -->
+                <div class="stat-title">卡片总数</div>
               </div>
             </div>
           </a-card>
@@ -312,6 +314,7 @@ import {
   shouldJumpBackToFirstPage,
   type EmptyReason,
 } from '../../utils/emptyPage'
+import PageTitle from '../../components/PageTitle.vue'
 
 const router = useRouter()
 const auth = useAuthStore()

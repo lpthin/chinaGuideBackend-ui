@@ -36,7 +36,7 @@ const routeState = vi.hoisted(() => ({ query: {} as Record<string, string> }))
 const pushSpy = vi.hoisted(() => vi.fn())
 const replaceSpy = vi.hoisted(() => vi.fn())
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: {}, query: routeState.query }),
+  useRoute: () => ({ params: {}, query: routeState.query, meta: { title: '新建站点' } }),
   useRouter: () => ({ push: pushSpy, replace: replaceSpy })
 }))
 

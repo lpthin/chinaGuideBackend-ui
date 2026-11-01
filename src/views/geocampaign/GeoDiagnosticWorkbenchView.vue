@@ -22,6 +22,7 @@ import {
 import GeoBrandProfileView from '../geobrand/GeoBrandProfileView.vue'
 import GeoBrandDiagnosisWizardView from '../geobrand/GeoBrandDiagnosisWizardView.vue'
 import GeoCampaignWorkbenchView from './GeoCampaignWorkbenchView.vue'
+import PageTitle from '../../components/PageTitle.vue'
 
 const VALID_TABS = ['brand', 'wizard', 'campaign'] as const
 type DiagnosticTab = typeof VALID_TABS[number]
@@ -48,6 +49,7 @@ const TABS = [
 
 <template>
   <div class="geo-diagnostic-workbench">
+    <PageTitle />
     <a-tabs :active-key="activeTab" @change="onTabChange" class="geo-diagnostic-workbench__tabs">
       <a-tab-pane v-for="tab in TABS" :key="tab.key">
         <template #tab>

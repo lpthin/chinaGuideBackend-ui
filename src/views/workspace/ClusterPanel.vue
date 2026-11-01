@@ -1,13 +1,8 @@
 <template>
   <div class="cluster-panel-page">
+    <!-- 屏名只认路由那一份：原来这块页头自己写了「聚类蒸馏」，菜单和菜单名都不叫这个 -->
+    <PageTitle description="智能聚类，一键生成优质内容建议" />
     <a-spin :spinning="loading">
-      <!-- Page Header -->
-      <div class="page-header">
-        <div class="header-left">
-          <h2 class="page-title">聚类蒸馏</h2>
-          <span class="page-subtitle">智能聚类分析，一键生成优质内容建议</span>
-        </div>
-      </div>
 
       <!-- Stats Row -->
       <a-row :gutter="[12, 12]" class="stats-row">
@@ -623,6 +618,7 @@ import type { KeywordCluster, KeywordContentSuggestion } from '../../types/works
 import { logError } from '../../utils/errorLog'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -1380,31 +1376,6 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
-// Page Header
-.page-header {
-  margin-bottom: 16px;
-  padding: 0 4px;
-}
-
-.header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: @gray-900;
-  margin: 0;
-  letter-spacing: -0.01em;
-}
-
-.page-subtitle {
-  font-size: 13px;
-  color: @gray-500;
-}
-
 // Stats
 .stats-row {
   margin-bottom: 16px;
@@ -1786,7 +1757,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .page-title { font-size: 19px; }
   .chart-container { height: 220px; }
 }
 
