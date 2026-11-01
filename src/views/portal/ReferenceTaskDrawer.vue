@@ -48,8 +48,8 @@
           <b>补录一条路由</b>给「页面上没有入口、只能靠代码跳过去」的那些页用，它只往清单里加一行，不发请求。
         </p>
         <p class="reference-site-page__muted">
-          「先估算消耗」只算不调用模型；「开始 AI 摄取」会真的产生两次 AI 调用，但这一族<b>不进租户的
-          token 账单</b>（参考站摄取是平台自己的研发动作，V142 起由平台承担），所以预估数字只是给我们看成本，
+          「先估算消耗」只算不调用模型；「开始 AI 摄取」会真的产生两次 AI 调用，但这一族<b>不进客户的
+          Token 账单</b>（参考站摄取是平台自己的研发动作，V142 起由平台承担），所以预估数字只是给我们看成本，
           不是向客户收钱的报价。必须先看过预估再勾选确认这条规矩照旧。
           抓取与 AI 摄取都在后台排队执行，这里的进度是靠刷新看出来的，不是按了就算完成的。
         </p>
@@ -168,8 +168,8 @@
       @ok="runAnalyze"
     >
       <p v-if="estimate">
-        预计消耗 <b>{{ estimate.estimatedTokens }}</b> token（结构归纳 + 区块映射两步加起来），
-        这一族由平台承担、<b>不计入该租户的额度</b>。
+        预计消耗 <b>{{ estimate.estimatedTokens }}</b> Token（结构归纳 + 区块映射两步加起来），
+        这一族由平台承担、<b>不计入该客户的额度</b>。
       </p>
       <!-- 点头之前要说清这一个数是怎么来的：它是字数尺的下界，真扣比它多 -->
       <TokenBasisNote :text="estimate?.tokenBasis" />
@@ -200,7 +200,7 @@
         这一步产出的是「观察到的结构 + 映射建议」，还要你逐条确认，最后按「生成草稿页」才会出现一份草稿；
         草稿不发布，访客看不到。
       </p>
-      <a-checkbox v-model:checked="confirmChecked">我已看过预估，确认这次调用会产生平台的 token 消耗</a-checkbox>
+      <a-checkbox v-model:checked="confirmChecked">我已看过预估，确认这次调用会产生平台的 Token 消耗</a-checkbox>
     </a-modal>
 
     <!-- ---------------- 生成草稿页 ---------------- -->
@@ -396,7 +396,7 @@ const crawledCount = computed(
 const estimateMessage = computed(() => {
   if (!estimate.value) return ''
   // 「本站剩余配额」这一句 V142 起撤掉：这一族压根不落租户账单，念一个不会被扣的数字等于让人以为在花钱
-  const base = `预计 ${estimate.value.estimatedTokens} token，平台承担、不计入该租户额度`
+  const base = `预计 ${estimate.value.estimatedTokens} Token，平台承担、不计入该客户额度`
   const rows =
     estimate.value.existingHumanVerified > 0
       ? `。这一行已有 ${estimate.value.existingMappings} 行映射、其中 ${estimate.value.existingHumanVerified} 行人工确认过，这一轮不会受理`
@@ -697,7 +697,7 @@ async function runEstimate() {
 function openAnalyzeModal() {
   if (!estimate.value) {
     // 决策 D4 的界面落点：没有预估就不给确认框，别让运营闭着眼睛点掉两次付费调用
-    message.warning('请先点「先估算消耗」，看过预估 token 再摄取')
+    message.warning('请先点「先估算消耗」，看过预估 Token 再摄取')
     return
   }
   confirmChecked.value = false

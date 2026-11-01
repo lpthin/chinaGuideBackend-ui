@@ -345,7 +345,7 @@ function statText(amount: number): string {
 /** 四张卡下面那句话：把「还没有钱包」与「这一发没读到」分开念 */
 const walletNotice = computed(() => {
   if (walletReadFailed.value) return `钱包没读到：${walletReadFailed.value}`
-  if (walletMissing.value) return '这家还没有钱包，充值后这里会显示余额'
+  if (walletMissing.value) return '这一家还没有钱包，充值后这里会显示余额'
   return ''
 })
 

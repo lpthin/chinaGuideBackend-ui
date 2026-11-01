@@ -216,7 +216,7 @@ describe('建站向导第一跳：归属租户与建后进前采', () => {
 
     await fillRequiredInputs(wrapper)
     const select = tenantSelect(wrapper)
-    expect(select, '新建弹窗里应有归属租户下拉').toBeTruthy()
+    expect(select, '新建弹窗里应有归属客户下拉').toBeTruthy()
     expect(select!.props('disabled')).toBeFalsy()
     // 下拉的清单来自 tenantApi.list() 那一份：label 用后端给的租户名，前端不编词表
     expect(((select!.props('options') ?? []) as { label: string }[])[0].label).toBe('甲租户')
@@ -241,7 +241,7 @@ describe('建站向导第一跳：归属租户与建后进前采', () => {
     await fillRequiredInputs(wrapper)
     await clickModalOk()
     expect(siteApi.create).not.toHaveBeenCalled()
-    expect(vi.mocked(message.warning).mock.calls.flat().join()).toContain('归属租户')
+    expect(vi.mocked(message.warning).mock.calls.flat().join()).toContain('归属客户')
     wrapper.unmount()
   })
 
@@ -251,7 +251,7 @@ describe('建站向导第一跳：归属租户与建后进前采', () => {
     await flushPromises()
 
     const select = tenantSelect(wrapper)
-    expect(select, '编辑弹窗里也应看到归属租户这一格').toBeTruthy()
+    expect(select, '编辑弹窗里也应看到归属客户这一格').toBeTruthy()
     expect(select!.props('disabled')).toBe(true)
     expect(select!.props('value')).toBe(15)
 

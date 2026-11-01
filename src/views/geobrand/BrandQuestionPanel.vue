@@ -114,7 +114,7 @@ defineExpose({ reload })
       @update:question-text="(v: string) => emit('update:questionText', v)"
       @submit="emit('submit')"
     />
-    <div class="geobrand-question-pool__section">本租户题池</div>
+    <div class="geobrand-question-pool__section">这个客户的题池</div>
     <DataTable
       :data-source="tenantQuestions"
       :loading="loading"
@@ -143,7 +143,7 @@ defineExpose({ reload })
     </DataTable>
     <div class="geobrand-question-pool__section">
       平台通用题
-      <span class="geobrand-question-pool__readonly-mark">平台通用题只读：由平台维护，本租户不可增删改</span>
+      <span class="geobrand-question-pool__readonly-mark">平台通用题只读：由平台维护，这一家客户不可增删改</span>
     </div>
     <DataTable
       :data-source="platformQuestions"

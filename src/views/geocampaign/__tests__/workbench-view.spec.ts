@@ -204,7 +204,7 @@ describe('计划表：只报形状、确认态与最近一轮', () => {
     const row = rowText(wrapper)
     expect(row).toContain('5 题 × 2 平台 × 3 次')
     // `costEstimateCalls/Tokens` 是【提问那一段】的账：这里写成两段合计就是把第二次花钱说成第一次
-    expect(row).toContain('预估提问 30 次 / 42000 token')
+    expect(row).toContain('预估提问 30 次 / 42000 Token')
     expect(row).toContain('判定另算')
     expect(row).not.toContain('预估 60')
     expect(row).toContain('待确认')
@@ -224,7 +224,7 @@ describe('计划表：只报形状、确认态与最近一轮', () => {
         judgePromptTokens: 6000, judgeCompletionTokens: 900, judgePromptVersion: 'geo-judge-v1',
       },
     })])
-    expect(judged.find('.geo-workbench__recent').text()).toContain('判定 30 条 · 6900 token · 提示词版本 geo-judge-v1')
+    expect(judged.find('.geo-workbench__recent').text()).toContain('判定 30 条 · 6900 Token · 提示词版本 geo-judge-v1')
     expect(judged.findAll('.tag-stub')[1].text()).toBe('已判定')
   })
 

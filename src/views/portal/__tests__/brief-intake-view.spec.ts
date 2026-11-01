@@ -54,7 +54,7 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: pushSpy,
     replace: replaceSpy,
-    // 「去新建租户」开新标签用的是 resolve（它只算地址，不把人跳走）：mock 里不给这口就是 TypeError
+    // 「去新建客户」开新标签用的是 resolve（它只算地址，不把人跳走）：mock 里不给这口就是 TypeError
     resolve: (to: any) => ({ href: to?.name === 'workspace-tenant' ? '/workspace/tenant' : '/workspace' })
   }),
   useRoute: () => ({ params: routeParams.current, query: routeQuery.current, meta: { title: '录入前采需求单' } })
@@ -1033,7 +1033,7 @@ describe('地址栏带进来的租户号（TenantPanel 的交棒出口）', () =
     const wrapper = await mountView()
     const tenantSelect = wrapper.findAllComponents(Select)[0]
     expect(tenantSelect.props('value')).toBe(15)
-    expect(wrapper.find('.brief-intake__alert').text()).toContain('租户是从「租户管理」那一行带过来的')
+    expect(wrapper.find('.brief-intake__alert').text()).toContain('客户是从「客户开通」那一行带过来的')
     expect(wrapper.find('.brief-intake__alert').text()).toContain('#15')
     // 预填只是省一次选择：保存时带的仍是这个号，不是前端偷偷再造一份默认值
     wrapper.findAllComponents(RadioGroup)[0].vm.$emit('update:value', 'opt-a') // 必填（词表打星）先答上
@@ -1048,7 +1048,7 @@ describe('地址栏带进来的租户号（TenantPanel 的交棒出口）', () =
     const options = (wrapper.findAllComponents(Select)[0].props('options') ?? []) as { value: unknown; label: string }[]
     const extra = options.find(option => option.value === 99)
     expect(extra, '预填的租户号必须还在下拉里').toBeTruthy()
-    expect(extra!.label).toContain('这一页的租户列表里没查到')
+    expect(extra!.label).toContain('这一页的客户列表里没查到')
     wrapper.unmount()
   })
 
@@ -1057,7 +1057,7 @@ describe('地址栏带进来的租户号（TenantPanel 的交棒出口）', () =
     routeQuery.current = { tenantId: '99' }
     const wrapper = await mountView({ brief: savedBrief({ id: 12, tenantId: 15 }) })
     expect(wrapper.findAllComponents(Select)[0].props('value')).toBe(15)
-    expect(wrapper.text()).not.toContain('租户是从「租户管理」那一行带过来的')
+    expect(wrapper.text()).not.toContain('客户是从「客户开通」那一行带过来的')
     wrapper.unmount()
   })
 
@@ -1065,7 +1065,7 @@ describe('地址栏带进来的租户号（TenantPanel 的交棒出口）', () =
     routeQuery.current = { tenantId: 'abc' }
     const wrapper = await mountView()
     expect(wrapper.findAllComponents(Select)[0].props('value')).toBeFalsy()
-    expect(wrapper.text()).not.toContain('租户是从「租户管理」那一行带过来的')
+    expect(wrapper.text()).not.toContain('客户是从「客户开通」那一行带过来的')
     wrapper.unmount()
   })
 })
@@ -1116,45 +1116,45 @@ describe('这一页不许长出 P3 的按钮', () => {
 /**
  * 建站这条链的第一环：租户是硬前置（后端没有租户就直接拒），可这一屏以前只拦「没选租户」，
  * 一家都还没开的人卡死在第一步——既没有去处，也没有一句说清「缺的是哪一样」的话。
- * 这三条钉的是：空列表与取失败两种成因分开念、给一颗真能用的「去新建租户」，
+ * 这三条钉的是：空列表与取失败两种成因分开念、给一颗真能用的「去新建客户」，
  * 以及那一颗开的是新标签（这一屏勾了十几道题，跳走就把填的丢了）。
  */
 describe('租户这一头：一家都没有时给去处，不给做不到的要求', () => {
   it('还没有租户：说明缺的是哪一样并给两颗把手，保存被拦下时不念那句做不到的「先选租户」', async () => {
     const wrapper = await mountView({ tenants: [] })
-    expect(wrapper.text()).toContain('还没有租户：需求单要记在一家租户名下')
-    expect(byText('去新建租户')).toHaveLength(1)
-    expect(byText('重新取租户列表')).toHaveLength(1)
+    expect(wrapper.text()).toContain('还没有客户：需求单要记在一家客户名下')
+    expect(byText('去新建客户')).toHaveLength(1)
+    expect(byText('重新取客户列表')).toHaveLength(1)
 
     clickSave(wrapper)
     expect(siteBriefsApi.create).not.toHaveBeenCalled()
     const warning = vi.mocked(message.warning).mock.calls.flat().join()
-    expect(warning).toContain('还没有租户')
-    expect(warning).not.toContain('先选这一单给哪个租户')
+    expect(warning).toContain('还没有客户')
+    expect(warning).not.toContain('先选这一单给哪个客户')
     wrapper.unmount()
   })
 
-  it('租户列表没取到：明说「没取到」而不是「一家都没有」，点重试真的再发一发', async () => {
+  it('客户列表没取到：明说「没取到」而不是「一家都没有」，点重试真的再发一发', async () => {
     const wrapper = await mountView({ tenantsError: '租户接口 500' })
-    expect(wrapper.text()).toContain('租户列表没取到')
+    expect(wrapper.text()).toContain('客户列表没取到')
     // 取失败那一档不许被念成空列表那句（两句说的是不同的事，处置动作也不同）
-    expect(wrapper.text()).not.toContain('还没有租户：需求单要记在一家租户名下')
-    expect(byText('重新取租户列表')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('还没有客户：需求单要记在一家客户名下')
+    expect(byText('重新取客户列表')).toHaveLength(1)
 
     vi.mocked(tenantApi.list).mockResolvedValueOnce([{ id: 16, code: 't-b', name: '乙租户' }] as any)
-    click(byText('重新取租户列表')[0])
+    click(byText('重新取客户列表')[0])
     await flushPromises()
     expect(tenantApi.list).toHaveBeenCalledTimes(2)
-    expect(wrapper.text()).not.toContain('租户列表没取到')
+    expect(wrapper.text()).not.toContain('客户列表没取到')
     wrapper.unmount()
   })
 
-  it('「去新建租户」开新标签，不在本页跳走：这一屏已经勾的题不算白填', async () => {
+  it('「去新建客户」开新标签，不在本页跳走：这一屏已经勾的题不算白填', async () => {
     const openSpy = vi.fn()
     Object.defineProperty(window, 'open', { value: openSpy, configurable: true, writable: true })
     const wrapper = await mountView()
 
-    click(byText('去新建租户')[0])
+    click(byText('去新建客户')[0])
 
     expect(openSpy).toHaveBeenCalledWith('/workspace/tenant', '_blank', 'noopener')
     expect(pushSpy).not.toHaveBeenCalled()

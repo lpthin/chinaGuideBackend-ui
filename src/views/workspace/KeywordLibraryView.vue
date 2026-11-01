@@ -492,7 +492,7 @@ onMounted(fetchAll)
           <div class="stat-card__content">
             <div class="stat-card__label">关键词总量</div>
             <div class="stat-card__value">{{ libraryStats.total }}</div>
-            <div class="stat-card__hint">全租户词库（唯一真实源）</div>
+            <div class="stat-card__hint">全部客户词库（唯一真实源）</div>
           </div>
         </div>
         <div class="stat-card stat-card--rose">
@@ -739,7 +739,7 @@ onMounted(fetchAll)
         <a-alert type="info" show-icon>
           <template #message>
             规则：{{ WEEKDAY_TEXT[expandConfig.weekday] }} {{ expandConfig.runTime }}
-            命中的租户将由 Scheduler 每分钟自动扫描并触发 3 源白名单扩展（百度联想词 / 产品词扩展 / 地域词组合）。
+            命中的客户将由 Scheduler 每分钟自动扫描并触发 3 源白名单扩展（百度联想词 / 产品词扩展 / 地域词组合）。
           </template>
         </a-alert>
       </a-form>

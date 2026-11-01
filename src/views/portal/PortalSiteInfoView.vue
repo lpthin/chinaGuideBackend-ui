@@ -3,14 +3,14 @@
     <PageTitle />
     <a-card :bordered="false">
       <template #title>
-        <span>{{ view?.siteName || '网站信息' }}</span>
+        <span>{{ view?.siteName || '站点信息' }}</span>
         <a-tag v-if="view?.siteStatus" style="margin-left: 8px">{{ siteStatusText(view.siteStatus) }}</a-tag>
       </template>
 
       <a-alert type="info" show-icon :message="SITE_INFO_AI_FIRST_TEXT" style="margin-bottom: 16px" />
 
       <a-spin :spinning="loading">
-        <a-empty v-if="!view" description="还没取到网站信息，请刷新重试" />
+        <a-empty v-if="!view" description="还没取到站点信息，请刷新重试" />
 
         <template v-else>
           <!-- 一屏可见：每个字段带来源角标（后端 changeSourceLabel），可改的给「改」，不可改的原样展示 -->
@@ -140,7 +140,7 @@
           <a-alert
             type="info"
             show-icon
-            message="这里是各页面 SEO 的只读镜像。写入这一层的口在超管侧「页面搭建」，租户侧暂不可改。"
+            message="这里是各页面 SEO 的只读镜像。写入这一层的口在超级管理员侧「页面搭建」，客户侧暂不可改。"
             style="margin-bottom: 12px"
           />
           <a-table
@@ -232,7 +232,7 @@ async function load() {
     overrideEditing.value = false;
     seedCrawlerChecks();
   } catch (error) {
-    message.error(`加载网站信息失败：${describeHttpError(error)}`);
+    message.error(`加载站点信息失败：${describeHttpError(error)}`);
   } finally {
     loading.value = false;
   }

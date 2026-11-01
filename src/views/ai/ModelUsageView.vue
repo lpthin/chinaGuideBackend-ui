@@ -97,9 +97,9 @@
                 </div>
                 <p v-if="!hasStat('totalCost')" class="stat-note">
                   这一段窗口里的调用全落在没定价的模型上，所以这一格念「未配价」而不报钱，也不念 ¥0。
-                  去「模型配置」那一页给这些模型填每 1000 token 的单价，之后的调用就开始计钱
+                  去「模型配置」那一页给这些模型填每 1000 Token 的单价，之后的调用就开始计钱
                   （已经落库的那些不回填——单价改一次，历史账就跟着变一次）。
-                  额度与扣费流水在下方那块，按 token 记，要在右上角选定租户才读得到。
+                  额度与扣费流水在下方那块，按 Token 记，要在右上角选定客户才读得到。
                 </p>
               </div>
             </div>
@@ -236,12 +236,12 @@
                   <!-- 三态各有各的念法（V158 / N2）：有上限念数，没上限念「不限制」，接口没回才念占位符 -->
                   <span v-if="poolIsUnlimited(pool)" class="pool-nums">
                     未设月度上限，不限制 · 本月已用
-                    {{ pool.usedTokens?.toLocaleString() ?? PH_DASH }} token
+                    {{ pool.usedTokens?.toLocaleString() ?? PH_DASH }} Token
                   </span>
                   <span v-else class="pool-nums">
                     剩余 {{ pool.remainingTokens?.toLocaleString() ?? PH_DASH }} / 本月已用
                     {{ pool.usedTokens?.toLocaleString() ?? PH_DASH }} · 月度额度
-                    {{ pool.monthlyQuota?.toLocaleString() ?? PH_DASH }} token
+                    {{ pool.monthlyQuota?.toLocaleString() ?? PH_DASH }} Token
                   </span>
                 </div>
                 <!-- 没有上限就没有「用了百分之几」这个数：那根条子的分母不存在。
@@ -257,14 +257,14 @@
                 </div>
                 <div class="pool-ledger">
                   本月这一池的扣费流水 {{ pool.monthCount?.toLocaleString() ?? PH_DASH }} 笔、合计
-                  {{ pool.monthTokenAmount?.toLocaleString() ?? PH_DASH }} token<span
+                  {{ pool.monthTokenAmount?.toLocaleString() ?? PH_DASH }} Token<span
                     v-if="pool.usageType === 'AI_TOKEN'"
                   >（含拆池之前那几笔——它们没记池子，按当时的口径算进通用池）</span>。
                 </div>
               </div>
               <div class="pool-note">
                 两池分账：GEO 诊断花的钱不挤文章生成的额度，反过来也一样。
-                通用池的水位跟着本租户的计费套餐；GEO 那一池由超级管理员在本页设，
+                通用池的水位跟着这个客户的计费套餐；GEO 那一池由超级管理员在本页设，
                 <b>没设 = 不限制</b>（不是「额度为 0」，也不会去跟套餐的数）。
               </div>
               <!--
@@ -328,8 +328,8 @@
               v-else
               state="not-measured"
               title="预算那一格还没有接上额度口径"
-              detail="这一格要的是钱（¥），而 /ai/model/stats 从来没回 budgetTotal；以前显示的 ¥0 是初始值，不是「没花钱」。token 那一口径现在有了：选了租户就由上面那块念两池的数。"
-              next="右上角选一个租户 ⇒ 这一屏变成「本月额度（两池分账）」，读的是 /billing/stats/overview 的 pools（G4）；¥那一格仍等 budgetTotal 回来。"
+              detail="这一格要的是钱（¥），而 /ai/model/stats 从来没回 budgetTotal；以前显示的 ¥0 是初始值，不是「没花钱」。Token 那一口径现在有了：选了客户就由上面那块念两池的数。"
+              next="右上角选一个客户 ⇒ 这一屏变成「本月额度（两池分账）」，读的是 /billing/stats/overview 的 pools（G4）；¥那一格仍等 budgetTotal 回来。"
             />
           </a-card>
         </a-col>
@@ -701,7 +701,7 @@ async function loadGeoQuota(tenantId: number): Promise<void> {
 async function submitGeoQuota(quota: number | null): Promise<void> {
   const tenantId = authStore.selectedTenantId
   if (!tenantId) {
-    message.warning('请先在右上角选择一个租户：这一池是按租户分账的，没有租户号就没有「设给谁」')
+    message.warning('请先在右上角选择一个客户：这一池是按客户分账的，没有客户编号就没有「设给谁」')
     return
   }
   geoQuotaSaving.value = true
@@ -731,22 +731,22 @@ const geoQuotaNowText = computed(() => {
   const status = geoQuota.value
   if (!status) return ''
   const quota = status.monthlyQuota
-  const effective = quota === null || quota === undefined ? '不限制（没设过上限）' : `${quota.toLocaleString()} token`
+  const effective = quota === null || quota === undefined ? '不限制（没设过上限）' : `${quota.toLocaleString()} Token`
   const source = QUOTA_SOURCE_TEXT[status.quotaSource] || status.quotaSource
-  return `现在生效的是 ${effective}，来源：${source}；本月已用 ${status.usedTokens.toLocaleString()} token。`
+  return `现在生效的是 ${effective}，来源：${source}；本月已用 ${status.usedTokens.toLocaleString()} Token。`
 })
 
 const geoQuotaWhoText = computed(() => {
   const status = geoQuota.value
   if (!status) return ''
-  const at = status.updatedAt ? formatDateTime(status.updatedAt) : '这个租户还没单独设过'
+  const at = status.updatedAt ? formatDateTime(status.updatedAt) : '这个客户还没单独设过'
   const by = status.updatedBy === null || status.updatedBy === undefined ? '没记到改动人' : `管理员 id ${status.updatedBy}`
   return `最后一次单独设置：${at} · ${by}（要核对是谁，按这个 id 在「用户管理」里查）`
 })
 
 /** 生效水位来自哪一路：词表在这一份文件里只有一份，跟后端三个常量一一对应 */
 const QUOTA_SOURCE_TEXT: Record<string, string> = {
-  TENANT: '本租户单独设置',
+  TENANT: '这个客户单独设置',
   PLATFORM: '平台兜底（app.ai.quota.geo-monthly-quota）',
   UNLIMITED: '两处都没设',
 }

@@ -262,7 +262,7 @@ describe('超管没选定租户那一态（P6-B 现场挖出来的）', () => {
     const wrapper = await mountView(['seo:audit:view', 'seo:audit:run'], [item()], { superAdmin: true })
     const text = wrapper.text()
     expect(text).toContain('全站视角读不出体检')
-    expect(text).toContain('选定一个租户')
+    expect(text).toContain('选定一个客户')
     // 后端这条路回的是业务码 TENANT_REQUIRED，通用错误态会把它念成「读取失败 / 稍后重试」——
     // 出路指错了比不出路更坏，所以这一态必须不走 error 那条渲染路径（钉 data-state，不钉句子）。
     expect(text).not.toContain('读取失败')

@@ -187,7 +187,7 @@ defineExpose({ loadEstimate, loadRuns, reset })
 
     <p class="geo-run-panel__note">
       「先估算这一轮」一次模型都不调用，它只把「题数 × 平台数 × 重复次数」与判定那一段的条数算出来给你看；
-      按「确认并开始诊断」才会真的向第三方模型逐个发问并消耗 token 配额。
+      按「确认并开始诊断」才会真的向第三方模型逐个发问并消耗 Token 配额。
       表里那六行分成两段：提问与判定（推荐位、情感三档）各花各的钱，这一屏只放行提问那一段。
     </p>
 
@@ -237,7 +237,7 @@ defineExpose({ loadEstimate, loadRuns, reset })
 
       <div v-if="estimate && !estimate.notice" class="geo-run-panel__confirm">
         <a-checkbox v-model:checked="confirmChecked">
-          我已看过上面那几行，确认这一轮会真的调用模型提问 {{ estimate.callCount }} 次并消耗 token 配额
+          我已看过上面那几行，确认这一轮会真的调用模型提问 {{ estimate.callCount }} 次并消耗 Token 配额
         </a-checkbox>
         <p class="geo-run-panel__confirm-note">
           这一发只花「提问」那一段的钱。判定（推荐位与情感三档）是第二段、另一次点头，
@@ -281,8 +281,8 @@ defineExpose({ loadEstimate, loadRuns, reset })
               <span class="geo-run-panel__run-meta">
                 第 {{ run.id }} 轮 · {{ formatDateTimeWithZone(run.createdAt) }} ·
                 取到 {{ run.callCount ?? 0 }} 次、未取到 {{ run.failedCallCount ?? 0 }} 次 ·
-                提问 {{ run.promptTokens ?? 0 }} + {{ run.completionTokens ?? 0 }} token ·
-                判定 {{ run.judgeCallCount ?? 0 }} 条 {{ (run.judgePromptTokens ?? 0) + (run.judgeCompletionTokens ?? 0) }} token
+                提问 {{ run.promptTokens ?? 0 }} + {{ run.completionTokens ?? 0 }} Token ·
+                判定 {{ run.judgeCallCount ?? 0 }} 条 {{ (run.judgePromptTokens ?? 0) + (run.judgeCompletionTokens ?? 0) }} Token
               </span>
               <a-button
                 v-if="run.status === 'SUCCEEDED' || run.status === 'PARTIAL'"

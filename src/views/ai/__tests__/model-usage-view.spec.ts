@@ -578,8 +578,8 @@ describe('本月额度念的是两池，不是相加那一个数（G4）', () =>
     expect(text).toContain('GEO 诊断专用额度池')
     expect(text).toContain('剩余 993,000')
     expect(text).toContain('剩余 78,500')
-    expect(text).toContain('月度额度 1,000,000 token')
-    expect(text).toContain('月度额度 80,000 token')
+    expect(text).toContain('月度额度 1,000,000 Token')
+    expect(text).toContain('月度额度 80,000 Token')
     // 两池各自的分母：7000/1000000 = 1%，1500/80000 = 2%
     expect(wrapper.findAll('.progress-stub').map(n => n.attributes('data-percent'))).toEqual(['1', '2'])
   })
@@ -605,8 +605,8 @@ describe('本月额度念的是两池，不是相加那一个数（G4）', () =>
     const wrapper = await mountPools(POOLS)
     const rows = wrapper.findAll('.pool-row')
     expect(rows).toHaveLength(2)
-    expect(rows[0].text()).toContain('扣费流水 2 笔、合计 7,000 token')
-    expect(rows[1].text()).toContain('扣费流水 1 笔、合计 1,500 token')
+    expect(rows[0].text()).toContain('扣费流水 2 笔、合计 7,000 Token')
+    expect(rows[1].text()).toContain('扣费流水 1 笔、合计 1,500 Token')
     // 「本月一共花了多少」这个数（7000+1500）是流水的口径，不是任何一池的剩余；
     // 把它念在这一屏里，等于把缺口 F2 又装回去——两池各数各的，相加那一句归账单页说。
     expect(wrapper.text()).not.toContain('合计 8,500')
@@ -639,7 +639,7 @@ describe('本月额度念的是两池，不是相加那一个数（G4）', () =>
     const wrapper = await mountPools([POOLS[0], GEO_UNLIMITED])
     const rows = wrapper.findAll('.pool-row')
     expect(rows[1].text()).toContain('未设月度上限，不限制')
-    expect(rows[1].text()).toContain('本月已用 1,500 token')
+    expect(rows[1].text()).toContain('本月已用 1,500 Token')
     expect(rows[1].text()).not.toContain('剩余 0')
     expect(rows[1].text()).not.toContain('月度额度 0')
     // 通用池那一行不受影响：另一池永远有自己的数
@@ -959,7 +959,7 @@ describe('调用日志那张表的空态：那三种空在界面上分得开', (
   it('下拉能按人话名搜：输「配图」只剩那一档（走的是数据形，不是插槽）', async () => {
     const wrapper = mountPageRealSelect()
     await flushPromises()
-    expect(await typeInTypeSelect(wrapper, '配图')).toEqual(['网站配图生成'])
+    expect(await typeInTypeSelect(wrapper, '配图')).toEqual(['站点配图生成'])
     expect(await typeInTypeSelect(wrapper, '翻译')).toEqual(['文章翻译'])
     // 原码照旧搜得着：词表没登记的那一档靠的就是这条路
     expect(await typeInTypeSelect(wrapper, 'translation')).toEqual(['文章翻译'])

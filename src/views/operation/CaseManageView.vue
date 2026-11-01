@@ -247,13 +247,13 @@
           v-if="!estimate"
           type="info"
           show-icon
-          message="正在估算这一条的 token 消耗（这一步一次模型都不调，不花钱）"
+          message="正在估算这一条的 Token 消耗（这一步一次模型都不调，不花钱）"
         />
         <template v-else>
           <a-alert
             type="info"
             show-icon
-            :message="`预计 ${estimate.estimatedTokens} token，本站剩余配额 ${estimate.remainingTokens} token`"
+            :message="`预计 ${estimate.estimatedTokens} Token，本站剩余配额 ${estimate.remainingTokens} Token`"
             :description="estimate.notice || (estimate.aiDraftEnabled ? null : '案例 AI 起草当前未开启（后端配置），确认也不会调用模型')"
           />
           <!-- 这一个数怎么量出来的（后端 TokenYardstick 一处给）：字数尺的下界，不是账单 -->
@@ -269,7 +269,7 @@
               placeholder="例如：把复查那一段写细一点；不要出现具体费用与地址"
             />
           </a-form-item>
-          <a-checkbox v-model:checked="draftConfirmed">我确认消耗 token 配额并覆盖当前文案</a-checkbox>
+          <a-checkbox v-model:checked="draftConfirmed">我确认消耗 Token 配额并覆盖当前文案</a-checkbox>
         </template>
       </a-spin>
     </a-modal>
@@ -577,7 +577,7 @@ async function runAiDraft() {
     )
     draftVisible.value = false
     message.success(
-      `AI 已重写这一条案例：第 ${result.attempts} 版可用，本次扣 ${result.tokensCharged} token（留档 #${result.draftId}）`,
+      `AI 已重写这一条案例：第 ${result.attempts} 版可用，本次扣 ${result.tokensCharged} Token（留档 #${result.draftId}）`,
     )
     // 门禁 4 的 warn 档不拦落地，但「疑似照抄参考站 / 引用了外部素材」必须让人看见，不能吞掉
     if (result.warnings?.length) {

@@ -70,7 +70,7 @@ describe('TenantSwitcher 的「认不出租户」提示', () => {
     expect(warning.exists()).toBe(true)
     expect(warning.text()).toContain('99001')
     expect(warning.text()).toContain('不存在或已被删除')
-    expect(warning.text()).toContain('不代表这家真的没有数据')
+    expect(warning.text()).toContain('不代表这一家真的没有数据')
   })
 
   it('后端还没回话、本地列表翻不到这个号时也要说', async () => {
@@ -83,7 +83,7 @@ describe('TenantSwitcher 的「认不出租户」提示', () => {
     const warning = wrapper.find('[data-test="tenant-unresolved"]')
     expect(warning.exists()).toBe(true)
     expect(warning.text()).toContain('99001')
-    expect(warning.text()).toContain('已不在租户列表里')
+    expect(warning.text()).toContain('已不在客户列表里')
   })
 
   it('认得出的正常租户不该出现这一句', async () => {
@@ -205,7 +205,7 @@ describe('TenantSwitcher 顶栏那一格念得出名字', () => {
     await nextTick()
 
     const opts = currentOptions(wrapper)
-    expect(opts[0].label).toBe('租户 15')
+    expect(opts[0].label).toBe('客户 15')
   })
 })
 

@@ -114,7 +114,7 @@ async function handleLogin() {
     // 映射后端响应到前端 LoginResponse 格式
     const accessToken = resp?.token || resp?.accessToken || ''
     if (!accessToken) {
-      throw new Error('登录失败：未获取到有效token')
+      throw new Error('登录失败：未获取到有效 Token')
     }
 
     // 用 login 响应构造基础 userInfo（作为 fallback）

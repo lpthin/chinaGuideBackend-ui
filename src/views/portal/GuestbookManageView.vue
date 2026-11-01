@@ -1,6 +1,6 @@
 <template>
   <div class="guestbook-manage-page">
-    <PageTitle description="管理门户网站的用户留言和回复" />
+    <PageTitle description="管理门户站点的用户留言和回复" />
 
     <div class="content-wrapper">
       <!-- 这一屏属于哪一家：改前超管没选客户时，界面拿 auth.tenantId 兜底偷偷去问 1 号（M-P100 现测 (b)） -->

@@ -77,14 +77,14 @@
                 </a-select>
               </a-form-item>
 
-              <a-form-item label="分块大小（tokens）">
+              <a-form-item label="分块大小（Token）">
                 <a-slider v-model:value="form.chunkSize" :min="128" :max="4096" :step="128" />
-                <div class="param-value">{{ form.chunkSize }} tokens</div>
+                <div class="param-value">{{ form.chunkSize }} Token</div>
               </a-form-item>
 
-              <a-form-item label="重叠大小（tokens）">
+              <a-form-item label="重叠大小（Token）">
                 <a-slider v-model:value="form.chunkOverlap" :min="0" :max="512" :step="32" />
-                <div class="param-value">{{ form.chunkOverlap }} tokens</div>
+                <div class="param-value">{{ form.chunkOverlap }} Token</div>
               </a-form-item>
 
               <a-form-item label="分块分隔符">
@@ -108,7 +108,7 @@
             </a-form>
           </a-card>
 
-          <a-card title="向量数据库连接" :bordered="false" style="margin-top: 16px">
+          <a-card title="向量库连接" :bordered="false" style="margin-top: 16px">
             <a-form layout="vertical" :model="form">
               <a-form-item>
                 <template #label>
@@ -167,7 +167,7 @@
                   </a-select-option>
                 </a-select>
                 <div v-if="!embeddingModels.length" class="empty-hint">
-                  暂无 Embedding 类型模型，请先在「大模型配置」中创建。
+                  暂无 Embedding 类型模型，请先在「模型配置」中创建。
                 </div>
               </a-form-item>
 
@@ -223,7 +223,7 @@
                 <a-collapse-panel
                   v-for="(chunk, index) in previewResults"
                   :key="index"
-                  :header="'分块 ' + (index + 1) + ' (' + chunk.tokens + ' tokens)'"
+                  :header="'分块 ' + (index + 1) + ' (' + chunk.tokens + ' Token)'"
                 >
                   <p style="white-space: pre-wrap; margin: 0">{{ chunk.text }}</p>
                 </a-collapse-panel>
@@ -241,7 +241,7 @@
       </div>
     </a-spin>
 
-    <a-modal v-model:open="connModalVisible" title="向量数据库连接管理" :footer="null" width="860px">
+    <a-modal v-model:open="connModalVisible" title="向量库连接管理" :footer="null" width="860px">
       <div style="margin-bottom: 12px; text-align: right">
         <a-button type="primary" size="small" @click="openConnForm()">
           <PlusOutlined /> 添加连接
@@ -517,7 +517,7 @@ function handleReset() {
 
 async function testSelectedConnection() {
   if (!form.vectorDbId) {
-    message.warning('请先选择一个向量数据库连接')
+    message.warning('请先选择一个向量库连接')
     return
   }
   await testConnection(form.vectorDbId)

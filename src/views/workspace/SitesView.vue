@@ -171,7 +171,7 @@ const briefFilterCount = computed(() =>
 
 /** 空态按「为什么是空」来说：筛完没有不等于一站都没有——这是这一族页面反复犯过的错 */
 const emptyText = computed(() => {
-  if (!sites.value.length) return '一个站点都没有：可以「新建站点」，也可以从「新建网站」向导录一份前采需求单让流水线建候选站'
+  if (!sites.value.length) return '一个站点都没有：可以「新建站点」，也可以从「新建站点」向导录一份前采需求单让流水线建候选站'
   if (briefFilter.value !== null) return `需求单 #${briefFilter.value} 名下没有站点（这一列还没回填时也会是这样）`
   if (archiveScope.value === 'only') return '现在没有归档候选：还没有客户否掉过方案'
   return '当前筛选下没有站点：把上面的「归档候选」切回默认再看'
@@ -254,7 +254,7 @@ async function archiveSite(record: Site) {
   if (!record.id) return
   try {
     await siteApi.update(record.id, { status: 'archived' })
-    message.success(`「${record.name || record.code}」已归档：租户后台不再列出它，一行都没有删`)
+    message.success(`「${record.name || record.code}」已归档：客户后台不再列出它，一行都没有删`)
     await load()
     await siteStore.loadSites()
   } catch (e) {
@@ -266,7 +266,7 @@ async function restoreArchivedPlaceholder(record: Site) {
   if (!record.id) return
   try {
     await siteApi.update(record.id, { status: 'disabled' })
-    message.success(`「${record.name || record.code}」已放回「已停用」，租户后台重新列出它`)
+    message.success(`「${record.name || record.code}」已放回「已停用」，客户后台重新列出它`)
     await load()
     await siteStore.loadSites()
   } catch (e) {
@@ -291,15 +291,15 @@ const tenantOptions = computed(() => {
     .map(([id, name]) => ({ value: Number(id), label: name }))
     .sort((a, b) => a.value - b.value)
   if (form.tenantId && !options.some(option => option.value === form.tenantId)) {
-    options.push({ value: form.tenantId, label: `租户 #${form.tenantId}（这一页的租户列表里没查到）` })
+    options.push({ value: form.tenantId, label: `客户 #${form.tenantId}（这一页的客户列表里没查到）` })
   }
   return options
 })
 
 const tenantPlaceholder = computed(() => {
-  if (editingId.value) return '这一站现在没有归属租户：改归属是后端的开通/移交动作，这里动不了'
-  if (tenantsFailed.value) return '租户列表没取到，刷新重试'
-  return '这一站归哪个租户（新建必选）'
+  if (editingId.value) return '这一站现在没有归属客户：改归属是后端的开通/移交动作，这里动不了'
+  if (tenantsFailed.value) return '客户列表没取到，刷新重试'
+  return '这一站归哪个客户（新建必选）'
 })
 
 async function loadTenantNames() {
@@ -317,8 +317,8 @@ async function loadTenantNames() {
 }
 
 function tenantLabel(site: Site) {
-  if (!site.tenantId) return '未绑定租户'
-  return tenantNames.value[site.tenantId] || `租户 #${site.tenantId}`
+  if (!site.tenantId) return '未绑定客户'
+  return tenantNames.value[site.tenantId] || `客户 #${site.tenantId}`
 }
 
 function parseList(value?: string) {
@@ -380,7 +380,7 @@ async function save() {
     return
   }
   if (!editingId.value && !form.tenantId) {
-    message.warning('新建站点要先选归属租户：后端把这一站记在租户名下，没这个号建不出来')
+    message.warning('新建站点要先选归属客户：后端把这一站记在客户名下，没这个号建不出来')
     return
   }
   try {
@@ -408,7 +408,7 @@ async function save() {
       await siteStore.loadSites()
     } else {
       await siteApi.create({ ...payload, tenantId })
-      message.success('站点已建好，现在落在「候选」（还读不到）：要对外就在清单这一行点「启用」；下一步在「新建网站」向导里录前采需求单')
+      message.success('站点已建好，现在落在「候选」（还读不到）：要对外就在清单这一行点「启用」；下一步在「新建站点」向导里录前采需求单')
       modalVisible.value = false
       await load()
       await siteStore.loadSites()
@@ -439,7 +439,7 @@ onMounted(() => {
   <div class="sites-view">
     <PageTitle>
       <p class="sites-view__intro">
-        维护站点画像与归属：域名、租户都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。
+        维护站点画像与归属：域名、客户都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。
         建站流水线建出来的是 <b>候选站</b>（等客户选中才转正），客户没选中的收进 <b>归档</b>——这两种在下面的行里都单独标色。
         <b>手建的站点也先落候选</b>（M-P40 拍板：没人确认过的一套不该一建出来就对全世界可读），要对外就在行上点「启用」。
         已上线的站在编辑弹窗里只在「启用 / 禁用」之间转；转正与归档这里不给下拉——那是流水线推进的结果，
@@ -512,7 +512,7 @@ onMounted(() => {
       <a-table-column title="名称" data-index="name" min-width="180">
         <template #default="{ text }">{{ text || '-' }}</template>
       </a-table-column>
-      <a-table-column title="归属租户" width="160" ellipsis show-overflow-tooltip>
+      <a-table-column title="归属客户" width="160" ellipsis show-overflow-tooltip>
         <template #default="{ record }">{{ tenantLabel(record) }}</template>
       </a-table-column>
       <a-table-column title="来源需求单" width="230">
@@ -552,7 +552,7 @@ onMounted(() => {
           </a-button>
           <a-popconfirm
             v-if="canArchive(record)"
-            title="归档后这一站从租户后台消失（只超管可查），一行都不会删；点错了可以放回「已停用」。确认归档？"
+            title="归档后这一站从客户后台消失（只超级管理员可查），一行都不会删；点错了可以放回「已停用」。确认归档？"
             ok-text="归档"
             cancel-text="先不"
             @confirm="archiveSite(record)"
@@ -561,7 +561,7 @@ onMounted(() => {
           </a-popconfirm>
           <a-popconfirm
             v-if="canRestoreArchivedPlaceholder(record)"
-            title="把这一站放回「已停用」：租户后台会重新列出它。确认？"
+            title="把这一站放回「已停用」：客户后台会重新列出它。确认？"
             ok-text="放回已停用"
             cancel-text="先不"
             @confirm="restoreArchivedPlaceholder(record)"
@@ -613,13 +613,13 @@ onMounted(() => {
           <a-col :span="12">
             <!-- 新建必选归属租户（后端 create 认请求里这个号）；编辑时禁用并如实显示库里那份归属：
                  后端 update 强制沿用原归属，这里给一个能改的下拉就是撒谎 -->
-            <a-form-item label="归属租户" :required="!editingId">
+            <a-form-item label="归属客户" :required="!editingId">
               <a-select
                 v-model:value="form.tenantId"
                 :options="tenantOptions"
                 :disabled="!!editingId"
                 :placeholder="tenantPlaceholder"
-                :not-found-content="tenantsFailed ? '租户列表没取到，刷新重试' : '没有可选项'"
+                :not-found-content="tenantsFailed ? '客户列表没取到，刷新重试' : '没有可选项'"
                 show-search
                 option-filter-prop="label"
                 data-testid="tenant-select"

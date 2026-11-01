@@ -111,12 +111,12 @@ const editableStatusNames = computed(() =>
 
 const tenantText = computed(() => {
   const id = brief.value?.tenantId
-  if (!id) return '未绑定租户'
+  if (!id) return '未绑定客户'
   const found = tenants.value.find(tenant => tenant.id === id)
-  if (found) return found.name || found.code || `租户 #${id}`
+  if (found) return found.name || found.code || `客户 #${id}`
   return tenantsFailed.value
-    ? `租户 #${id}（租户列表没取到，名字刷新后才有）`
-    : `租户 #${id}`
+    ? `客户 #${id}（客户列表没取到，名字刷新后才有）`
+    : `客户 #${id}`
 })
 
 const demoModeText = computed(() => briefDemoModeText(vocabulary.value, brief.value?.demoContentMode))
@@ -137,8 +137,8 @@ function siteLabel(site: Site): string {
 }
 
 function tenantNameOf(site: Site): string {
-  if (!site.tenantId) return '未绑定租户'
-  return tenants.value.find(tenant => tenant.id === site.tenantId)?.name || `租户 #${site.tenantId}`
+  if (!site.tenantId) return '未绑定客户'
+  return tenants.value.find(tenant => tenant.id === site.tenantId)?.name || `客户 #${site.tenantId}`
 }
 
 /**
@@ -195,7 +195,7 @@ const columns = [
 
 const siteColumns = [
   { title: '站点', key: 'site', width: 260 },
-  { title: '归属租户', key: 'siteTenant', width: 160 },
+  { title: '归属客户', key: 'siteTenant', width: 160 },
   { title: '候选号', key: 'candidateNo', width: 120 },
   { title: '状态', key: 'siteStatus', width: 130 },
   { title: '操作', key: 'siteOp', width: 190 }
@@ -355,7 +355,7 @@ const canGenerate = computed(() => canConfirm.value && confirmChecked.value && !
  */
 function priceText(current: BriefEstimateQuote | null): string {
   if (!current) return ''
-  const parts = [`预计 ${current.estimatedTokens} token`]
+  const parts = [`预计 ${current.estimatedTokens} Token`]
   // 逐行口径（套数/文字/演示内容/配图/合计，以及已交付时的「当月剩余配额」）全来自后端 breakdown：
   // 后端是拼在这一份里下发的，界面上没有第二个数字可拼；售前那一趟后端根本不给剩余额度那一句
   if (current.breakdown?.length) parts.push(...current.breakdown)
@@ -829,7 +829,7 @@ onUnmounted(stopPolling)
     <template v-if="brief">
       <a-card size="small" title="这一单的抬头三件事" class="brief-detail__panel">
         <a-descriptions :column="2" size="small" bordered>
-          <a-descriptions-item label="租户">{{ tenantText }}</a-descriptions-item>
+          <a-descriptions-item label="客户">{{ tenantText }}</a-descriptions-item>
           <a-descriptions-item label="状态">{{ statusText }}</a-descriptions-item>
           <a-descriptions-item label="候选套数">{{ brief.candidateCount ?? '-' }}</a-descriptions-item>
           <a-descriptions-item label="演示内容档位">{{ demoModeText }}</a-descriptions-item>
@@ -917,8 +917,8 @@ onUnmounted(stopPolling)
         <template #title>② 出方案：预估 → 勾选确认 → 执行（花钱的门禁，一步都不合并）</template>
         <p class="brief-detail__muted">
           出方案会按套建候选站并真的调模型，{{ tenantBearsCost
-            ? '扣这个租户的 token 配额'
-            : '这一次由平台承担、不进该租户的账单（超管确定交付之后才开始计他的额度）' }}；
+            ? '扣这个客户的 Token 配额'
+            : '这一次由平台承担、不进该客户的账单（超级管理员确定交付之后才开始计他的额度）' }}；
           这一格先把价报给你看，
           看过、而且后端明确这一路开着，才轮得到勾确认；没勾，执行按钮就是灭的——一次点击都不该在没人看过价格的情况下发生。
         </p>
@@ -930,7 +930,7 @@ onUnmounted(stopPolling)
           <a-button @click="goSpec">建站说明书（喂 AI 的那七段）</a-button>
           <a-button :disabled="!canEstimate" :loading="estimating" @click="runEstimate">先估算消耗（不调模型）</a-button>
           <a-checkbox v-model:checked="confirmChecked" :disabled="!canConfirm">
-            我已看过这次预估，确认出方案{{ tenantBearsCost ? '会消耗租户配额' : '的这次消耗由平台承担' }}
+            我已看过这次预估，确认出方案{{ tenantBearsCost ? '会消耗客户配额' : '的这次消耗由平台承担' }}
           </a-checkbox>
           <a-button type="primary" :disabled="!canGenerate" :loading="generating" @click="runGenerate">
             开始出方案（建 {{ brief?.candidateCount ?? '?' }} 套候选）
@@ -947,7 +947,7 @@ onUnmounted(stopPolling)
         </p>
         <p v-else-if="confirmChecked" class="brief-detail__locked">
           确认框已经勾上：再点「开始出方案」就会真的调用模型{{
-            tenantBearsCost ? '并扣配额' : '（这一趟由平台承担，不进该租户的账单）' }}。要收手先把勾去掉。
+            tenantBearsCost ? '并扣配额' : '（这一趟由平台承担，不进该客户的账单）' }}。要收手先把勾去掉。
         </p>
         <a-alert v-if="estimate" type="info" show-icon class="brief-detail__alert" :message="estimateText" />
         <!-- 已经烧掉的那一本账（M-P33 拍板 6）：与上面那句「这一趟要花多少」并排摆着，只读数不设闸 -->
@@ -989,7 +989,7 @@ onUnmounted(stopPolling)
                 <span class="brief-detail__muted">
                   阶段：{{ row.stageLabel || row.stage || '还没进入阶段' }}
                   <template v-if="row.siteId"> · 站点 #{{ row.siteId }}</template>
-                  <template v-if="row.estimatedTokens != null"> · 本套预计 {{ row.estimatedTokens }} token</template>
+                  <template v-if="row.estimatedTokens != null"> · 本套预计 {{ row.estimatedTokens }} Token</template>
                 </span>
                 <FoldedText
                   v-if="row.errorMessage"
@@ -1024,7 +1024,7 @@ onUnmounted(stopPolling)
             </a-button>
             <a-checkbox v-model:checked="rerunChecked" :disabled="!canRerunConfirm">
               我已看过补跑这一趟的预估，确认只重跑失败的那几套{{
-                tenantBearsCost ? '会消耗租户配额' : '的这次消耗由平台承担' }}
+                tenantBearsCost ? '会消耗客户配额' : '的这次消耗由平台承担' }}
             </a-checkbox>
             <a-button type="primary" danger :disabled="!canRerun" :loading="rerunning" @click="runRerunFailed">
               只补失败的那几套：开始跑（{{ rerunTargetLine }}）
@@ -1059,7 +1059,7 @@ onUnmounted(stopPolling)
                 <template v-else>选定第 {{ row.candidateNo ?? '?' }} 套 · {{ row.chosenSiteName || '站点名没随回执下来' }}（站点 #{{ row.chosenSiteId }}）</template>
               </b>
               <span class="brief-detail__muted">
-                · 来源会话 {{ row.sessionId == null ? '（超管代录，没有链接）' : `#${row.sessionId}` }} · {{ formatDateTime(row.createdAt) }}
+                · 来源会话 {{ row.sessionId == null ? '（超级管理员代录，没有链接）' : `#${row.sessionId}` }} · {{ formatDateTime(row.createdAt) }}
               </span>
               <!-- 客户原话默认只念第一句，长答复的其余部分逐字进展开（§10.16）；
                    「是谁说的话」写在句首，展开不存在时这句 attribution 也不丢 -->
@@ -1109,7 +1109,7 @@ onUnmounted(stopPolling)
             @ok="runCancel"
           >
             <p class="brief-detail__muted">
-              口径与「收口重跑」一致：候选全部转「已归档」（只超管可查，一行不删）、客户手里的预览链接全部作废，
+              口径与「收口重跑」一致：候选全部转「已归档」（只超级管理员可查，一行不删）、客户手里的预览链接全部作废，
               区别是这张单落「已作废」——之后不能再改、不能再出方案、不能重跑。要重来请开一张新需求单。
             </p>
             <a-textarea
@@ -1155,16 +1155,16 @@ onUnmounted(stopPolling)
             <template #message>
               已交付：{{ promoteReceipt.siteName }}（站点 #{{ promoteReceipt.siteId }}）· 需求单状态
               {{ promoteReceipt.briefStatusLabel || promoteReceipt.briefStatus }}
-              · 租户 {{ promoteReceipt.tenantName || '（回执里没带租户名）' }}
+              · 客户 {{ promoteReceipt.tenantName || '（回执里没带客户名）' }}
             </template>
           </a-alert>
           <p class="brief-detail__line">
-            <b>租户维护地址（可复制，⑤ 交棒就是这一条真链接）：</b>
+            <b>客户维护地址（可复制，⑤ 交棒就是这一条真链接）：</b>
             <span class="brief-detail__summary-inline">{{ promoteReceipt.maintenanceUrl }}</span>
           </p>
           <p v-if="promoteReceipt.maintenanceUrlRelative" class="brief-detail__locked">
             这条是站内相对路径：后端说管理后台根地址（app.portal.delivery.admin-base-url）没配。
-            发给租户前请自己补上域名——这一页不猜域名，猜错一次就是把租户领到别人的后台。
+            发给客户前请自己补上域名——这一页不猜域名，猜错一次就是把客户领到别人的后台。
           </p>
           <p class="brief-detail__muted">{{ promoteReceipt.archivedNotice }}</p>
           <p class="brief-detail__muted">
@@ -1183,14 +1183,14 @@ onUnmounted(stopPolling)
               <b>{{ item.label }}</b>：
               <a class="brief-detail__handover-url" :href="item.url" target="_blank" rel="noopener">{{ item.url }}</a>
               <span v-if="item.urlRelative" class="brief-detail__locked">
-                （这是相对路径：后端没配管理后台根地址，发给租户前要自己拼上后台域名——这里不猜）
+                （这是相对路径：后端没配管理后台根地址，发给客户前要自己拼上后台域名——这里不猜）
               </span>
               <p v-if="item.notice" class="brief-detail__muted">{{ item.notice }}</p>
             </li>
           </ul>
         </template>
         <p v-else-if="alreadyPromoted" class="brief-detail__muted">
-          这一单已是「{{ statusText }}」。交付回执（含租户维护地址那一条真链接）只在转正那一步的响应里给过，
+          这一单已是「{{ statusText }}」。交付回执（含客户维护地址那一条真链接）只在转正那一步的响应里给过，
           页面重新读需求单读不到它（§5 的 GET 口没有那个字段）——所以这里没有地址可显示，
           也不摆一条我拼出来的假链接：要重取请按后端说的用幂等口再点一次转正（第二次只回同一张回执、一行都不动）。
         </p>

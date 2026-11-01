@@ -78,7 +78,7 @@ describe('M-P45 拍板③：形状不合格时代码格自己先红，不必去�
   it('invalid 走 error，且默认念的就是后端那一句（逐字写在这儿，跨仓没有编译期耦合）', () => {
     const view = describeTenantCodeCheck('invalid')
     expect(view.validateStatus).toBe('error')
-    expect(view.help).toBe('租户代码只能用小写字母、数字和连字符，2~50 位，首尾不能是连字符')
+    expect(view.help).toBe('客户代码只能用小写字母、数字和连字符，2~50 位，首尾不能是连字符')
     expect(view.help).toBe(CODE_FORMAT_MESSAGE)
   })
 
@@ -111,8 +111,8 @@ describe('M-P45 拍板③：形状不合格时代码格自己先红，不必去�
 
 describe('M-P45 拍板②：名称失焦那一发只在「新建 + 代码格为空」时打，且一次弹窗只打一次', () => {
   it('名称框挂的是具名处理函数 @blur="suggestCodeFromName"', () => {
-    const nameItem = panelSource.slice(panelSource.indexOf('label="租户名称"'),
-      panelSource.indexOf('</a-form-item>', panelSource.indexOf('label="租户名称"')))
+    const nameItem = panelSource.slice(panelSource.indexOf('label="客户名称"'),
+      panelSource.indexOf('</a-form-item>', panelSource.indexOf('label="客户名称"')))
     expect(nameItem).toContain('@blur="suggestCodeFromName"')
   })
 
@@ -156,8 +156,8 @@ describe('M-P44 拍板①：TenantPanel 那一格真的接在这份形状上', (
   })
 
   it('代码框挂的是具名处理函数 @blur="checkTenantCode"（handler 工厂那种写法在本仓静默失效过）', () => {
-    const codeItem = panelSource.slice(panelSource.indexOf('label="租户代码"'),
-      panelSource.indexOf('</a-form-item>', panelSource.indexOf('label="租户代码"')))
+    const codeItem = panelSource.slice(panelSource.indexOf('label="客户代码"'),
+      panelSource.indexOf('</a-form-item>', panelSource.indexOf('label="客户代码"')))
     expect(codeItem).toContain('@blur="checkTenantCode"')
     expect(codeItem).toContain(':validate-status="codeCheck.validateStatus"')
     expect(codeItem).toContain(':help="codeCheck.help"')

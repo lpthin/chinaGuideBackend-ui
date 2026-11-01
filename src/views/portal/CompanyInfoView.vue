@@ -340,7 +340,7 @@
               </div>
 
               <div class="upload-item" style="margin-top: 24px">
-                <div class="upload-label">网站图标（Favicon）</div>
+                <div class="upload-label">站点图标（Favicon）</div>
                 <a-upload
                   list-type="picture-card"
                   :file-list="faviconFileList"
@@ -709,7 +709,7 @@ function beforeFaviconUpload(file: File) {
   uploadCompanyImage('favicon', file, (url) => {
     form.faviconUrl = url
     faviconFileList.value = [{ uid: 'favicon', name: file.name, status: 'done', url }]
-  }, '网站图标上传成功')
+  }, '站点图标上传成功')
   return false
 }
 

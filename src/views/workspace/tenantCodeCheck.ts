@@ -19,7 +19,7 @@ export interface TenantCodeCheckView {
 }
 
 /** 后端没回话时兜底的那一句：不说「代码已存在」，因为这一发根本没问到答案 */
-export const TAKEN_FALLBACK = '这个租户代码已经被用过（含已注销的历史租户），请换一个'
+export const TAKEN_FALLBACK = '这个客户代码已经被用过（含已注销的历史客户），请换一个'
 
 /**
  * 代码形状的尺（M-P45 拍板③「小写字母/数字/连字符，2~50 位」）。
@@ -31,7 +31,7 @@ export const TAKEN_FALLBACK = '这个租户代码已经被用过（含已注销�
 export const CODE_FORMAT_PATTERN = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/
 
 /** 与后端 `CODE_FORMAT_MESSAGE` 同一句话（跨仓没有编译期耦合，靠现场那一趟逐字对账） */
-export const CODE_FORMAT_MESSAGE = '租户代码只能用小写字母、数字和连字符，2~50 位，首尾不能是连字符'
+export const CODE_FORMAT_MESSAGE = '客户代码只能用小写字母、数字和连字符，2~50 位，首尾不能是连字符'
 
 export function describeTenantCodeCheck(
   state: TenantCodeCheckState,

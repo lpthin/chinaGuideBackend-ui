@@ -160,7 +160,7 @@ describe('工作台 · 平台档（Q2a）', () => {
     const wrapper = mountDashboard()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('工作台是租户视角')
+    expect(wrapper.text()).toContain('工作台是客户视角')
     expect(citationApi.summaryLatest).not.toHaveBeenCalled()
     expect(analyticsApi.bot).not.toHaveBeenCalled()
     expect(analyticsApi.overview).not.toHaveBeenCalled()
@@ -244,12 +244,12 @@ describe('工作台 · 租户档（趋势图置顶 + 效果五块）', () => {
 
   it('租户还没有站点时引用卡念后端那句 notice，不显示 0', async () => {
     ;(citationApi.summaryLatest as any).mockResolvedValue({
-      siteId: null, siteName: null, siteCount: 0, notice: '当前租户还没有可统计的站点', summary: null,
+      siteId: null, siteName: null, siteCount: 0, notice: '当前客户还没有可统计的站点', summary: null,
     })
     const wrapper = mountDashboard()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('当前租户还没有可统计的站点')
+    expect(wrapper.text()).toContain('当前客户还没有可统计的站点')
     expect(wrapper.find('.stat-tile--citation .st-num').exists()).toBe(false)
     wrapper.unmount()
   })

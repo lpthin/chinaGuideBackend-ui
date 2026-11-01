@@ -95,7 +95,7 @@ describe('钱包状态那一格', () => {
 
   it('「这家还没有钱包」与「这一发没读到」分两句说，不许糊成一句', () => {
     expect(walletEmptyReason(null)).toBe('没取到钱包信息，请刷新或重试')
-    expect(walletEmptyReason({ walletState: WALLET_STATE_NONE })).toBe('这家还没有钱包，充值后这里会显示余额')
+    expect(walletEmptyReason({ walletState: WALLET_STATE_NONE })).toBe('这一家还没有钱包，充值后这里会显示余额')
     expect(walletEmptyReason({ walletState: WALLET_STATE_ACTIVE })).toBe('')
   })
 })

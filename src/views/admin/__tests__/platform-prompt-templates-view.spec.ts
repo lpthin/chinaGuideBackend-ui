@@ -307,7 +307,7 @@ describe('保存：改的是全局，先问一次', () => {
     await click(save)
 
     expect(modalConfirm).toHaveBeenCalledTimes(1)
-    expect(modalConfirm.mock.calls[0][0].content).toContain('每一个租户')
+    expect(modalConfirm.mock.calls[0][0].content).toContain('每一个客户')
     expect(platformPromptApi.save).not.toHaveBeenCalled()
 
     await modalConfirm.mock.calls[0][0].onOk()

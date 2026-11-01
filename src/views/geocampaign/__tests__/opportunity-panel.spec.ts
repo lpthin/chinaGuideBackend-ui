@@ -219,7 +219,7 @@ describe('先看价再点头', () => {
     const text = wrapper.find('.geo-opp__estimate').text()
     expect(text).toContain('2400')
     expect(text).toContain('页面改版草稿那条账（AI_PORTAL_REVISION）')
-    expect(text).toContain('计入本租户的「通用 AI 额度池」')
+    expect(text).toContain('计入这个客户的「通用 AI 额度池」')
   })
 
   it('换动作 ⇒ 旧价立刻作废，必须重新预估一次才能按', async () => {

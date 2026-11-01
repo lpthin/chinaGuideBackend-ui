@@ -390,7 +390,7 @@ const loadStats = async (tenantId: number) => {
     }
     if (result.tenantUnreadable) {
       dashboardState.value = 'unreadable'
-      emptyLine.value = result.emptyLine || '知识库仪表盘读不到这一家：这个编号不存在或已被删除。这不代表这一家「没有内容」。'
+      emptyLine.value = result.emptyLine || '知识库总览读不到这一家：这个编号不存在或已被删除。这不代表这一家「没有内容」。'
       return
     }
     dashboardState.value = 'ok'

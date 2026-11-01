@@ -62,7 +62,7 @@ export function estimateLines(estimate: GeoEstimate): Array<{ label: string; val
       note: `${estimate.questionCount} 题 × ${estimate.platformCount} 个平台 × 每题重复 ${estimate.repeatTimes} 次`,
     },
     {
-      label: '提问 · 预计 token',
+      label: '提问 · 预计 Token',
       value: `${estimate.estimatedTokens}`,
       note: '按题面长度与单次输出上限估的，实际以这一轮真跑的数为准',
     },
@@ -72,13 +72,13 @@ export function estimateLines(estimate: GeoEstimate): Array<{ label: string; val
       note: '一条成功回答送进模型一次，一次把本品牌与勾选竞品全判了；这一轮一条回答都没取到时它是 0',
     },
     {
-      label: '判定 · 预计 token',
+      label: '判定 · 预计 Token',
       value: `${estimate.judgeEstimatedTokens}`,
       note: '推荐位与情感三档要的是语义判定，不是后处理，所以它单独记一笔（AI_GEO_CAMPAIGN_JUDGE）',
     },
     {
       label: '两段合计',
-      value: `${estimate.totalCallCount} 次 / ${estimate.totalEstimatedTokens} token`,
+      value: `${estimate.totalCallCount} 次 / ${estimate.totalEstimatedTokens} Token`,
       note: '合计只是给你看总价；点「确认并开始诊断」只花提问那一段，判定要另外点头',
     },
     {
@@ -108,7 +108,7 @@ export function poolBalancePhrase(remainingTokens: number | null | undefined): s
   if (remainingTokens === undefined) {
     return `本月剩余 ${PH_NOT_MEASURED}`
   }
-  return `本月剩余 ${remainingTokens} token`
+  return `本月剩余 ${remainingTokens} Token`
 }
 
 /**
@@ -121,8 +121,8 @@ export function poolBalancePhrase(remainingTokens: number | null | undefined): s
  */
 export function billingLine(estimate: GeoEstimate): string {
   return estimate.tenantBearsCost
-    ? `这一轮的消耗计入本租户的「${estimate.quotaPoolLabel}」，该池${poolBalancePhrase(estimate.remainingTokens)}。`
-    : '这一轮由平台承担，不计入本租户的 token 额度（站还没交出去）。'
+    ? `这一轮的消耗计入这个客户的「${estimate.quotaPoolLabel}」，该池${poolBalancePhrase(estimate.remainingTokens)}。`
+    : '这一轮由平台承担，不计入这个客户的 Token 额度（站还没交出去）。'
 }
 
 /** 那一块的小标题：中文只有这一份，视图不抄 */
@@ -333,7 +333,7 @@ export function metricObjectText(row: Pick<GeoMetricRow, 'scope' | 'subject'>): 
 /** 平台选得少于建议值时的提示：建议式，不拦（§10-2 ⑤） */
 export function platformHint(picked: number, available: number): string | null {
   if (available === 0) {
-    return '一个可选平台都没有：先去「大模型配置」启用一个聊天模型，这里才有卡片可勾。'
+    return '一个可选平台都没有：先去「模型配置」启用一个聊天模型，这里才有卡片可勾。'
   }
   if (picked >= SUGGESTED_PLATFORM_MIN) return null
   return `建议至少勾 3 家（现在 ${picked} 家）：只问一家，报告上那一个数就是那一家模型的脾气，不是你在市场上的样子。少了也能跑，不拦你。`
@@ -389,7 +389,7 @@ export function runPhaseText(run: GeoRun | null | undefined): string {
   if (!run.firstAskAt) {
     const attempted = (run.callCount ?? 0) + (run.failedCallCount ?? 0)
     return attempted > 0
-      ? '提问段的时间读不出：这一轮真发过 ' + attempted + ' 次外呼，但问答行不在当前读口能看到的租户范围内（不是没跑）'
+      ? '提问段的时间读不出：这一轮真发过 ' + attempted + ' 次外呼，但问答行不在当前读口能看到的客户范围内（不是没跑）'
       : '还没起跑：一次模型都没调，没有耗时可念'
   }
   const queued = minutesText(minutesBetween(run.createdAt, run.firstAskAt)) ?? '排队时间读不出'
@@ -502,7 +502,7 @@ export function judgeCostText(run: GeoRun): string {
   const judged = run.judgeCallCount ?? 0
   if (judged <= 0 && !run.judgeState) return '判定那一段一次都没跑过'
   const tokens = (run.judgePromptTokens ?? 0) + (run.judgeCompletionTokens ?? 0)
-  return `判定 ${judged} 条 · ${tokens} token${run.judgePromptVersion ? ` · 提示词版本 ${run.judgePromptVersion}` : ''}`
+  return `判定 ${judged} 条 · ${tokens} Token${run.judgePromptVersion ? ` · 提示词版本 ${run.judgePromptVersion}` : ''}`
 }
 
 export interface CampaignDraft {

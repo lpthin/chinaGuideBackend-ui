@@ -162,12 +162,12 @@ describe('平台卡片：只有那一个出处', () => {
     expect(cards.map((card: any) => card.text()).join(' ')).toContain('deepseek-v4-pro')
   })
 
-  it('一个可选平台都没有：说清去「大模型配置」开通，不摆空勾选框', async () => {
+  it('一个可选平台都没有：说清去「模型配置」开通，不摆空勾选框', async () => {
     vi.mocked(geoCampaignApi.platforms).mockResolvedValue([] as never)
     const wrapper = await mountStep()
     expect(wrapper.find('.group-stub').exists()).toBe(false)
     expect(wrapper.text()).toContain('一个可选平台都没有')
-    expect(wrapper.text()).toContain('大模型配置')
+    expect(wrapper.text()).toContain('模型配置')
   })
 
   it('少于建议的 3 家只提示不拦：保存按钮照样能按', async () => {

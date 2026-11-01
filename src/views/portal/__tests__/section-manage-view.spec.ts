@@ -325,14 +325,14 @@ describe('站点是点出来的，下拉那一行把判断要用的读数都摆�
       '甲家的站 #3 · 正式站 · 甲租户',
       // 归档那一套的栏目写不进去（拍板④），所以「已归档候选」必须在选之前就读得到
       '甲家的站 #7 · 已归档候选 · 乙租户',
-      '没有归属的站 #8 · 候选站 · 未绑定租户'
+      '没有归属的站 #8 · 候选站 · 未绑定客户'
     ])
   })
 
   it('租户名读不到时退回「租户 #编号」，不把归属编成一个名字、也不因此读不了栏目', async () => {
     await mountView([state('news', '资讯')], [{ id: 3, name: '演示站', status: 'enabled', tenantId: 15 }], 'failed')
 
-    expect(siteOptionLabels()).toEqual(['演示站 #3 · 正式站 · 租户 #15'])
+    expect(siteOptionLabels()).toEqual(['演示站 #3 · 正式站 · 客户 #15'])
     expect(portalSectionsApi.adminList).toHaveBeenCalledWith(3)
   })
 

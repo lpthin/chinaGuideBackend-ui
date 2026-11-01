@@ -29,7 +29,7 @@ export const DISMISS_REASON_MAX = 500
  * 这一句就会跟着对不上（§12 词表单源）。要说的是「访客现在看不见」这一件事实。
  */
 export const DRAFT_CONFIRM_TEXT =
-  '我已看清这一发会真花钱：它按下面的 token 数扣账，并把产出的内容写进本站，'
+  '我已看清这一发会真花钱：它按下面的 Token 数扣账，并把产出的内容写进本站，'
   + '而产出的是草稿，访客要等内容自己走完发布才看得到'
 
 /** 四个动作的键：顺序与取值都读后端词表（`opportunityActions` 是 LinkedHashMap，界面不列第二份） */
@@ -112,7 +112,7 @@ export const UNMEASURED_NOTE =
 export function estimateLines(estimate: GeoOpportunityEstimate): Array<{ label: string; value: string }> {
   return [
     { label: '模型调用', value: `${estimate.callCount} 次` },
-    { label: '预计 token', value: `${estimate.estimatedTokens}` },
+    { label: '预计 Token', value: `${estimate.estimatedTokens}` },
     { label: '这笔钱走哪条账', value: estimate.accounting || PH_DASH },
     { label: '账记在谁身上', value: billingLine(estimate) },
   ]
@@ -128,14 +128,14 @@ export function estimateLines(estimate: GeoOpportunityEstimate): Array<{ label: 
  */
 export function billingLine(estimate: GeoOpportunityEstimate): string {
   if (estimate.tenantBearsCost) {
-    return `计入本租户的「${estimate.quotaPoolLabel}」，该池${poolBalancePhrase(estimate.remainingTokens)}。`
+    return `计入这个客户的「${estimate.quotaPoolLabel}」，该池${poolBalancePhrase(estimate.remainingTokens)}。`
   }
   // 未交付：账上那一池的数照念，但必须补一句「这一发不走它」。不补，客户看到「本月剩余 88000」
   // 就以为自己按下去要扣那 88000 里的钱；念的是「未设月度上限」时更容易读反（不限制 = 随便花），
   // 所以那一支另起一句，不共用「那只是账上的数」——没有数的时候那句话没有指代。
   return estimate.remainingTokens === null
-    ? `由平台承担，不计入本租户额度（本租户的「${estimate.quotaPoolLabel}」未设月度上限，这一发也不走它）。`
-    : `由平台承担，不计入本租户额度（本租户的「${estimate.quotaPoolLabel}」${poolBalancePhrase(estimate.remainingTokens)}，那只是账上的数，这一发不走它）。`
+    ? `由平台承担，不计入这个客户额度（这个客户的「${estimate.quotaPoolLabel}」未设月度上限，这一发也不走它）。`
+    : `由平台承担，不计入这个客户额度（这个客户的「${estimate.quotaPoolLabel}」${poolBalancePhrase(estimate.remainingTokens)}，那只是账上的数，这一发不走它）。`
 }
 
 /**

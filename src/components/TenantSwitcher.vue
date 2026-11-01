@@ -15,7 +15,7 @@
     <a-select
       v-if="mode === 'tenant'"
       v-model:value="selectedValue"
-      placeholder="切换租户"
+      placeholder="切换客户"
       show-search
       :options="options"
       :filter-option="filterOption"
@@ -39,7 +39,7 @@
       data-test="tenant-unresolved-clear"
       @click="switchToFirstTenant"
     >
-      切换到第一个租户
+      切换到第一个客户
     </a-button>
   </div>
 </template>
@@ -68,12 +68,12 @@ const listFailed = ref(false)
 type ScopeMode = 'platform' | 'tenant'
 const MODE_OPTIONS: Array<{ label: string; value: ScopeMode }> = [
   { label: '平台', value: 'platform' },
-  { label: '租户', value: 'tenant' }
+  { label: '客户', value: 'tenant' }
 ]
 const mode = ref<ScopeMode>(authStore.selectedTenantId !== null ? 'tenant' : 'platform')
 const selectedValue = ref<number | null>(authStore.selectedTenantId)
 
-/** 选中项在列表里找不到 label 时兜一条，顶栏至少念得出「租户 15」，不念一个裸数字 */
+/** 选中项在列表里找不到 label 时兜一条，顶栏至少念得出「客户 15」，不念一个裸数字 */
 const options = computed(() => {
   const base = tenants.value.map((tenant) => ({
     label: tenant.name,
@@ -84,7 +84,7 @@ const options = computed(() => {
   if (base.some((o) => o.value === selectedValue.value)) return base
   const id = selectedValue.value
   const suffix = loading.value ? '' : listFailed.value ? '（列表没读到）' : '（不在列表里）'
-  return [{ label: `租户 ${id}${suffix}`, value: id }, ...base]
+  return [{ label: `客户 ${id}${suffix}`, value: id }, ...base]
 })
 
 const filterOption: SelectProps['filterOption'] = (input, option) => {
@@ -109,10 +109,10 @@ const missingFromList = computed(() =>
 )
 const warningText = computed(() => {
   if (declaredByBackend.value) {
-    return `租户「${declaredByBackend.value}」不存在或已被删除，现在是按空结果展示，不代表这家真的没有数据`
+    return `客户「${declaredByBackend.value}」不存在或已被删除，现在是按空结果展示，不代表这一家真的没有数据`
   }
   if (missingFromList.value) {
-    return `选中的租户（${selectedValue.value}）已不在租户列表里，可能是已被删除或重名改号；现在是按空结果展示，不代表这家真的没有数据`
+    return `选中的客户（${selectedValue.value}）已不在客户列表里，可能是已被删除或重名改号；现在是按空结果展示，不代表这一家真的没有数据`
   }
   return ''
 })
@@ -156,7 +156,7 @@ const handleModeChange = (value: ScopeMode) => {
   }
 }
 
-/** 出路就是「切换到第一个租户」 */
+/** 出路就是「切换到第一个客户」 */
 const switchToFirstTenant = () => {
   if (tenants.value.length > 0) {
     const firstTenant = tenants.value[0]

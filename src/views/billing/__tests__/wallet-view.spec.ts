@@ -258,12 +258,12 @@ describe('四张卡读的是库里真有的那些列', () => {
     expect(wrapper.text()).not.toContain('50,000.00')
   })
 
-  it('这家还没有钱包（后端回 walletState=NONE）：四张卡摆 —，下面那句说的是「还没有」', async () => {
+  it('这一家还没有钱包（后端回 walletState=NONE）：四张卡摆 —，下面那句说的是「还没有」', async () => {
     const wrapper = await mountView({
       wallet: walletRead({ walletState: 'NONE', balance: undefined, totalRecharge: undefined, availableBalance: undefined, frozenBalance: undefined })
     })
     expect(stats(wrapper)).toEqual(['—', '—', '—', '—'])
-    expect(wrapper.find('.AAlert-stub').attributes('message')).toContain('这家还没有钱包')
+    expect(wrapper.find('.AAlert-stub').attributes('message')).toContain('这一家还没有钱包')
     // 「还没有钱包」不等于「读失败」，那一发是打成功的
     expect(wrapper.find('.AAlert-stub').attributes('message')).not.toContain('没读到')
   })

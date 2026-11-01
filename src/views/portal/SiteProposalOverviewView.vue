@@ -100,7 +100,7 @@ function waitOf(row: { stageWaitMs?: number | null; status?: string | null }): s
 }
 
 function burnedOf(row: BriefOverviewRound): string {
-  return row.burnedTokens == null ? '后端这一发没回实烧数' : `${row.burnedTokens} token（这一轮的候选行实报合计）`
+  return row.burnedTokens == null ? '后端这一发没回实烧数' : `${row.burnedTokens} Token（这一轮的候选行实报合计）`
 }
 
 function elapsedOf(row: BriefOverviewRound): string {
@@ -158,7 +158,7 @@ onBeforeUnmount(stopTimer)
     <a-card size="small" title="在跑的出方案单" class="proposal-overview__card">
       <p v-if="!loading && overview && !rounds.length" class="proposal-overview__muted">
         <template v-if="emptyReason === 'NONE'">
-          今天没有任何一单处在「方案生成中」。这不是坏了，是没人点——一家租户同时只许一单，
+          今天没有任何一单处在「方案生成中」。这不是坏了，是没人点——一家客户同时只许一单，
           第二单在受理那一步就被中文拒绝，所以这里最多每家一条。
         </template>
         <template v-else-if="emptyLine">{{ emptyLine }}</template>
@@ -168,7 +168,7 @@ onBeforeUnmount(stopTimer)
         <a-divider v-if="round.briefId !== rounds[0]?.briefId" style="margin: 12px 0" />
         <div class="proposal-overview__round-head">
           <b>需求单 #{{ round.briefId }}</b>
-          <span>· 归属：{{ round.tenantName || (round.tenantId == null ? '这一单没有归属租户' : `#${round.tenantId}`) }}</span>
+          <span>· 归属：{{ round.tenantName || (round.tenantId == null ? '这一单没有归属客户' : `#${round.tenantId}`) }}</span>
           <a-tag color="processing">{{ round.briefStatusLabel || round.briefStatus || '状态原码没回' }}</a-tag>
           <span v-if="round.attempt != null">· 第 {{ round.attempt }} 轮</span>
           <a-button size="small" type="link" @click="goWizard(round)">进这一单的向导</a-button>
@@ -234,7 +234,7 @@ onBeforeUnmount(stopTimer)
       </p>
       <p v-for="draft in drafts" :key="draft.briefId" class="proposal-overview__line">
         <b>需求单 #{{ draft.briefId }}</b>
-        · 归属：{{ draft.tenantName || (draft.tenantId == null ? '没有归属租户' : `#${draft.tenantId}`) }}
+        · 归属：{{ draft.tenantName || (draft.tenantId == null ? '没有归属客户' : `#${draft.tenantId}`) }}
         · {{ draft.draftStatusLabel || draft.draftStatus || '状态原码没回' }}
         · 已等：{{ formatWaitMs(draft.waitMs) }}
         <template v-if="draft.errorMessage">· 失败原因：{{ draft.errorMessage }}</template>

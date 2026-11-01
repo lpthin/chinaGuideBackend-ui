@@ -19,8 +19,8 @@
       <template #message>
         这里只翻栏目的开关、显示名与导航顺序。<strong>关掉栏目不等于把页面下线</strong>：
         栏目关掉后，导航不再出现这一项、访客页面上绑这一数据源的区块不再渲染、巡检也不再催这一栏，
-        但页面本身与里面的内容一条都不动（N5：骨架与栏目归超管，内容归租户）。
-        租户侧读到的是同一份开通态，全程只读。
+        但页面本身与里面的内容一条都不动（N5：骨架与栏目归超级管理员，内容归客户）。
+        客户侧读到的是同一份开通态，全程只读。
         <br />
         每张卡改的都是草稿：<strong>顶上那条导航预览不点保存也是这个样子</strong>，
         但库里要等下面那一条「保存到站点」——一次点它只发一条整批请求，
@@ -261,8 +261,8 @@ const pickNotice = computed(() => {
 })
 
 function tenantLabel(tenantId?: number | null): string {
-  if (!tenantId) return '未绑定租户'
-  return tenantNames.value[tenantId] || `租户 #${tenantId}`
+  if (!tenantId) return '未绑定客户'
+  return tenantNames.value[tenantId] || `客户 #${tenantId}`
 }
 
 /**
@@ -495,7 +495,7 @@ async function loadSites() {
     }))
     if (!sites.value.length) {
       sitesNote.value = '平台一个站点都还没有：栏目是挂在站点上的，没有站点这一页就无从列起。'
-        + '先去「站点与租户 > 站点清单」开一座，或走「建站 > 新建网站」出一套。'
+        + '先去「站点与客户 > 站点清单」开一座，或走「建站 > 新建站点」出一套。'
     }
   } catch (error: any) {
     // 失败要说成失败：这一发没回来时，下拉里「一个站点都没有」是界面自己编的读数
@@ -516,7 +516,7 @@ async function loadTenantNames() {
     const map: Record<number, string> = {}
     ;(list || []).forEach(tenant => {
       if (tenant?.id != null) {
-        map[tenant.id] = tenant.name || tenant.code || `租户 #${tenant.id}`
+        map[tenant.id] = tenant.name || tenant.code || `客户 #${tenant.id}`
       }
     })
     tenantNames.value = map

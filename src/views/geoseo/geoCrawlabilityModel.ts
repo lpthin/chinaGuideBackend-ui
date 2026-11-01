@@ -25,7 +25,7 @@ import { formatDateTimeWithZone } from '../../utils/format'
 export const RUN_HINT = '跑一次会现测这六项，并各写一行留痕；上一轮的那些行不删，重跑留痕靠追加'
 
 /** 从没跑过时那一格的话：不许把空列表渲染成六盏灯，也不许在这里替客户跑一次 */
-export const NEVER_RUN_TITLE = '这一租户还没有跑过体检：下面六项都没有留痕行'
+export const NEVER_RUN_TITLE = '这一家客户还没有跑过体检：下面六项都没有留痕行'
 
 export const NEVER_RUN_NEXT = '由平台侧点「跑一次」产这六行；读这一页不触发测量，所以也不会替你补上'
 
@@ -37,9 +37,9 @@ export const NEVER_RUN_NEXT = '由平台侧点「跑一次」产这六行；读�
  * 是去右上角选定一个租户。所以这一种「读不出」在界面上单列一态，且前端不再白发一发请求
  * （后端那一发 `requireTenantId` 照旧拦着，这里只是把话说对，不是把闸拆掉）。
  */
-export const NO_TENANT_TITLE = '全站视角读不出体检：这六行是按租户留痕的'
+export const NO_TENANT_TITLE = '全站视角读不出体检：这六行是按客户留痕的'
 
-export const NO_TENANT_NEXT = '出路不是稍后重试：在右上角选定一个租户再进来。没选定之前这一问没有归属站点，所以这里既不读也不跑'
+export const NO_TENANT_NEXT = '出路不是稍后重试：在右上角选定一个客户再进来。没选定之前这一问没有归属站点，所以这里既不读也不跑'
 
 /** 一行的显示形态：真行，或词表里有、库里还没有的那一项 */
 export type CrawlabilityRow =
@@ -186,7 +186,7 @@ export function verdictCounts(rows: CrawlabilityRow[]): Record<string, number> {
 export function headline(snapshot: CrawlabilitySnapshot): string {
   const measuredAt = snapshot.measuredAt ? `最近一轮测于 ${formatDateTimeWithZone(snapshot.measuredAt)}` : '最近一轮没有时间戳'
   return snapshot.siteId === null || snapshot.siteId === undefined
-    ? `${measuredAt}；这一租户没有对公众开着的站点，能测的项各测各的`
+    ? `${measuredAt}；这一家客户没有对公众开着的站点，能测的项各测各的`
     : `${measuredAt}；站点 #${snapshot.siteId}`
 }
 

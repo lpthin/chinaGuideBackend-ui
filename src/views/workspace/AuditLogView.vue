@@ -164,7 +164,7 @@
         <a-descriptions-item label="错误信息">{{ currentLog.errorMessage || '-' }}</a-descriptions-item>
         <a-descriptions-item label="操作人">{{ currentLog.username }}</a-descriptions-item>
         <a-descriptions-item label="用户ID">{{ currentLog.userId }}</a-descriptions-item>
-        <a-descriptions-item label="租户ID">{{ currentLog.tenantId }}</a-descriptions-item>
+        <a-descriptions-item label="客户编号">{{ currentLog.tenantId }}</a-descriptions-item>
         <a-descriptions-item label="IP地址">{{ currentLog.ipAddress }}</a-descriptions-item>
         <a-descriptions-item label="浏览器/设备">{{ currentLog.userAgent }}</a-descriptions-item>
         <a-descriptions-item label="操作时间">{{ formatDateTime(currentLog.createdAt) }}</a-descriptions-item>
@@ -257,7 +257,7 @@ const resourceMap: Record<string, string> = {
   'admin/users': '用户管理',
   'admin/roles': '角色管理',
   'admin/permissions': '权限管理',
-  'admin/tenants': '租户管理',
+  'admin/tenants': '客户开通',
   'admin/sites': '站点管理',
   article: '文章管理',
   articles: '文章管理',

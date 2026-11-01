@@ -1,7 +1,7 @@
 <template>
   <div class="support-ticket-page">
     <PageTitle
-      :description="isQueue ? '处理租户提交给平台的工单' : '对网站建设有疑问？在这里联系平台，处理结果会显示在下方'"
+      :description="isQueue ? '处理客户提交给平台的工单' : '对站点建设有疑问？在这里联系平台，处理结果会显示在下方'"
     />
 
     <div class="content-wrapper">
@@ -94,7 +94,7 @@
       <a-descriptions v-if="current" bordered :column="1" size="small" style="margin-bottom: 16px">
         <a-descriptions-item label="标题">{{ current.topic }}</a-descriptions-item>
         <a-descriptions-item label="提交人">
-          {{ current.userName || '-' }}（租户 {{ current.tenantId }}）
+          {{ current.userName || '-' }}（客户 {{ current.tenantId }}）
         </a-descriptions-item>
         <a-descriptions-item label="内容">
           <div style="white-space: pre-wrap">{{ current.content }}</div>

@@ -47,7 +47,7 @@ describe('TenantSelect 按码决定发不发那一条请求', () => {
   it('不是超管：一条都不发，占位语说清缺的是超管身份，下拉是灭的', async () => {
     const wrapper = await mountAs(['SITE_ADMIN'], ['portal:siteinfo:manage'])
     expect(tenantApi.list).not.toHaveBeenCalled()
-    expect(select(wrapper).attributes('data-placeholder')).toBe('需要超级管理员权限，无法列出租户')
+    expect(select(wrapper).attributes('data-placeholder')).toBe('需要超级管理员权限，无法列出客户')
     expect(select(wrapper).attributes('data-disabled')).toBe('true')
     expect(select(wrapper).props('options')).toHaveLength(0)
     wrapper.unmount()
@@ -64,7 +64,7 @@ describe('TenantSelect 按码决定发不发那一条请求', () => {
   it('超管但接口真的坏了：说的是「读取失败 + 后端原话」，不是「没有租户」', async () => {
     vi.mocked(tenantApi.list).mockRejectedValueOnce(new Error('数据库连接超时'))
     const wrapper = await mountAs(['SUPER_ADMIN'], [])
-    expect(select(wrapper).attributes('data-placeholder')).toContain('租户列表读取失败：数据库连接超时')
+    expect(select(wrapper).attributes('data-placeholder')).toContain('客户列表读取失败：数据库连接超时')
     wrapper.unmount()
   })
 })

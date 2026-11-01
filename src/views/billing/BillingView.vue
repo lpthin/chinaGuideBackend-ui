@@ -10,7 +10,7 @@
       state="not-measured"
       title="还没有选定客户"
       detail="余额、账单、消费都是一户一本地记的，这一屏没有「全平台合计」这一格。"
-      next="在页面顶部的租户切换里选一家客户，这里才摆那一家自己的账。"
+      next="在页面顶部的客户切换里选一家客户，这里才摆那一家自己的账。"
     />
 
     <a-spin v-else :spinning="loading">
@@ -489,7 +489,7 @@ function walletStatText(amount: number | null): string {
 /** 四张卡下面那句话：把「还没有钱包」与「这一发没读到」分开念 */
 const walletNotice = computed(() => {
   if (walletReadFailed.value) return `钱包没读到：${walletReadFailed.value}`
-  if (walletMissing.value) return '这家还没有钱包，充值后这里会显示余额'
+  if (walletMissing.value) return '这一家还没有钱包，充值后这里会显示余额'
   return ''
 })
 

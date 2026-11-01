@@ -340,7 +340,7 @@ describe('MediaStorageView · 状态与搬迁', () => {
     const wrapper = await mountView()
     await field(wrapper, '.js-tenant').setValue('15')
 
-    expect(wrapper.find('.js-migrate-pop .popconfirm-stub__title').text()).toContain('租户 15')
+    expect(wrapper.find('.js-migrate-pop .popconfirm-stub__title').text()).toContain('客户 15')
     expect(wrapper.find('.js-migrate-pop .popconfirm-stub__title').text()).toContain('500')
   })
 

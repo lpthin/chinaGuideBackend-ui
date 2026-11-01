@@ -285,7 +285,7 @@ describe('消费统计屏', () => {
 
     expect(stateTitles(wrapper)).toEqual(['这个区间里没有消费记录'])
     // 「真的没有」那一档要给出下一步，且不许把「—」摆到有数的卡上
-    expect(wrapper.text()).toContain('想看这家花过什么')
+    expect(wrapper.text()).toContain('想看这一家花过什么')
     expect(cardValues(wrapper)).toEqual(['¥12.50', '¥10.00', '¥0.83', '2'])
   })
 

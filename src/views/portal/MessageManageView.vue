@@ -136,7 +136,7 @@
                所以这里说的是去哪儿切，而不是留一张假空表。 -->
           <a-alert v-if="isPlatformMode" type="info" show-icon>
             <template #message>
-              平台档看的是上面那张跨租户的公告阅读表。要看你自己这一家的收件箱 / 发件箱，请在右上角切到「租户」并选一家。
+              平台档看的是上面那张跨客户的公告阅读表。要看你自己这一家的收件箱 / 发件箱，请在右上角切到「客户」并选一家。
             </template>
           </a-alert>
           <a-table
@@ -215,12 +215,12 @@
       <a-form :model="sendForm" layout="vertical">
         <a-form-item label="接收范围" required>
           <a-radio-group v-model:value="sendForm.scope">
-            <a-radio value="ALL_TENANTS">全部租户</a-radio>
-            <a-radio value="SPECIFIC_TENANT">指定租户</a-radio>
+            <a-radio value="ALL_TENANTS">全部客户</a-radio>
+            <a-radio value="SPECIFIC_TENANT">指定客户</a-radio>
           </a-radio-group>
         </a-form-item>
-        <a-form-item v-if="sendForm.scope === 'SPECIFIC_TENANT'" label="选择租户" required>
-          <TenantSelect v-model:modelValue="sendForm.tenantId" placeholder="请选择租户" />
+        <a-form-item v-if="sendForm.scope === 'SPECIFIC_TENANT'" label="选择客户" required>
+          <TenantSelect v-model:modelValue="sendForm.tenantId" placeholder="请选择客户" />
         </a-form-item>
         <a-form-item label="消息标题" required>
           <a-input v-model:value="sendForm.title" placeholder="请输入消息标题" />
@@ -349,7 +349,7 @@ const broadcastColumns = [
   { title: '公告标题', key: 'title', width: 260 },
   { title: '类型', key: 'type', width: 100 },
   { title: '发出时间', key: 'sentTime', width: 180 },
-  { title: '覆盖租户', key: 'tenantCount', width: 100 },
+  { title: '覆盖客户', key: 'tenantCount', width: 100 },
   { title: '送达副本', key: 'delivered', width: 100 },
   { title: '已读 / 未读', key: 'read', width: 130 },
   { title: '已被删除', key: 'removed', width: 100 },
@@ -462,7 +462,7 @@ async function loadStats() {
   // 10-03 系统测试现场：从站内信切回平台档会整页重挂这一屏，那句必败的请求每次都在控制台上
   // 留一条 error，而界面本来就已经把话说全了（下面那条 note 同一段字），噪声不该让人承担。
   if (isPlatformMode.value) {
-    statsNote.value = '这三个数按「你在这家租户里的信」算：请先在右上角切到「租户」并选一家，再回来看这一屏'
+    statsNote.value = '这三个数按「你在这一家客户里的信」算：请先在右上角切到「客户」并选一家，再回来看这一屏'
     return
   }
   try {
@@ -472,8 +472,9 @@ async function loadStats() {
     const reason = String(error?.message || '')
     // 「没选租户」是这一口最常见的失败原因（超管停在平台档时请求根本不带租户头），
     // 它要说的是去哪儿选，而不是笼统一句读失败；控件名照顶栏那颗分段开关的原话写
+    // 判据只认后端那句原话；后端那一句改口之前，这里的匹配串必须跟着后端留在「租户」
     statsNote.value = reason.includes('请先选择租户')
-      ? '这三个数按「你在这家租户里的信」算：请先在右上角切到「租户」并选一家，再回来看这一屏'
+      ? '这三个数按「你在这一家客户里的信」算：请先在右上角切到「客户」并选一家，再回来看这一屏'
       : `统计数据读取失败：${reason || '未知原因'}`
     logError('portal/message-manage-view', '加载统计数据失败:', error)
   }
@@ -585,7 +586,7 @@ async function handleSendMessage() {
     return
   }
   if (sendForm.scope === 'SPECIFIC_TENANT' && !sendForm.tenantId) {
-    message.warning('请选择租户')
+    message.warning('请选择客户')
     return
   }
 

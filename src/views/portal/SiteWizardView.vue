@@ -161,7 +161,7 @@ function briefOption(brief: SiteBrief) {
 }
 
 function tenantLabel(brief: SiteBrief): string {
-  return brief.tenantId ? `租户 #${brief.tenantId}` : '未绑定租户'
+  return brief.tenantId ? `客户 #${brief.tenantId}` : '未绑定客户'
 }
 
 /** 说明书七段里还空着几段：只数后端 `blank` 那一格，界面不猜段数也不抄段名 */
@@ -192,7 +192,7 @@ function setLedger(candidate: BriefCandidateSite): string {
   return [
     `演示内容 文章 ${row?.demoArticles ?? '没取到'} 篇 / 案例 ${row?.demoCases ?? '没取到'} 条 / 岗位 ${row?.demoJobs ?? '没取到'} 个`,
     `配图 成功 ${row?.imageDone ?? '没取到'} 张、失败 ${row?.imageFailed ?? 0} 张、跳过 ${row?.imageSkipped ?? 0} 张（跳过不等于失败）`,
-    `实耗 ${row?.promptTokens ?? '没取到'} + ${row?.completionTokens ?? '没取到'} token`
+    `实耗 ${row?.promptTokens ?? '没取到'} + ${row?.completionTokens ?? '没取到'} Token`
   ].join('；')
 }
 
@@ -227,7 +227,7 @@ const roundActualTokens = computed(() => {
 const roundActualLine = computed(() => {
   const round = roundActualTokens.value
   if (!round.sets) return '这一轮还没有进度行，所以也没有实测代价可读（不是 0）。'
-  return `这一轮实测：${round.prompt} + ${round.completion} = ${round.total} token（模型实报那一把尺，逐套相加）`
+  return `这一轮实测：${round.prompt} + ${round.completion} = ${round.total} Token（模型实报那一把尺，逐套相加）`
     + (round.unread ? `；另有 ${round.unread} 套这一发没回实耗，没算进上面那个数——不是当成 0` : '')
     + '。'
 })
@@ -449,7 +449,7 @@ const quoteSummary = computed(() => {
   const price = quote.value?.estimate
   if (!price) return ''
   if (!price.aiEnabled) return '出方案开关没开，现在不是可以花的报价：缺的开关在下面那一栏里逐条写着。'
-  return `要是现在出方案：${price.candidateCount} 套、每套 ${price.pagesPerCandidate} 页，预估 ${price.estimatedTokens} token。这只是预估，不是最终账单。`
+  return `要是现在出方案：${price.candidateCount} 套、每套 ${price.pagesPerCandidate} 页，预估 ${price.estimatedTokens} Token。这只是预估，不是最终账单。`
 })
 
 /** 钱算在谁头上（V142 交付态）：这一句决定界面对客户怎么说，口径跟着后端那一格走 */
@@ -457,8 +457,8 @@ const quoteBearer = computed(() => {
   const price = quote.value?.estimate
   if (!price) return ''
   return price.tenantBearsCost
-    ? '这一单的交付已经确定：这一发算在这个租户的当月配额里。'
-    : '这一单还没确定交付：这一发由平台自己承担，不扣这个租户的配额。'
+    ? '这一单的交付已经确定：这一发算在这个客户的当月配额里。'
+    : '这一单还没确定交付：这一发由平台自己承担，不扣这个客户的配额。'
 })
 
 /** 价签下面那几行明细：后端逐行拼好的原话，界面上只折起来，不重写 */
@@ -574,7 +574,7 @@ onUnmounted(stopFollowingProgress)
     <div class="page-header">
       <div>
         <p>
-          五步一条线：录前采需求单 → AI 出说明书、超管逐段改并签字 → 估价并出 1~3 套候选 → 比较与发预览 → 客户选定后转正。
+          五步一条线：录前采需求单 → AI 出说明书、超级管理员逐段改并签字 → 估价并出 1~3 套候选 → 比较与发预览 → 客户选定后转正。
           每一步只摊开这一步自己的读数；花钱、签字那两发动作在那一屏自己的页面上按。
         </p>
       </div>
@@ -582,9 +582,9 @@ onUnmounted(stopFollowingProgress)
 
     <a-alert v-if="scopeMismatch" type="warning" show-icon class="site-wizard__row">
       <template #message>
-        这一单挂在租户 #{{ scopeMismatch.owner }} 名下，右上角现在站的是 #{{ scopeMismatch.declared }}。
+        这一单挂在客户 #{{ scopeMismatch.owner }} 名下，右上角现在站的是 #{{ scopeMismatch.declared }}。
         需求单详情、发预览与转正那几发按右上角那一户拦归属，照现在这样点过去会被后端当面拒
-        （原话「无权限操作该需求单」）。下面这几屏读的是按这一单自己的租户解析的那几口，照旧能读。
+        （原话「无权限操作该需求单」）。下面这几屏读的是按这一单自己的客户解析的那几口，照旧能读。
       </template>
       <template #description>
         <a-button size="small" @click="alignScopeToBrief">
@@ -793,7 +793,7 @@ onUnmounted(stopFollowingProgress)
         </a-space>
         <p class="site-wizard__hint">
           只有已签字那一版说明书会被拿去生成；没签字时后端原话是「SPEC_NOT_CONFIRMED」，界面上照它那句话念。
-          花钱那一发要同时带回上面那个估算号与预估 token 数，缺一样后端中文拒。
+          花钱那一发要同时带回上面那个估算号与预估 Token 数，缺一样后端中文拒。
         </p>
       </template>
 
@@ -895,7 +895,7 @@ onUnmounted(stopFollowingProgress)
         <p v-if="currentBrief" class="site-wizard__hint">
           这一单现在的状态：{{ statusText(currentBrief) }}；
           绑定站点：{{ currentBrief.siteId ? `#${currentBrief.siteId}` : '还没绑' }}。
-          转正那一刻才交棒给租户（交付态、计费口径都跟着那一步变），所以这一发必须是人点的，向导不代签。
+          转正那一刻才交棒给客户（交付态、计费口径都跟着那一步变），所以这一发必须是人点的，向导不代签。
         </p>
         <a-space class="site-wizard__row">
           <a-button type="primary" :disabled="!briefId" @click="goBriefDetail">回需求单详情做选定与转正</a-button>

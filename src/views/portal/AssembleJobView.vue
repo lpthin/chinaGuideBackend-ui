@@ -6,7 +6,7 @@
       <template #message>
         AI 整站组装要跑两步模型（整站规划 + 逐页文案），{{ costOwnerLine }}，
         所以这一页没有「一键整站上线」：先估算、看过预估再亲手勾确认才调用模型；调用之后拿到的仍然只是逐页草稿，
-        访客能看到什么，只由「应用这一页」这一个一个的点击决定。这条路只有平台侧走得通（N4：组件搭建与组装归超管），租户侧没有它。
+        访客能看到什么，只由「应用这一页」这一个一个的点击决定。这条路只有平台侧走得通（N4：组件搭建与组装归超级管理员），客户侧没有它。
       </template>
     </a-alert>
 
@@ -56,7 +56,7 @@
       </p>
       <p v-if="sitesError" class="assemble-job-page__error">{{ sitesError }}</p>
       <p v-else-if="!loadingBase && !sites.length" class="assemble-job-page__error">
-        一个站点都取不到：这个账号名下没有站点，先去「平台管理 → 站点与租户 → 站点清单」建一个。
+        一个站点都取不到：这个账号名下没有站点，先去「平台管理 → 站点与客户 → 站点清单」建一个。
       </p>
       <p v-if="skeletonsError" class="assemble-job-page__error">{{ skeletonsError }}</p>
       <p v-else-if="!loadingBase && sites.length && !publishedSkeletonOptions.length" class="assemble-job-page__error">
@@ -115,8 +115,8 @@
           </a-descriptions-item>
           <a-descriptions-item label="骨架">{{ job.skeletonKey }} v{{ job.skeletonVersion ?? '?' }}</a-descriptions-item>
           <a-descriptions-item label="参考站">{{ referenceText(job.referenceSiteId) }}</a-descriptions-item>
-          <a-descriptions-item label="预估 token">{{ job.estimatedTokens ?? '—' }}</a-descriptions-item>
-          <a-descriptions-item label="实耗 token">{{ tokensUsedOf(job) }}</a-descriptions-item>
+          <a-descriptions-item label="预估 Token">{{ job.estimatedTokens ?? '—' }}</a-descriptions-item>
+          <a-descriptions-item label="实耗 Token">{{ tokensUsedOf(job) }}</a-descriptions-item>
           <a-descriptions-item label="创建人">{{ job.createdBy || '—' }}</a-descriptions-item>
           <a-descriptions-item label="创建时间">{{ formatDateTime(job.createdAt) }}</a-descriptions-item>
           <a-descriptions-item v-if="job.errorMessage" label="最近一次结果" :span="3">
@@ -314,7 +314,7 @@ const jobColumns = [
   { title: '编号', dataIndex: 'id', key: 'id', width: 72 },
   { title: '骨架', key: 'skeleton', width: 220 },
   { title: '状态', key: 'status', width: 130 },
-  { title: 'token', key: 'tokens', width: 150 },
+  { title: 'Token', key: 'tokens', width: 150 },
   { title: '最近一次结果', key: 'error', width: 240 },
   { title: '创建人', dataIndex: 'createdBy', key: 'createdBy', width: 110 },
   { title: '创建时间', key: 'createdAt', width: 170 },
@@ -445,23 +445,23 @@ const tenantBearsCost = computed(() => estimate.value?.tenantBearsCost !== false
  * 还没出价时不猜：交付态是后端的账，界面上没有第二个来源。
  */
 const costOwnerLine = computed(() => {
-  if (!estimate.value) return '这笔消耗记在谁头上要看第 2 步那张价签（该租户已交付才计入他的额度）'
+  if (!estimate.value) return '这笔消耗记在谁头上要看第 2 步那张价签（该客户已交付才计入他的额度）'
   return tenantBearsCost.value
-    ? '扣的是这个站点所属租户的 token 配额'
-    : '这一次由平台承担、不进该租户的账单（超管确定交付之后才开始计他的额度）'
+    ? '扣的是这个站点所属客户的 Token 配额'
+    : '这一次由平台承担、不进该客户的账单（超级管理员确定交付之后才开始计他的额度）'
 })
 
 const costOwnerShort = computed(() => {
   if (!estimate.value) return '按第 2 步的价签记账'
-  return tenantBearsCost.value ? '扣这个租户的配额' : '由平台承担、不进他的账单'
+  return tenantBearsCost.value ? '扣这个客户的配额' : '由平台承担、不进他的账单'
 })
 
 const estimateMessage = computed(() => {
   const current = estimate.value
   if (!current) return ''
   const base = tenantBearsCost.value
-    ? `预计 ${current.estimatedTokens} token，该租户剩余配额 ${current.remainingTokens} token`
-    : `预计 ${current.estimatedTokens} token，这一趟由平台承担、不进该租户的账单`
+    ? `预计 ${current.estimatedTokens} Token，该客户剩余配额 ${current.remainingTokens} Token`
+    : `预计 ${current.estimatedTokens} Token，这一趟由平台承担、不进该客户的账单`
   return current.notice ? `${base}。${current.notice}` : base
 })
 

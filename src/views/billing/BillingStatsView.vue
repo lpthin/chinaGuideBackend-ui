@@ -16,7 +16,7 @@
       state="not-measured"
       title="还没有选定客户"
       detail="消费是一户一本地记的，这一屏没有「全平台合计」这一格。"
-      next="在页面顶部的租户切换里选一家客户，这里才摆那一家自己的数。"
+      next="在页面顶部的客户切换里选一家客户，这里才摆那一家自己的数。"
     />
 
     <a-spin v-else :spinning="loading">
@@ -256,8 +256,8 @@ const failed = reactive<Record<SectionKey, string | null>>({
 /** 「真的没有」那一档各块各有各的说法，因为四块取的期间口径不一样（趋势看区间、构成看全部流水） */
 const EMPTY_LINES: Record<SectionKey, string> = {
   trend: '这个区间里没有消费记录',
-  breakdown: '这家还没有按产品分开记的消费流水',
-  topServices: '这家还没有按业务类型记的消费流水',
+  breakdown: '这一家还没有按产品分开记的消费流水',
+  topServices: '这一家还没有按业务类型记的消费流水',
   compare: '今年和去年都没有月度消费',
 }
 
@@ -353,7 +353,7 @@ function blockAttrs(key: SectionKey): BlockAttrs {
       state: 'error',
       title: '这一家读不到，不是没有消费',
       detail: `${sectionNames[key]}没有归属：上面那句是后端给的成因。`,
-      next: '在页面顶部的租户切换里换一家真实存在的客户',
+      next: '在页面顶部的客户切换里换一家真实存在的客户',
     }
   }
   if (state === 'error') {
@@ -362,7 +362,7 @@ function blockAttrs(key: SectionKey): BlockAttrs {
   return {
     state: 'empty',
     title: EMPTY_LINES[key],
-    next: '想看这家花过什么，去「消费明细」那一屏按这家筛一遍流水',
+    next: '想看这一家花过什么，去「消费明细」那一屏按这一家筛一遍流水',
   }
 }
 

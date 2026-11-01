@@ -238,7 +238,7 @@ onMounted(async () => {
               {{ (record as GeoCampaign).repeatTimes }} 次
               <span class="geo-workbench__shape-estimate">
                 预估提问 {{ (record as GeoCampaign).costEstimateCalls }} 次 /
-                {{ (record as GeoCampaign).costEstimateTokens }} token（判定另算，进第⑤步看两段）
+                {{ (record as GeoCampaign).costEstimateTokens }} Token（判定另算，进第⑤步看两段）
               </span>
             </span>
           </template>

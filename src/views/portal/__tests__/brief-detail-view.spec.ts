@@ -501,13 +501,13 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     expect(text).toContain('后端这一发没回读数')
     expect(text).not.toContain('跑过 0 发')
     // 这一格读不到不动别的格：价签照念、确认照勾（这一页从来不渲染 estimateId 原串，别拿它当把手）
-    expect(text).toContain('预计 260000 token')
+    expect(text).toContain('预计 260000 Token')
     expect(checkbox()).toBeTruthy()
     expect(checkbox()!.disabled).toBe(false)
     wrapper.unmount()
   })
 
-  it('未交付（售前）的那一趟不许说「扣这个租户的配额」：V142 起这一趟由平台承担', async () => {
+  it('未交付（售前）的那一趟不许说「扣这个客户的 Token 配额」：V142 起这一趟由平台承担', async () => {
     const wrapper = await mountView({
       estimateData: estimateWith({
         tenantBearsCost: false,
@@ -522,8 +522,8 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     const text = wrapper.text()
     expect(text).toContain('由平台承担')
     // 反向：说明、确认框都不许再宣称扣他的配额；剩余额度是后端在该交付时才念的数，界面不自己拼
-    expect(text).not.toContain('扣这个租户的 token 配额')
-    expect(text).not.toContain('确认出方案会消耗租户配额')
+    expect(text).not.toContain('扣这个客户的 Token 配额')
+    expect(text).not.toContain('确认出方案会消耗客户配额')
     wrapper.unmount()
   })
 
@@ -532,7 +532,7 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
    * 于是计费那句话退回默认档「扣这个租户的配额」——可后端在三十秒前刚说过这一趟由平台承担。
    * 钱的方向被界面反过来念，等于给一次没发生的扣费背书。
    */
-  it('出方案成功后价签被清掉，那句钱的话也不许翻回「扣租户配额」：售前的口径一路跟到回执', async () => {
+  it('出方案成功后价签被清掉，那句钱的话也不许翻回「扣客户配额」：售前的口径一路跟到回执', async () => {
     const wrapper = await mountView({
       generateData: { briefId: 12, attempt: 1 },
       estimateData: estimateWith({
@@ -552,8 +552,8 @@ describe('门禁顺序：预估 → 勾选 → 执行', () => {
     expect(briefGenerationApi.generate).toHaveBeenCalled()
     const text = wrapper.text()
     expect(text).toContain('由平台承担')
-    expect(text).not.toContain('扣这个租户的 token 配额')
-    expect(text).not.toContain('确认出方案会消耗租户配额')
+    expect(text).not.toContain('扣这个客户的 Token 配额')
+    expect(text).not.toContain('确认出方案会消耗客户配额')
     wrapper.unmount()
   })
 
@@ -710,7 +710,7 @@ describe('进度按套显示（§6.2：任一步失败只影响该套）', () =>
     expect(text).toContain('图片模型不可用：该图位交付后由你上传')
     // 每套自己的降级说明与本套预估也照实列（进度口一行一套，不是整单一份）
     expect(text).toContain('演示内容是 AI 生成的，交付后可替换')
-    expect(text).toContain('本套预计 130000 token')
+    expect(text).toContain('本套预计 130000 Token')
     // 没有假装同步的东西：整页不许出现总百分比
     expect(text).not.toMatch(/\d+%/)
     expect(text).toContain('进度按套显示')
@@ -916,7 +916,7 @@ describe('M-P34：只补失败那一套（第二张价签、第二道确认）',
     // 这一发不该顺带把整轮那张也算了一遍：两支口各自独立
     expect(briefGenerationApi.estimate).not.toHaveBeenCalled()
     const text = wrapper.text()
-    expect(text).toContain('这张价签只算补跑这一趟：预计 130000 token')
+    expect(text).toContain('这张价签只算补跑这一趟：预计 130000 Token')
     expect(text).toContain('合计预估：130000 token（1 套 × 130000 token/套）')
     expect(text).not.toContain('260000')
     expect(rerunCheckbox()!.disabled).toBe(false)

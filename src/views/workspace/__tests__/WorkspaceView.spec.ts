@@ -123,7 +123,7 @@ describe('WorkspaceView 侧边菜单', () => {
     await flushPromises()
     const text = wrapper.text()
     // 平台模式：只显示平台段
-    expect(text).not.toContain('租户日常')
+    expect(text).not.toContain('客户日常')
     expect(text).toContain('平台管理')
     // 不显示固定项（工作台、联系平台/平台工单队列）
     expect(text).not.toContain('工作台')
@@ -172,11 +172,11 @@ describe('WorkspaceView 侧边菜单', () => {
     await flushPromises()
     const text = wrapper.text()
     // 段标题「租户日常」已删（拍板：顶栏那颗「平台/租户」切换就是范围声明，菜单里不重复念）
-    expect(text).not.toContain('租户日常')
+    expect(text).not.toContain('客户日常')
     // 平台段整块退场
     expect(text).not.toContain('平台管理')
     expect(wrapper.find('[data-tip="日常：填内容、看效果"]').exists()).toBe(false)
-    expect(wrapper.find('[data-tip="超管动作：建站、开栏目、改样式、跑探测"]').exists()).toBe(false)
+    expect(wrapper.find('[data-tip="超级管理员动作：建站、开栏目、改样式、跑探测"]').exists()).toBe(false)
     // Spec-C P3：「建站流水线」整页删除（主线收进需求单详情），菜单里它必须随之绝迹——
     // 留着就是一条点了 404 的假入口
     expect(text).not.toContain('建站流水线')
@@ -197,7 +197,7 @@ describe('WorkspaceView 侧边菜单', () => {
     expect(items).not.toContain('栏目开通')
     expect(items).not.toContain('页面搭建')
     expect(items).not.toContain('站点清单')
-    expect(items).not.toContain('大模型配置')
+    expect(items).not.toContain('模型配置')
     // 该看的还在：AI 写稿那组、企业信息、以及固定在菜单最下方的「联系平台」
     expect(text).toContain('AI 写稿')
     expect(items).toContain('企业信息')
@@ -481,7 +481,7 @@ describe('WorkspaceView 侧边菜单', () => {
     // 「只剩」：两段树这时一项都不该在（组、组标题、段标题全部退场）
     expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(0)
     expect(wrapper.findAll('.menu-group-title')).toHaveLength(0)
-    expect(wrapper.text()).not.toContain('租户日常')
+    expect(wrapper.text()).not.toContain('客户日常')
   })
 
   it('Spec-H H-2：没有命中要明说「没有这一项」，不许留一片空白', async () => {
@@ -673,7 +673,7 @@ describe('WorkspaceView 侧边菜单', () => {
     await flushPromises()
     const text = wrapper.text()
     // 平台模式：只显示平台段
-    expect(text).not.toContain('租户日常')
+    expect(text).not.toContain('客户日常')
     expect(text).toContain('平台管理')
     // 不显示固定项
     expect(text).not.toContain('工作台')
@@ -711,7 +711,7 @@ describe('WorkspaceView 侧边菜单', () => {
     await flushPromises()
     const text = wrapper.text()
     // 租户模式：只显示租户段（段标题「租户日常」已删），平台段整块退场
-    expect(text).not.toContain('租户日常')
+    expect(text).not.toContain('客户日常')
     expect(text).not.toContain('平台管理')
     // 固定项也显示
     expect(text).toContain('工作台')

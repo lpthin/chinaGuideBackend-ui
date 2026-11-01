@@ -26,9 +26,9 @@
     <!-- Q2a：平台档不调任何租户效果口，整页引导 -->
     <div v-if="isPlatformMode" class="platform-guide">
       <div class="guide-icon"><GlobalOutlined /></div>
-      <h3>工作台是租户视角的效果首页</h3>
+      <h3>工作台是客户视角的效果首页</h3>
       <p>这里展示的是某一家站点的被 AI 引用、搜索引擎抓取、今日访问与 GEO/SEO 状态；平台档没有「这一家站」的口径。</p>
-      <p class="guide-hint">请在顶栏切换到一家租户后再看。</p>
+      <p class="guide-hint">请在顶栏切换到一家客户后再看。</p>
     </div>
 
     <template v-else>
@@ -113,7 +113,7 @@
               <div class="st-sub" v-else>还没发起过任何一轮引用探测</div>
             </template>
             <div v-else class="st-value">
-              <span class="st-plain">{{ citation.data.notice || '当前租户还没有可统计的站点' }}</span>
+              <span class="st-plain">{{ citation.data.notice || '当前客户还没有可统计的站点' }}</span>
             </div>
           </template>
         </div>

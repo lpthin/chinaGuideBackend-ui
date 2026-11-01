@@ -7,7 +7,7 @@
         <strong>老素材还有多少行没跟上</strong>，以及<strong>这次要不要搬一批</strong>。
         迁移只复制、不删本地文件——内容表里存的仍是原来的 <code>/uploads/...</code> 地址，
         所以「搬完了」不等于「磁盘上的可以清了」。
-        会改所有租户的 <code>media</code> 行，也只有超管能进，且没有自动跑的定时任务：一次点一批。
+        会改所有客户的 <code>media</code> 行，也只有超级管理员能进，且没有自动跑的定时任务：一次点一批。
       </template>
     </a-alert>
 
@@ -166,7 +166,7 @@
 
     <a-card size="small" title="搬一批过去" class="media-storage__card">
       <a-form layout="inline" class="media-storage__toolbar">
-        <a-form-item label="只搬这个租户">
+        <a-form-item label="只搬这个客户">
           <a-input v-model:value="tenantId" class="js-tenant" style="width: 140px" placeholder="留空 = 全平台" allow-clear />
         </a-form-item>
         <a-form-item label="这次最多处理">
@@ -392,7 +392,7 @@ const canRun = computed(() => migratable.value && tenantIdValid.value)
 
 const confirmTitle = computed(() =>
   parsedTenantId.value
-    ? `把租户 ${parsedTenantId.value} 的素材往 ${state.value?.activeStorage} 搬最多 ${limit.value} 行？`
+    ? `把客户 ${parsedTenantId.value} 的素材往 ${state.value?.activeStorage} 搬最多 ${limit.value} 行？`
     : `把全平台的素材往 ${state.value?.activeStorage} 搬最多 ${limit.value} 行？`)
 
 /** 后端回的是 LocalDateTime 的序列化值，这里只做「看得顺一点」，不做时区换算 */

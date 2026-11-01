@@ -581,7 +581,7 @@ const columns = [
   // 多选之后这一格必须摆在表上：筛「按模型类型筛」筛的是一个看不见的东西，等于让操作者猜
   { title: '模型类型', key: 'type', width: 130 },
   { title: '接口协议', key: 'apiProtocol', width: 130 },
-  { title: '单价（元/1k token）', key: 'pricePer1kTokens', width: 170 },
+  { title: '单价（元/1k Token）', key: 'pricePer1kTokens', width: 170 },
   { title: '限定用途', key: 'purposeScope', width: 170 },
   { title: '优先级', key: 'priority', width: 100, align: 'center' as const },
   { title: '状态', key: 'isActive', width: 100, align: 'center' as const },
@@ -771,9 +771,9 @@ async function toggleConfigStatus(config: ModelConfig) {
 function priceTooltip(record: ModelConfig) {
   const note = record.priceNote ? ` · 出处：${record.priceNote}` : ''
   if (record.pricePer1kTokens == null) {
-    return `未定价：这一台模型的外呼不算费用，账单里那一格留空（不是 0）。要开始计费就填每 1000 token 的单价，填 0 表示真免费。${note}`
+    return `未定价：这一台模型的外呼不算费用，账单里那一格留空（不是 0）。要开始计费就填每 1000 Token 的单价，填 0 表示真免费。${note}`
   }
-  return `每 1000 token ${record.pricePer1kTokens} 元${
+  return `每 1000 Token ${record.pricePer1kTokens} 元${
     record.pricePer1kTokens === 0 ? '（真免费）' : ''
   } · 改完直接点别处即保存；清空 = 回到未定价，那一笔的费用不再统计。${note}`
 }
@@ -786,7 +786,7 @@ async function savePrice(record: ModelConfig) {
     const stored = result.pricePer1kTokens ?? null
     record.pricePer1kTokens = stored
     priceSnapshot.set(record.id, stored)
-    message.success(stored == null ? '已清成未定价，这一台模型的费用不再统计' : `单价已设为每 1000 token ${stored} 元`)
+    message.success(stored == null ? '已清成未定价，这一台模型的费用不再统计' : `单价已设为每 1000 Token ${stored} 元`)
   } catch (error) {
     logError('ai/model-config-view', error)
     record.pricePer1kTokens = priceSnapshot.get(record.id) ?? null

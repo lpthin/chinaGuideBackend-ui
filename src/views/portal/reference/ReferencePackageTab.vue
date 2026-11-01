@@ -15,7 +15,7 @@
         <a-descriptions-item label="认出的家族">{{ packageFamilyText }}</a-descriptions-item>
         <a-descriptions-item label="清单里的路由">{{ pkg.routeCount }} 条</a-descriptions-item>
         <a-descriptions-item label="有版面的路由">{{ pkg.crawledCount }} 条</a-descriptions-item>
-        <a-descriptions-item label="站级 token" :span="2">
+        <a-descriptions-item label="站级 Token" :span="2">
           {{ siteTokenText }}
         </a-descriptions-item>
         <a-descriptions-item label="段级取值不一致">{{ variedTokenText }}</a-descriptions-item>

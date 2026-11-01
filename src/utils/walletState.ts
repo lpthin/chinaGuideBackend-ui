@@ -14,6 +14,6 @@ export function walletIsActive(info?: { walletState?: string } | null): boolean 
 /** 念给客户的解释。读不到（null）与「这家还没钱包」是两件事，不许混成一句 */
 export function walletEmptyReason(info?: { walletState?: string } | null): string {
   if (!info) return '没取到钱包信息，请刷新或重试'
-  if (info.walletState === WALLET_STATE_NONE) return '这家还没有钱包，充值后这里会显示余额'
+  if (info.walletState === WALLET_STATE_NONE) return '这一家还没有钱包，充值后这里会显示余额'
   return ''
 }

@@ -214,7 +214,7 @@
                     <a-button size="small" type="primary" :loading="applying === record.id">应用到页面</a-button>
                   </a-popconfirm>
                   <span class="portal-health-page__muted">
-                    这一步不烧 token，也确实会改到已发布页面对外那份 meta；写入前的值会留着，可撤销。
+                    这一步不烧 Token，也确实会改到已发布页面对外那份 meta；写入前的值会留着，可撤销。
                   </span>
                 </template>
                 <span v-else class="portal-health-page__muted">
@@ -251,7 +251,7 @@
         <a-descriptions bordered size="small" :column="1">
           <a-descriptions-item label="这条问题">{{ activeFinding?.message }}</a-descriptions-item>
           <a-descriptions-item label="预计消耗">
-            <span v-if="estimate">{{ estimate.estimatedTokens }} tokens（当前余额 {{ estimate.remainingTokens }}）</span>
+            <span v-if="estimate">{{ estimate.estimatedTokens }} Token（当前余额 {{ estimate.remainingTokens }}）</span>
             <span v-else>{{ PH_DASH }}</span>
           </a-descriptions-item>
           <a-descriptions-item label="产出形态">{{ outputShape }}</a-descriptions-item>

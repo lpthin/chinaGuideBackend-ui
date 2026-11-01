@@ -202,7 +202,7 @@ onMounted(async () => {
           v-else-if="!platforms.length"
           state="empty"
           title="一个可选平台都没有"
-          next="先在「大模型配置」里为本租户或平台启用一个聊天模型，再回来刷新这一屏"
+          next="先在「模型配置」里为这个客户或平台启用一个聊天模型，再回来刷新这一屏"
         />
         <a-checkbox-group v-else v-model:value="draft.platformIds" class="geo-step-platform__cards">
           <a-checkbox v-for="item in platforms" :key="item.id" :value="item.id" class="geo-step-platform__card">
@@ -245,7 +245,7 @@ onMounted(async () => {
             <span class="geo-step-platform__plan-name">{{ item.name }}</span>
             <span class="geo-step-platform__plan-meta">
               {{ item.questionCount }} 题 × {{ item.platformCount }} 平台 × {{ item.repeatTimes }} 次 ·
-              {{ item.confirmStateLabel }} · 预估提问 {{ item.costEstimateCalls }} 次 / {{ item.costEstimateTokens }} token（判定另算）
+              {{ item.confirmStateLabel }} · 预估提问 {{ item.costEstimateCalls }} 次 / {{ item.costEstimateTokens }} Token（判定另算）
             </span>
             <a-button size="small" type="link" @click="useCampaign(item)">用它</a-button>
             <a-button v-if="item.latestRun" size="small" type="link" @click="emit('view-report', item.latestRun.id)">

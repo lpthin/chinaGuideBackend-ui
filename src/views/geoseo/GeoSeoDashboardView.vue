@@ -130,8 +130,8 @@ const loadData = async () => {
   try {
     dashboardData.value = await geoDashboardApi.get()
   } catch (error) {
-    message.error('加载GEO仪表盘数据失败')
-    loadError.value = (error as Error).message || '加载GEO仪表盘数据失败'
+    message.error('加载 GEO 总览数据失败')
+    loadError.value = (error as Error).message || '加载 GEO 总览数据失败'
     logError('geoseo-dashboard-load', error)
   } finally {
     loading.value = false

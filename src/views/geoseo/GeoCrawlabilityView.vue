@@ -23,7 +23,7 @@
       <template v-else>
         <div v-if="snapshot && !snapshot.neverRun" class="audit-headline">{{ headline(snapshot) }}</div>
         <div v-if="!canRun" class="audit-permission-note">
-          这一页只给读。「跑一次」挂的是平台侧那一码，租户点不到——留痕要能当证据用，
+          这一页只给读。「跑一次」挂的是平台侧那一码，客户点不到——留痕要能当证据用，
           就不能由被体检的一方随时重跑。
         </div>
 

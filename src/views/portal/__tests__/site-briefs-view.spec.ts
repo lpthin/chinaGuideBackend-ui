@@ -232,7 +232,7 @@ describe('列表行只报接口给的东西', () => {
 
   it('租户列表查不到这个 id：报「租户 #n」而不是消失', async () => {
     const wrapper = await mountView({ briefs: [brief({ tenantId: 99 })] })
-    expect(wrapper.text()).toContain('租户 #99')
+    expect(wrapper.text()).toContain('客户 #99')
     wrapper.unmount()
   })
 })

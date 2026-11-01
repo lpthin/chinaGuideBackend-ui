@@ -1105,7 +1105,7 @@ describe('成本闸的拒绝理由要念给看预估的那个人', () => {
     await buttons(wrapper, '先估算消耗')[0].trigger('click')
     await flushPromises()
 
-    expect(alerts(wrapper, 'info').join(' ')).toContain('预计 12000 token')
+    expect(alerts(wrapper, 'info').join(' ')).toContain('预计 12000 Token')
     expect(alerts(wrapper, 'warning').join(' ')).not.toContain('超过了单任务上限')
   })
 

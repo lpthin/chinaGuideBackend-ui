@@ -79,11 +79,11 @@
         <a-form-item label="版本" required>
           <a-input v-model:value="form.version" placeholder="例如 v1" />
         </a-form-item>
-        <a-form-item label="Prompt内容" required>
+        <a-form-item label="提示词内容" required>
           <a-textarea
             v-model:value="form.templateText"
             :rows="12"
-            placeholder="请输入Prompt内容，可使用{{变量}}占位符"
+            placeholder="请输入提示词内容，可使用{{变量}}占位符"
           />
         </a-form-item>
         <a-form-item label="启用状态">

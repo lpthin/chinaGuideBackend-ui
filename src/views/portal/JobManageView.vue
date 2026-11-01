@@ -1,6 +1,6 @@
 <template>
   <div class="job-manage-page">
-    <PageTitle description="管理门户网站的招聘职位和简历投递" />
+    <PageTitle description="管理门户站点的招聘职位和简历投递" />
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">

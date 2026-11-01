@@ -3,7 +3,7 @@
     <PageTitle />
     <a-alert type="info" show-icon class="scope-note">
       <template #message>
-        这一页只做一件事：把「租户开通」到「访客能在门户上读到内容、爬虫能抓到」之间还缺的步骤摊开。
+        这一页只做一件事：把「客户开通」到「访客能在门户上读到内容、爬虫能抓到」之间还缺的步骤摊开。
         数字全部来自接口真实返回，取不到就显示「未取到」而不是 0；
         <b>发布仍然要在文章里走审核 → 发布</b>，这里不代替那一步。
       </template>
@@ -11,7 +11,7 @@
 
     <a-form layout="inline" class="filter-bar">
       <a-form-item v-if="missingTenant" class="toolbar-fill">
-        <a-tag color="orange">超管请先在右上角选择租户：本页没有跨租户的全局视图</a-tag>
+        <a-tag color="orange">超级管理员请先在右上角选择客户：本页没有跨客户的全局视图</a-tag>
       </a-form-item>
       <a-form-item v-else class="toolbar-fill" />
       <a-form-item class="toolbar-actions">
@@ -29,7 +29,7 @@
           <a-descriptions-item label="访问域名">{{ siteField(site?.domain, '未绑定') }}</a-descriptions-item>
         </a-descriptions>
         <p class="hint">
-          域名由平台管理员在「平台管理 → 站点与租户 → 站点清单」绑定。没绑域名时门户仍然可以按站点编码预览，
+          域名由平台管理员在「平台管理 → 站点与客户 → 站点清单」绑定。没绑域名时门户仍然可以按站点编码预览，
           但 <b>sitemap.xml 不会输出任何 URL</b>（绝对地址只能来自已配置域名，系统不会拿访问者的请求域名凑一个）。
         </p>
         <p v-if="errors.site" class="error-line">{{ errors.site }}</p>
@@ -64,7 +64,7 @@
             <a-descriptions-item label="分类">{{ demo.demo.categories }}</a-descriptions-item>
             <a-descriptions-item label="文章">{{ demo.demo.articles }}</a-descriptions-item>
             <a-descriptions-item label="案例">{{ demo.demo.cases }}</a-descriptions-item>
-            <a-descriptions-item label="首页 Banner">{{ demo.demo.banners }}</a-descriptions-item>
+            <a-descriptions-item label="首页横幅">{{ demo.demo.banners }}</a-descriptions-item>
             <a-descriptions-item label="岗位">{{ demo.demo.jobs }}</a-descriptions-item>
             <a-descriptions-item label="标记">is_demo = 1</a-descriptions-item>
           </a-descriptions>
@@ -87,7 +87,7 @@
           </a-space>
           <a-alert v-if="actionResult" type="success" show-icon class="result" :message="actionResult" />
           <p class="hint">
-            两种模式都只碰演示行，租户已有的真实内容不会被覆盖；标识撞车时该行会被跳过，
+            两种模式都只碰演示行，客户已有的真实内容不会被覆盖；标识撞车时该行会被跳过，
             并在返回的 conflicts 里说明。转正式内容<b>只去掉 is_demo 标记</b>，文章状态仍是原状态，
             要访客可见还得走审核 → 发布。
           </p>
@@ -96,7 +96,7 @@
           </ul>
         </template>
         <p v-else class="hint">
-          演示内容包由平台管理员在开通租户时生成（超管功能）。需要一套演示门户，请联系平台管理员。
+          演示内容包由平台管理员在开通客户时生成（超级管理员功能）。需要一套演示门户，请联系平台管理员。
         </p>
         <p v-if="errors.demo" class="error-line">{{ errors.demo }}</p>
       </a-card>
@@ -195,7 +195,7 @@ const DEMO_TYPE_LABELS: Record<string, string> = {
   categories: '分类',
   articles: '文章',
   cases: '案例',
-  banners: '首页 Banner',
+  banners: '首页横幅',
   jobs: '岗位',
 }
 
@@ -233,13 +233,13 @@ const missingTenant = computed(() => authStore.isSuperAdmin && authStore.selecte
 const siteText = computed(() => {
   if (missingTenant.value) {
     // 还没选租户，这一格根本没去问过——写「该租户还没有站点」就是凭空报一个缺
-    return '未选租户，未取数'
+    return '未选客户，未取数'
   }
   if (siteIssue.value === 'denied') {
     return '没有站点信息的查看权限，这一项请平台侧确认'
   }
   if (!site.value) {
-    return siteIssue.value ? '未取到' : '该租户还没有站点'
+    return siteIssue.value ? '未取到' : '该客户还没有站点'
   }
   return `${site.value.name}${site.value.id ? `（ID ${site.value.id}）` : ''}`
 })
@@ -301,7 +301,7 @@ const hasDemoContent = computed(() => {
 
 const demoState = computed<StateTag>(() => {
   if (!authStore.isSuperAdmin) {
-    return { color: 'default', text: '超管功能' }
+    return { color: 'default', text: '超级管理员功能' }
   }
   if (errors.value.demo) {
     return { color: 'red', text: '读取失败' }
@@ -472,7 +472,7 @@ async function runPublishDemo(): Promise<void> {
 function requireSelectedTenantId(): number {
   const id = authStore.selectedTenantId
   if (id === null) {
-    throw new Error('请先在右上角选择租户')
+    throw new Error('请先在右上角选择客户')
   }
   return id
 }

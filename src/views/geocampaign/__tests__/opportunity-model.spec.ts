@@ -193,7 +193,7 @@ describe('预估那几行只做显示不做算术', () => {
   it('四个数原样念出来，「这笔钱走哪条账」用的就是接口那句 accounting', () => {
     const lines = estimateLines(estimate())
     expect(lines.map((line) => line.label)).toEqual(
-      ['模型调用', '预计 token', '这笔钱走哪条账', '账记在谁身上'],
+      ['模型调用', '预计 Token', '这笔钱走哪条账', '账记在谁身上'],
     )
     expect(lines[1].value).toBe('2400')
     expect(lines[2].value).toBe('页面改版草稿那条账（AI_PORTAL_REVISION）')
@@ -209,10 +209,10 @@ describe('预估那几行只做显示不做算术', () => {
     // 同一屏上换动作就是换池子。界面写死一个池名（或者干脆不写）都会讲错：
     // 加问答的钱在 GEO 专用池，新建页 / 写文章 / 加案例在通用池
     expect(billingLine(estimate({ quotaPoolLabel: 'GEO 诊断专用额度池' }))).toBe(
-      '计入本租户的「GEO 诊断专用额度池」，该池本月剩余 88000 token。',
+      '计入这个客户的「GEO 诊断专用额度池」，该池本月剩余 88000 Token。',
     )
     expect(billingLine(estimate({ quotaPoolLabel: '通用 AI 额度池' }))).toBe(
-      '计入本租户的「通用 AI 额度池」，该池本月剩余 88000 token。',
+      '计入这个客户的「通用 AI 额度池」，该池本月剩余 88000 Token。',
     )
     expect(billingLine(estimate({ tenantBearsCost: false }))).toContain('通用 AI 额度池')
   })
@@ -224,11 +224,11 @@ describe('预估那几行只做显示不做算术', () => {
    */
   it('GEO 那一池没设水位（N2）：念「不限制」，四个动作里走 GEO 池的那一个不许念成剩 0', () => {
     expect(billingLine(estimate({ quotaPoolLabel: 'GEO 诊断专用额度池', remainingTokens: null }))).toBe(
-      '计入本租户的「GEO 诊断专用额度池」，该池未设月度上限，不限制。',
+      '计入这个客户的「GEO 诊断专用额度池」，该池未设月度上限，不限制。',
     )
     // 平台承担那一支同样不能把 null 抄成一个数：没有数的时候连「账上的数」那句都不成立
     expect(billingLine(estimate({ tenantBearsCost: false, quotaPoolLabel: 'GEO 诊断专用额度池', remainingTokens: null }))).toBe(
-      '由平台承担，不计入本租户额度（本租户的「GEO 诊断专用额度池」未设月度上限，这一发也不走它）。',
+      '由平台承担，不计入这个客户额度（这个客户的「GEO 诊断专用额度池」未设月度上限，这一发也不走它）。',
     )
   })
 
@@ -237,7 +237,7 @@ describe('预估那几行只做显示不做算术', () => {
   })
 
   it('真剩 0 照念 0：那是「这个月花光了」，与「没设上限」是两件事', () => {
-    expect(billingLine(estimate({ remainingTokens: 0 }))).toContain('该池本月剩余 0 token')
+    expect(billingLine(estimate({ remainingTokens: 0 }))).toContain('该池本月剩余 0 Token')
   })
 })
 

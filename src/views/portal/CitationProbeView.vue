@@ -132,8 +132,8 @@
       <template v-if="runTarget">
         <a-descriptions :column="1" size="small" bordered>
           <a-descriptions-item label="外呼次数">{{ runTarget.callCount ?? PH_DASH }} 次（模型数 × 题数）</a-descriptions-item>
-          <a-descriptions-item label="预估 token">{{ runTarget.estimatedTokens ?? PH_DASH }}</a-descriptions-item>
-          <a-descriptions-item label="本租户剩余">{{ runTarget.remainingTokens ?? PH_DASH }}</a-descriptions-item>
+          <a-descriptions-item label="预估 Token">{{ runTarget.estimatedTokens ?? PH_DASH }}</a-descriptions-item>
+          <a-descriptions-item label="这个客户的剩余">{{ runTarget.remainingTokens ?? PH_DASH }}</a-descriptions-item>
         </a-descriptions>
         <!-- 这串数是字数除以 4 的下界，不是账单：这一句单独摆，不塞进下面那条 notice（那条 = 不受理） -->
         <TokenBasisNote :text="runTarget.tokenBasis" />
@@ -145,7 +145,7 @@
           :message="runTarget.notice"
         />
         <a-checkbox v-model:checked="runConfirmed" style="margin-top: 12px">
-          我已看过上面的预估，这一轮会真调用模型并扣租户配额
+          我已看过上面的预估，这一轮会真调用模型并扣客户配额
         </a-checkbox>
         <div class="citation-page__muted">
           不勾也能点确认——后端会以 CITATION_CONFIRM_REQUIRED 打回，这里只是让界面少一次白跑。
@@ -192,7 +192,7 @@
                     <div v-if="record.errorMessage" class="citation-page__muted">{{ record.errorMessage }}</div>
                   </template>
                   <template v-else-if="column.key === 'cost'">
-                    <div>{{ (record.promptTokens ?? 0) + (record.completionTokens ?? 0) }} token</div>
+                    <div>{{ (record.promptTokens ?? 0) + (record.completionTokens ?? 0) }} Token</div>
                     <div class="citation-page__muted">{{ record.callDurationMs ?? PH_DASH }} ms</div>
                   </template>
                 </template>
@@ -259,7 +259,7 @@
           <template v-if="column.key === 'text'">
             <div>{{ record.questionText }}</div>
             <div class="citation-page__muted">
-              {{ record.tenantId ? `租户 ${record.tenantId} 专用` : '平台通用题' }} · {{ record.source || 'seed' }}
+              {{ record.tenantId ? `客户 ${record.tenantId} 专用` : '平台通用题' }} · {{ record.source || 'seed' }}
             </div>
           </template>
           <template v-else-if="column.key === 'enabled'">
@@ -355,7 +355,7 @@ const columns = [
   { title: '状态', key: 'status', width: 190 },
   { title: '这一轮问什么', key: 'scope', width: 190 },
   { title: '被引用 / 判定对象', key: 'cited', width: 170 },
-  { title: 'token', key: 'tokens', width: 140 },
+  { title: 'Token', key: 'tokens', width: 140 },
   { title: '创建 / 完成', key: 'time', width: 180 },
   { title: '操作', key: 'op', width: 250, fixed: 'left' }
 ]

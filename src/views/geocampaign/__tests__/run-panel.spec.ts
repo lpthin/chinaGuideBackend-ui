@@ -10,7 +10,7 @@ import type { GeoEstimate, GeoRun } from '../../../api/geoCampaign'
  *
  * §10-3 那三句判据在这里逐句钉：
  * 1. 「六行：提问两行 + 判定两行 + 合计 + 耗时」——数字只转述接口，前端不做乘法，
- *    也不把两段合成一行的「预计 token」（那是 §11.4 反对的形状）；
+ *    也不把两段合成一行的「预计 Token」（那是 §11.4 反对的形状）；
  * 2. 「`estimate.notice` 存在时主按钮禁用并把理由念出来」——理由必须**原样**出现，
  *    不改写成「参数错误」，也不因为摆了 notice 就顺手摆一个能点的确认框；
  * 3. 「勾选确认才能跑」——`api.run` 只可能在勾选之后被调起来，且带的是 true；
@@ -216,16 +216,16 @@ describe('先看价，再点头（§10-3 六行 + 两段式）', () => {
     expect(rows.map((row: any) => row.text()).join('\n')).toContain('31 次')
     expect(rows[0].text()).toContain('5 题 × 2 个平台 × 每题重复 3 次')
     expect(rows[1].text()).toContain('42000')
-    // 判定那一段单独两行：合起来写「预计 token 60000」就等于把第二次花钱藏进第一次的账里
+    // 判定那一段单独两行：合起来写「预计 Token 60000」就等于把第二次花钱藏进第一次的账里
     expect(rows[2].text()).toContain('判定 · 调用次数')
     expect(rows[2].text()).toContain('30 次')
     expect(rows[3].text()).toContain('18000')
-    expect(rows[4].text()).toContain('60 次 / 60000 token')
+    expect(rows[4].text()).toContain('60 次 / 60000 Token')
     // 合计那句必须同时说清「这一发只花提问那一段」，否则六行读起来像一次付款
     expect(rows[4].text()).toContain('只花提问那一段')
     expect(rows[5].text()).toContain('约 6 分钟')
     // 计费方向跟着 tenantBearsCost 走（true = 扣额度并报名剩余），G4 之后还要报得出是哪一池
-    expect(wrapper.find('.geo-run-panel__billing').text()).toContain('计入本租户的「GEO 诊断专用额度池」')
+    expect(wrapper.find('.geo-run-panel__billing').text()).toContain('计入这个客户的「GEO 诊断专用额度池」')
     expect(wrapper.find('.geo-run-panel__billing').text()).toContain('900000')
   })
 
@@ -417,8 +417,8 @@ describe('轮次那一排：状态中文只来自词表', () => {
     expect(tags[1].text()).toBe('判定中')
     // 两段的账各念各的，不合成一个「本轮 token」
     const meta = wrapper.find('.geo-run-panel__run-meta').text()
-    expect(meta).toContain('2000 + 800 token')
-    expect(meta).toContain('判定 12 条 3400 token')
+    expect(meta).toContain('2000 + 800 Token')
+    expect(meta).toContain('判定 12 条 3400 Token')
   })
 
   it('判定停着不动与判定失败各念各的：一个补一句出路，一个念后端那句原因（#108）', async () => {

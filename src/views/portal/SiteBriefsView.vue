@@ -64,8 +64,8 @@ const statusFilterOptions = computed(() =>
 )
 
 function tenantLabel(brief: SiteBrief): string {
-  if (!brief.tenantId) return '未绑定租户'
-  return tenantNames.value[brief.tenantId] || `租户 #${brief.tenantId}`
+  if (!brief.tenantId) return '未绑定客户'
+  return tenantNames.value[brief.tenantId] || `客户 #${brief.tenantId}`
 }
 
 function demoModeLabel(value: string | null | undefined): string {
@@ -151,7 +151,7 @@ function editBrief(brief: SiteBrief) {
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
-  { title: '租户', key: 'tenant', width: 180 },
+  { title: '客户', key: 'tenant', width: 180 },
   { title: '状态', key: 'status', width: 140 },
   { title: '候选套数', dataIndex: 'candidateCount', key: 'candidateCount', width: 100 },
   { title: '演示内容', key: 'demoMode', width: 140 },
@@ -178,20 +178,20 @@ onMounted(() => {
   <div class="site-briefs">
     <PageTitle>
       <div class="site-briefs__intro">
-        <p>超管录一份 13 题的前采需求单（以勾选为主），AI 按这份需求出 1~3 套候选站给客户选。</p>
+        <p>超级管理员录一份 13 题的前采需求单（以勾选为主），AI 按这份需求出 1~3 套候选站给客户选。</p>
         <p>
-          这一页现在住在「新建网站」向导的第一步里：要走完整条链（说明书 → 出方案 → 候选 → 转正）从那里进，
+          这一页现在住在「新建站点」向导的第一步里：要走完整条链（说明书 → 出方案 → 候选 → 转正）从那里进，
           在这里只列单、不改状态。
         </p>
       </div>
     </PageTitle>
 
     <a-form layout="inline" class="site-briefs__toolbar">
-      <a-form-item label="租户">
+      <a-form-item label="客户">
         <a-select
           :value="filterTenantId"
           :options="tenantFilterOptions"
-          :placeholder="tenantsFailed ? '租户没取到，刷新重试' : '全部租户'"
+          :placeholder="tenantsFailed ? '客户没取到，刷新重试' : '全部客户'"
           allow-clear
           show-search
           option-filter-prop="label"

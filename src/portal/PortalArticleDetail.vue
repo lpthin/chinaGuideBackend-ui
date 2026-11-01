@@ -3,7 +3,7 @@
     <div v-if="loading" class="portal-article__state">内容加载中…</div>
     <div v-else-if="errorMessage" class="portal-article__state">
       <h1>{{ errorMessage }}</h1>
-      <router-link to="/">返回网站首页</router-link>
+      <router-link to="/">返回站点首页</router-link>
     </div>
     <article v-else-if="article" class="portal-article">
       <header class="portal-article__header">

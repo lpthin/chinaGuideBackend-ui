@@ -245,8 +245,8 @@ describe('计数与头部：四档各报各的，不合并', () => {
   })
 
   it('超管没选定租户那一态说清「读不出」与出路，不把它写成一次读取失败', () => {
-    expect(NO_TENANT_TITLE).toContain('按租户留痕')
-    expect(NO_TENANT_NEXT).toContain('选定一个租户')
+    expect(NO_TENANT_TITLE).toContain('按客户留痕')
+    expect(NO_TENANT_NEXT).toContain('选定一个客户')
     // 「不读也不跑」要说出口：这一态下按钮也是压住的，别让人以为按了会跑
     expect(NO_TENANT_NEXT).toContain('既不读也不跑')
   })

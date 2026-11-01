@@ -322,7 +322,7 @@ describe('建站任务总览（批 D 只读页）', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('这一单已受理、还没有一套开始跑')
-    expect(wrapper.text()).toContain('这一单没有归属租户')
+    expect(wrapper.text()).toContain('这一单没有归属客户')
     expect(wrapper.text()).not.toContain('未知租户')
   })
 
@@ -345,7 +345,7 @@ describe('建站任务总览（批 D 只读页）', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('这一单已经没有在跑的那一步了，所以不念已跑多久')
-    expect(wrapper.text()).toContain('63226 token（这一轮的候选行实报合计）')
+    expect(wrapper.text()).toContain('63226 Token（这一轮的候选行实报合计）')
     expect(wrapper.text()).toContain('约 15 分 0 秒')
   })
 
@@ -404,7 +404,7 @@ describe('建站任务总览（批 D 只读页）', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('今天没有任何一单处在「方案生成中」')
-    expect(wrapper.text()).toContain('一家租户同时只许一单')
+    expect(wrapper.text()).toContain('一家客户同时只许一单')
   })
 
   /**

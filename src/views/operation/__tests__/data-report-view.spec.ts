@@ -348,7 +348,7 @@ describe('谁的租户：普通管理员不许整屏空', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.find('.alert-msg').text()).toContain('还没选租户')
+    expect(wrapper.find('.alert-msg').text()).toContain('还没选客户')
     expect(vi.mocked(operationApi.getStats)).not.toHaveBeenCalled()
     expect(message.error).not.toHaveBeenCalled()
   })

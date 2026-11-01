@@ -308,13 +308,13 @@ describe('那两张钱卡读的是库里真有的列', () => {
     expect(wrapper.text()).not.toContain('信用额度')
   })
 
-  it('这家还没有钱包（后端回 walletState=NONE）：两张卡摆 —，那句说的是「还没有」', async () => {
+  it('这一家还没有钱包（后端回 walletState=NONE）：两张卡摆 —，那句说的是「还没有」', async () => {
     const wrapper = await mountView({
       wallet: walletRead({ walletState: 'NONE', balance: null, availableBalance: null, frozenBalance: null })
     })
     expect(stats(wrapper)[0]).toBe('—')
     expect(stats(wrapper)[3]).toBe('—')
-    expect(notice(wrapper)).toContain('这家还没有钱包')
+    expect(notice(wrapper)).toContain('这一家还没有钱包')
     expect(notice(wrapper)).not.toContain('没读到')
   })
 

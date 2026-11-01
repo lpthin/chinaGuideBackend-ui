@@ -18,7 +18,7 @@
         <a-select v-model:value="topSize" style="width: 110px" :options="TOP_OPTIONS" />
       </a-form-item>
       <a-form-item v-if="missingTenant" class="toolbar-fill">
-        <a-tag color="orange">超管请先在右上角选择租户：统计没有跨租户的全局视图</a-tag>
+        <a-tag color="orange">超级管理员请先在右上角选择客户：统计没有跨客户的全局视图</a-tag>
       </a-form-item>
       <a-form-item v-else class="toolbar-fill" />
       <a-form-item class="toolbar-actions">

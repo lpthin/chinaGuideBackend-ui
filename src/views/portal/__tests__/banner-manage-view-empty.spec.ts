@@ -200,7 +200,7 @@ describe('BannerManageView 的空态与统计数', () => {
 
   it('「真的没有」才在空态里摆新建入口：读不到与翻过头都不摆', async () => {
     const none = await mountView({ first: page([], { emptyReason: 'NONE', emptyLine: BANNER_LINES[0][1] }) })
-    expect(none.find('.create-on-empty').text()).toBe('新建 Banner')
+    expect(none.find('.create-on-empty').text()).toBe('新建横幅')
     none.unmount()
     document.body.innerHTML = ''
 

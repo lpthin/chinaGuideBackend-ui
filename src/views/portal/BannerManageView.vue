@@ -13,7 +13,7 @@
                 </div>
                 <div class="stat-info">
                   <div class="stat-value">{{ statText(stats.totalBanners) }}</div>
-                  <div class="stat-title">Banner 总数</div>
+                  <div class="stat-title">横幅总数</div>
                 </div>
               </div>
             </a-card>
@@ -63,7 +63,7 @@
               <a-space>
                 <a-button type="primary" @click="openCreate">
                   <template #icon><PlusOutlined /></template>
-                  新建 Banner
+                  新建横幅
                 </a-button>
               </a-space>
             </template>
@@ -109,7 +109,7 @@
                   <a-button v-if="record.status !== 'ENABLED'" type="link" size="small" @click="toggleStatus(record, true)">上架</a-button>
                   <a-button v-else type="link" size="small" @click="toggleStatus(record, false)">下架</a-button>
                   <a-popconfirm
-                    title="确定要删除这个 Banner 吗？"
+                    title="确定要删除这个横幅吗？"
                     @confirm="handleDelete(record.id)"
                   >
                     <a-button type="link" size="small" danger>删除</a-button>
@@ -125,7 +125,7 @@
                 :empty-line="emptyLine"
                 :empty-reason="emptyReason"
                 :can-create="true"
-                create-label="新建 Banner"
+                create-label="新建横幅"
                 @create="openCreate"
               />
             </template>
@@ -148,10 +148,10 @@
       </a-spin>
     </div>
 
-    <a-modal v-model:open="previewVisible" title="预览 Banner" width="800px" :footer="null">
+    <a-modal v-model:open="previewVisible" title="预览横幅" width="800px" :footer="null">
       <div v-if="previewBanner" class="banner-preview">
         <img v-if="previewBanner.imageUrl" :src="previewBanner.imageUrl" style="width: 100%" />
-        <p v-else class="banner-missing">这条 Banner 还没有配图，门户上不会显示出来。</p>
+        <p v-else class="banner-missing">这条横幅还没有配图，门户上不会显示出来。</p>
         <div style="margin-top: 16px">
           <h3>{{ previewBanner.title }}</h3>
           <p v-if="previewBanner.subtitle">{{ previewBanner.subtitle }}</p>
@@ -164,7 +164,7 @@
 
     <a-modal
       v-model:open="formVisible"
-      :title="editingId ? '编辑 Banner' : '新建 Banner'"
+      :title="editingId ? '编辑横幅' : '新建横幅'"
       width="640px"
       :confirm-loading="saving"
       @ok="handleSave"
@@ -180,7 +180,7 @@
           <MediaImagePicker v-model="form.imageUrl" placeholder="从素材库挑一张，或粘贴已有图片地址" />
         </a-form-item>
         <a-form-item label="跳转链接">
-          <a-input v-model:value="form.linkUrl" placeholder="留空表示这张 Banner 不跳转" />
+          <a-input v-model:value="form.linkUrl" placeholder="留空表示这一张横幅不跳转" />
         </a-form-item>
         <a-row :gutter="16">
           <a-col :span="12">
@@ -323,7 +323,7 @@ async function handleSave() {
     return
   }
   if (!form.imageUrl?.trim()) {
-    message.warning('Banner 必须有图片，否则门户上是一片空白')
+    message.warning('横幅必须有图片，否则门户上是一片空白')
     return
   }
   saving.value = true
@@ -331,10 +331,10 @@ async function handleSave() {
     const payload: BannerForm = { ...form, linkType: form.linkUrl?.trim() ? 'URL' : 'NONE' }
     if (editingId.value) {
       await bannerApi.update(editingId.value, payload)
-      message.success('Banner 已更新')
+      message.success('横幅已更新')
     } else {
       await bannerApi.create(payload)
-      message.success('Banner 已保存，点「上架」后门户才会展示')
+      message.success('横幅已保存，点「上架」后门户才会展示')
     }
     formVisible.value = false
     await loadData()
@@ -394,7 +394,7 @@ async function loadData() {
     bannerList.value = []
     pagination.total = 0
     readFailed.value = describeHttpError(error)
-    message.error(`加载 Banner 列表失败：${readFailed.value}`)
+    message.error(`加载横幅列表失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }

@@ -8,7 +8,7 @@ import { useAuthStore } from '../../../stores/auth'
 import type { ModelConfig } from '../../../types/ai-model'
 
 /**
- * M-P102（2026-11-01 拍板）：「大模型配置」「向量化配置」并成平台自己那一套，取消客户维度。
+ * M-P102（2026-11-01 拍板）：「模型配置」「向量化配置」并成平台自己那一套，取消客户维度。
  *
  * 改前现场取证（scratch/mp102-logs/11-ui-before.txt U2）：这两屏的取数都带 `tenantId`，
  * 而请求里的数来自 `selectedTenantId || tenantId || 1`——超管切进别家客户，这两屏立刻变空，
@@ -146,7 +146,7 @@ beforeEach(() => {
   setApiSuccess()
 })
 
-describe('大模型配置屏 · 平台一套，没有「哪一家客户」', () => {
+describe('模型配置屏 · 平台一套，没有「哪一家客户」', () => {
   it('进页那一发 list 不带 tenantId，且只有这一发', async () => {
     await mount(ModelConfigView, mountOptions())
     await flushPromises()

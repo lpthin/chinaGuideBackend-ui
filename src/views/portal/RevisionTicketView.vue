@@ -144,7 +144,7 @@
             type="info"
             show-icon
             style="margin-top: 8px"
-            :message="`预计 ${estimate.estimatedTokens} token，${costOwner}`"
+            :message="`预计 ${estimate.estimatedTokens} Token，${costOwner}`"
             :description="estimate.notice || (estimate.aiEnabled ? null : 'AI 起草当前未开启，确认也不会调用模型')"
           />
           <!-- 这一个数怎么量出来的（后端 TokenYardstick 一处给）：字数尺的下界，不是账单 -->
@@ -237,13 +237,13 @@
       @ok="runDraft"
     >
       <p v-if="estimate">
-        预计消耗 <b>{{ estimate.estimatedTokens }}</b> token，{{ costOwner }}。
+        预计消耗 <b>{{ estimate.estimatedTokens }}</b> Token，{{ costOwner }}。
       </p>
       <!-- 点头之前要说清这一个数是怎么来的：它是字数尺的下界，真扣比它多 -->
       <TokenBasisNote v-if="estimate" :text="estimate.tokenBasis" />
       <p v-else class="revision-ticket-page__error">还没有取到预估，请先点「先估算消耗」。</p>
       <p class="revision-ticket-page__muted">
-        产出的是草稿，要点「应用到页面」才会对访客生效；被门禁拦下的草稿只留档、不能应用，但 token 已经花掉了。
+        产出的是草稿，要点「应用到页面」才会对访客生效；被门禁拦下的草稿只留档、不能应用，但 Token 已经花掉了。
       </p>
       <a-checkbox v-model:checked="confirmChecked">我已看过预估，确认这次调用{{ costOwner }}</a-checkbox>
     </a-modal>
@@ -321,7 +321,7 @@ const columns = [
   { title: '客户原话', key: 'clientText', width: 280 },
   { title: '视口', key: 'viewport', width: 80 },
   { title: '状态', key: 'status', width: 120 },
-  { title: '预估/实际 token', key: 'tokens', width: 150 },
+  { title: '预估/实际 Token', key: 'tokens', width: 150 },
   { title: '提交时间', key: 'createdAt', width: 170 },
   { title: '操作', key: 'op', width: 90, fixed: 'right' as const }
 ]
@@ -352,8 +352,8 @@ const confirmChecked = ref(false)
  * 客户在 demo 预览里提的工单发生在转正之前，由平台承担；没出价时不猜，按「算他的」这句更保守的话说。
  */
 const costOwner = computed(() => {
-  if (!estimate.value) return '扣租户配额（以预估为准）'
-  return estimate.value.tenantBearsCost === false ? '由平台承担、不进该租户的账单' : '扣该租户的配额'
+  if (!estimate.value) return '扣客户配额（以预估为准）'
+  return estimate.value.tenantBearsCost === false ? '由平台承担、不进该客户的账单' : '扣该客户的配额'
 })
 
 // ---------------- 预览链接 ----------------
@@ -474,7 +474,7 @@ async function runEstimate() {
 function openDraftModal() {
   if (!estimate.value) {
     // 决策 D4 的界面落点：没有预估就不给确认框，避免运营闭着眼睛点掉一次付费调用
-    message.warning('请先点「先估算消耗」，看过预估 token 再起草')
+    message.warning('请先点「先估算消耗」，看过预估 Token 再起草')
     return
   }
   confirmChecked.value = false

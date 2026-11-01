@@ -240,8 +240,8 @@ describe('CaseManageView 的 AI 起草', () => {
 
     expect(customerCaseApi.estimateAiDraft).toHaveBeenCalledWith(65)
     expect(customerCaseApi.aiDraft).not.toHaveBeenCalled()
-    expect(modal.text()).toContain('预计 3900 token')
-    expect(modal.text()).toContain('剩余配额 20000 token')
+    expect(modal.text()).toContain('预计 3900 Token')
+    expect(modal.text()).toContain('剩余配额 20000 Token')
   })
 
   it('没勾确认时确定按钮是禁用的', async () => {
@@ -279,7 +279,7 @@ describe('CaseManageView 的 AI 起草', () => {
     await flushPromises()
 
     expect(customerCaseApi.aiDraft).toHaveBeenCalledWith(65, true, '把复查那一段写细一点')
-    expect(message.success).toHaveBeenCalledWith(expect.stringContaining('本次扣 1800 token'))
+    expect(message.success).toHaveBeenCalledWith(expect.stringContaining('本次扣 1800 Token'))
     expect(message.success).toHaveBeenCalledWith(expect.stringContaining('#501'))
     // 写库之后以服务端为准：列表与统计都要重读一遍，界面不自己拼那一行
     expect(customerCaseApi.list).toHaveBeenCalledTimes(2)

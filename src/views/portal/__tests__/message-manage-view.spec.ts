@@ -284,7 +284,7 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
   it('后端说「请先选择租户」：卡片露「—」并把去哪儿选写在明处', async () => {
     vi.mocked(portalMessageApi.stats).mockRejectedValue(new Error('请先选择租户'))
     const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'])
-    expect(alertTexts().join(' ')).toContain('请先在右上角切到「租户」')
+    expect(alertTexts().join(' ')).toContain('请先在右上角切到「客户」')
     expect(statValues()).toEqual(['—', '—', '—'])
     expect(document.body.textContent).not.toContain('统计数据读取失败')
     // 平台档这一枪根本不该发出去（必败的请求每次都在控制台留一条 error）
@@ -373,7 +373,7 @@ describe('删除入口：自己那一格本人删，别人那一格要这一家�
     // 后端 resolveTenantId 没租户就回 TENANT_REQUIRED（现场实测），发出去只换来一句红 toast
     expect(portalMessageApi.list).not.toHaveBeenCalled()
     expect(hasDeleteButton()).toBe(false)
-    expect(alertTexts().join(' ')).toContain('请在右上角切到「租户」')
+    expect(alertTexts().join(' ')).toContain('请在右上角切到「客户」')
     // 但「发送消息」不能跟着一起消失 —— 平台档的正活儿就是群发，那颗按钮在同一张卡的 #actions 里
     expect(buttonTexts().some(text => text.includes('发送消息'))).toBe(true)
     wrapper.unmount()
@@ -384,7 +384,7 @@ describe('删除入口：自己那一格本人删，别人那一格要这一家�
     // 后端 resolveTenantId 没租户就回 TENANT_REQUIRED（现场实测），发出去只换来一句红 toast
     expect(portalMessageApi.list).not.toHaveBeenCalled()
     expect(hasDeleteButton()).toBe(false)
-    expect(alertTexts().join(' ')).toContain('请在右上角切到「租户」')
+    expect(alertTexts().join(' ')).toContain('请在右上角切到「客户」')
     // 但「发送消息」不能跟着一起消失 —— 平台档的正活儿就是群发，那颗按钮在同一张卡的 #actions 里
     expect(buttonTexts().some(text => text.includes('发送消息'))).toBe(true)
     wrapper.unmount()

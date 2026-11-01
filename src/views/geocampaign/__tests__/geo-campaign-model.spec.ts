@@ -259,9 +259,9 @@ describe('预估那六行：提问与判定各归各的账（§10-3 + §11.4 两
     const lines = estimateLines(estimate())
     expect(lines.map((line) => line.label)).toEqual([
       '提问 · 调用次数',
-      '提问 · 预计 token',
+      '提问 · 预计 Token',
       '判定 · 调用次数',
-      '判定 · 预计 token',
+      '判定 · 预计 Token',
       '两段合计',
       '预计耗时',
     ])
@@ -269,7 +269,7 @@ describe('预估那六行：提问与判定各归各的账（§10-3 + §11.4 两
     expect(lines[0].note).toBe('5 题 × 2 个平台 × 每题重复 3 次')
     expect(lines[2].value).toBe('30 次')
     expect(lines[3].value).toBe('18000')
-    expect(lines[4].value).toBe('60 次 / 60000 token')
+    expect(lines[4].value).toBe('60 次 / 60000 Token')
     expect(lines[5].value).toBe('约 6 分钟')
   })
 
@@ -280,7 +280,7 @@ describe('预估那六行：提问与判定各归各的账（§10-3 + §11.4 两
 
   it('合计用的是接口的 total*，不是前端把两段加出来的（加一遍就有第二份账）', () => {
     const lines = estimateLines(estimate({ callCount: 30, judgeCallCount: 30, totalCallCount: 61, totalEstimatedTokens: 999 }))
-    expect(lines[4].value).toBe('61 次 / 999 token')
+    expect(lines[4].value).toBe('61 次 / 999 Token')
   })
 
   it('判定那一行自己说清「一条回答判一次、判全部主体」，也说不成功回答时是 0', () => {
@@ -389,7 +389,7 @@ describe('judgeGate：判定这一发的六道闸，顺序对着后端 requestJu
 describe('judgeCostText：判定那一段的钱单独一行（两段各记各的）', () => {
   it('判过之后条数与 token 都在，并带上提示词版本', () => {
     expect(judgeCostText(run({ judgeState: 'DONE', judgeCallCount: 30, judgePromptTokens: 900, judgeCompletionTokens: 210, judgePromptVersion: 'geo-judge-v1' })))
-      .toBe('判定 30 条 · 1110 token · 提示词版本 geo-judge-v1')
+      .toBe('判定 30 条 · 1110 Token · 提示词版本 geo-judge-v1')
   })
 
   it('从没判过时说「一次都没跑过」，不报一个 0 token 装作判过了', () => {
@@ -534,7 +534,7 @@ describe('highlightParts：原文高亮不靠 v-html（回答是模型产出的�
 describe('这一笔钱记在谁账上（V142 交付态闸的界面那一半）', () => {
   it('已交付租户：计入额度并报剩余，不写「免费」', () => {
     expect(billingLine(estimate({ tenantBearsCost: true }))).toBe(
-      '这一轮的消耗计入本租户的「GEO 诊断专用额度池」，该池本月剩余 900000 token。',
+      '这一轮的消耗计入这个客户的「GEO 诊断专用额度池」，该池本月剩余 900000 Token。',
     )
   })
 
@@ -560,23 +560,23 @@ describe('这一笔钱记在谁账上（V142 交付态闸的界面那一半）',
   /**
    * V158 / N2 拍板：「GEO 的额度池可以先空着…如果不设置，不用去限制额度」。
    * 于是「本月剩余」多了一种状态：接口给的是 null（这一池没有上限这个数）。
-   * 界面最坏的写法是 `?? 0`：那一格会念出「剩余 0 token」，读的人以为钱花光了，
+   * 界面最坏的写法是 `?? 0`：那一格会念出「剩余 0 Token」，读的人以为钱花光了，
    * 而真相是「根本没人设过上限」——两个相反的意思不许共用一个数。
    */
   it('没设月度上限：念「未设月度上限，不限制」，不许念成剩 0', () => {
     expect(billingLine(estimate({ tenantBearsCost: true, remainingTokens: null }))).toBe(
-      '这一轮的消耗计入本租户的「GEO 诊断专用额度池」，该池未设月度上限，不限制。',
+      '这一轮的消耗计入这个客户的「GEO 诊断专用额度池」，该池未设月度上限，不限制。',
     )
   })
 
   it('接口压根没回这一格（undefined）：念占位符，不猜一个数', () => {
     expect(billingLine(estimate({ tenantBearsCost: true, remainingTokens: undefined }))).toBe(
-      '这一轮的消耗计入本租户的「GEO 诊断专用额度池」，该池本月剩余 未取到。',
+      '这一轮的消耗计入这个客户的「GEO 诊断专用额度池」，该池本月剩余 未取到。',
     )
   })
 
   it('真剩 0 也照念 0：不许把「花光了」藏成「不限制」', () => {
-    expect(billingLine(estimate({ tenantBearsCost: true, remainingTokens: 0 }))).toContain('该池本月剩余 0 token')
+    expect(billingLine(estimate({ tenantBearsCost: true, remainingTokens: 0 }))).toContain('该池本月剩余 0 Token')
   })
 })
 
@@ -607,7 +607,7 @@ describe('率与区间：没测过不显示 0%（§9.6）', () => {
 
 describe('平台勾选的建议与不拦（§10-2 ⑤）', () => {
   it('一家都没有：说的是去哪一屏开通，而不是「勾选至少一家」', () => {
-    expect(platformHint(0, 0)).toContain('大模型配置')
+    expect(platformHint(0, 0)).toContain('模型配置')
   })
 
   it('少于建议值只提示不拦：句子点名当前勾了几家', () => {

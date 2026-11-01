@@ -472,16 +472,16 @@ describe('组装：先出价、再亲手勾确认，两道都过了才发那一�
   })
 
   /** V142：该租户还没被确定交付时，这一趟不进他的账单——界面三处「扣配额」的说法都得跟着改口 */
-  it('未交付租户的组装说「由平台承担」，不再念他的剩余配额', async () => {
+  it('未交付客户的组装说「由平台承担」，不再念他的剩余配额', async () => {
     const wrapper = await mountView({ estimateValue: estimate({ tenantBearsCost: false }) })
     await openDetail(wrapper)
     click(buttonContaining('先估算消耗')[0])
     await flushPromises()
     const text = wrapper.text()
     expect(text).toContain('由平台承担')
-    expect(text).not.toContain('扣的是这个站点所属租户的 token 配额')
-    expect(text).not.toContain('该租户剩余配额 90000')
-    expect(text).not.toContain('确认整站组装扣这个租户的配额')
+    expect(text).not.toContain('扣的是这个站点所属客户的 Token 配额')
+    expect(text).not.toContain('该客户剩余配额 90000')
+    expect(text).not.toContain('确认整站组装扣这个客户的配额')
   })
 })
 

@@ -14,7 +14,7 @@
     <a-alert type="info" show-icon class="theme-preset-page__notice">
       <template #message>
         「皮肤」只是一组样式变量（主色/圆角/字号比例等），不含任何文字与内容，可以在自己的页面之间来回应用。
-        「平台模板」是超管从某个页面沉淀出来的公共版式：客户文案已被换成演示文本，应用时填的是你们自己的数据。
+        「平台模板」是超级管理员从某个页面沉淀出来的公共版式：客户文案已被换成演示文本，应用时填的是你们自己的数据。
       </template>
     </a-alert>
 
@@ -81,7 +81,7 @@
             </a-button>
             <a-popconfirm
               v-if="canPreset"
-              :title="record.isPlatform ? '删除平台模板会影响所有租户，确认删除？' : '确认删除这份沉淀？'"
+              :title="record.isPlatform ? '删除平台模板会影响所有客户，确认删除？' : '确认删除这份沉淀？'"
               @confirm="removePreset(record.id)"
             >
               <a-button size="small" type="link" danger>删除</a-button>
@@ -220,7 +220,7 @@
         </a-form-item>
         <a-form-item>
           <a-checkbox v-model:checked="promoteForm.provenanceReviewed">
-            我已人工确认版式来源与近似度，可接受它被所有租户复用
+            我已人工确认版式来源与近似度，可接受它被所有客户复用
           </a-checkbox>
         </a-form-item>
         <a-form-item>
@@ -515,7 +515,7 @@ async function submitPromote() {
     return
   }
   if (!promoteForm.provenanceUrl.trim() || !promoteForm.provenanceReviewed) {
-    message.warning('来源网址与「已人工确认」缺一不可：平台资产会被所有租户复用')
+    message.warning('来源网址与「已人工确认」缺一不可：平台资产会被所有客户复用')
     return
   }
   saving.value = true

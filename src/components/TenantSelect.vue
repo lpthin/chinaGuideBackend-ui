@@ -26,7 +26,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: undefined,
-  placeholder: '请选择租户',
+  placeholder: '请选择客户',
   disabled: false,
 })
 
@@ -53,10 +53,10 @@ const blocked = computed(() => issue.value === 'denied')
 
 const shownPlaceholder = computed(() => {
   if (issue.value === 'denied') {
-    return '需要超级管理员权限，无法列出租户'
+    return '需要超级管理员权限，无法列出客户'
   }
   if (issue.value === 'failed') {
-    return `租户列表读取失败：${failureText.value || '未知原因'}`
+    return `客户列表读取失败：${failureText.value || '未知原因'}`
   }
   return props.placeholder
 })

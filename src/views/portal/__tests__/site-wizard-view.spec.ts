@@ -778,7 +778,7 @@ describe('新建网站向导', () => {
     // 摊开的是空白那一单，且那一家已经预填（这句话就是页面上报给用户的来意）
     expect(document.querySelector('.brief-intake__question'), '空单的题没摊开').toBeTruthy()
     expect(inputOfQuestion(wrapper, '品牌全称'), '空单上品牌那一题没挂出来').toBeTruthy()
-    expect(bodyText()).toContain('租户是从「租户管理」那一行带过来的（#15）')
+    expect(bodyText()).toContain('客户是从「客户开通」那一行带过来的（#15）')
   })
 
   it('先看老单再点「录一份新需求单」：套数与档位回到词表默认，不把上一单的读数带进新单', async () => {
@@ -897,9 +897,9 @@ describe('新建网站向导', () => {
     expect(briefGenerationApi.estimate).toHaveBeenCalledWith(7)
     // 花的凭据与那句「不是最终账单」摆在屏上：那一发花钱要同时带这两个值
     expect(bodyText()).toContain('est-abc')
-    expect(bodyText()).toContain('3 套、每套 5 页，预估 120000 token')
+    expect(bodyText()).toContain('3 套、每套 5 页，预估 120000 Token')
     expect(bodyText()).toContain('这只是预估，不是最终账单')
-    expect(bodyText()).toContain('不扣这个租户的配额')
+    expect(bodyText()).toContain('不扣这个客户的配额')
     // 明细与那句关于偏差的话是后端拼的，界面上原样摆
     expect(bodyText()).toContain('实测大约是估算的 0.83 倍')
   })
@@ -991,7 +991,7 @@ describe('新建网站向导', () => {
     expect(bodyText()).toContain('文章 8 篇 / 案例 3 条 / 岗位 2 个')
     expect(bodyText()).toContain('成功 2 张、失败 0 张、跳过 1 张')
     expect(bodyText()).toContain('跳过不等于失败')
-    expect(bodyText()).toContain('实耗 900 + 4000 token')
+    expect(bodyText()).toContain('实耗 900 + 4000 Token')
     expect(bodyText()).toContain('文章 没取到 篇')
     // 这三本账不许再藏在「点开这一行」里
     expect(document.body.querySelectorAll('.ant-table-row-expand-icon').length).toBe(0)
@@ -1195,7 +1195,7 @@ describe('新建网站向导', () => {
     expect(bodyText()).toContain('口径：只认 ai_call_log')
     expect(bodyText()).toContain('这一份是 ai_call_log 那把字数尺')
     // 两份数字各说各的：价签那一句仍然单独在，已烧量不吞进价格里
-    expect(bodyText()).toContain('预估 120000 token')
+    expect(bodyText()).toContain('预估 120000 Token')
   })
 
   /** 后端没下发这一份读数时念「没回读数」，不替它编 0（0 说的是「一次都没跑过」，那是另一档真话） */
@@ -1269,7 +1269,7 @@ describe('新建网站向导', () => {
     expect(bodyText()).toContain('价签也只数这一趟真会跑的那几套')
     expect(bodyText()).toContain('整轮')
     expect(bodyText()).toContain('会再烧一趟')
-    expect(bodyText()).toContain('这一轮实测：900 + 4000 = 4900 token')
+    expect(bodyText()).toContain('这一轮实测：900 + 4000 = 4900 Token')
     expect(bodyText()).toContain('另有 1 套这一发没回实耗')
     // 套数只认价签那一格：第 4 步没人点过算价，界面不许拿进度行数冒充配置
     expect(bodyText()).toContain('后端这一发没回套数')

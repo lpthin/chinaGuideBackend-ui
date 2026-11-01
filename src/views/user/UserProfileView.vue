@@ -42,7 +42,7 @@
             </div>
             <div class="info-item">
               <TeamOutlined class="info-icon" />
-              <span class="info-label">租户ID</span>
+              <span class="info-label">客户编号</span>
               <span class="info-value">{{ profile.tenantId }}</span>
             </div>
             <div class="info-item">

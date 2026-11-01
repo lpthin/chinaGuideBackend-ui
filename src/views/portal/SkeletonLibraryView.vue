@@ -100,7 +100,7 @@
     <a-card size="small" title="应用到站点" class="skeleton-library__apply">
       <a-alert v-if="!canManage" type="warning" show-icon class="skeleton-library__notice"
                message="这个账号没有 portal:build:manage，能看骨架但不能补页面"
-               description="按骨架建页会真的写 portal_page，属于建设域动作，找有权限的同事或在超管工作台执行。" />
+               description="按骨架建页会真的写 portal_page，属于建设域动作，找有权限的同事或在超级管理员工作台执行。" />
       <template v-else>
         <a-form layout="inline">
           <a-form-item label="站点">
@@ -169,7 +169,7 @@
     <a-card size="small" title="参考站 → 骨架沉淀" class="skeleton-library__distill">
       <a-alert v-if="!canPreset" type="warning" show-icon class="skeleton-library__notice"
                message="这个账号没有 portal:build:preset，沉淀与审核都做不了"
-               description="沉淀会往平台骨架库里加一套新骨架，读口与写口挂的是同一个码；找有权限的同事在超管工作台执行。" />
+               description="沉淀会往平台骨架库里加一套新骨架，读口与写口挂的是同一个码；找有权限的同事在超级管理员工作台执行。" />
       <template v-else>
         <a-form layout="inline">
           <a-form-item label="参考站任务 ID">

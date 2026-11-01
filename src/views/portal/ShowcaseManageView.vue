@@ -440,7 +440,7 @@ function missingSlots(): string[] {
 async function submitForm() {
   formError.value = ''
   if (!siteId.value) {
-    formError.value = '请先选定站点再维护展示内容（后端原话：一个租户多个站是常态，不猜默认站）'
+    formError.value = '请先选定站点再维护展示内容（一个客户有多个站是常态，后端不猜默认站）'
     return
   }
   slotHints.value = missingSlots()

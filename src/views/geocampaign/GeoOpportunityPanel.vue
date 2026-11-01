@@ -308,7 +308,7 @@ watch(includeResolved, () => void load())
         </tbody>
       </table>
       <p v-if="estimate && !estimate.notice" class="geo-opp__panel-note">
-        预估与按下去真跑的是同一处算出来的：这一屏不自己乘 token，也不猜哪条流水线更贵。
+        预估与按下去真跑的是同一处算出来的：这一屏不自己乘 Token，也不猜哪条流水线更贵。
       </p>
       <!-- 「预计 token」那一行是字数除以 4 这把尺的下界，不是账单；上面那句 notice 讲的是受不受理 -->
       <TokenBasisNote :text="estimate?.tokenBasis" />

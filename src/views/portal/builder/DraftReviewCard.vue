@@ -10,7 +10,7 @@
     <a-descriptions :column="2" size="small">
       <a-descriptions-item label="模型自述">{{ draft.reason || '（模型未给理由）' }}</a-descriptions-item>
       <a-descriptions-item label="基线版本">v{{ draft.baseVersion }}</a-descriptions-item>
-      <a-descriptions-item label="token 消耗">
+      <a-descriptions-item label="Token 消耗">
         {{ (draft.promptTokens ?? 0) + (draft.completionTokens ?? 0) }}
       </a-descriptions-item>
       <a-descriptions-item label="生成时间">{{ formatDateTime(draft.createdAt) }}</a-descriptions-item>

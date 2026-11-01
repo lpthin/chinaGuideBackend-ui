@@ -282,7 +282,7 @@ watch(() => [id.value, props.token], () => void load())
           <span class="geo-report__head-meta">
             提问：本轮平台 {{ report.platforms.length ? report.platforms.join('、') : PH_DASH }} ·
             取到 {{ report.callCount }} 次回答 · 未取到 {{ report.failedCallCount }} 次 ·
-            token {{ report.run.promptTokens ?? 0 }} + {{ report.run.completionTokens ?? 0 }}
+            Token {{ report.run.promptTokens ?? 0 }} + {{ report.run.completionTokens ?? 0 }}
           </span>
         </div>
         <div class="geo-report__head-line">

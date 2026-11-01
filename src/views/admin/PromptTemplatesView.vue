@@ -5,7 +5,7 @@
     <PageTitle />
     <a-card size="small" class="prompt-page__head">
       <p class="prompt-page__lead">
-        这一页改的是<em>平台默认</em>那一份：保存之后，所有租户后面每一单的这一步读到的都是改后的措辞。
+        这一页改的是<em>平台默认</em>那一份：保存之后，所有客户后面每一单的这一步读到的都是改后的措辞。
         某一站自己盖过的行不跟着变——右栏下面那一栏就是「现在谁还盖着」。
       </p>
 
@@ -178,7 +178,7 @@
                     </a-table>
                     <p v-if="overrides.length" class="prompt-page__muted">
                       一站一行，摆的是生成真会拿的那一条。这一期站级覆盖只给平台侧（那一口要
-                      <code>portal:build:manage</code>，租户管理员连读都是 403），界面上也还没有摆那一页；这里只给看。
+                      <code>portal:build:manage</code>，客户管理员连读都是 403），界面上也还没有摆那一页；这里只给看。
                     </p>
                   </a-spin>
                 </div>
@@ -247,7 +247,7 @@ const canRead = computed(() => auth.hasPermission('prompt:template:manage'))
 const canWrite = computed(() => canRead.value && auth.isSuperAdmin)
 const writeHint = computed(() =>
   canRead.value
-    ? '这个账号能读，但不是超级管理员：全局正文一改就改到所有租户后面每一单，写口只认超管。'
+    ? '这个账号能读，但不是超级管理员：全局正文一改就改到所有客户后面每一单，写口只认超级管理员。'
     : ''
 )
 
@@ -353,7 +353,7 @@ function askSave() {
   const title = detail.value?.summary.title ?? activePurpose.value
   Modal.confirm({
     title: `改的是全局默认：${title}`,
-    content: '保存之后，每一个租户后面每一单的这一步都改读这一份措辞（下一轮生成立即生效，不用重启）。'
+    content: '保存之后，每一个客户后面每一单的这一步都改读这一份措辞（下一轮生成立即生效，不用重启）。'
       + '已经自己盖过这一份的站点不受影响，名单见右栏「各站盖着这一份的行」。',
     okText: '确认改动全局',
     cancelText: '先不改',

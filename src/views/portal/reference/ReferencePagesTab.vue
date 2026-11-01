@@ -106,8 +106,8 @@
     <p class="reference-site-page__muted">
       上传这一步不花钱：不 OCR、不调模型。但一个任务里<b>只有截图、没有抓取摘要</b>时，
       「开始 AI 摄取」会把截图交给视觉模型看版面（每页一张、桌面优先，一次最多 6 页），
-      这一步要花 token，点之前会先给预估。两种材料都有时走抓取摘要那条路——它不需要图片，更便宜。
-      本租户没配视觉模型时会借用平台的（平台也没有就直接被拒），原因写在预估弹窗里；届时也可以照截图在页面搭建器里手搭。
+      这一步要花 Token，点之前会先给预估。两种材料都有时走抓取摘要那条路——它不需要图片，更便宜。
+      这个客户没配视觉模型时会借用平台的（平台也没有就直接被拒），原因写在预估弹窗里；届时也可以照截图在页面搭建器里手搭。
     </p>
   </div>
 </template>
@@ -163,7 +163,7 @@ const pageColumns = [
   { title: '版面与来源', key: 'provenance', width: 240 },
   { title: '抓取状态', key: 'crawlState', width: 200 },
   { title: '三视口截图', key: 'shots', width: 260 },
-  { title: '结构与 token', key: 'structure', width: 220 },
+  { title: '结构与 Token', key: 'structure', width: 220 },
   { title: 'robots', key: 'robots', width: 130 },
   { title: '归纳出的分区', key: 'sections', width: 200 }
 ]
@@ -229,11 +229,11 @@ function sectionText(page: ReferencePage) {
 
 function tokensText(page: ReferencePage) {
   const layers = tokenLayersOf(page)
-  if (!layers) return '无 token 采样'
+  if (!layers) return '无 Token 采样'
   const siteKeys = layers.site ? Object.keys(layers.site).length : 0
   const hintCount = layers.sectionHints.length
   // 老行是扁平的一份，当时还没有「站级 / 段级」这层区分，别把它说成两层都采过
-  if (layers.legacy) return `token 采样：${siteKeys} 项（分层之前的老行，按站级看）`
+  if (layers.legacy) return `Token 采样：${siteKeys} 项（分层之前的老行，按站级看）`
   const parts = [siteKeys ? `站级 ${siteKeys} 项` : '站级无（sidecar 没采样到）']
   if (hintCount) parts.push(`段级提示 ${hintCount} 格（只作取证，不上身）`)
   return parts.join(' · ')

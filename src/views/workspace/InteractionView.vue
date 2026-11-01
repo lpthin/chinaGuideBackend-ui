@@ -70,7 +70,7 @@
             </a-button>
           </a-space>
           <div v-if="!canManage" class="permission-hint">
-            改这几项要「读者互动」的管理权限（interaction:manage）——租户管理员默认有这一码，也可以在角色页分给别的角色。
+            改这几项要「读者互动」的管理权限（interaction:manage）——客户管理员默认有这一码，也可以在角色页分给别的角色。
           </div>
           <div v-else-if="lastEditedAt" class="updated-hint">上次修改：{{ formatDateTime(lastEditedAt, true) }}</div>
         </a-form-item>
@@ -152,7 +152,7 @@
                 驳回
               </a-button>
               <a-popconfirm
-                title="摘除 = 从网站上撤下、也不再出现在这个列表里，但库里的记录仍然留着。确定摘除？"
+                title="摘除 = 从站点上撤下、也不再出现在这个列表里，但库里的记录仍然留着。确定摘除？"
                 ok-text="摘除"
                 cancel-text="先不"
                 @confirm="moderate(record, 'remove')"

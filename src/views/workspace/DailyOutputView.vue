@@ -36,7 +36,7 @@
             style="width: 160px"
             placeholder="HH:mm"
           />
-          <span class="field-hint">24 小时制 HH:mm。开通时按租户排在 02:00~05:45 的错峰格里，之后可以自己改。</span>
+          <span class="field-hint">24 小时制 HH:mm。开通时按客户排在 02:00~05:45 的错峰格里，之后可以自己改。</span>
         </a-form-item>
 
         <a-form-item label="每天产出几篇">
@@ -69,7 +69,7 @@
             >保存配置</a-button>
           </a-space>
           <div v-if="!canManage" class="permission-hint">
-            改这几项要「每日自动产出」的修改权限（content:output:manage）——租户管理员默认有这一码，
+            改这几项要「每日自动产出」的修改权限（content:output:manage）——客户管理员默认有这一码，
             也可以在角色页把它分配给别的角色。
           </div>
           <div v-else-if="lastEditedAt" class="updated-hint">上次修改：{{ formatDateTime(lastEditedAt) }}</div>

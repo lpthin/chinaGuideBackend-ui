@@ -7,8 +7,8 @@
         type="info"
         show-icon
         style="margin-bottom: 16px"
-        message="还没选租户"
-        description="页面顶部的租户下拉里先选一家，这里才会显示这家的报表。"
+        message="还没选客户"
+        description="页面顶部的客户下拉里先选一家，这里才会显示这一家的报表。"
       />
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -654,7 +654,7 @@ function jsonReason(text: string): string {
 
 async function exportReport() {
   if (!tenantId.value) {
-    message.warning('先在页面顶部选一家租户，再导出这家的报表')
+    message.warning('先在页面顶部选一家客户，再导出这一家的报表')
     return
   }
   if (hasDateRange.value && queryParams.dateRange![0] > queryParams.dateRange![1]) {

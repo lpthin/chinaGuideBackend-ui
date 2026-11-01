@@ -127,10 +127,10 @@ describe('第 1 格 · 站点', () => {
     expect(siteCard(wrapper).text()).not.toContain('未取到')
   })
 
-  it('口回空列表才说「该租户还没有站点」', async () => {
+  it('口回空列表才说「该客户还没有站点」', async () => {
     vi.mocked(portalSitesApi.listMine).mockResolvedValue([] as any)
     const wrapper = await mountView()
-    expect(siteCard(wrapper).text()).toContain('该租户还没有站点')
+    expect(siteCard(wrapper).text()).toContain('该客户还没有站点')
     expect(siteCard(wrapper).text()).toContain('缺少站点')
   })
 
@@ -140,7 +140,7 @@ describe('第 1 格 · 站点', () => {
     expect(portalSitesApi.listMine).not.toHaveBeenCalled()
     expect(siteCard(wrapper).text()).toContain('没有站点信息的查看权限')
     expect(siteCard(wrapper).text()).toContain('无查看权限')
-    expect(siteCard(wrapper).text()).not.toContain('该租户还没有站点')
+    expect(siteCard(wrapper).text()).not.toContain('该客户还没有站点')
     // 读不到时那一格下面的字段也不许演成「未绑定」
     expect(siteCard(wrapper).text()).toContain('未取到')
   })
@@ -151,9 +151,9 @@ describe('第 1 格 · 站点', () => {
     const wrapper = await mountView()
     expect(portalSitesApi.listMine).not.toHaveBeenCalled()
     expect(demoSiteApi.status).not.toHaveBeenCalled()
-    expect(siteCard(wrapper).text()).toContain('未选租户，未取数')
+    expect(siteCard(wrapper).text()).toContain('未选客户，未取数')
     expect(siteCard(wrapper).text()).toContain('未取数')
-    expect(siteCard(wrapper).text()).not.toContain('该租户还没有站点')
+    expect(siteCard(wrapper).text()).not.toContain('该客户还没有站点')
     expect(siteCard(wrapper).text()).not.toContain('未绑定')
   })
 
@@ -180,7 +180,7 @@ describe('第 1 格 · 站点', () => {
     expect(demoSiteApi.status).toHaveBeenCalledWith(15)
     expect(portalSitesApi.listMine).toHaveBeenCalledTimes(1)
     expect(siteCard(wrapper).text()).toContain('萧山景天牙科医院官网')
-    expect(siteCard(wrapper).text()).not.toContain('该租户还没有站点')
+    expect(siteCard(wrapper).text()).not.toContain('该客户还没有站点')
   })
 
   it('读挂了只说读取失败，刷新按钮不许永远转着（改前就是这个死循环）', async () => {
@@ -189,7 +189,7 @@ describe('第 1 格 · 站点', () => {
     expect(siteCard(wrapper).text()).toContain('未取到')
     expect(siteCard(wrapper).text()).toContain('读取失败')
     expect(siteCard(wrapper).text()).toContain('缺少权限: portal:build:manage')
-    expect(siteCard(wrapper).text()).not.toContain('该租户还没有站点')
+    expect(siteCard(wrapper).text()).not.toContain('该客户还没有站点')
     expect(wrapper.find('.aspin-stub').attributes('data-spinning')).toBe('false')
   })
 
@@ -265,7 +265,7 @@ describe('第 3 格 · 演示内容结果行', () => {
     expect(line).not.toContain('[object Object]')
     expect(line).toContain('这一趟没有新增也没有更新')
     expect(line).toContain('新增 0 条')
-    expect(line).toContain('跳过 17 条（分类 4、文章 5、案例 3、首页 Banner 3、岗位 2）')
+    expect(line).toContain('跳过 17 条（分类 4、文章 5、案例 3、首页横幅 3、岗位 2）')
   })
 
   it('真的灌了新内容：按类型念出新增几条，不再是一个对象', async () => {
@@ -284,7 +284,7 @@ describe('第 3 格 · 演示内容结果行', () => {
     expect(line).not.toContain('[object Object]')
     expect(line).toContain('演示内容已生成')
     expect(line).toContain('新增 9 条（分类 4、文章 5）')
-    expect(line).toContain('更新 1 条（首页 Banner 1）')
+    expect(line).toContain('更新 1 条（首页横幅 1）')
     expect(line).toContain('跳过 0 条')
   })
 })

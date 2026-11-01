@@ -72,7 +72,7 @@ describe('类型词表：库里翻出来的每一个值都要有人话名', () =
 
 describe('没登记的值：宁可念原码，也不替它编名字', () => {
   it('登记过的念人话名', () => {
-    expect(aiCallPurposeLabel('site_brief_copy_v1')).toBe('网站页面文案')
+    expect(aiCallPurposeLabel('site_brief_copy_v1')).toBe('站点页面文案')
   })
 
   it('没登记的原样念码，空值念空而不是念 undefined', () => {
@@ -85,7 +85,7 @@ describe('没登记的值：宁可念原码，也不替它编名字', () => {
 
 describe('下拉里打字能按人话名也能按原码找到', () => {
   it('按中文名的一部分命中', () => {
-    expect(matchesPurposeOption('文案', { label: '网站页面文案', value: 'site_brief_copy_v1' })).toBe(true)
+    expect(matchesPurposeOption('文案', { label: '站点页面文案', value: 'site_brief_copy_v1' })).toBe(true)
   })
 
   it('按原码的一部分命中', () => {

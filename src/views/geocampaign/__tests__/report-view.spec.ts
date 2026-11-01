@@ -596,7 +596,7 @@ describe('两段各花的钱：头部与「判定这一轮」那一发（§6.2 +
 
   it('判过了就念条数、token 与提示词版本，模型名取自判定行那一刻', async () => {
     const wrapper = await mountView(judged())
-    expect(wrapper.text()).toContain('判定 30 条 · 6900 token · 提示词版本 geo-judge-v1')
+    expect(wrapper.text()).toContain('判定 30 条 · 6900 Token · 提示词版本 geo-judge-v1')
     expect(wrapper.text()).toContain('qwen3.7-plus')
     expect(wrapper.text()).toContain('推荐率与情感三档出自提示词版本 geo-judge-v1')
     expect(wrapper.text()).toContain('两版各留各的行')
