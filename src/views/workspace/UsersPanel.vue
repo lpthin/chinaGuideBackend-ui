@@ -77,7 +77,7 @@
               <a-button type="link" size="small" @click="handleAssignRoles(record)">
                 <SettingOutlined /> 角色
               </a-button>
-              <a-tooltip :title="isSelf(record) ? '这是你自己的账号，请去用户中心带当前密码修改' : ''">
+              <a-tooltip :title="isSelf(record) ? '这是你自己的账号，请去个人中心带当前密码修改' : ''">
                 <a-button
                   type="link"
                   size="small"

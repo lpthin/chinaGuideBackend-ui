@@ -8,7 +8,7 @@
       type="info"
       show-icon
       message="这一页管的是平台自己那一套模型，所有客户共用；右上角切客户对这一页没有作用。"
-      description="这里停用或新增一台，全站的文章生成、页面巡检、向量化都会跟着变。某一家客户用了多少，去看「模型用量」那一页。"
+      description="这里停用或新增一台，全站的文章生成、页面巡检、向量化都会跟着变。某一家客户用了多少，去看「用量监控」那一页。"
     />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">

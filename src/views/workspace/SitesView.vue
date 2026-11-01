@@ -423,7 +423,7 @@ async function save() {
 
 onMounted(() => {
   if (!auth.isSuperAdmin) {
-    message.error('无权限访问站点管理')
+    message.error('无权限访问站点清单')
     router.push('/workspace/dashboard')
     return
   }

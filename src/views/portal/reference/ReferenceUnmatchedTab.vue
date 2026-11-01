@@ -148,7 +148,7 @@ async function promote(group: UnmatchedGroup) {
     const promoted = await portalReferenceApi.promote(props.referenceId, mappingId)
     // 后端没给 key 时不拿区块名冒充 key：那句「去组件库认它」就会指着一个不存在的东西
     message.success(promoted?.blockKey
-      ? `已存为组件库草稿 ${promoted.blockKey}，启用后才会进搭建器面板与提示词`
+      ? `已存为组件库草稿 ${promoted.blockKey}，启用后才会进「页面搭建」的区块清单与提示词`
       : '已存为组件库的一条草稿，启用要再去「组件库」按一次')
     // 回指来自后端那一列，不在这里自己记一笔：交回上层重读清单，让那一行自己变成「已沉淀成 X」
     emit('promoted')

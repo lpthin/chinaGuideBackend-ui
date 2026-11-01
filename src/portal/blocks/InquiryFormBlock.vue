@@ -147,7 +147,7 @@ const readOnly = computed(() => demoView.value || previewView.value)
 /** 不给点的两种原因是两回事，那句实话得分开说：一种是没有站点，一种是站点还没交付 */
 const readOnlyNote = computed(() => {
   if (demoView.value) {
-    return '演示视图（区块画廊、骨架预览与搭建器）：这里没有能收线索的站点，提交不会发出请求。'
+    return '演示视图（组件库、骨架库、页面搭建里的预览）：这里没有能收线索的站点，提交不会发出请求。'
   }
   if (previewView.value) {
     return '这一套方案还在预览阶段：提交不会发出请求，也不会进任何人的线索列表。'

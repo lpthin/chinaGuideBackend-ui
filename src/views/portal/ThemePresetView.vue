@@ -118,7 +118,7 @@
       </template>
 
       <template #emptyText>
-        <a-empty description="还没有沉淀记录：先在页面搭建器里调好样式变量，再回来点「沉淀为皮肤」">
+        <a-empty description="还没有沉淀记录：先在「页面搭建」里调好样式变量，再回来点「沉淀为皮肤」">
           <template #image><span /></template>
         </a-empty>
       </template>
@@ -141,7 +141,7 @@
         <a-form-item>
           <a-alert type="warning" show-icon>
             <template #message>
-              沉淀的是页面「已经保存」的样式：搭建器里还没保存的改动不会进来。
+              沉淀的是页面「已经保存」的样式：「页面搭建」里还没保存的改动不会进来。
             </template>
           </a-alert>
         </a-form-item>
@@ -481,7 +481,7 @@ async function submitInstantiate() {
       title: instantiateForm.title.trim() || null
     })
     instantiateOpen.value = false
-    message.success(`草稿页已创建（#${created.id}），请在页面搭建器里改内容后发布`)
+    message.success(`草稿页已创建（#${created.id}），请在「页面搭建」里改内容后发布`)
     await load()
   } catch (error) {
     message.error((error as Error).message || '建页失败')

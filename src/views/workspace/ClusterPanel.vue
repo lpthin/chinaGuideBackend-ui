@@ -945,7 +945,7 @@ async function distillAll() {
       ? `本批只处理了 ${res.processedKeywords ?? 0} 个待聚类词，剩余 ${res.remainingKeywords} 个仍是待处理状态，再点一次「一键智能蒸馏」可继续。`
       : ''
     if (res.clusterCount === 0 || previewClusters.value.length === 0) {
-      distillError.value = '没有可蒸馏的关键词，请先去「热词管理」做一次采集，或在「关键词」里导入待处理词。'
+      distillError.value = '没有可蒸馏的关键词：这一家「热词库」里还没有待处理的词。请先到「热词库」点「导入关键词」补一批，再点一次「一键智能蒸馏」。'
       distillPhase.value = 'ready'
       distillProgress.value = 100
       currentDistillStep.value = 2

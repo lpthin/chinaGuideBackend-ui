@@ -255,7 +255,7 @@
         <div class="prod-bar">
           <button class="pb-seg" @click="goto('workspace-keywords')">
             <span class="pb-num">{{ kwCard.data ? formatMoney(kwCard.data.total) : '—' }}</span>
-            <span class="pb-label">关键词库</span>
+            <span class="pb-label">热词库</span>
             <span class="pb-sub" v-if="kwCard.data">已成文 {{ kwCard.data.stage_articled }}</span>
           </button>
           <button class="pb-seg" @click="goto('workspace-articles')">

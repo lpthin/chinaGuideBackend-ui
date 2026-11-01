@@ -363,7 +363,7 @@ describe('工作台 · 生产一行与轮询（AC-4）', () => {
 
     const text = wrapper.text()
     expect(wrapper.findAll('.pb-seg').length).toBe(3)
-    expect(text).toContain('关键词库')
+    expect(text).toContain('热词库')
     expect(text).toContain('300')
     expect(text).toContain('篇文章')
     expect(text).toContain('120')

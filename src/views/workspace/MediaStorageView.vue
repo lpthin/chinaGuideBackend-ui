@@ -100,7 +100,7 @@
           <a-col :span="12">
             <a-form-item label="公开素材键前缀（可选）">
               <a-input v-model:value="form.keyPrefix" class="js-field-keyprefix"
-                       placeholder="留空 = 键直接落在 {租户id}/ 下" />
+                       placeholder="留空 = 素材键直接落在 <客户编号>/ 下" />
             </a-form-item>
           </a-col>
           <a-col :span="12">

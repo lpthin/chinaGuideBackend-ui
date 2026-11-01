@@ -74,7 +74,7 @@
               {{ demo && hasDemoContent ? '补齐演示内容' : '生成演示门户内容' }}
             </a-button>
             <a-popconfirm
-              title="去掉演示标记后，这些内容会进入门户列表、sitemap 与访问统计，确定继续？"
+              title="去掉演示标记后，这些内容会当成门户上的正式页面，并进 sitemap 与访问统计，确定继续？"
               ok-text="确定"
               cancel-text="取消"
               :disabled="!hasDemoContent"
@@ -117,9 +117,9 @@
           所以它比后台的文章总数更能说明「上线了没有」。
         </p>
         <p class="hint">
-          <router-link :to="{ name: 'workspace-articles' }">去文章管理</router-link>
+          <router-link :to="{ name: 'workspace-articles' }">去文章列表</router-link>
           ·
-          <router-link :to="{ name: 'workspace-case-list' }">去案例管理</router-link>
+          <router-link :to="{ name: 'workspace-case-list' }">去内容案例</router-link>
         </p>
         <p v-if="errors.visibility" class="error-line">{{ errors.visibility }}</p>
       </a-card>

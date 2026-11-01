@@ -369,7 +369,7 @@
             <span class="list-hint">
               本页只负责生成：最近 7 天的任务共 {{ generationTasks.length }} 个（本页最多念 {{ RECENT_TASK_LIMIT }} 个），
               已生成 {{ generatedArticleCount }} 篇。
-              审核请在「审核管理」处理，发布与删除请在「发布中心 / 文章管理」处理。
+              审核请在「审核管理」处理，发布与删除请在「发布中心」或「文章列表」处理。
             </span>
             <a-space>
               <span v-if="selectedRowKeys.length > 0" class="selected-count">已选 {{ selectedRowKeys.length }} 项</span>
@@ -379,7 +379,7 @@
               </a-button>
               <a-button size="small" @click="router.push({ name: 'workspace-articles' })">
                 <template #icon><FileTextOutlined /></template>
-                前往文章管理
+                前往文章列表
               </a-button>
             </a-space>
           </a-space>
@@ -1080,7 +1080,7 @@ function pollTaskStatus(taskId: number) {
       logError('workspace/article-generate-panel', error)
       clearPolling()
       resetGenerationState()
-      message.error('查询生成进度失败，请到文章管理确认生成结果')
+      message.error('查询生成进度失败，请到文章列表确认生成结果')
     }
   }, 2000)
 }

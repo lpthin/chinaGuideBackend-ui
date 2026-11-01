@@ -98,7 +98,7 @@ const presetOptions = computed(() =>
 const notice = computed(() =>
   appliedPresetName.value
     ? `这一站当前套的是皮肤「${appliedPresetName.value}」。套皮肤写的是这一份，逐页覆盖位不动。`
-    : '这里写的是整站打底的样式变量；某页在搭建器里设过「本页覆盖」的键，那一页仍按它自己那份显示。'
+    : '这里写的是整站打底的样式变量；某页在「页面搭建」里设过「本页覆盖」的键，那一页仍按它自己那份显示。'
 )
 
 watch(() => props.siteId, load, { immediate: true })

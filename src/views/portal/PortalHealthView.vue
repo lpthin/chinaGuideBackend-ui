@@ -37,7 +37,7 @@
     <a-alert type="info" show-icon class="portal-health-page__notice">
       <template #message>
         巡检只负责把问题列出来，<b>不会自动修改任何页面</b>。「让 AI 出手」产出的也只是一段 SEO 建议或一份待审阅草稿：
-        建议要人贴回页面信息里保存，草稿要在页面搭建器里看过 diff 再点应用、然后自己发布。
+        建议要人贴回「页面信息」里保存，草稿要在「页面搭建」里看过 diff 再点应用、然后自己发布。
       </template>
     </a-alert>
 

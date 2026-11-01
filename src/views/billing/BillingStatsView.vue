@@ -362,7 +362,7 @@ function blockAttrs(key: SectionKey): BlockAttrs {
   return {
     state: 'empty',
     title: EMPTY_LINES[key],
-    next: '想看这一家花过什么，去「消费明细」那一屏按这一家筛一遍流水',
+    next: '想看这一家花过什么，页面顶部先切到这一家，再去「我的钱包」那一屏看「消费明细」那张卡',
   }
 }
 

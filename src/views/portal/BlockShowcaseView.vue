@@ -235,7 +235,7 @@ const SOURCE_OPTIONS = [
 const UNWIRED_TIP = '渲染器在、区块能拖，但后端没有任何数据源接得上它：放进页面渲出来就是空的。'
   + '要么补数据源，要么把这个区块下线——这条判据来自服务端的区块元数据，不是前端抄的一份清单。'
 
-const ENABLE_TIP = '未启用 = 这一格不在搭建器的可挑清单里，也进不了给模型的词表；'
+const ENABLE_TIP = '未启用 = 这一格不在「页面搭建」的可挑清单里，也进不了给模型的词表；'
   + '它还在库里，点「启用」就回去。新建一律落成未启用，因为启用这一步会让它影响所有后续生成。'
 
 const CODE_READ_ONLY_TIP = '代码声明那一族的字段结构与渲染器由 Java 里的区块白名单说了算，'
@@ -462,7 +462,7 @@ async function toggleEnabled(item: LibraryItem) {
     const saved = await blockDefsApi.setEnabled(item.row.id, target)
     replaceRow(saved)
     message.success(target
-      ? '已启用：这一格现在进搭建器的可挑清单，也在给模型的词表里'
+      ? '已启用：这一格现在进「页面搭建」的可挑清单，也在给模型的词表里'
       : '已停用：这一格从可挑清单与词表里退出，页面上已有的那一格会整块不渲染')
   } catch (error: any) {
     // 启用被拒的理由只有后端知道（渲染器没登记、撞代码族那一族的名字），原话念出来

@@ -968,7 +968,7 @@ describe('暂未对上那一栏的「沉淀为组件」', () => {
     await flushPromises()
 
     const toast = succeeded.mock.calls.map(call => String(call[0])).join('|')
-    expect(toast).toContain('已存为组件库草稿 card-9bb2c1，启用后才会进搭建器面板与提示词')
+    expect(toast).toContain('已存为组件库草稿 card-9bb2c1，启用后才会进「页面搭建」的区块清单与提示词')
     expect(toast).not.toContain('已可用于搭建')
     // 回指来自后端那一列，不是界面在这儿自己记一笔：所以点完必须重读清单
     expect(portalReferenceApi.unmatchedGroups).toHaveBeenCalledTimes(2)

@@ -13,7 +13,7 @@
       <!-- skippedBlocks 按后端契约是管理端线索（区块已下线这类），不该在访客页面上冒出来；
            只在预览链接里说，因为看到它的正是需要去把它换掉的人。 -->
       <p v-if="reviewActive && page.skippedBlocks?.length" class="portal-dynamic-page__state">
-        本页有 {{ page.skippedBlocks.length }} 个区块当前不可显示，需要在搭建器里替换掉
+        本页有 {{ page.skippedBlocks.length }} 个区块当前不可显示，需要在「页面搭建」里替换掉
       </p>
       <!-- 渲染逻辑在 PortalViewportPreview 里和搭建器、AI 草稿比对视图共用：
            分两套写的话，「搭建器里看到的」和「客户在预览链接里看到的」迟早会不一致。 -->
