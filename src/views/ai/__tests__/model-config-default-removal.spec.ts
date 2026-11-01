@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { Button, Input, InputNumber, Select } from 'ant-design-vue'
 import ModelConfigView from '../ModelConfigView.vue'
-import { modelConfigApi, usageApi } from '../../../api/ai-model'
+import { modelConfigApi } from '../../../api/ai-model'
 import type { ModelConfig } from '../../../types/ai-model'
 
 /**
@@ -45,7 +45,6 @@ vi.mock('../../../api/ai-model', () => ({
     // 「限定用途」那一份清单由后端给（V182）；这里给一条真的，页面才按生产那副样子渲染
     purposeScopeOptions: vi.fn().mockResolvedValue([{ code: 'reference_block_mapping', label: '参考站区块映射' }]),
   },
-  usageApi: { today: vi.fn() },
 }))
 
 /**
@@ -123,7 +122,6 @@ const IMAGE_ROW = {
 
 async function mountView(records: ModelConfig[] = [CHAT_ROW, IMAGE_ROW]) {
   vi.mocked(modelConfigApi.list).mockResolvedValue({ records, total: records.length } as any)
-  vi.mocked(usageApi.today).mockResolvedValue({} as any)
   const wrapper = mount(ModelConfigView, {
     attachTo: document.body,
     global: {

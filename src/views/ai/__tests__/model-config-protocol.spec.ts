@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { Button, Input, InputNumber, Select, notification } from 'ant-design-vue'
 import ModelConfigView from '../ModelConfigView.vue'
-import { modelConfigApi, usageApi } from '../../../api/ai-model'
+import { modelConfigApi } from '../../../api/ai-model'
 import type { ModelConfig } from '../../../types/ai-model'
 
 /**
@@ -41,7 +41,6 @@ vi.mock('../../../api/ai-model', () => ({
     // 「限定用途」那一份清单由后端给（V182）：给一条真的，页面按生产那副样子渲染
     purposeScopeOptions: vi.fn().mockResolvedValue([{ code: 'reference_block_mapping', label: '参考站区块映射' }]),
   },
-  usageApi: { today: vi.fn() },
 }))
 
 /** 真 a-table 在这环境渲不出表体；dataIndex 那几列也得补上，否则连「哪一行」都认不出来 */
@@ -126,7 +125,6 @@ const IMAGE_ROW = row({
 
 async function mountView(records: ModelConfig[] = [CHAT_ROW, ANTHROPIC_ROW, IMAGE_ROW]) {
   vi.mocked(modelConfigApi.list).mockResolvedValue({ records, total: records.length } as any)
-  vi.mocked(usageApi.today).mockResolvedValue({} as any)
   const wrapper = mount(ModelConfigView, {
     attachTo: document.body,
     global: {
@@ -362,7 +360,8 @@ describe('模型配置页 · 协议与出图入口', () => {
     await flushPromises()
 
     expect(modelConfigApi.create).toHaveBeenCalledTimes(1)
-    const payload = vi.mocked(modelConfigApi.create).mock.calls[0][1] as Record<string, any>
+    // create 从此只有一个参数（M-P102：新行只能落在平台那一家，请求体不再带 tenantId）
+    const payload = vi.mocked(modelConfigApi.create).mock.calls[0][0] as Record<string, any>
     expect(payload.apiProtocol).toBe('openai')
     expect(payload.apiKey).toBe('sk-test')
   })

@@ -1,5 +1,14 @@
 <template>
   <div class="model-config-page">
+    <!-- 这一套归谁：2026-11-01 拍板取消客户维度（M-P102）。改前右上角一切客户这一屏就空了，
+         而真在用的那 5 台一个字看不到（取证 scratch/mp102-logs/11-ui-before.txt U2） -->
+    <a-alert
+      class="pool-alert"
+      type="info"
+      show-icon
+      message="这一页管的是平台自己那一套模型，所有客户共用；右上角切客户对这一页没有作用。"
+      description="这里停用或新增一台，全站的文章生成、页面巡检、向量化都会跟着变。某一家客户用了多少，去看「模型用量」那一页。"
+    />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -352,7 +361,7 @@ import {
   ThunderboltOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons-vue'
-import { modelConfigApi, usageApi } from '../../api/ai-model'
+import { modelConfigApi } from '../../api/ai-model'
 import { describeHttpError } from '../../api/http'
 import type { ModelConfig } from '../../types/ai-model'
 import {
@@ -364,13 +373,13 @@ import {
   joinModelTypes,
   splitModelTypes,
 } from '../../types/ai-model'
-import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
 
-const authStore = useAuthStore()
-const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
+// M-P102（2026-11-01 拍板）：这一屏不再问「在看哪一家客户」。模型池归平台一套、所有客户共用，
+// 后端那一发查询也只认平台那一家，请求里再带 tenantId 已经没有任何作用。
+// 原先这里写的是 `selectedTenantId || tenantId || 1`——最后那个 `|| 1` 让「没选客户」变成「偷偷去看 1 号家」。
 
 const loading = ref(false)
 const saving = ref(false)
@@ -394,18 +403,14 @@ const filterProvider = ref<string | null>(null)
 const filterType = ref<string | null>(null)
 
 const configs = ref<ModelConfig[]>([])
-const todayUsage = reactive({
-  totalTokens: 0,
-  totalCost: 0,
-  callCount: 0,
-  successCount: 0,
-})
 
 const stats = computed(() => ({
   totalConfigs: configs.value.length,
   activeConfigs: configs.value.filter(c => c.isActive).length,
   totalProviders: new Set(configs.value.map(c => c.provider)).size,
-  totalModels: new Set(configs.value.map(c => c.modelId)).size,
+  // 数的是 modelName：这张卡原先数 `modelId`，而后端那一行根本不回这个字段，
+  // Set 里永远只有一个 undefined，所以 5 台模型一直报「1」
+  totalModels: new Set(configs.value.map(c => c.modelName)).size,
 }))
 
 const providers = [
@@ -911,7 +916,7 @@ async function handleSaveConfig() {
       await modelConfigApi.update(editingConfig.value.id, payload as any)
       message.success('更新成功')
     } else {
-      await modelConfigApi.create(getTenantId(), payload as any)
+      await modelConfigApi.create(payload as any)
       message.success('创建成功')
     }
     showAddModal.value = false
@@ -927,7 +932,7 @@ async function handleSaveConfig() {
 async function loadData() {
   loading.value = true
   try {
-    const result = await modelConfigApi.list({ tenantId: getTenantId(), page: 1, size: 100 })
+    const result = await modelConfigApi.list({ page: 1, size: 100 })
     const list = result?.records || []
     configs.value = list.map((item: any) => ({
       ...item,
@@ -941,15 +946,6 @@ async function loadData() {
     configs.value = []
   } finally {
     loading.value = false
-  }
-}
-
-async function loadTodayUsage() {
-  try {
-    const result = await usageApi.today(getTenantId())
-    Object.assign(todayUsage, result)
-  } catch (error) {
-    logError('ai/model-config-view', error)
   }
 }
 
@@ -968,7 +964,6 @@ async function loadPurposeScopeOptions() {
 
 onMounted(() => {
   loadData()
-  loadTodayUsage()
   loadPurposeScopeOptions()
 })
 </script>
@@ -976,6 +971,10 @@ onMounted(() => {
 <style scoped lang="less">
 .model-config-page {
   width: 100%;
+}
+
+.pool-alert {
+  margin-bottom: 16px;
 }
 
 .stat-card {

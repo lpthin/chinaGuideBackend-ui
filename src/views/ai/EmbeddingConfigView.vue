@@ -1,5 +1,13 @@
 <template>
   <div class="embedding-config-page">
+    <!-- 这一套归谁：2026-11-01 拍板取消客户维度（M-P102），切客户不再影响这一屏 -->
+    <a-alert
+      class="pool-alert"
+      type="info"
+      show-icon
+      message="这一页管的是平台自己那一套向量化配置，所有客户共用；右上角切客户对这一页没有作用。"
+      description="这里改分块参数、Embedding 模型或向量库连接，所有客户知识库的切分与检索都会跟着变。下面那两个数字是全部客户的合计。"
+    />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -10,7 +18,7 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ stats.processedDocs }}</div>
-                <div class="stat-title">已向量化文档</div>
+                <div class="stat-title">已向量化文档（全部客户合计）</div>
               </div>
             </div>
           </a-card>
@@ -23,7 +31,7 @@
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ stats.vectorChunks }}</div>
-                <div class="stat-title">向量分片数</div>
+                <div class="stat-title">向量分片数（全部客户合计）</div>
               </div>
             </div>
           </a-card>
@@ -372,11 +380,10 @@ import {
 } from '@ant-design/icons-vue'
 import { embeddingConfigApi, vectorDbApi, modelConfigApi, aiGenerateApi } from '../../api/ai-model'
 import type { ModelConfig, VectorDatabaseConfig, EmbeddingConfigForm } from '../../types/ai-model'
-import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 
-const authStore = useAuthStore()
-const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
+// M-P102（2026-11-01 拍板）：向量化配置并成平台一份，这一屏不再问「在看哪一家客户」。
+// 后端那三支口也不再收 tenantId，请求里带着只是一个不起作用的数。
 
 const loading = ref(false)
 const saving = ref(false)
@@ -424,7 +431,7 @@ const currentModelName = computed(() => {
 // ===== 主配置加载/保存 =====
 
 async function loadConfig() {
-  const config = await embeddingConfigApi.get(getTenantId())
+  const config = await embeddingConfigApi.get()
   Object.assign(form, defaultForm(), {
     chunkStrategy: config.chunkStrategy || 'fixed',
     chunkSize: config.chunkSize || 512,
@@ -442,20 +449,20 @@ async function loadConfig() {
 }
 
 async function loadStats() {
-  const result = await embeddingConfigApi.stats(getTenantId())
+  const result = await embeddingConfigApi.stats()
   stats.processedDocs = result.processedDocs
   stats.vectorChunks = result.vectorChunks
 }
 
 async function loadEmbeddingModels() {
-  const result = await modelConfigApi.list({ tenantId: getTenantId(), page: 1, size: 100 })
+  const result = await modelConfigApi.list({ page: 1, size: 100 })
   embeddingModels.value = (result.records || []).filter(
     m => ((m.modelType || '') as string).toLowerCase().includes('embedding')
   )
 }
 
 async function loadConnections() {
-  connections.value = await vectorDbApi.list(getTenantId())
+  connections.value = await vectorDbApi.list()
 }
 
 async function loadAll() {
@@ -488,7 +495,7 @@ async function handleSave() {
   }
   saving.value = true
   try {
-    await embeddingConfigApi.update(getTenantId(), payload)
+    await embeddingConfigApi.update(payload)
     message.success('配置保存成功')
     await loadStats()
   } catch (error: any) {
@@ -595,7 +602,7 @@ async function handleSaveConn() {
       await vectorDbApi.update(editingConnId.value, { ...connForm })
       message.success('连接已更新')
     } else {
-      await vectorDbApi.create(getTenantId(), { ...connForm })
+      await vectorDbApi.create({ ...connForm })
       message.success('连接已创建')
     }
     connFormVisible.value = false
@@ -677,6 +684,10 @@ onMounted(loadAll)
 .embedding-config-page {
   width: 100%;
   padding-bottom: 80px;
+}
+
+.pool-alert {
+  margin-bottom: 16px;
 }
 
 .stat-card {

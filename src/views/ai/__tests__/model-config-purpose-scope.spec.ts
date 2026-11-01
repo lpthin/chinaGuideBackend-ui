@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { Button, Input, InputNumber } from 'ant-design-vue'
 import ModelConfigView from '../ModelConfigView.vue'
-import { modelConfigApi, usageApi } from '../../../api/ai-model'
+import { modelConfigApi } from '../../../api/ai-model'
 import type { ModelConfig, PurposeScopeOption } from '../../../types/ai-model'
 
 /**
@@ -48,7 +48,6 @@ vi.mock('../../../api/ai-model', () => ({
     setPrice: vi.fn(),
     purposeScopeOptions: vi.fn(),
   },
-  usageApi: { today: vi.fn() },
 }))
 
 const OPTIONS: PurposeScopeOption[] = [
@@ -142,7 +141,6 @@ const PASS_THROUGH = (name: string) => ({
 
 async function mountView(records: ModelConfig[] = [GENERAL_CHAT, DEDICATED_CHAT, IMAGE_ROW]) {
   vi.mocked(modelConfigApi.list).mockResolvedValue({ records, total: records.length } as any)
-  vi.mocked(usageApi.today).mockResolvedValue({} as any)
   const wrapper = mount(ModelConfigView, {
     attachTo: document.body,
     global: {

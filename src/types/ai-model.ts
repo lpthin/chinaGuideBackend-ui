@@ -292,8 +292,9 @@ export interface ModelHealthCheckSummary {
 }
 
 // 模型查询参数
+// M-P102（2026-11-01 拍板）：这里没有 tenantId——模型池全平台一套，那一支 GET 也不认这一参数，
+// 传了只会是一个不起作用的数，界面上「切客户」对这一族已经没有任何作用。
 export interface ModelQueryParams {
-  tenantId: number
   provider?: ModelProvider
   type?: ModelType
   purpose?: ModelPurpose

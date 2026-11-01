@@ -39,8 +39,13 @@ export const modelApi = {
 
 // 模型配置 API
 export const modelConfigApi = {
-  // 获取配置列表
-  list: (params: { tenantId?: number; isActive?: boolean; page?: number; size?: number }) =>
+  /**
+   * 获取配置列表：这一族从此没有「哪一家客户」这一维（M-P102，2026-11-01 拍板）。
+   *
+   * <p>后端那一支 GET 已经不接受 tenantId，请求里再带也只是一个不起作用的历史参数，
+   * 所以类型上直接摘掉——留着它，下一屏就会又有人传一个没人读的数。</p>
+   */
+  list: (params: { isActive?: boolean; page?: number; size?: number }) =>
     http.get<{
       records: ModelConfig[]
       total: number
@@ -52,9 +57,9 @@ export const modelConfigApi = {
   get: (id: number) =>
     http.get<ModelConfig>(`/ai/model-configs/${id}`),
 
-  // 创建配置
-  create: (tenantId: number, data: ModelConfigForm) =>
-    http.post<ModelConfig>('/ai/model-configs', { tenantId, ...data }),
+  // 创建配置：新行只能落在平台那一家，归属由后端定，请求体里的 tenantId 不作数
+  create: (data: ModelConfigForm) =>
+    http.post<ModelConfig>('/ai/model-configs', { ...data }),
 
   // 更新配置
   update: (id: number, data: Partial<ModelConfigForm>) =>
@@ -113,17 +118,17 @@ export const modelConfigApi = {
 
 // 向量数据库配置 API
 export const vectorDbApi = {
-  // 获取配置列表
-  list: (tenantId: number) =>
-    http.get<VectorDatabaseConfig[]>('/ai/vector-dbs', { params: { tenantId } }),
+  // 获取配置列表：同样是平台一份，不再按客户各存一套（M-P102）
+  list: () =>
+    http.get<VectorDatabaseConfig[]>('/ai/vector-dbs'),
 
   // 获取配置详情
   get: (id: number) =>
     http.get<VectorDatabaseConfig>(`/ai/vector-dbs/${id}`),
 
-  // 创建配置
-  create: (tenantId: number, data: VectorDatabaseForm) =>
-    http.post<VectorDatabaseConfig>('/ai/vector-dbs', { tenantId, ...data }),
+  // 创建配置：新行只能落在平台那一家
+  create: (data: VectorDatabaseForm) =>
+    http.post<VectorDatabaseConfig>('/ai/vector-dbs', { ...data }),
 
   // 更新配置
   update: (id: number, data: Partial<VectorDatabaseForm>) =>
@@ -150,27 +155,28 @@ export const vectorDbApi = {
     http.post<{ success: boolean; message: string; driverReady?: boolean }>('/ai/vector-dbs/test', data),
 }
 
-// 向量化配置 API（向量参数唯一事实来源，每租户一条）
+// 向量化配置 API（向量参数唯一事实来源，全平台一份）
 export const embeddingConfigApi = {
-  // 获取配置
-  get: (tenantId: number) =>
-    http.get<EmbeddingConfig>('/ai/embedding-config', { params: { tenantId } }),
+  // 获取配置：后端那一支 GET 不再收 tenantId（M-P102，2026-11-01 拍板并成平台一份）
+  get: () =>
+    http.get<EmbeddingConfig>('/ai/embedding-config'),
 
-  // 更新配置（tenantId 走 query 参数，body 为配置本身）
-  update: (tenantId: number, data: EmbeddingConfigForm) =>
-    http.put<EmbeddingConfig>('/ai/embedding-config', data, { params: { tenantId } }),
+  // 更新配置（整平台就这一份，body 为配置本身）
+  update: (data: EmbeddingConfigForm) =>
+    http.put<EmbeddingConfig>('/ai/embedding-config', data),
 
-  // 向量化统计（真实文档/分片计数）
-  stats: (tenantId: number) =>
-    http.get<{ processedDocs: number; vectorChunks: number }>('/ai/embedding-config/stats', { params: { tenantId } }),
+  // 向量化统计：全部客户的文档数/分片数合计，不再按客户切
+  stats: () =>
+    http.get<{ processedDocs: number; vectorChunks: number }>('/ai/embedding-config/stats'),
 }
 
 // 用量 API
-export const usageApi = {
-  // 获取今日用量（真实聚合）
-  today: (tenantId: number) =>
-    http.get<any>('/ai/usage/today', { params: { tenantId } }),
-}
+/**
+ * 这一支曾经被「大模型配置」那一屏每次进页白发一发，而回包在界面上一个字都没显示
+ * （取证 scratch/mp102-logs/11-ui-before.txt）。2026-11-01 那一发从界面上摘掉之后，
+ * 前端再没有任何调用点，所以这个包装一起删；后端 `/ai/usage/today` 那一口留着没动，
+ * 要看某一家客户用了多少，走「模型用量」那一屏的 /ai/model/* 那几支。
+ */
 
 // AI模型使用统计 API
 /**
@@ -287,7 +293,6 @@ export default {
   config: modelConfigApi,
   vectorDb: vectorDbApi,
   embedding: embeddingConfigApi,
-  usage: usageApi,
   aiModel: aiModelApi,
   articleTemplate: articleTemplateApi,
   generate: aiGenerateApi,
