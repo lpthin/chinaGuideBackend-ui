@@ -387,8 +387,8 @@ export const routes: RouteRecordRaw[] = [
         path: 'knowledge/dashboard',
         name: 'workspace-knowledge-dashboard',
         component: KnowledgeDashboardView,
-        // Spec-H §4.2 规则 2：组名已经是「知识库」，项名不再把它念第二遍
-        meta: { title: '仪表板', desc: '知识库的数据概览：资料、卡片与图谱的量', icon: 'dashboard' }
+        // 拍板⑦：看数的屏统一叫「总览」；整站有三张总览，项名带上所属域才分得开
+        meta: { title: '知识总览', desc: '知识库的数据总览：资料、卡片与图谱的量', icon: 'dashboard' }
       },
       {
         path: 'knowledge/search',
@@ -515,14 +515,14 @@ export const routes: RouteRecordRaw[] = [
         }
       },
       {
-        // 新建网站向导（Spec-M §3 五步 / §7.1，D3：入口只给超管）。
+        // 新建站点向导（Spec-M §3 五步 / §7.1，D3：入口只给超管）。
         // 它排在「建站」组第一项靠的是路由定义顺序（这一组没在 `MENU_ITEM_ORDER` 里写死顺序；
         // 「站点与租户」那一组写了，因为那三页的真实依赖跟它们在文件里的先后正好相反）。
         path: 'portal/wizard',
         name: 'workspace-portal-wizard',
         component: SiteWizardView,
         meta: {
-          title: '新建网站',
+          title: '新建站点',
           desc: '需求单 → 说明书 → 估价与出方案 → 候选比较 → 选定转正，五步一条线，每步只摆今天真能做的动作',
           icon: 'rocket',
           requiredPermission: 'portal:build:manage',
@@ -625,7 +625,7 @@ export const routes: RouteRecordRaw[] = [
         component: PlatformPromptTemplatesView,
         meta: {
           title: '建站提示词',
-          desc: '平台默认提示词（建站那一族），改一处影响所有租户',
+          desc: '平台默认提示词（建站那一族），改一处影响所有客户',
           icon: 'prompt',
           requiredPermission: 'prompt:template:manage',
           requiresSuperAdmin: true
@@ -704,9 +704,9 @@ export const routes: RouteRecordRaw[] = [
         path: 'portal/banners',
         name: 'workspace-portal-banners',
         component: BannerManageView,
-        // Spec-H §4.2 规则 4：中英混排按显示宽度算，「Banner管理」这一条被「横幅」替掉，
-        // Banner 这个词进 desc，认得英文的人照样找得到。
-        meta: { title: '横幅', desc: '门户首页的轮播图与横幅（Banner）', icon: 'image', requiredPermission: 'portal:siteinfo:manage' }
+        // Spec-H §4.2 规则 4：中英混排按显示宽度算，「Banner管理」这一条被「横幅」替掉。
+        // M-P103 拍板 ⑧：Banner 这个词从界面上清掉，desc 里也不再拿它当认路用。
+        meta: { title: '横幅', desc: '门户首页顶部那一块：横幅的图片、文字、排序、跳转与上下架', icon: 'image', requiredPermission: 'portal:siteinfo:manage' }
       },
       {
         path: 'portal/showcase',
@@ -901,7 +901,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'geoseo/dashboard',
         name: 'workspace-geoseo-dashboard',
         component: GeoSeoDashboardView,
-        meta: { title: '总览仪表盘', icon: 'dashboard', requiredPermission: 'geo:overview:view' }
+        meta: { title: 'GEO 总览', icon: 'dashboard', requiredPermission: 'geo:overview:view' }
       },
       // 可抓取性体检（Spec-F §8、§10-7，P5）：闸的码与后端 GeoCrawlabilityController 一一对应——
       // 路由挂读码 seo:audit:view（V153 已补授 SITE_ADMIN），「跑一次」那一码 seo:audit:run
@@ -951,7 +951,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'ai/models',
         name: 'workspace-ai-models',
         component: ModelConfigView,
-        meta: { title: '大模型配置', icon: 'robot', requiresSuperAdmin: true }
+        meta: { title: '模型配置', icon: 'robot', requiresSuperAdmin: true }
       },
       {
         path: 'ai/vector-db',
@@ -982,7 +982,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'operation/dashboard',
         name: 'workspace-operation-dashboard',
         component: OperationDashboardView,
-        meta: { title: '运营概览', icon: 'chart' }
+        meta: { title: '运营总览', icon: 'chart' }
       },
       {
         path: 'operation/customers',
@@ -1025,14 +1025,15 @@ export const routes: RouteRecordRaw[] = [
         path: 'tenant',
         name: 'workspace-tenant',
         component: TenantPanel,
-        meta: { title: '租户管理', icon: 'team', requiresSuperAdmin: true }
+        meta: { title: '客户开通', icon: 'team', requiresSuperAdmin: true }
       },
       {
         path: 'system-prompt',
         name: 'workspace-system-prompt',
         component: SystemPromptPanel,
-        // Spec-H §4.2 规则 4：「Prompt管理」按显示宽度是 8，改成「提示词」，Prompt 进 desc
-        meta: { title: '提示词', desc: '平台级 AI 提示词（Prompt）模板', icon: 'prompt', requiresSuperAdmin: true }
+        // Spec-H §4.2 规则 4：「Prompt管理」按显示宽度是 8，改成「提示词」。
+        // M-P103 拍板 ⑧：中文句子里不再夹英文单词，desc 里的「（Prompt）」一并去掉。
+        meta: { title: '提示词', desc: '平台级的 AI 提示词模板，改一处影响所有客户的默认措辞', icon: 'prompt', requiresSuperAdmin: true }
       },
       {
         path: 'roles',

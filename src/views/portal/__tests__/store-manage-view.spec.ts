@@ -14,7 +14,7 @@ import { routes } from '../../../router'
  * 2. 「这一家为什么在地图上找不到」要给得出原因，而原因只在界面与门户同序时才敢点名上限；
  * 3. 空列表说「还没有录过门店」，读失败说读失败，词表读不到只降级成一句提醒；
  * 4. 后端那句中文拒绝原因（坐标只填一半、名称超长）原样上屏，界面不另立一套判据。
- * 菜单归属另钉一条：这一页进「网站内容维护」，绝不进任何 build-* 组。
+ * 菜单归属另钉一条：这一页进「站点内容」，绝不进任何 build-* 组。
  */
 
 vi.mock('../../../api/portalStores', () => ({
@@ -396,11 +396,11 @@ describe('StoreManageView 的写入：判据在后端，界面不另立一套', 
 })
 
 describe('门店页的菜单归属（Spec-C §2.1 纪律）', () => {
-  it('路由挂「网站内容」组（tenant 域），绝不进建站组', () => {
+  it('路由挂「站点内容」组（tenant 域），绝不进建站组', () => {
     const routeName = 'workspace-portal-stores'
     expect(MENU_GROUP_BY_ROUTE[routeName]).toBe('site-content')
     const group = MENU_GROUPS.find(entry => entry.key === MENU_GROUP_BY_ROUTE[routeName])
-    expect(group?.label).toBe('网站内容')
+    expect(group?.label).toBe('站点内容')
     expect(group?.domain).toBe('tenant')
     // Spec-H 把建站那组的键从 build-* 收成 `build`，原来的 `startsWith('build-')` 会漏掉它，判据跟着收紧
     expect(group?.key).not.toMatch(/^build/)

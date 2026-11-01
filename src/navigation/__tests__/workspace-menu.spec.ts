@@ -121,7 +121,7 @@ describe('菜单从路由单源生成', () => {
     const childNames = (workspace?.children ?? []).map(child => child.name)
     expect(childNames).not.toContain('workspace-geoseo-config')
     expect(childNames).not.toContain('workspace-geoseo-company')
-    // 替代它的那一页在，且落在「网站内容」组（Spec-H §4.3：原 site-info 组并进 site-content），
+    // 替代它的那一页在，且落在「站点内容」组（Spec-H §4.3：原 site-info 组并进 site-content），
     // 租户读得到（portal:siteinfo:manage 在租户码名单里）
     const siteInfo = grouped.find(leaf => leaf.routeName === 'workspace-portal-site-info')
     expect(siteInfo, '「站点设置」没进菜单，做完的页面没人进得去').toBeTruthy()
@@ -157,7 +157,7 @@ describe('平台段与租户段分家', () => {
     const sections = buildMenuSections(leaves, TENANT)
     expect(sections.map(section => section.domain)).toEqual(['tenant'])
     const visibleNames = sections.flatMap(section => section.groups.flatMap(g => g.items.map(i => i.label)))
-    expect(visibleNames).not.toContain('新建网站')
+    expect(visibleNames).not.toContain('新建站点')
     expect(visibleNames).not.toContain('栏目开通')
     expect(visibleNames).not.toContain('站点清单')
     // Q-P7-3：「页面搭建」这一项不再属于建设段——它的闸是 portal:page:manage，
@@ -173,12 +173,12 @@ describe('平台段与租户段分家', () => {
   /**
    * Q-P7-3 那一刀的菜单侧形状：一条路由、两档能力。
    *
-   * 页面搭建的闸是 portal:page:manage（读页/改信息/发布/下线），组是租户可见的「网站内容」；
+   * 页面搭建的闸是 portal:page:manage（读页/改信息/发布/下线），组是租户可见的「站点内容」；
    * 建站那半（新建页、区块装配、检查结构、保存布局、回滚）由视图按 portal:build:manage 守卫。
    * 这里钉的是「租户进得来这一页」，同时「只有建设码、没有读页码」的账号不能从菜单进——
    * 那条组合在库里不存在，但它正是「菜单与后端两档各挂一头」会长出假入口的地方。
    */
-  it('页面搭建挂在读页码上，归租户可见的「网站内容」组', () => {
+  it('页面搭建挂在读页码上，归租户可见的「站点内容」组', () => {
     const pages = grouped.find(leaf => leaf.routeName === 'workspace-portal-pages')
     expect(pages, '「页面搭建」必须还在菜单里').toBeTruthy()
     expect(pages?.permission).toBe('portal:page:manage')
@@ -211,14 +211,14 @@ describe('平台段与租户段分家', () => {
   })
 
   /**
-   * Spec-M §7.1：超管侧从「新建网站」这一个入口走五步，需求单列表不再是菜单项。
+   * Spec-M §7.1：超管侧从「新建站点」这一个入口走五步，需求单列表不再是菜单项。
    *
    * 列表的路由必须留着——老收藏夹、文档里的链接、以及从别的页面跳过来都指着它；
    * 从菜单摘掉要求 `hidden: true` 与组表删除**同时**改，只改一边要么留下孤儿要么留下假入口。
    */
-  it('「新建网站」向导是建站组第一项；需求单列表退出菜单但路由不断', () => {
+  it('「新建站点」向导是建站组第一项；需求单列表退出菜单但路由不断', () => {
     const wizard = grouped.find(leaf => leaf.routeName === 'workspace-portal-wizard')
-    expect(wizard?.label).toBe('新建网站')
+    expect(wizard?.label).toBe('新建站点')
     expect(wizard?.group).toBe('build')
     expect(wizard?.superAdminOnly).toBe(true)
     expect(wizard?.permission).toBe('portal:build:manage')
@@ -279,14 +279,14 @@ describe('平台段与租户段分家', () => {
   })
 
   /**
-   * 2026-10-26 拍板：平台段里「站点与租户」排在「建站」前面，组内三项按 租户 → 站点 → 栏目。
+   * 2026-10-26 拍板：平台段里「站点与客户」排在「建站」前面，组内三项按 租户 → 站点 → 栏目。
    *
-   * 判据是真实依赖，不是名字像不像：建网站之前必须先有租户（后端没有租户就直接拒），
+   * 判据是真实依赖，不是名字像不像：建站点之前必须先有租户（后端没有租户就直接拒），
    * 栏目又挂在站点上。以前这两组的上下顺序、组内三项的顺序都是 `router/index.ts` 里
    * 定义先后碰出来的，碰出来的结果正好反着（栏目 → 站点 → 租户，且建站组压在租户组上面），
    * 所以这里把「排对了」写成一条要遵守的规则，而不是留一句「记得注意顺序」。
    */
-  it('平台段先租户后建站：组顺序与「站点与租户」组内顺序都按真实依赖排', () => {
+  it('平台段先租户后建站：组顺序与「站点与客户」组内顺序都按真实依赖排', () => {
     const renderOrder = (groupKey: string) =>
       buildMenuSections(leaves, SUPER)
         .flatMap(section => section.groups)
@@ -295,10 +295,10 @@ describe('平台段与租户段分家', () => {
     const platformGroups = buildMenuSections(leaves, SUPER)
       .find(section => section.domain === 'platform')
       ?.groups.map(group => group.def.key) ?? []
-    expect(platformGroups.slice(0, 2), '「站点与租户」没排在「建站」前面').toEqual(['build-assets', 'build'])
-    expect(renderOrder('build-assets'), '组内应当是 租户 → 站点 → 栏目').toEqual(['租户管理', '站点清单', '栏目开通'])
+    expect(platformGroups.slice(0, 2), '「站点与客户」没排在「建站」前面').toEqual(['build-assets', 'build'])
+    expect(renderOrder('build-assets'), '组内应当是 客户 → 站点 → 栏目').toEqual(['客户开通', '站点清单', '栏目开通'])
     // 路由定义顺序给的是反的那一份 ⇒ 这一条能钉住「顺序是写出来的，不是碰出来的」
-    expect(renderOrder('build')[0], '「新建网站」被挤出建站组第一项').toBe('新建网站')
+    expect(renderOrder('build')[0], '「新建站点」被挤出建站组第一项').toBe('新建站点')
   })
 
   it('超管一项都不该漏：组表里的每一项对他都渲染', () => {
@@ -392,7 +392,7 @@ describe('选中态与面包屑', () => {
     })
     // 删了那批字符串之后，界面那一行还是算得出来：当前级 = meta.title，父级 = 组表
     expect(menuCrumb('keywords', leaves)).toEqual({ parent: 'AI 写稿', current: '热词库' })
-    expect(menuCrumb('geoseo/dashboard', leaves)).toEqual({ parent: '效果与经营', current: '总览仪表盘' })
+    expect(menuCrumb('geoseo/dashboard', leaves)).toEqual({ parent: '效果与经营', current: 'GEO 总览' })
     // 跨组再验一条（巡检项挪过组）：父级跟着组表走，不是跟着某个写死的数组走
     expect(menuCrumb('portal/health', leaves).parent).toBe('平台质量')
   })
@@ -430,7 +430,7 @@ describe('选中态与面包屑', () => {
       openContentEntries: null
     }
     const dashboard = grouped.find(leaf => leaf.routeName === 'workspace-geoseo-dashboard')
-    expect(dashboard && leafVisible(dashboard, siteAdmin), '总览仪表盘仍挂在租户菜单里').toBe(false)
+    expect(dashboard && leafVisible(dashboard, siteAdmin), 'GEO 总览仍挂在租户菜单里').toBe(false)
     // 反向对照：同一份视图下真授了码的项照常可见，别把这条修成「整族都藏」
     // H-4 后诊断工作台是 workspace-geo-diagnostic（读码 geo:brand:view）
     const diagnostic = grouped.find(leaf => leaf.routeName === 'workspace-geo-diagnostic')!
@@ -471,10 +471,10 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     // P9-B 加的是新页「每日产出」（G-04 那条自动链的设置与留痕），挂 content:output:view，
     // V166 已把这一码发给 SITE_ADMIN ⇒ 它是租户段的新项，不是平台段多出来的入口。
     // P9-C 再加一颗「读者互动」（G-08：评论队列 + 两个开关），挂 interaction:view（V169 发给
-    // SITE_ADMIN/SUPER_ADMIN，是可分配码）⇒ 同样是租户段的新项，进的是「网站内容」那一组。
+    // SITE_ADMIN/SUPER_ADMIN，是可分配码）⇒ 同样是租户段的新项，进的是「站点内容」那一组。
     // M-P1 加的是「建站提示词」（Spec-M D2 那半张「读得到也写得到」的平台默认写口），
     // 挂 prompt:template:manage，V173 只发给 SUPER_ADMIN ⇒ 多的是平台段那一颗，不是租户多一个入口。
-    // M-P4 把「新建网站」向导放进建站组、同时把「前采需求单」从菜单摘掉（路由留着，见上那条用例）：
+    // M-P4 把「新建站点」向导放进建站组、同时把「前采需求单」从菜单摘掉（路由留着，见上那条用例）：
     // 一加一减，总数照旧 71。这一条钉的就是「收入口不等于删页面」——摘掉的那颗必须仍有地址可达。
     // M-P33-D 在同一个组里多加一颗「建站任务总览」（拍板 ⑩ 那块全平台在跑读数）：
     // 它挂的是与向导逐字相同的 portal:build:manage + requiresSuperAdmin，多的是平台段那一颗，
@@ -530,7 +530,7 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
 
   it('两段的标题是一行话（Q7-a：「内容与维护 / 日常：…」那种两行域标题不再出现）', () => {
     const sections = buildMenuSections(leaves, SUPER)
-    expect(sections.map(section => section.label)).toEqual(['租户日常', '平台管理'])
+    expect(sections.map(section => section.label)).toEqual(['客户日常', '平台管理'])
     // 一行 = 标签本身不含换行，且长度 ≤4；说明句还在（走 tooltip）
     sections.forEach(section => {
       expect(section.label).not.toMatch(/\n/)
@@ -699,5 +699,81 @@ describe('Spec-H P3 / H-4：GEO 诊断工作台三收一', () => {
     expect(labels).toContain('诊断工作台')
     expect(labels).not.toContain('品牌档案')
     expect(labels).not.toContain('诊断向导')
+  })
+})
+
+/**
+ * M-P103 拍板（2026-11-01 八道题）：菜单上印出来的名字统一按 docs/全站叫法对照表-M-P103.md §4 那张词表。
+ *
+ * 这一条是整个叫法统一的**唯一自动化闸**：屏上正文（几千处）靠人工逐处过，菜单名只有几十处，
+ * 而且它同时是页面大标题、面包屑、浏览器标签三处的唯一出处（#606 之后），改错一处三处一起错。
+ * 所以这里不写「今天有哪几个名字」的清单，只写「不许再出现左列那些词」——加新页面照样拦。
+ */
+describe('M-P103：菜单上的名字不许用定稿词表的左列', () => {
+  /** 词表左列（会印到屏上的写法）；右列与客户开通/模型配置/横幅/总览这些合规写法不在这里 */
+  const BANNED = [
+    '租户', '该租户', '当前租户', '租户管理',
+    '大模型配置', '向量数据库连接',
+    '网站', '仪表板', '仪表盘', '运营概览', '总览仪表盘', '概览',
+    'Banner', 'banner', 'BANNER', '轮播图',
+    '超管', 'token', 'Token', 'Prompt', 'prompt'
+  ]
+
+  /** 菜单上会印出来的每一句：项名、项名后面的说明、组名、组说明、段名、段说明 */
+  const menuStrings = (): Array<{ where: string; text: string }> => {
+    const items = leaves.flatMap(leaf => [
+      { where: `菜单项「${leaf.label}」`, text: leaf.label },
+      { where: `菜单项「${leaf.label}」的说明`, text: leaf.tip ?? '' }
+    ])
+    const groups = MENU_GROUPS.flatMap(def => [
+      { where: `组名「${def.label}」`, text: def.label },
+      { where: `组名「${def.label}」的说明`, text: def.hint ?? '' }
+    ])
+    const sections = buildMenuSections(leaves, SUPER).flatMap(section => [
+      { where: `段名「${section.label}」`, text: section.label },
+      { where: `段名「${section.label}」的说明`, text: section.hint ?? '' }
+    ])
+    return [...items, ...groups, ...sections]
+  }
+
+  it('项名、组名、段名与它们的说明里，一个左列词都没有', () => {
+    const hits = menuStrings()
+      .map(entry => ({ ...entry, words: BANNED.filter(word => entry.text.includes(word)) }))
+      .filter(entry => entry.words.length > 0)
+    expect(hits.map(h => `${h.where} 含「${h.words.join('、')}」`), '菜单上还有词表左列的写法').toEqual([])
+  })
+
+  it('这把尺不是空跑的：段/组/项三层都真扫到了东西', () => {
+    const all = menuStrings()
+    // 项名 + 项说明 + 组名 + 组说明 + 段名 + 段说明，菜单上会印的字全在这六类里
+    expect(all.length, '一条都没扫到，尺子等于没挂').toBeGreaterThan(0)
+    expect(all.filter(e => e.text).length, '扫到的全是空串').toBeGreaterThan(50)
+    // 底部固定项（联系平台/工单队列）也在 leaves 里，不靠单独再扫一遍
+    const bottom = bottomMenuLeaf(leaves, SUPER)
+    expect(bottom, '超管底部那一项取不到，这条尺漏了一层').toBeTruthy()
+    expect(all.some(e => e.where.includes(bottom!.label)), `底部项「${bottom!.label}」没进这把尺`).toBe(true)
+  })
+
+  /**
+   * 六处改名逐字钉住：这一条红了只有两种可能——名字被改回去，或改的时候少改了一处。
+   * 上面那条只拦「不许用左列」，拦不住「今天叫『站点总览』明天叫『站点情况』」这种来回换。
+   */
+  it('2026-11-01 拍板改的那六处菜单名逐字对得上', () => {
+    const label = (routeName: string) => leaves.find(leaf => leaf.routeName === routeName)?.label
+    expect(label('workspace-tenant')).toBe('客户开通') // 拍板 ⑤，与「客户管理」分开
+    expect(label('workspace-ai-models')).toBe('模型配置') // 拍板 ②
+    expect(label('workspace-ai-embedding')).toBe('向量化配置') // 拍板 ②
+    expect(label('workspace-knowledge-dashboard')).toBe('知识总览') // 拍板 ⑦
+    expect(label('workspace-geoseo-dashboard')).toBe('GEO 总览') // 拍板 ⑦
+    expect(label('workspace-operation-dashboard')).toBe('运营总览') // 拍板 ⑦
+    expect(label('workspace-portal-wizard')).toBe('新建站点') // 拍板 ⑥
+    expect(label('workspace-portal-banners')).toBe('横幅') // 拍板 ⑧
+  })
+
+  it('三张「总览」名字互不相同，且都带上所属域（拍板 ⑦ 的「看数的叫总览」不能撞名）', () => {
+    const overviewLabels = leaves.map(leaf => leaf.label).filter(label => label.endsWith('总览'))
+    expect(new Set(overviewLabels).size, `总览名字有重复：${overviewLabels.join('/')}`).toBe(overviewLabels.length)
+    // 「工作台」那一类（干活的屏）不在这次改名范围内，这里只保证「总览」不是一句光秃秃的「总览」
+    overviewLabels.forEach(label => expect(label.length, `${label} 只写了「总览」两字，看不出是哪一域`).toBeGreaterThan(2))
   })
 })

@@ -61,7 +61,7 @@ import {
  * - **标签、图标、权限码**只来自路由 meta（与守卫读的是同一条 `meta.requiredPermission`，
  *   结构上不可能再分家）；被砍掉的补充说明走 `meta.desc` → `MenuLeaf.tip`（Spec-H §4.2 规则 3/4）；
  * - **分组**是菜单独有的关注点，留在本文件那张表里（一个路由名只出现一次，用例钉住）；
- * - **域**（租户日常 / 平台管理）挂在组上，用来把两拨东西物理分开。
+ * - **域**（客户日常 / 平台管理）挂在组上，用来把两拨东西物理分开。
  */
 
 export type MenuDomain = 'tenant' | 'platform'
@@ -91,18 +91,18 @@ export interface MenuGroupDef {
  * 每一次摘都在**这里**留一行理由、并在 `MENU_EXCLUDED` 留一条——地址不断，菜单不再重复。
  */
 export const MENU_GROUPS: MenuGroupDef[] = [
-  // ===== 租户日常（5 组 39 项）=====
+  // ===== 客户日常（5 组 39 项）=====
   { key: 'content', label: 'AI 写稿', domain: 'tenant', icon: 'funnel', hint: '从热词到发布的一条流水线' },
   { key: 'article', label: '文章与案例', domain: 'tenant', icon: 'file-text', hint: '文章、分类、模板、素材库与案例' },
   { key: 'knowledge', label: '知识库', domain: 'tenant', icon: 'book', hint: 'AI 写作与答疑的资料来源' },
-  { key: 'site-content', label: '网站内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看到的东西，含企业信息与站点设置' },
+  { key: 'site-content', label: '站点内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看到的东西，含企业信息与站点设置' },
   { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', hint: '流量、引用、GEO 体检与客户经营' },
   // ===== 平台管理（6 组 32 项）=====
-  // 「站点与租户」排在「建站」前面是**真实依赖**：建网站之前必须先有租户（后端
+  // 「站点与客户」排在「建站」前面是**真实依赖**：建站点之前必须先有客户（后端
   // TenantGuard.requireTenantId 没有租户就直接拒），栏目又是挂在站点上的。
-  // 以前这两组的上下顺序是反的，用户先进「建站」再回头找租户从哪来。
-  { key: 'build-assets', label: '站点与租户', domain: 'platform', icon: 'database', hint: '先建租户，再建站点，然后给站点开栏目' },
-  { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', hint: '新建网站向导（需求单 → 说明书 → 出方案 → 候选 → 转正），含提示词、区块与骨架' },
+  // 以前这两组的上下顺序是反的，用户先进「建站」再回头找客户从哪来。
+  { key: 'build-assets', label: '站点与客户', domain: 'platform', icon: 'database', hint: '先开客户，再建站点，然后给站点开栏目' },
+  { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', hint: '新建站点向导（需求单 → 说明书 → 出方案 → 候选 → 转正），含提示词、区块与骨架' },
   { key: 'build-quality', label: '平台质量', domain: 'platform', icon: 'safety', hint: '页面巡检、引用探测、整站组装与改版工单' },
   { key: 'billing', label: '计费', domain: 'platform', icon: 'account-book', hint: '账单、订单、钱包与发票' },
   { key: 'ai', label: 'AI 配置', domain: 'platform', icon: 'robot', hint: '模型、向量化、用量与生成模板' },
@@ -137,7 +137,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-knowledge-tags': 'knowledge',
   'workspace-knowledge-graph': 'knowledge',
   'workspace-knowledge-search': 'knowledge',
-  // 网站内容（原「网站内容维护」8 项 + 原「网站信息」2 项；C-2 那个「组名=项名」在这里消掉）
+  // 站点内容（原「网站内容维护」8 项 + 原「网站信息」2 项；C-2 那个「组名=项名」在这里消掉）
   'workspace-portal-content': 'site-content',
   // 「门户上线」是一页检查清单：超管在这一格灌演示包，租户在这一格看还差什么（视图里两条分支都有），
   // 所以它留在租户可见的一组，不因为「名字像建站」就挪进平台段——那会让租户丢掉唯一一个上线自检入口。
@@ -158,8 +158,8 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // 企业信息一处、站点级 SEO/GEO 与 robots 一处（P5 合并后）；项名「站点设置」，组名不再与它同名
   'workspace-portal-company': 'site-content',
   'workspace-portal-site-info': 'site-content',
-  // Q-P7-3：页面搭建挪进租户可见的「网站内容」组。后端把这条控制器拆成两档之后，
-  // 这一页对 SITE_ADMIN 是「读自己的页、改页面信息、发布/下线」——那是网站内容，不是建站；
+  // Q-P7-3：页面搭建挪进租户可见的「站点内容」组。后端把这条控制器拆成两档之后，
+  // 这一页对 SITE_ADMIN 是「读自己的页、改页面信息、发布/下线」——那是站点内容，不是建站；
   // 建站那半（新建页、区块装配、检查结构、回滚）在视图里按 `portal:build:manage` 守卫。
   // 同一视图两种分支的先例是上面的「门户上线」：一项入口按谁能用它归组，不按名字像不像建站归组
   // （Spec-C §2.1 记过「建站项与租户内容混排」的老病，把它留在 build 组才是复发）。
@@ -177,7 +177,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-operation-cases': 'site-effect',
   'workspace-operation-reports': 'site-effect',
   'workspace-operation-customers': 'site-effect',
-  // 建站（Spec-M §7.1 / M-P4：第一项换成「新建网站」这条五步向导，正是回答他那句「没找到入口」。
+  // 建站（Spec-M §7.1 / M-P4：第一项换成「新建站点」这条五步向导，正是回答他那句「没找到入口」。
   // 「前采需求单」这一项从组表里摘出来、路由改成 hidden——地址不断，只是入口收进向导第一步，
   // 同一个动作不再有两个名字（项数账 71 颗：一加一减，平台段还是 31）。
   // 原「建站交付」2 项 + 原「参考与样式」3 项 + 骨架库；Spec-C §7：「建站流水线」整页删除，
@@ -193,7 +193,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-portal-blocks': 'build',
   'workspace-portal-presets': 'build',
   'workspace-portal-skeletons': 'build',
-  // 站点与租户（治理三件）
+  // 站点与客户（治理三件）
   'workspace-sites': 'build-assets',
   'workspace-tenant': 'build-assets',
   'workspace-portal-sections': 'build-assets',
@@ -234,9 +234,9 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
 /**
  * 组内的上下顺序：只对「顺序本身有意义」的组显式写死，没写到的组仍取路由定义顺序。
  *
- * 为什么「站点与租户」这一组必须写死：租户 → 站点 → 栏目是真实依赖（建网站之前先要有租户，
+ * 为什么「站点与客户」这一组必须写死：客户 → 站点 → 栏目是真实依赖（建站点之前先要有客户，
  * 栏目又挂在站点上），而那三条路由在 `router/index.ts` 里隔了五百行（栏目开通在 `portal/sections`，
- * 站点清单与租户管理在文件末尾）。靠定义先后排出来的顺序正好是反的：栏目 → 站点 → 租户。
+ * 站点清单与客户开通在文件末尾）。靠定义先后排出来的顺序正好是反的：栏目 → 站点 → 客户。
  * 名单里没写的项排在最后，仍按路由定义顺序。
  */
 export const MENU_ITEM_ORDER: Record<string, string[]> = {
@@ -457,8 +457,8 @@ export interface MenuSection {
  * `hint` 留着当 tooltip——「说明不许消失，只许换地方」（§4.2 规则 6）。
  */
 const DOMAINS: Array<{ domain: MenuDomain; label: string; hint: string }> = [
-  { domain: 'tenant', label: '租户日常', hint: '日常：填内容、看效果' },
-  { domain: 'platform', label: '平台管理', hint: '超管动作：建站、开栏目、改样式、跑探测' }
+  { domain: 'tenant', label: '客户日常', hint: '日常：填内容、看效果' },
+  { domain: 'platform', label: '平台管理', hint: '超级管理员动作：建站、开栏目、改样式、跑探测' }
 ]
 
 /**
