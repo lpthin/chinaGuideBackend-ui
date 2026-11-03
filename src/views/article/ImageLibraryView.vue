@@ -1,6 +1,13 @@
 <template>
   <div class="image-library-page">
     <PageTitle />
+    <a-alert
+      v-if="requestedTenantId === null"
+      class="scope-alert"
+      type="info"
+      show-icon
+      :message="scopeNotice"
+    />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -10,7 +17,7 @@
                 <PictureOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.total }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : stats.total }}</div>
                 <div class="stat-title">素材总数</div>
               </div>
             </div>
@@ -23,7 +30,7 @@
                 <InboxOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalSize }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : stats.totalSize }}</div>
                 <div class="stat-title">总容量</div>
               </div>
             </div>
@@ -36,7 +43,7 @@
                 <EyeOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalUsed }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : stats.totalUsed }}</div>
                 <div class="stat-title">使用次数</div>
               </div>
             </div>
@@ -49,7 +56,7 @@
                 <FolderOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ categoryCount }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : categoryCount }}</div>
                 <div class="stat-title">分类数</div>
               </div>
             </div>
@@ -95,10 +102,16 @@
           </a-radio-group>
           <template #actions>
             <a-space>
-              <a-button v-if="selectedKeys.length" type="link" danger @click="batchDelete">
+              <a-button
+                v-if="selectedKeys.length"
+                type="link"
+                danger
+                :disabled="requestedTenantId === null"
+                @click="batchDelete"
+              >
                 批量删除 ({{ selectedKeys.length }})
               </a-button>
-              <a-button type="primary" @click="showUploadModal = true">
+              <a-button type="primary" :disabled="requestedTenantId === null" @click="showUploadModal = true">
                 <template #icon><UploadOutlined /></template>
                 上传文件
               </a-button>
@@ -174,7 +187,8 @@
             :read-failed="readFailed"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
-            can-create
+            :not-sent="notSentLine"
+            :can-create="requestedTenantId !== null"
             create-label="上传文件"
             @create="showUploadModal = true"
           />
@@ -197,7 +211,8 @@
                 :read-failed="readFailed"
                 :empty-line="emptyLine"
                 :empty-reason="emptyReason"
-                can-create
+                :not-sent="notSentLine"
+                :can-create="requestedTenantId !== null"
                 create-label="上传文件"
                 @create="showUploadModal = true"
               />
@@ -342,7 +357,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   PictureOutlined,
@@ -370,7 +385,21 @@ import {
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
-const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
+// 超管要选定一家客户才发请求；原来这里「没选就退回 1 号家」，读的、删的、上传的都落到了 1 号家。
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的素材。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的素材。`
+})
+const notSentLine = ref('')
 
 const loading = ref(false)
 const uploading = ref(false)
@@ -387,7 +416,6 @@ const stats = reactive({
 })
 
 const queryParams = reactive({
-  tenantId: getTenantId(),
   category: undefined as string | undefined,
   fileType: undefined as string | undefined,
   keyword: '',
@@ -412,8 +440,12 @@ const readFailed = ref('')
 const categories = ref<{ category: string; count: number }[]>([])
 
 async function loadCategories() {
+  if (requestedTenantId.value === null) {
+    categories.value = []
+    return
+  }
   try {
-    categories.value = await imageLibraryApi.categories()
+    categories.value = await imageLibraryApi.categories(requestedTenantId.value)
   } catch (error) {
     logError('article/image-library-view', '类别列表加载失败:', error)
     categories.value = []
@@ -510,6 +542,10 @@ function beforeUpload(file: any) {
 }
 
 async function handleUploadOk() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，上传这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   if (uploadFileList.value.length === 0) {
     message.warning('请选择要上传的文件')
     return
@@ -526,6 +562,7 @@ async function handleUploadOk() {
     if (uploadCategory.value) {
       formData.append('category', uploadCategory.value)
     }
+    formData.append('tenantId', String(requestedTenantId.value))
 
     await imageLibraryApi.uploadBatch(formData)
     message.success('上传成功')
@@ -543,8 +580,12 @@ async function handleUploadOk() {
 }
 
 async function handleDelete(id: number) {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，删除这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   try {
-    await imageLibraryApi.delete(id)
+    await imageLibraryApi.delete(id, requestedTenantId.value)
     message.success('删除成功')
     selectedKeys.value = selectedKeys.value.filter(k => k !== id)
     await loadData()
@@ -555,12 +596,16 @@ async function handleDelete(id: number) {
 }
 
 async function batchDelete() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，批量删除这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   if (selectedKeys.value.length === 0) {
     message.warning('请选择要删除的文件')
     return
   }
   try {
-    await imageLibraryApi.batchDelete(selectedKeys.value)
+    await imageLibraryApi.batchDelete(selectedKeys.value, requestedTenantId.value)
     message.success('批量删除成功')
     selectedKeys.value = []
     await loadData()
@@ -586,8 +631,23 @@ async function loadData() {
   emptyLine.value = ''
   emptyReason.value = null
   readFailed.value = ''
+  notSentLine.value = ''
+  const id = requestedTenantId.value
+  if (id === null) {
+    // 没选定客户：这一发不发，也不把上一家的素材继续摆着
+    imageList.value = []
+    pagination.total = 0
+    selectedKeys.value = []
+    stats.total = 0
+    stats.totalSize = '0 KB'
+    stats.totalUsed = 0
+    notSentLine.value = '当前没有选定客户，这一发没发出去，所以这里的素材一条都不是（不是「这一家没有素材」）。请在右上角选一家客户。'
+    loading.value = false
+    return
+  }
   try {
     const params: any = {
+      tenantId: id,
       page: pagination.page,
       size: pagination.size,
     }
@@ -632,6 +692,13 @@ function filterCategoryOption(input: string, option: any) {
   return String(option.value).toLowerCase().includes(input.toLowerCase())
 }
 
+watch(requestedTenantId, () => {
+  selectedKeys.value = []
+  pagination.page = 1
+  loadData()
+  loadCategories()
+})
+
 onMounted(() => {
   loadData()
   loadCategories()
@@ -642,6 +709,10 @@ onMounted(() => {
 .image-library-page {
   width: 100%;
   padding: 8px 0;
+}
+
+.scope-alert {
+  margin-bottom: 16px;
 }
 
 .stat-card {

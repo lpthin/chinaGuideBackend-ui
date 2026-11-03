@@ -3,12 +3,13 @@
     <!-- 屏名只认路由那一份：这块页头自己写了「AI 文章生成」，菜单念的是「AI生成」 -->
     <PageTitle description="智能驱动，一键生成高质量内容">
       <template #extra>
-        <a-button @click="showTemplateEditor = true">
+        <a-button :disabled="requestedTenantId === null" @click="showTemplateEditor = true">
           <template #icon><EditOutlined /></template>
           模板管理
         </a-button>
       </template>
     </PageTitle>
+    <a-alert v-if="requestedTenantId === null" class="scope-alert" type="info" show-icon :message="scopeNotice" />
     <a-spin :spinning="loading">
 
       <!-- 统计卡片 -->
@@ -17,7 +18,7 @@
           <div class="stat-card" :class="`stat-card--${item.color}`" @click="navigateTo(item.path)">
             <div class="stat-card__icon"><component :is="item.icon" /></div>
             <div class="stat-card__body">
-              <div class="stat-card__value">{{ item.value }}<span class="stat-card__unit">{{ item.unit }}</span></div>
+              <div class="stat-card__value">{{ requestedTenantId === null ? '—' : item.value }}<span v-if="requestedTenantId !== null" class="stat-card__unit">{{ item.unit }}</span></div>
               <div class="stat-card__label">{{ item.label }}</div>
             </div>
           </div>
@@ -275,7 +276,7 @@
 
             <div v-if="clusterInfo && clusterSuggestions.length === 0" class="empty-cluster-suggestions">
               <a-empty description="该聚类暂无内容建议">
-                <a-button type="primary" @click="generateSuggestionsForCluster">重新生成建议</a-button>
+                <a-button type="primary" :disabled="requestedTenantId === null" @click="generateSuggestionsForCluster">重新生成建议</a-button>
               </a-empty>
             </div>
 
@@ -342,10 +343,10 @@
         <div class="action-bar">
           <a-space size="middle">
             <a-switch v-model:checked="useKnowledge" checked-children="知识库引用" un-checked-children="知识库引用" />
-            <a-button @click="loadTokenStats">Token 统计</a-button>
+            <a-button :disabled="requestedTenantId === null" @click="loadTokenStats">Token 统计</a-button>
             <a-button @click="openAnalysisDrawer">质量分析</a-button>
           </a-space>
-          <a-button type="primary" size="large" :loading="generating" :disabled="generating" @click="generateArticle">
+          <a-button type="primary" size="large" :loading="generating" :disabled="generating || requestedTenantId === null" @click="generateArticle">
             <template #icon><RocketOutlined /></template>
             {{ generating ? '生成中...' : '开始生成' }}
           </a-button>
@@ -367,9 +368,12 @@
         <div class="toolbar">
           <a-space wrap size="middle" class="toolbar-fill">
             <span class="list-hint">
-              本页只负责生成：最近 7 天的任务共 {{ generationTasks.length }} 个（本页最多念 {{ RECENT_TASK_LIMIT }} 个），
-              已生成 {{ generatedArticleCount }} 篇。
-              审核请在「审核管理」处理，发布与删除请在「发布中心」或「文章列表」处理。
+              <template v-if="requestedTenantId === null">{{ notSentLine }}</template>
+              <template v-else>
+                本页只负责生成：最近 7 天的任务共 {{ generationTasks.length }} 个（本页最多念 {{ RECENT_TASK_LIMIT }} 个），
+                已生成 {{ generatedArticleCount }} 篇。
+                审核请在「审核管理」处理，发布与删除请在「发布中心」或「文章列表」处理。
+              </template>
             </span>
             <a-space>
               <span v-if="selectedRowKeys.length > 0" class="selected-count">已选 {{ selectedRowKeys.length }} 项</span>
@@ -579,8 +583,29 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
+/**
+ * 超管要选定一家客户才发请求；原来这里「没选就当 undefined」，请求头不带客户号，
+ * 后端按 1 号家回——读的是 1 号家的词与任务，生成的文章也落进 1 号家、烧的是 1 号家的额度。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的词与任务。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的词与生成任务；在这里生成的文章与消耗的额度都算这一家。`
+})
+
+const notSentLine = ref('')
+
 /** 接口参数是 number | undefined，而 selectedTenantId 是 number | null，统一在此收敛 */
-const tenantId = computed<number | undefined>(() => authStore.selectedTenantId ?? undefined)
+const tenantId = computed<number | undefined>(() => requestedTenantId.value ?? undefined)
 
 const loading = ref(false)
 const generating = ref(false)
@@ -904,6 +929,12 @@ let followUpRounds = 0
  * 会话内正在跟踪的那几趟以本地为准，回填只补本地没有的 id。
  */
 async function loadRecentTasks() {
+  if (requestedTenantId.value === null) {
+    generationTasks.value = []
+    notSentLine.value = '这一发没发出去，所以这里的生成任务一条都不是（不是「这一家没有任务」）。请在右上角选一家客户。'
+    return
+  }
+  notSentLine.value = ''
   let rows: GenerationTaskView[]
   try {
     rows = (await articleApi.getGenerationTasks({
@@ -981,6 +1012,13 @@ function clearFollowUp() {
 }
 
 async function loadStats() {
+  if (requestedTenantId.value === null) {
+    stats.totalArticles = 0
+    stats.draftCount = 0
+    stats.publishedCount = 0
+    stats.pendingCount = 0
+    return
+  }
   loading.value = true
   try {
     const statsData = await dashboardApi.getStats(tenantId.value)
@@ -1142,6 +1180,10 @@ async function trySSE(taskId: number): Promise<boolean> {
 }
 
 async function generateArticle() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，这一发没发出去（生成会烧额度）。请在右上角选一家客户。')
+    return
+  }
   // 把手上的 :loading 要等下一个 microtask 才落到 DOM，连点挡不住；这一道同步闸才顶用
   // （10-13 走查现场：取证脚本一次提交造出 task 9/10 两笔逐字相同的单，两篇都真花了钱）
   if (generating.value) return
@@ -1226,6 +1268,10 @@ async function generateArticle() {
 }
 
 async function saveTemplate() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，模板没有保存。请在右上角选一家客户。')
+    return
+  }
   if (!editingTemplate.name.trim() || !editingTemplate.content.trim()) {
     message.warning('请填写模板名称和内容')
     return
@@ -1263,6 +1309,10 @@ function canSubmitReview(task?: GenerationTask) {
 
 async function submitForReview(task: GenerationTask) {
   if (!task.articleId) { message.warning('该任务尚未产出文章'); return }
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，提交审核这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   try {
     await articleApi.submitReview(task.articleId, tenantId.value)
     message.success('已提交审核')
@@ -1275,6 +1325,10 @@ async function submitForReview(task: GenerationTask) {
 }
 
 async function batchSubmitReview() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，提交审核这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   const targets = generationTasks.value.filter(t => selectedRowKeys.value.includes(t.taskId) && canSubmitReview(t))
   if (!targets.length) { message.warning('请选择已生成且仍为草稿的文章'); return }
   const failed: string[] = []
@@ -1296,6 +1350,7 @@ async function batchSubmitReview() {
 async function loadTokenStats() {
   showTokenStats.value = true
   tokenStats.value = null
+  if (requestedTenantId.value === null) return
   try {
     tokenStats.value = await articleApi.getTokenStats(7, tenantId.value)
   } catch (error) {
@@ -1380,8 +1435,12 @@ function handleResize() {
 }
 
 async function loadKeywords() {
+  if (requestedTenantId.value === null) {
+    keywordsList.value = []
+    return
+  }
   try {
-    const tid: number = authStore.selectedTenantId ?? authStore.tenantId
+    const tid = requestedTenantId.value
     // 企业关键词库 SOT：按意图价值倒序 + 搜索量 取前 100（比 size:50 扩大 1 倍），
     // 优先展示高转化意图词（价格/选择/效果/本地服务）。
     const res = await keywordApi.list({
@@ -1410,6 +1469,7 @@ async function loadKeywords() {
 }
 
 async function loadClusterData(clusterId: number) {
+  if (requestedTenantId.value === null) return
   try {
     loading.value = true
     const res = await clusterApi.get(clusterId, { tenantId: tenantId.value })
@@ -1429,6 +1489,10 @@ async function loadClusterData(clusterId: number) {
 }
 
 async function loadClusterList() {
+  if (requestedTenantId.value === null) {
+    clusterList.value = []
+    return
+  }
   try {
     const res = await clusterApi.list({ tenantId: tenantId.value, page: 1, size: 100 })
     clusterList.value = res?.records || []
@@ -1467,6 +1531,10 @@ async function generateSuggestionsForCluster() {
 }
 
 async function loadCases() {
+  if (requestedTenantId.value === null) {
+    casesList.value = []
+    return
+  }
   try {
     const res = await caseApi.list({ page: 1, size: 10 } as any) as any
     const records = res?.records || res?.data?.records || []
@@ -1491,11 +1559,12 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
 })
 
-// 租户切换时重新加载数据；生成任务与租户绑定，切换后清空再按新家回填
-watch(() => authStore.selectedTenantId, () => {
+// 客户切换时重新加载数据；生成任务与客户绑定，切换后清空再按新家回填
+watch(requestedTenantId, () => {
   loadStats()
   loadKeywords()
   loadClusterList()
+  loadCases()
   selectedSuggestionId.value = null
   clusterInfo.value = null
   clusterSuggestions.value = []
@@ -1527,6 +1596,10 @@ onUnmounted(() => {
 @slate-600: #475569;
 @slate-700: #334155;
 @slate-800: #1e293b;
+
+.scope-alert {
+  margin-bottom: 16px;
+}
 
 .article-generate-page {
   width: 100%;

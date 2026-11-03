@@ -1,6 +1,13 @@
 <template>
   <div class="case-manage-page">
     <PageTitle />
+    <a-alert
+      v-if="requestedTenantId === null"
+      class="scope-alert"
+      type="info"
+      show-icon
+      :message="scopeNotice"
+    />
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -10,7 +17,7 @@
                 < TrophyOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ formatNumber(stats.total) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : formatNumber(stats.total) }}</div>
                 <div class="stat-title">案例总数</div>
               </div>
             </div>
@@ -23,7 +30,7 @@
                 <EyeOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ formatNumber(stats.totalViews) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : formatNumber(stats.totalViews) }}</div>
                 <div class="stat-title">总浏览量</div>
               </div>
             </div>
@@ -36,7 +43,7 @@
                 <TagOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ formatNumber(stats.industryCount) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : formatNumber(stats.industryCount) }}</div>
                 <div class="stat-title">行业数</div>
               </div>
             </div>
@@ -79,7 +86,7 @@
           />
           <template #actions>
             <a-space>
-              <a-button v-if="canManage" type="primary" @click="showAddModal">
+              <a-button v-if="canManage" type="primary" :disabled="requestedTenantId === null" @click="showAddModal">
                 <template #icon><PlusOutlined /></template>
                 新建案例
               </a-button>
@@ -109,7 +116,8 @@
               :read-failed="readFailed"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
-              :can-create="canManage"
+              :not-sent="notSentLine"
+              :can-create="canManage && requestedTenantId !== null"
               create-label="新建案例"
               @create="showAddModal"
             />
@@ -341,6 +349,24 @@ import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 
+// 超管要选定一家客户才发请求；原来这里用「没选就退回 1 号家」，案例的读、写、删除都落到了 1 号家。
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的案例。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的案例。`
+})
+
+const notSentLine = ref('')
+
 /** 会改内容或会花租户钱的那五张口在后端要这个码；界面跟着它摆不摆把手，与路由的 view 码同一分法 */
 const canManage = computed(() => authStore.hasPermission('operation:case:manage'))
 
@@ -453,7 +479,21 @@ function getStatusName(status: string): string {
 }
 
 async function loadCaseList() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    // 没选定客户：不发这一发，把上一家的行与总条数一起清掉，并说清「一条都不是」
+    caseList.value = []
+    paginationConfig.total = 0
+    emptyLine.value = ''
+    emptyReason.value = null
+    readFailed.value = ''
+    notSentLine.value = authStore.isSuperAdmin
+      ? '当前没有选定客户，案例这一发没发出去，所以这里一条都不是（不是「这一家没有案例」）。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，案例这一发没发出去，所以这里一条都不是。'
+    tableLoading.value = false
+    return
+  }
+  notSentLine.value = ''
   tableLoading.value = true
   // 每一发先把自己擦干净：留着上一轮那句成因，失败的那一发就会念成上一轮的空态
   emptyLine.value = ''
@@ -492,7 +532,13 @@ async function loadCaseList() {
 }
 
 async function loadStats() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    stats.total = null
+    stats.totalViews = null
+    stats.industryCount = null
+    return
+  }
   try {
     const res = await customerCaseApi.statistics(tenantId)
     stats.total = res.total
@@ -518,12 +564,20 @@ async function loadAll() {
 }
 
 function showAddModal() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，新建这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   isEdit.value = false
   resetForm()
   modalVisible.value = true
 }
 
 function editCase(record: CustomerCase) {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，改案例这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   isEdit.value = true
   Object.assign(editForm, {
     id: record.id,
@@ -549,6 +603,10 @@ function viewDetail(record: CustomerCase) {
 
 /** 打开这扇窗时只做一件事：取预估。这一发一次模型都不调，所以不存在「顺手把钱花了」 */
 async function openDraftModal(record: CustomerCase) {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，AI 起草这一发没发出去（也没花钱）。请在右上角选一家客户。')
+    return
+  }
   draftTarget.value = record
   estimate.value = null
   draftConfirmed.value = false
@@ -598,9 +656,9 @@ async function runAiDraft() {
 }
 
 function resetForm() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
   editForm.id = undefined
-  editForm.tenantId = tenantId
+  editForm.tenantId = tenantId ?? 0
   editForm.customerName = ''
   editForm.customerLogo = ''
   editForm.industry = ''
@@ -614,6 +672,10 @@ function resetForm() {
 }
 
 async function handleSave() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，保存这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   try {
     if (isEdit.value && editForm.id) {
       await customerCaseApi.update(editForm.id, editForm)
@@ -631,6 +693,10 @@ async function handleSave() {
 }
 
 async function handleDelete(id: number) {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，删除这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   Modal.confirm({
     title: '确定要删除这个案例吗？',
     onOk: async () => {
@@ -646,12 +712,9 @@ async function handleDelete(id: number) {
   })
 }
 
-watch(
-  () => authStore.selectedTenantId,
-  () => {
-    loadAll()
-  }
-)
+watch(requestedTenantId, () => {
+  loadAll()
+})
 
 onMounted(() => {
   loadAll()
@@ -661,6 +724,10 @@ onMounted(() => {
 <style scoped lang="less">
 .case-manage-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 16px;
 }
 
 .stat-card {

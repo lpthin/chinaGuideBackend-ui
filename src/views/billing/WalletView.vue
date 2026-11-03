@@ -1,6 +1,13 @@
 <template>
   <div class="wallet-view-page">
     <PageTitle />
+    <a-alert
+      v-if="requestedTenantId === null"
+      class="scope-alert"
+      type="info"
+      show-icon
+      :message="scopeNotice"
+    />
     <a-spin :spinning="loading">
       <!-- 顶部余额卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
@@ -99,11 +106,21 @@
           />
           <template #actions>
             <a-space>
-              <a-button size="large" :loading="exportLoading" @click="handleExport">
+              <a-button
+                size="large"
+                :loading="exportLoading"
+                :disabled="requestedTenantId === null"
+                @click="handleExport"
+              >
                 <template #icon><ExportOutlined /></template>
                 导出明细
               </a-button>
-              <a-button type="primary" size="large" @click="showRechargeModal">
+              <a-button
+                type="primary"
+                size="large"
+                :disabled="requestedTenantId === null"
+                @click="showRechargeModal"
+              >
                 <template #icon><DollarOutlined /></template>
                 充值
               </a-button>
@@ -146,6 +163,7 @@
               :read-failed="readFailed"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
+              :not-sent="notSentLine"
             />
           </template>
         </a-table>
@@ -219,6 +237,24 @@ import {
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
+
+// 超管要选定一家客户才发请求；原来这里用「没选就退回 1 号家」，读的和充值的都落到了 1 号家。
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的余额和流水。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的钱包与流水。`
+})
+
+const notSentLine = ref('')
 
 const loading = ref(false)
 const tableLoading = ref(false)
@@ -336,6 +372,7 @@ function formatAmount(amount: number): string {
 
 /** 四张卡上的钱：钱包那一发读失败就说「没取到」，不许念成 ¥0.00 */
 function statText(amount: number): string {
+  if (requestedTenantId.value === null) return '—'
   if (walletReadFailed.value) return '没取到'
   // 这家还没开过钱包时后端那一格回的是 null，不是零钱——摆 ¥0.00 会让人以为「查过了，就是零」
   if (walletMissing.value) return '—'
@@ -367,7 +404,18 @@ function handleDateChange(dates: [string, string] | undefined) {
 }
 
 async function loadWalletInfo() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    // 没选定客户：不发这一发，也不摆上一家的旧数字
+    walletInfo.balance = 0
+    walletInfo.totalRecharge = 0
+    walletInfo.availableBalance = 0
+    walletInfo.frozenBalance = 0
+    walletReadFailed.value = ''
+    walletMissing.value = false
+    loading.value = false
+    return
+  }
   loading.value = true
   walletReadFailed.value = ''
   walletMissing.value = false
@@ -397,7 +445,21 @@ async function loadWalletInfo() {
 }
 
 async function loadTransactionList() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    // 没选定客户：不发这一发，把上一家的行、总条数一起清掉，并说清「一条都不是」
+    transactionListData.value = []
+    paginationConfig.total = 0
+    readFailed.value = ''
+    emptyLine.value = ''
+    emptyReason.value = null
+    notSentLine.value = authStore.isSuperAdmin
+      ? '当前没有选定客户，流水这一发没发出去，所以这里一条都不是（不是「这一家没有流水」）。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，流水这一发没发出去，所以这里一条都不是。'
+    tableLoading.value = false
+    return
+  }
+  notSentLine.value = ''
   tableLoading.value = true
   readFailed.value = ''
   emptyLine.value = ''
@@ -436,13 +498,10 @@ async function loadTransactionList() {
   }
 }
 
-watch(
-  () => authStore.selectedTenantId,
-  () => {
-    loadWalletInfo()
-    loadTransactionList()
-  }
-)
+watch(requestedTenantId, () => {
+  loadWalletInfo()
+  loadTransactionList()
+})
 
 function showRechargeModal() {
   rechargeForm.amount = 100
@@ -462,7 +521,11 @@ async function handleConfirmRecharge() {
     message.error('请选择支付方式')
     return
   }
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，这一发没发出去，没有充值。请在右上角选一家客户。')
+    return
+  }
   rechargeLoading.value = true
   try {
     await walletApi.recharge(tenantId, rechargeForm.amount, rechargeForm.paymentMethod)
@@ -481,7 +544,11 @@ async function handleConfirmRecharge() {
 const exportLoading = ref(false)
 
 async function handleExport() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，没有导出任何流水。请在右上角选一家客户。')
+    return
+  }
   exportLoading.value = true
   try {
     const params: any = { tenantId }
@@ -526,6 +593,10 @@ onMounted(async () => {
 <style scoped lang="less">
 .wallet-view-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 16px;
 }
 
 .stat-card {

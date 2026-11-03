@@ -49,7 +49,12 @@ const keyword = ref('')
 const page = ref(1)
 const pageSize = 12
 
-const effectiveTenantId = computed(() => props.tenantId ?? auth.selectedTenantId ?? auth.tenantId ?? null)
+// 挑图弹窗也守同一条：超管没选定客户就不猜，绝不落回 1 号那一家
+const effectiveTenantId = computed<number | null>(() => {
+  if (props.tenantId != null) return props.tenantId
+  if (auth.isSuperAdmin) return auth.selectedTenantId ?? null
+  return auth.user?.tenantId ?? null
+})
 
 function formatSize(bytes?: number) {
   if (!bytes || bytes <= 0) {

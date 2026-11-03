@@ -3,11 +3,24 @@
     <PageTitle description="维护企业基础信息和画像，供行业热词收集、关键词蒸馏和内容生成使用。">
       <template #extra>
         <a-space>
-          <a-button @click="handleReset">重置</a-button>
-          <a-button type="primary" :loading="saving" @click="handleSave">保存修改</a-button>
+          <a-button :disabled="requestedTenantId === null" @click="handleReset">重置</a-button>
+          <a-button
+            type="primary"
+            :loading="saving"
+            :disabled="requestedTenantId === null"
+            @click="handleSave"
+          >保存修改</a-button>
         </a-space>
       </template>
     </PageTitle>
+
+    <a-alert
+      v-if="requestedTenantId === null"
+      class="scope-alert"
+      type="info"
+      show-icon
+      :message="scopeNotice"
+    />
 
     <div class="content-wrapper">
       <a-spin :spinning="loading">
@@ -329,6 +342,7 @@
                   :file-list="logoFileList"
                   :before-upload="beforeUpload"
                   :max-count="1"
+                  :disabled="requestedTenantId === null"
                   @change="handleLogoChange"
                 >
                   <div>
@@ -346,6 +360,7 @@
                   :file-list="faviconFileList"
                   :before-upload="beforeFaviconUpload"
                   :max-count="1"
+                  :disabled="requestedTenantId === null"
                   @change="handleFaviconChange"
                 >
                   <div>
@@ -404,6 +419,7 @@
               :before-upload="beforeCertificateUpload"
               multiple
               list-type="picture-card"
+              :disabled="requestedTenantId === null"
             >
               <div>
                 <PlusOutlined />
@@ -440,7 +456,20 @@ import { logError } from '../../utils/errorLog'
 import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
-const tenantId = computed(() => auth.selectedTenantId || auth.tenantId)
+// 超管要选定一家客户才发请求；原来这里用「没选就退回 1 号家」，读的和保存的都落到了 1 号家。
+const requestedTenantId = computed<number | null>(() => {
+  if (auth.isSuperAdmin) return auth.selectedTenantId ?? null
+  return auth.user?.tenantId ?? null
+})
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return auth.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的企业信息，表单里是空的。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的企业信息。`
+})
 const loading = ref(false)
 const saving = ref(false)
 
@@ -619,9 +648,27 @@ function fillFormFromData(data: CompanyInfo) {
 }
 
 async function loadCompanyInfo() {
+  const id = requestedTenantId.value
+  if (id === null) {
+    // 没选定客户：不发这一发，也不把上一家的表单继续摆着
+    Object.assign(form, defaultForm())
+    industryPath.value = []
+    targetRegionsList.value = []
+    targetAudienceList.value = []
+    businessModelList.value = []
+    searchLocalesList.value = []
+    competitorDomainsList.value = ['']
+    seedKeywordsList.value = ['']
+    excludedKeywordsList.value = ['']
+    logoFileList.value = []
+    faviconFileList.value = []
+    certificateFileList.value = []
+    loading.value = false
+    return
+  }
   loading.value = true
   try {
-    const data = await companyInfoApi.get(tenantId.value)
+    const data = await companyInfoApi.get(id)
     if (data) {
       fillFormFromData(data)
     }
@@ -634,6 +681,10 @@ async function loadCompanyInfo() {
 }
 
 async function handleSave() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，保存这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   if (!form.companyName?.trim()) {
     message.warning('请填写公司名称')
     return
@@ -652,7 +703,7 @@ async function handleSave() {
       seedKeywords: joinList(seedKeywordsList.value),
       excludedKeywords: joinList(excludedKeywordsList.value)
     }
-    await companyInfoApi.update(payload, tenantId.value)
+    await companyInfoApi.update(payload, requestedTenantId.value)
     message.success('保存成功')
     await loadCompanyInfo()
   } catch (error) {
@@ -664,6 +715,10 @@ async function handleSave() {
 }
 
 function handleReset() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，没有可重置的表单。请在右上角选一家客户。')
+    return
+  }
   loadCompanyInfo()
   message.info('已重置表单')
 }
@@ -686,8 +741,12 @@ async function uploadCompanyImage(
   onUploaded: (url: string) => void,
   successText: string
 ) {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，图片没有上传。请在右上角选一家客户。')
+    return
+  }
   try {
-    const res = await companyInfoApi.uploadImage(kind, file, tenantId.value) as any
+    const res = await companyInfoApi.uploadImage(kind, file, requestedTenantId.value) as any
     onUploaded(res?.url || '')
     message.success(successText)
   } catch (error) {
@@ -739,7 +798,7 @@ function handleFaviconChange(info: any) {
   if (!info.fileList.length) form.faviconUrl = ''
 }
 
-watch(tenantId, () => {
+watch(requestedTenantId, () => {
   loadCompanyInfo()
 })
 
@@ -753,6 +812,10 @@ onMounted(() => {
 .company-info-page {
   width: 100%;
   padding: 0;
+}
+
+.scope-alert {
+  margin-bottom: 16px;
 }
 
 .content-wrapper {

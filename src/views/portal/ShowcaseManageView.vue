@@ -485,7 +485,11 @@ async function onPickMedia(url: string) {
   mediaPicking.value = true
   mediaNote.value = ''
   try {
-    const tenantId = auth.selectedTenantId ?? auth.tenantId ?? null
+    const tenantId = auth.isSuperAdmin ? auth.selectedTenantId : auth.user?.tenantId
+    if (tenantId == null) {
+      mediaNote.value = '还没选定客户，查不到这张图属于哪家的素材库，请先在右上角选一家客户'
+      return
+    }
     const mediaId = await resolveMediaIdByUrl(url, tenantId)
     if (!mediaId) {
       mediaNote.value = '在媒体库里没定位到这张图的素材编号，请重新挑一张（图片只能来自媒体库，地址存不进去）'

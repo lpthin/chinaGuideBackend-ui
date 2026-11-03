@@ -1,10 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest'
 import { h } from 'vue'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, enableAutoUnmount } from '@vue/test-utils'
 import { Button, message } from 'ant-design-vue'
 import KnowledgeGraphView from '../KnowledgeGraphView.vue'
 import { knowledgeGraphApi } from '../../../api/knowledge'
 import * as echarts from 'echarts'
+
+// 不自动卸载的话，上一格挂着的组件会跟着下一个用例改的 mock 客户再发一次请求
+enableAutoUnmount(afterEach)
 
 /**
  * 知识图谱那一屏（M-P96）。
@@ -41,9 +44,19 @@ vi.mock('../../../api/knowledge', () => ({
   knowledgeDocumentApi: { list: vi.fn() }
 }))
 
-vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({ selectedTenantId: 1, tenantId: 1, user: { id: 1 } })
-}))
+const auth = vi.hoisted(() => ({ store: {} as any }))
+
+vi.mock('../../../stores/auth', async () => {
+  // 响应式对象：没选客户 → 选上客户那一步靠 watch(requestedTenantId) 重取
+  const { reactive } = await import('vue')
+  auth.store = reactive({
+    selectedTenantId: 1 as number | null,
+    tenantId: 1 as number | null,
+    user: { id: 1, tenantId: 1 },
+    isSuperAdmin: true
+  })
+  return { useAuthStore: () => auth.store }
+})
 
 // echarts 在这间屋子里画不出东西，但「喂给它的 option」正是要钉的东西
 vi.mock('echarts', () => {
@@ -236,6 +249,9 @@ function findButton(wrapper: any, text: string) {
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  // mountView 每次排一个 mockResolvedValueOnce；上一格没发出去时那一条会留在队列里串到下一格
+  vi.mocked(knowledgeGraphApi.getGraph).mockReset()
+  auth.store.selectedTenantId = 1
 })
 
 describe('知识图谱屏', () => {
@@ -342,3 +358,46 @@ describe('知识图谱屏', () => {
 function messageSuccess(): string {
   return vi.mocked(message.success).mock.calls.flat().join(' ')
 }
+
+describe('超管没选定客户（M-P105）：不查任何一家的图谱', () => {
+  it('getGraph 一发都不发，三张卡全摆「—」', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView()
+
+    expect(knowledgeGraphApi.getGraph).not.toHaveBeenCalled()
+    expect(cardValues(wrapper)).toEqual(['—', '—', '—'])
+  })
+
+  it('屏上与画布都说「没发出去」，不念成「这一家没有图谱」', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView()
+
+    expect(wrapper.find('.alert-stub').text()).toContain('没有选定客户')
+    expect(wrapper.find('.alert-stub').text()).toContain('请在右上角选一家客户')
+    expect(wrapper.find('.empty-stub').text()).toContain('没发出去')
+    expect(wrapper.find('.empty-stub').text()).toContain('不是「这一家没有图谱」')
+  })
+
+  it('三个写入口都关着：刷新 / 从文档提取 / 重建图谱', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView()
+
+    for (const label of ['刷新', '从文档提取', '重建图谱']) {
+      expect(findButton(wrapper, label)!.attributes('disabled')).toBeDefined()
+    }
+  })
+
+  it('选上客户就立刻重取，说明条随即撤掉', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView()
+    expect(knowledgeGraphApi.getGraph).not.toHaveBeenCalled()
+
+    vi.mocked(knowledgeGraphApi.getGraph).mockResolvedValue(graphRead() as any)
+    auth.store.selectedTenantId = 558
+    await flushPromises()
+
+    expect(knowledgeGraphApi.getGraph).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(cardValues(wrapper)).toEqual(['3', '2', '2'])
+  })
+})

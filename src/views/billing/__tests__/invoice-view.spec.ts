@@ -1,8 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { flushPromises, mount, enableAutoUnmount } from '@vue/test-utils'
 import { Button, message } from 'ant-design-vue'
 import InvoiceView from '../InvoiceView.vue'
 import { invoiceApi } from '../../../api/billing'
+
+// 不自动卸载的话，上一格挂着的组件会跟着下一个用例改的 mock 租户再发一次请求
+enableAutoUnmount(afterEach)
 
 /**
  * 超管计费「账单」那一屏（M-P91 第五十五批）。
@@ -32,9 +35,26 @@ vi.mock('../../../api/billing', () => ({
   invoiceApi: { list: vi.fn(), getDetail: vi.fn(), create: vi.fn(), export: vi.fn(), statistics: vi.fn() }
 }))
 
-vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({ selectedTenantId: 15, tenantId: 15 })
-}))
+const auth = vi.hoisted(() => ({ store: {} as any }))
+
+vi.mock('../../../stores/auth', async () => {
+  // 必须是响应式对象：这一批的「选了客户就重取」靠 watch(requestedTenantId)，非响应式的话 watch 永远不触发
+  const { reactive } = await import('vue')
+  auth.store = reactive({
+    selectedTenantId: 15 as number | null,
+    tenantId: 15 as number | null,
+    isSuperAdmin: true,
+    user: { tenantId: 15 }
+  })
+  return { useAuthStore: () => auth.store }
+})
+
+/** 超管没选定客户时那一句说明是从 message prop 来的，桩件必须把它渲出来 */
+const ALERT_STUB = {
+  name: 'AAlert',
+  props: ['type', 'message', 'description', 'showIcon'],
+  template: '<div class="AAlert-stub">{{ message }} {{ description }}<slot /></div>'
+}
 
 const PASS_THROUGH = (name: string) => ({
   name,
@@ -71,6 +91,7 @@ const TABLE_STUB = {
           <slot name="bodyCell" :column="column" :record="record" />
         </template>
       </div>
+      <slot v-if="!dataSource.length" name="emptyText" />
     </div>`
 }
 
@@ -126,10 +147,11 @@ async function mountView(options: {
   stats?: any
   statsError?: string
   exportPayload?: { type: string; text: () => Promise<string> }
+  listExtra?: Record<string, unknown>
 } = {}) {
-  const { rows = [invoiceRow(7)], detail, stats, statsError, exportPayload } = options
+  const { rows = [invoiceRow(7)], detail, stats, statsError, exportPayload, listExtra } = options
 
-  vi.mocked(invoiceApi.list).mockResolvedValue({ records: rows, total: rows.length } as any)
+  vi.mocked(invoiceApi.list).mockResolvedValue({ records: rows, total: rows.length, ...listExtra } as any)
   vi.mocked(invoiceApi.getDetail).mockResolvedValue({
     invoice: detail === undefined ? invoiceEntity() : detail,
     items: [],
@@ -151,6 +173,7 @@ async function mountView(options: {
     global: {
       stubs: {
         'a-spin': PASS_THROUGH('ASpin'),
+        'a-alert': ALERT_STUB,
         'a-row': PASS_THROUGH('ARow'),
         'a-col': PASS_THROUGH('ACol'),
         'a-card': PASS_THROUGH('ACard'),
@@ -239,6 +262,7 @@ function confirmModal(wrapper: any, title: string) {
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  auth.store.selectedTenantId = 15
   window.URL.createObjectURL = vi.fn(() => 'blob:mp91')
   window.URL.revokeObjectURL = vi.fn()
 })
@@ -371,6 +395,19 @@ describe('上面四张卡读 /billing/invoices/statistics', () => {
   })
 })
 
+describe('空态那一句：后端答了就照念', () => {
+  it('后端回「这一档查过了，一条都没有」时逐字念它，不再念「后端没回是哪一种空」', async () => {
+    const wrapper = await mountView({
+      rows: [],
+      listExtra: { emptyReason: 'NONE', emptyLine: '账单：这一档查过了，一条都没有。' }
+    })
+
+    const said = wrapper.find('.empty-line').text()
+    expect(said).toBe('账单：这一档查过了，一条都没有。')
+    expect(said).not.toContain('后端没回是哪一种空')
+  })
+})
+
 describe('导出那一发：认载荷形状，也把人填的条件带上', () => {
   it('后端回的是 JSON 错误壳：念「导出没拿到文件」，不许下出一个假文件', async () => {
     const wrapper = await mountView()
@@ -412,5 +449,50 @@ describe('导出那一发：认载荷形状，也把人填的条件带上', () =
 
     const calls = vi.mocked(invoiceApi.list).mock.calls
     expect(calls[calls.length - 1]?.[0]).toMatchObject({ keyword: '91330100' })
+  })
+})
+
+describe('超管没选定客户（M-P105）：一发请求都不发，也不许偷偷读 1 号家', () => {
+  it('列表 / 统计 / 导出一个都不发，四张卡全摆「—」', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView()
+
+    expect(invoiceApi.list).not.toHaveBeenCalled()
+    expect(invoiceApi.statistics).not.toHaveBeenCalled()
+    expect(invoiceApi.export).not.toHaveBeenCalled()
+    expect(stats(wrapper)).toEqual(['—', '—', '—', '—'])
+  })
+
+  it('屏上和空态都说「没发出去」，不把「没查」念成「这一家没有账单」', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView()
+
+    expect(wrapper.find('.scope-alert').text()).toContain('没有选定客户')
+    expect(wrapper.find('.scope-alert').text()).toContain('请在右上角选一家客户')
+    const empty = wrapper.find('.empty-line').text()
+    expect(empty).toContain('没发出去')
+    expect(empty).toContain('不是「这一家没有账单」')
+  })
+
+  it('两个写入口都关着：导出与申请开票点不动', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView()
+
+    expect(findButton(wrapper, '导出列表')!.attributes('disabled')).toBeDefined()
+    expect(findButton(wrapper, '申请开票')!.attributes('disabled')).toBeDefined()
+  })
+
+  it('选上客户就立刻重取：两个读口各发一次，带的是刚选的编号', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView()
+    expect(invoiceApi.list).not.toHaveBeenCalled()
+
+    auth.store.selectedTenantId = 558
+    await flushPromises()
+
+    expect(invoiceApi.list).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(invoiceApi.list).mock.calls[0][0]).toMatchObject({ tenantId: 558 })
+    expect(invoiceApi.statistics).toHaveBeenCalledWith({ tenantId: 558 })
+    expect(wrapper.find('.scope-alert').exists()).toBe(false)
   })
 })

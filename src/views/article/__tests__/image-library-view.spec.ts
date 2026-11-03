@@ -21,7 +21,12 @@ const api = vi.hoisted(() => ({
   delete: vi.fn(),
   batchDelete: vi.fn(),
 }))
-const auth = vi.hoisted(() => ({ selectedTenantId: 15 as number | null, tenantId: 1 as number | null }))
+const auth = vi.hoisted(() => ({
+  selectedTenantId: 15 as number | null,
+  tenantId: 1 as number | null,
+  isSuperAdmin: true,
+  user: { tenantId: 1 }
+}))
 
 vi.mock('../../../api/article', () => ({ imageLibraryApi: api }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => auth }))

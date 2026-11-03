@@ -1,6 +1,13 @@
 <template>
   <div class="orders-view-page">
     <PageTitle />
+    <a-alert
+      v-if="requestedTenantId === null"
+      class="scope-alert"
+      type="info"
+      show-icon
+      :message="scopeNotice"
+    />
     <a-spin :spinning="loading">
       <!-- 订单统计卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
@@ -11,7 +18,7 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ orderStats.total }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : orderStats.total }}</div>
                 <div class="stat-title">全部订单</div>
               </div>
             </div>
@@ -24,7 +31,7 @@
                 <ClockCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ orderStats.pending }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : orderStats.pending }}</div>
                 <div class="stat-title">待支付</div>
               </div>
             </div>
@@ -37,7 +44,7 @@
                 <CheckCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ orderStats.paid }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : orderStats.paid }}</div>
                 <div class="stat-title">已支付</div>
               </div>
             </div>
@@ -50,7 +57,7 @@
                 <RollbackOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ orderStats.refunded }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : orderStats.refunded }}</div>
                 <div class="stat-title">已退款</div>
               </div>
             </div>
@@ -78,7 +85,11 @@
           />
           <template #actions>
             <a-space>
-              <a-button :loading="exportLoading" @click="handleExport">
+              <a-button
+                :loading="exportLoading"
+                :disabled="requestedTenantId === null"
+                @click="handleExport"
+              >
                 <template #icon><ExportOutlined /></template>
                 导出
               </a-button>
@@ -123,6 +134,9 @@
               </a-space>
             </template>
           </template>
+          <template #emptyText>
+            <empty-list-hint :loading="tableLoading" :not-sent="notSentLine" />
+          </template>
         </a-table>
       </a-card>
     </a-spin>
@@ -161,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   FileTextOutlined,
@@ -178,9 +192,28 @@ import { describeHttpError } from '../../api/http'
 import { ORDER_STATUS_ORDER, orderStatusColor, orderStatusLabel, countByStatus, foldOrderStatus } from '../../utils/orderStatus'
 import { paymentMethodLabel } from '../../utils/paymentMethod'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
+
+// 超管要选定一家客户才发请求；原来这里用「没选就退回 1 号家」，读的和导出的都落到了 1 号家。
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的订单。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的订单。`
+})
+
+const notSentLine = ref('')
 
 const loading = ref(false)
 const tableLoading = ref(false)
@@ -262,7 +295,23 @@ function handleStatusChange() {
 }
 
 async function loadOrderList() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    // 没选定客户：不发这一发，把上一家的行、总条数和四张卡一起清掉
+    orderListData.value = []
+    paginationConfig.total = 0
+    orderStats.total = 0
+    orderStats.pending = 0
+    orderStats.paid = 0
+    orderStats.cancelled = 0
+    orderStats.refunded = 0
+    notSentLine.value = authStore.isSuperAdmin
+      ? '当前没有选定客户，订单这一发没发出去，所以这里一条都不是（不是「这一家没有订单」）。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，订单这一发没发出去，所以这里一条都不是。'
+    tableLoading.value = false
+    return
+  }
+  notSentLine.value = ''
   tableLoading.value = true
   try {
     const params: any = {
@@ -286,12 +335,9 @@ async function loadOrderList() {
   }
 }
 
-watch(
-  () => authStore.selectedTenantId,
-  () => {
-    loadOrderList()
-  }
-)
+watch(requestedTenantId, () => {
+  loadOrderList()
+})
 
 async function showOrderDetail(order: any) {
   try {
@@ -305,7 +351,11 @@ async function showOrderDetail(order: any) {
 }
 
 async function handleExport() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，没有导出任何订单。请在右上角选一家客户。')
+    return
+  }
   exportLoading.value = true
   try {
     const params: any = { tenantId }
@@ -346,6 +396,10 @@ onMounted(() => {
 <style scoped lang="less">
 .orders-view-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 16px;
 }
 
 .stat-card {

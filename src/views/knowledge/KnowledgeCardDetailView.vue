@@ -1,5 +1,6 @@
 <template>
   <div class="knowledge-card-detail-page">
+    <a-alert v-if="requestedTenantId === null" class="scope-alert" type="info" show-icon :message="scopeNotice" />
     <a-spin :spinning="loading">
       <a-page-header
         :title="card?.title"
@@ -8,7 +9,7 @@
         <template #extra>
           <a-space>
             <a-button @click="goBack">返回</a-button>
-            <a-button type="primary" @click="goToEdit">编辑</a-button>
+            <a-button type="primary" :disabled="requestedTenantId === null" @click="goToEdit">编辑</a-button>
           </a-space>
         </template>
       </a-page-header>
@@ -49,10 +50,10 @@
 
           <a-card title="操作" style="margin-top: 16px" :bordered="false">
             <a-space direction="vertical" style="width: 100%">
-              <a-button block @click="goToEdit">
+              <a-button block @click="goToEdit" :disabled="requestedTenantId === null">
                 <EditOutlined /> 编辑
               </a-button>
-              <a-button block danger @click="handleDelete">
+              <a-button block danger @click="handleDelete" :disabled="requestedTenantId === null">
                 <DeleteOutlined /> 删除
               </a-button>
             </a-space>
@@ -81,6 +82,23 @@ import { useAuthStore } from '../../stores/auth'
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+
+/** 这一屏摆的是「哪一家」的卡片。没选客户时不发请求、不摆任何一家的内容。 */
+const requestedTenantId = computed<number | null>(() => {
+  if (auth.isSuperAdmin) return auth.selectedTenantId ?? null
+  return auth.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return auth.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的知识卡片。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的知识卡片。`
+})
+
 const loading = ref(false)
 const card = ref<KnowledgeCard | null>(null)
 const relatedCards = ref<KnowledgeCard[]>([])
@@ -100,6 +118,10 @@ function goBack() {
 }
 
 function goToEdit() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，这一发没发出去（没有打开编辑）。请在右上角选一家客户。')
+    return
+  }
   router.push(`/workspace/knowledge/cards/edit/${cardId.value}`)
 }
 
@@ -108,6 +130,10 @@ function goToDetail(id: number) {
 }
 
 async function handleDelete() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，这一发没发出去（没有删除）。请在右上角选一家客户。')
+    return
+  }
   Modal.confirm({
     title: '确认删除',
     content: '确定要删除这张知识卡片吗？此操作不可恢复。',
@@ -126,6 +152,10 @@ async function handleDelete() {
 }
 
 async function loadCard() {
+  if (requestedTenantId.value === null) {
+    card.value = null
+    return
+  }
   loading.value = true
   try {
     const result = await knowledgeCardApi.get(cardId.value)
@@ -139,13 +169,14 @@ async function loadCard() {
 }
 
 async function loadRelatedCards() {
-  if (!card.value?.categoryId) {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null || !card.value?.categoryId) {
     relatedCards.value = []
     return
   }
   try {
     const result = await knowledgeCardApi.list({
-      tenantId: auth.selectedTenantId || auth.tenantId,
+      tenantId,
       categoryId: card.value.categoryId,
       page: 1,
       size: 5,
@@ -158,8 +189,9 @@ async function loadRelatedCards() {
 }
 
 watch(
-  () => auth.selectedTenantId,
+  requestedTenantId,
   async () => {
+    relatedCards.value = []
     await loadCard()
     await loadRelatedCards()
   }
@@ -172,6 +204,10 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="less">
+.scope-alert {
+  margin-bottom: 16px;
+}
+
 .knowledge-card-detail-page {
   width: 100%;
 }

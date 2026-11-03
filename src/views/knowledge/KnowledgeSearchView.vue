@@ -2,6 +2,14 @@
   <div class="knowledge-search-container">
     <PageTitle description="全文搜索文档、卡片和实体" />
 
+    <a-alert
+      v-if="requestedTenantId === null"
+      class="scope-alert"
+      type="info"
+      show-icon
+      :message="scopeNotice"
+    />
+
     <div class="search-content">
       <div class="search-bar-section">
         <a-input-search
@@ -11,6 +19,7 @@
           size="large"
           @search="handleSearch"
           :loading="loading"
+          :disabled="requestedTenantId === null"
         />
         <div class="search-type-tabs">
           <a-radio-group v-model:value="searchType" button-style="solid" @change="handleFilterChange">
@@ -87,7 +96,7 @@
             </a-col>
           </a-row>
           <div class="filter-actions">
-            <a-button type="primary" @click="handleSearch">
+            <a-button type="primary" @click="handleSearch" :disabled="requestedTenantId === null">
               <template #icon><SearchOutlined /></template>
               应用筛选
             </a-button>
@@ -172,27 +181,33 @@
         <div class="placeholder-icon">
           <SearchOutlined />
         </div>
-        <h3>开始搜索知识库</h3>
-        <p>输入关键词，搜索文档、知识卡片和实体</p>
-        <div class="quick-searches">
-          <span class="quick-label">热门搜索：</span>
-          <a-tag
-            v-for="keyword in hotKeywords"
-            :key="keyword"
-            color="blue"
-            class="quick-tag"
-            @click="quickSearch(keyword)"
-          >
-            {{ keyword }}
-          </a-tag>
-        </div>
+        <template v-if="requestedTenantId === null">
+          <h3>还没有选定客户</h3>
+          <p>{{ notSentLine }}</p>
+        </template>
+        <template v-else>
+          <h3>开始搜索知识库</h3>
+          <p>输入关键词，搜索文档、知识卡片和实体</p>
+          <div class="quick-searches">
+            <span class="quick-label">热门搜索：</span>
+            <a-tag
+              v-for="keyword in hotKeywords"
+              :key="keyword"
+              color="blue"
+              class="quick-tag"
+              @click="quickSearch(keyword)"
+            >
+              {{ keyword }}
+            </a-tag>
+          </div>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
@@ -216,6 +231,22 @@ import PageTitle from '../../components/PageTitle.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+// 这一屏按谁取数：超管只认右上角选定的客户，没选就不发请求（以前会静默落到编号 1 那一家）
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不搜任何一家的知识库。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不搜。'
+  }
+  return `这一屏只在编号 ${id} 的客户的知识库里搜。`
+})
+const notSentLine = ref('这一发没发出去，所以这里一条结果都不是（不是「这一家搜不到」）。请在右上角选一家客户。')
 
 const searchQuery = ref('')
 const searchType = ref<'all' | 'document' | 'card' | 'entity'>('all')
@@ -241,8 +272,12 @@ const categories = ref<{ id: number; name: string }[]>([])
 const hotKeywords = ref<string[]>([])
 
 const loadCategories = async () => {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    categories.value = []
+    return
+  }
   try {
-    const tenantId = authStore.selectedTenantId ?? authStore.tenantId
     const res: any = await knowledgeCategoryApi.all(tenantId)
     const data = res?.records
     if (Array.isArray(data)) {
@@ -269,7 +304,13 @@ onMounted(async () => {
   await loadData()
 })
 
-watch(() => authStore.selectedTenantId, () => {
+watch(requestedTenantId, () => {
+  // 换客户后，上一家的搜索结果不能继续摆着
+  results.value = []
+  total.value = 0
+  searchDuration.value = 0
+  hasSearched.value = false
+  currentPage.value = 1
   loadData()
 })
 
@@ -289,6 +330,11 @@ const sanitizeHighlight = (highlighted?: string, fallback?: string): string => {
 }
 
 const handleSearch = async () => {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('还没选客户，这一发没有发出去，所以一条结果都没有搜。请在右上角选一家客户。')
+    return
+  }
   if (!searchQuery.value.trim()) {
     message.warning('请输入搜索关键词')
     return
@@ -308,7 +354,7 @@ const handleSearch = async () => {
       sort: sortBy.value,
       page: currentPage.value,
       size: pageSize.value,
-      tenantId: authStore.selectedTenantId ?? authStore.tenantId
+      tenantId
     }
 
     const res: any = await knowledgeSearchApi.search(params)
@@ -376,6 +422,10 @@ const handleResultClick = (item: KnowledgeSearchResultItem) => {
 </script>
 
 <style lang="less" scoped>
+.scope-alert {
+  margin: 16px 24px 0;
+}
+
 .knowledge-search-container {
   .search-content {
     padding: 24px;

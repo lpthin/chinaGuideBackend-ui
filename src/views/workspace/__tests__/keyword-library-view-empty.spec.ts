@@ -1,10 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest'
+import { flushPromises, mount, enableAutoUnmount } from '@vue/test-utils'
 import { h } from 'vue'
 import { Button, message } from 'ant-design-vue'
 import KeywordLibraryView from '../KeywordLibraryView.vue'
 import { keywordApi } from '../../../api'
 import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
+
+// 不自动卸载的话，上一格挂着的组件会跟着下一个用例改的 mock 客户再发一次请求
+enableAutoUnmount(afterEach)
+
+beforeEach(() => {
+  // 上一格若把客户清空过，这里不还原的话下一格全都在「没选客户」的分支里跑
+  auth.store.selectedTenantId = 1
+})
 
 /**
  * 关键词库这一屏的空态（M-P76）。
@@ -56,15 +64,20 @@ vi.mock('../../../api', () => ({
   }
 }))
 
-vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({
-    selectedTenantId: 1,
-    tenantId: 1,
+const auth = vi.hoisted(() => ({ store: {} as any }))
+
+vi.mock('../../../stores/auth', async () => {
+  // 必须是响应式对象：这一批的「选了客户就重取」靠 watch(requestedTenantId)，非响应式的话 watch 永远不触发
+  const { reactive } = await import('vue')
+  auth.store = reactive({
+    selectedTenantId: 1 as number | null,
+    tenantId: 1 as number | null,
     user: { id: 1 },
     isSuperAdmin: true,
     hasPermission: () => true
   })
-}))
+  return { useAuthStore: () => auth.store }
+})
 
 // 真实挂载 DataTable，只把最里层的 a-table 换成替身：
 // 空态那一句到底是谁摆的（DataTable 那块 StateBlock 还是页面传进去的 #emptyText）就钉在这一层
@@ -152,7 +165,11 @@ async function mountView(
         'a-tag': { name: 'ATag', template: '<span class="tag-stub"><slot /></span>' },
         'a-checkbox': { name: 'ACheckbox', template: '<input class="checkbox-stub" type="checkbox" />' },
         'a-switch': { name: 'ASwitch', template: '<input class="switch-stub" type="checkbox" />' },
-        'a-alert': PASS_THROUGH('AAlert'),
+        'a-alert': {
+          name: 'AAlert',
+          props: ['type', 'message', 'description', 'showIcon'],
+          template: '<div class="AAlert-stub">{{ message }} {{ description }}<slot /></div>'
+        },
         'a-space': PASS_THROUGH('ASpace'),
         'a-modal': {
           name: 'AModal',
@@ -275,5 +292,58 @@ describe('KeywordLibraryView 的空态成因', () => {
 
     expect(list).toHaveBeenCalledTimes(2)
     expect(hintText(wrapper)).toBe(THREE_EMPTIES[1][1])
+  })
+})
+
+describe('超管没选定客户（M-P105）：一发请求都不发，也不许偷偷读 1 号家', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('列表 / 统计 / 扩展配置一个都不发，四张卡全摆「—」', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView([ROW], { emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] })
+
+    expect(keywordApi.list).not.toHaveBeenCalled()
+    expect(keywordApi.getLibraryStats).not.toHaveBeenCalled()
+    expect(keywordApi.getExpandConfig).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.stat-card__value').map((n: any) => n.text())).toEqual(['—', '—', '—', '—'])
+    // 哪怕调用方给了行，没发出去就不许把行摆出来
+    expect(wrapper.find('.row').exists()).toBe(false)
+  })
+
+  it('屏上和空态都说「没发出去」，不把「没查」念成「这一家没有关键词」', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView([], {})
+
+    const alert = wrapper.find('.scope-alert').text()
+    expect(alert).toContain('没有选定客户')
+    expect(alert).toContain('请在右上角选一家客户')
+    expect(hintText(wrapper)).toContain('没发出去')
+    expect(hintText(wrapper)).toContain('不是「这一家没有关键词」')
+  })
+
+  it('写入口都关着：刷新 / 扩展配置 / 立即扩展 / 导入关键词点不动', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView([], {})
+
+    for (const label of ['刷新', '扩展配置', '立即扩展（3源白名单）', '导入关键词']) {
+      const button = wrapper.findAll('button').find((b: any) => b.text().includes(label))
+      expect(button, label).toBeDefined()
+      expect(button!.attributes('disabled'), label).toBeDefined()
+    }
+  })
+
+  it('选上客户就立刻重取：列表发一次并带上刚选的编号，说明条随即撤掉', async () => {
+    auth.store.selectedTenantId = null
+    const wrapper = await mountView([], {})
+    expect(keywordApi.list).not.toHaveBeenCalled()
+
+    auth.store.selectedTenantId = 558
+    await flushPromises()
+
+    expect(keywordApi.list).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(keywordApi.list).mock.calls[0][0]).toMatchObject({ tenantId: 558 })
+    expect(wrapper.find('.scope-alert').exists()).toBe(false)
   })
 })

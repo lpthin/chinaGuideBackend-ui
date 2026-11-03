@@ -35,7 +35,7 @@ vi.mock('../../../api/portalSites', () => ({
 }))
 
 vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({ tenantId: 15, selectedTenantId: null, isSuperAdmin: false })
+  useAuthStore: () => ({ tenantId: 15, selectedTenantId: null, isSuperAdmin: false, user: { tenantId: 15 } })
 }))
 
 // D5-3 交棒链接带着 ?siteId=：照 assemble-job-view 那一档的写法只换 useRoute，给一个可写的 query

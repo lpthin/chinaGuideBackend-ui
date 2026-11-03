@@ -1,6 +1,13 @@
 <template>
   <div class="invoice-view-page">
     <PageTitle />
+    <a-alert
+      v-if="requestedTenantId === null"
+      class="scope-alert"
+      type="info"
+      show-icon
+      :message="scopeNotice"
+    />
     <a-spin :spinning="loading">
       <!-- 开票统计 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
@@ -71,11 +78,11 @@
           />
           <template #actions>
             <a-space>
-              <a-button :loading="exportLoading" size="large" @click="handleExport">
+              <a-button :loading="exportLoading" size="large" :disabled="requestedTenantId === null" @click="handleExport">
                 <template #icon><ExportOutlined /></template>
                 导出列表
               </a-button>
-              <a-button type="primary" size="large" @click="showApplyModal">
+              <a-button type="primary" size="large" :disabled="requestedTenantId === null" @click="showApplyModal">
                 <template #icon><PlusOutlined /></template>
                 申请开票
               </a-button>
@@ -124,6 +131,15 @@
                 </a-button>
               </a-space>
             </template>
+          </template>
+          <template #emptyText>
+            <empty-list-hint
+              :loading="loading"
+              :not-sent="notSentLine"
+              :read-failed="readFailed"
+              :empty-line="emptyLine"
+              :empty-reason="emptyReason"
+            />
           </template>
         </a-table>
       </a-card>
@@ -209,7 +225,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   FileTextOutlined,
@@ -220,17 +236,45 @@ import {
   ExportOutlined,
 } from '@ant-design/icons-vue'
 import { invoiceApi } from '../../api/billing'
+import { describeHttpError } from '../../api/http'
 import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import { asEmptyReason, shouldJumpBackToFirstPage, JUMP_BACK_NOTICE, type EmptyReason } from '../../utils/emptyPage'
 import { PH_DASH } from '../../utils/display'
 import FilterBar from '../../components/FilterBar.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import { foldInvoiceStatus, invoiceStatusLabel, invoiceStatusColor } from '../../utils/invoiceStatus'
 import { InvoiceType, invoiceTypeLabel, invoiceTypeColor, invoiceTypeNeedsTaxNo } from '../../utils/invoiceType'
 import { paymentMethodLabel } from '../../utils/paymentMethod'
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
+
+/**
+ * 这一屏的账单属于谁。超管没选定客户就是 null ⇒ 一发请求都不发。
+ * 改前四个取数口都是 `selectedTenantId || tenantId`：没选定客户时被 getter 悄悄带回
+ * 登录账号名下那一家（超管是 1 号家），读的是别人家的账，写的是别人家的开票单。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的账单。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的账单。`
+})
+
+const notSentLine = ref('')
+const emptyLine = ref('')
+const emptyReason = ref<EmptyReason>(null)
+const readFailed = ref('')
 
 const loading = ref(false)
 const exportLoading = ref(false)
@@ -309,7 +353,14 @@ function toViewInvoice(raw: any): any {
 }
 
 async function loadStats() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    invoiceStats.total = null
+    invoiceStats.paid = null
+    invoiceStats.unpaid = null
+    invoiceStats.totalAmount = null
+    return
+  }
   try {
     const res = await invoiceApi.statistics({ tenantId })
     invoiceStats.total = res.totalCount ?? null
@@ -340,8 +391,21 @@ const applyForm = reactive({
 })
 
 async function loadInvoiceList() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
   loading.value = true
+  notSentLine.value = ''
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    invoiceListData.value = []
+    paginationConfig.total = 0
+    notSentLine.value = authStore.isSuperAdmin
+      ? '当前没有选定客户，这一发没发出去，所以这里的账单一条都不是（不是「这一家没有账单」）。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一发没发出去，所以这里的账单一条都不是。'
+    loading.value = false
+    return
+  }
   try {
     const params: any = {
       tenantId,
@@ -350,20 +414,30 @@ async function loadInvoiceList() {
     }
     if (queryParams.keyword) params.keyword = queryParams.keyword
 
-    const res = await invoiceApi.list(params)
+    const res: any = await invoiceApi.list(params)
     invoiceListData.value = (res.records || []).map(toViewInvoice)
     paginationConfig.total = res.total || 0
+    // 后端已经答了这一页为什么空，界面照念，不许自己再编一句「后端没回」
+    emptyLine.value = res.emptyLine || ''
+    emptyReason.value = asEmptyReason(res.emptyReason)
+    if (shouldJumpBackToFirstPage(emptyReason.value, paginationConfig.current)) {
+      paginationConfig.current = 1
+      await loadInvoiceList()
+      message.info(JUMP_BACK_NOTICE)
+    }
   } catch (error) {
     logError('billing/invoice-view', 'Failed to load invoices:', error)
-    message.error('加载账单列表失败')
+    readFailed.value = describeHttpError(error)
+    message.error(`加载账单列表失败：${readFailed.value}`)
     invoiceListData.value = []
+    paginationConfig.total = 0
   } finally {
     loading.value = false
   }
 }
 
 watch(
-  () => authStore.selectedTenantId,
+  requestedTenantId,
   () => {
     loadInvoiceList()
     loadStats()
@@ -394,7 +468,11 @@ async function handleConfirmApply() {
     return
   }
 
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，这一发没发出去，开票申请没有提交。请在右上角选一家客户。')
+    return
+  }
   applyLoading.value = true
   try {
     // 这一发以前发的是 {type, taxNumber, amount, email}，后端那个写口一个键都不认，
@@ -432,7 +510,11 @@ async function viewInvoice(invoice: any) {
 }
 
 async function handleExport() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，这一发没发出去，没有导出任何账单。请在右上角选一家客户。')
+    return
+  }
   exportLoading.value = true
   try {
     const params: any = { tenantId }
@@ -472,6 +554,10 @@ onMounted(async () => {
 <style scoped lang="less">
 .invoice-view-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 16px;
 }
 
 .stat-card {

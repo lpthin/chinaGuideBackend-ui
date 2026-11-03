@@ -153,7 +153,7 @@ function estimate(overrides: Record<string, unknown> = {}) {
 
 async function mountView(permissions: string[] = CASE_CODES) {
   const auth = useAuthStore()
-  auth.user = { id: 1, username: 'tester', roles: ['SITE_ADMIN'], permissions } as any
+  auth.user = { id: 1, username: 'tester', tenantId: 15, roles: ['SITE_ADMIN'], permissions } as any
   const wrapper = mount(CaseManageView, {
     attachTo: document.body,
     global: {

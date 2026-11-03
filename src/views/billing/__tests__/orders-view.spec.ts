@@ -24,7 +24,7 @@ vi.mock('../../../api/billing', () => ({
 }))
 
 vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({ selectedTenantId: 558, tenantId: 558 })
+  useAuthStore: () => ({ selectedTenantId: 558, tenantId: 558, isSuperAdmin: true })
 }))
 
 const PASS_THROUGH = (name: string) => ({

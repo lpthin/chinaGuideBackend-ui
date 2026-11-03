@@ -23,13 +23,13 @@ describe('M-P15：「开始生成」的重复提交有两道闸', () => {
     expect(view).not.toBe('')
   })
 
-  it('处理函数第一行就是同步闸，不是等 loading 落到 DOM 再挡', () => {
+  it('同步闸在把 generating 置真之前，不等 loading 落到 DOM 再挡', () => {
     const handler = view.slice(view.indexOf('async function generateArticle()'))
-    expect(handler).toMatch(/async function generateArticle\(\)\s*\{[\s\S]{0,200}?if \(generating\.value\) return\n\s*generating\.value = true/)
+    expect(handler).toMatch(/async function generateArticle\(\)\s*\{[\s\S]{0,400}?if \(generating\.value\) return\n\s*generating\.value = true/)
   })
 
   it('按钮上 loading 与 disabled 同时挂（只有 loading 挡不住同一拍的第二次点击）', () => {
-    expect(view).toMatch(/:loading="generating"\s+:disabled="generating"\s+@click="generateArticle"/)
+    expect(view).toMatch(/:loading="generating"\s+:disabled="generating \|\| requestedTenantId === null"\s+@click="generateArticle"/)
   })
 
   it('闸能放开：终态那条路一定会把 generating 归位', () => {

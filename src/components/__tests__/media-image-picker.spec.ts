@@ -15,7 +15,12 @@ import MediaImagePicker from '../MediaImagePicker.vue'
  */
 
 const http = { get: vi.fn(), post: vi.fn() }
-const auth = { selectedTenantId: null as number | null, tenantId: 1 as number | null }
+const auth = {
+  selectedTenantId: null as number | null,
+  tenantId: 1 as number | null,
+  isSuperAdmin: true,
+  user: { tenantId: 1 }
+}
 
 vi.mock('@/api/http', () => ({
   default: {

@@ -7,21 +7,29 @@
             <template #icon><FilterOutlined /></template>
             筛选
           </a-button>
-          <a-button @click="refreshGraph">
+          <a-button @click="refreshGraph" :disabled="requestedTenantId === null">
             <template #icon><ReloadOutlined /></template>
             刷新
           </a-button>
-          <a-button @click="openExtractModal">
+          <a-button @click="openExtractModal" :disabled="requestedTenantId === null">
             <template #icon><FileTextOutlined /></template>
             从文档提取
           </a-button>
-          <a-button type="primary" @click="rebuildGraph">
+          <a-button type="primary" @click="rebuildGraph" :disabled="requestedTenantId === null">
             <template #icon><BuildOutlined /></template>
             重建图谱
           </a-button>
         </a-space>
       </template>
     </PageTitle>
+
+    <a-alert
+      v-if="requestedTenantId === null"
+      class="scope-alert"
+      type="info"
+      show-icon
+      :message="scopeNotice"
+    />
 
     <div class="content-wrapper">
       <a-row :gutter="16">
@@ -74,7 +82,10 @@
               <template #prefix><AppstoreOutlined /></template>
             </a-statistic>
             <div class="stats-note">
-              <template v-if="statsReady">
+              <template v-if="requestedTenantId === null">
+                还没有选定客户，所以不摆统计。
+              </template>
+              <template v-else-if="statsReady">
                 这是这一家全部的实体与关系（不受筛选和画布节点数影响）；画布上现在画了
                 {{ graphData?.nodeCount ?? 0 }} 个点、{{ graphData?.linkCount ?? 0 }} 条线。
               </template>
@@ -133,8 +144,8 @@
               </a-space>
             </div>
             <div ref="graphRef" class="graph-container"></div>
-            <div v-if="!loading && !readError && isEmptyGraph" class="graph-empty">
-              <a-empty :description="emptyLine || '这一格没有可画的实体。'" />
+            <div v-if="!loading && !readError && (requestedTenantId === null || isEmptyGraph)" class="graph-empty">
+              <a-empty :description="requestedTenantId === null ? notSentLine : (emptyLine || '这一格没有可画的实体。')" />
             </div>
             <div v-if="loading" class="graph-loading">
               <a-spin size="large" tip="正在加载知识图谱..." />
@@ -388,6 +399,23 @@ import { logWarn } from '../../utils/errorLog'
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
+
+// 这一屏按谁取数：超管只认右上角选定的客户，没选就不发请求（以前会静默落到编号 1 那一家）
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的知识图谱。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的知识图谱。`
+})
+const notSentLine = ref('')
+
 const showFilterPanel = ref(true)
 const showDetailDrawer = ref(false)
 const loading = ref(false)
@@ -476,12 +504,16 @@ const relationTypes = ref<{ value: string; label: string; count: number }[]>([])
 const recentEntities = ref<GraphNode[]>([])
 const recentRelations = ref<GraphLink[]>([])
 
-// 这两块空着的时候也要分清「这一家真的没有」与「这一发读不到」：读失败时念「读不到」，不许念「暂无数据」
+// 这两块空着的时候也要分清「没选定客户」「这一家真的没有」与「这一发读不到」
 const recentEntityEmptyText = computed(() =>
-  statsReady.value ? '这一家还没有提取过实体' : '读不到这一家的实体（原因见右侧红条）'
+  requestedTenantId.value === null
+    ? '还没有选定客户，这一格没有可摆的实体。'
+    : statsReady.value ? '这一家还没有提取过实体' : '读不到这一家的实体（原因见右侧红条）'
 )
 const recentRelationEmptyText = computed(() =>
-  statsReady.value ? '这一家还没有提取过关系' : '读不到这一家的关系（原因见右侧红条）'
+  requestedTenantId.value === null
+    ? '还没有选定客户，这一格没有可摆的关系。'
+    : statsReady.value ? '这一家还没有提取过关系' : '读不到这一家的关系（原因见右侧红条）'
 )
 
 // 节点详情抽屉数据 - 由 API 填充
@@ -542,6 +574,22 @@ const radialPositions = (nodes: any[], links: any[]) => {
 
 // 加载知识图谱数据（三个筛选都真发出去；失败时清空且不摆 0）
 const loadGraphData = async (): Promise<boolean> => {
+  if (requestedTenantId.value === null) {
+    graphData.value = null
+    readError.value = ''
+    statsReady.value = false
+    stats.totalEntities = 0
+    stats.totalRelations = 0
+    stats.entityTypes = []
+    entityTypes.value = []
+    relationTypes.value = []
+    recentEntities.value = []
+    recentRelations.value = []
+    notSentLine.value = '这一发没发出去，所以这里的图谱一条都不是（不是「这一家没有图谱」）。请在右上角选一家客户。'
+    initGraph()
+    return false
+  }
+  notSentLine.value = ''
   loading.value = true
   try {
     const res: any = await knowledgeGraphApi.getGraph({
@@ -847,11 +895,19 @@ const resetFilter = () => {
 }
 
 const refreshGraph = async () => {
+  if (requestedTenantId.value === null) {
+    message.warning('还没选客户，这一发没有发出去，所以什么都没有刷新。请在右上角选一家客户。')
+    return
+  }
   const ok = await loadGraphData()
   if (ok) message.success('图谱已刷新')
 }
 
 const rebuildGraph = () => {
+  if (requestedTenantId.value === null) {
+    message.warning('还没选客户，重建没有发出去（不会去动任何一家的图谱）。请在右上角选一家客户。')
+    return
+  }
   Modal.confirm({
     title: '确认重建知识图谱？',
     content: '重建图谱将从所有文档中提取实体和关系，可能需要较长时间。是否继续？',
@@ -905,6 +961,11 @@ const startRebuildStatusPolling = () => {
 }
 
 const openExtractModal = async () => {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('还没选客户，提取没有打开（不会去读任何一家的文档）。请在右上角选一家客户。')
+    return
+  }
   showExtractModal.value = true
   extractionResult.value = null
   selectedEntities.value = []
@@ -913,7 +974,7 @@ const openExtractModal = async () => {
   activeTab.value = 'entities'
   
   try {
-    const res: any = await knowledgeDocumentApi.list({ tenantId: authStore.selectedTenantId || authStore.tenantId, page: 1, size: 50 })
+    const res: any = await knowledgeDocumentApi.list({ tenantId, page: 1, size: 50 })
     const data = res.data || res
     documentList.value = data.records || data || []
   } catch (e) {
@@ -926,6 +987,10 @@ const closeExtractModal = () => {
 }
 
 const doExtract = async () => {
+  if (requestedTenantId.value === null) {
+    message.warning('还没选客户，提取没有发出去。请在右上角选一家客户。')
+    return
+  }
   if (!selectedDocumentId.value) {
     message.warning('请选择要提取的文档')
     return
@@ -989,6 +1054,10 @@ const toggleAllRelations = (checked: boolean) => {
 }
 
 const confirmExtraction = async () => {
+  if (requestedTenantId.value === null) {
+    message.warning('还没选客户，入库没有发出去（不会写进任何一家的图谱）。请在右上角选一家客户。')
+    return
+  }
   if (!selectedDocumentId.value) {
     message.warning('请选择文档')
     return
@@ -1033,6 +1102,12 @@ watch(layoutType, () => {
   initGraph()
 })
 
+// 换客户就整屏重新取数；提取弹窗里摆的是上一家的文档，跟着关掉
+watch(requestedTenantId, () => {
+  if (showExtractModal.value) closeExtractModal()
+  loadGraphData()
+})
+
 onMounted(() => {
   // 首次加载图谱数据（由 API 返回）
   loadGraphData()
@@ -1049,6 +1124,10 @@ onUnmounted(() => {
 </script>
 
 <style lang="less" scoped>
+.scope-alert {
+  margin-bottom: 16px;
+}
+
 .knowledge-graph-container {
   .content-wrapper {
     padding: 24px;

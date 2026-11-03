@@ -147,12 +147,12 @@ export const imageLibraryApi = {
     }),
 
   // 删除图片
-  delete: (id: number) =>
-    http.delete(`/media/${id}`),
+  delete: (id: number, tenantId?: number) =>
+    http.delete(`/media/${id}`, { params: { tenantId } }),
 
   // 批量删除
-  batchDelete: (ids: number[]) =>
-    http.delete('/media/batch', { data: ids })
+  batchDelete: (ids: number[], tenantId?: number) =>
+    http.delete('/media/batch', { data: ids, params: { tenantId } })
 }
 
 export default {

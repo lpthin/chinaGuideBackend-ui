@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   DatabaseOutlined,
   ThunderboltOutlined,
@@ -145,18 +145,56 @@ const CATEGORY_OPTIONS = [
 ]
 
 const nextRunText = computed(() => {
+  if (requestedTenantId.value === null) return '—'
   const w = WEEKDAY_TEXT[expandConfig.weekday] || '每周日'
   const onOff = expandConfig.enabled === 1 ? '已开启' : '已关闭'
   return `${onOff} · ${w} ${expandConfig.runTime || '03:00'} 执行`
 })
 
-function currentTenant() {
-  return auth.selectedTenantId || auth.tenantId || undefined
+// 超管要选定一家客户才发请求；原来这里「没选就退回 1 号家」，读的、扩展的、导入的、删的都落到了 1 号家。
+const requestedTenantId = computed<number | null>(() => {
+  if (auth.isSuperAdmin) return auth.selectedTenantId ?? null
+  return auth.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return auth.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的关键词。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的关键词。`
+})
+
+const notSentLine = ref('')
+
+function clearLibraryStats() {
+  Object.assign(libraryStats, {
+    total: 0,
+    cat_price: 0,
+    cat_choice: 0,
+    cat_effect: 0,
+    cat_guide: 0,
+    cat_basic: 0,
+    cat_local: 0,
+    cat_news: 0,
+    stage_new: 0,
+    stage_suggested: 0,
+    stage_articled: 0,
+  })
+  renderFunnelChart()
+  renderStageChart()
 }
 
 async function loadLibraryStats() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    clearLibraryStats()
+    return
+  }
   try {
-    const res = await keywordApi.getLibraryStats(currentTenant()) as any
+    const res = await keywordApi.getLibraryStats(tenantId) as any
     const s = res?.data || res || {}
     Object.assign(libraryStats, {
       total: Number(s.total || 0),
@@ -177,8 +215,13 @@ async function loadLibraryStats() {
 }
 
 async function loadExpandConfig() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    Object.assign(expandConfig, { tenantId: 0, enabled: 0, weekday: 'SUN', runTime: '03:00' })
+    return
+  }
   try {
-    const res = await keywordApi.getExpandConfig(currentTenant()) as any
+    const res = await keywordApi.getExpandConfig(tenantId) as any
     const c = res?.data || res || {}
     Object.assign(expandConfig, {
       tenantId: c.tenantId || 0,
@@ -194,12 +237,22 @@ async function loadKeywords() {
   emptyLine.value = ''
   emptyReason.value = null
   readFailed.value = ''
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    keywords.value = []
+    total.value = 0
+    selectedRowKeys.value = []
+    notSentLine.value = '这一发没发出去，所以这里的词一条都不是（不是「这一家没有关键词」）。请在右上角选一家客户。'
+    loading.value = false
+    return
+  }
+  notSentLine.value = ''
   try {
     const res = await keywordApi.list({
       page: currentPage.value,
       size: pageSize.value,
       keyword: searchText.value || undefined,
-      tenantId: currentTenant() as any,
+      tenantId,
     }) as any
     const records: KW[] = (res?.records || []).map((r: any) => ({
       id: r.id,
@@ -260,9 +313,14 @@ async function fetchAll() {
 }
 
 async function triggerExpand() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   expanding.value = true
   try {
-    const res = await keywordApi.expand({ sourceCodes: [] }, currentTenant()) as any
+    const res = await keywordApi.expand({ sourceCodes: [] }, tenantId) as any
     const msg = res?.message || res?.data?.message || '执行完成'
     message.success(msg)
     await fetchAll()
@@ -274,16 +332,25 @@ async function triggerExpand() {
 }
 
 function openConfig() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，扩展配置这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   showConfigModal.value = true
 }
 
 async function saveConfig() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，配置没有保存。请在右上角选一家客户。')
+    return
+  }
   try {
     const res = await keywordApi.updateExpandConfig({
       enabled: expandConfig.enabled,
       weekday: expandConfig.weekday,
       runTime: expandConfig.runTime,
-    }, currentTenant()) as any
+    }, tenantId) as any
     const c = res?.data || res
     Object.assign(expandConfig, c)
     message.success('配置已保存')
@@ -294,11 +361,16 @@ async function saveConfig() {
 }
 
 async function submitImport() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，关键词没有导入。请在右上角选一家客户。')
+    return
+  }
   if (!importText.value.trim()) return message.warning('请输入关键词（一行一个）')
   const list = importText.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
   if (!list.length) return message.warning('没有可导入的关键词')
   try {
-    const res = await keywordApi.importKeywords({ keywords: list }, currentTenant()) as any
+    const res = await keywordApi.importKeywords({ keywords: list }, tenantId) as any
     message.success(`导入完成：${res?.imported ?? res?.data?.imported ?? 0}/${list.length}`)
     showImportModal.value = false
     importText.value = ''
@@ -320,9 +392,14 @@ function openPriorityModal() {
 }
 
 async function submitPriority() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，优先级没有保存。请在右上角选一家客户。')
+    return
+  }
   prioritySaving.value = true
   try {
-    const res = await keywordApi.batchUpdatePriority(selectedRowKeys.value, priorityInput.value, currentTenant()) as any
+    const res = await keywordApi.batchUpdatePriority(selectedRowKeys.value, priorityInput.value, tenantId) as any
     message.success(`已更新 ${res?.updated ?? 0} 个关键词的优先级`)
     priorityModalVisible.value = false
     selectedRowKeys.value = []
@@ -335,6 +412,11 @@ async function submitPriority() {
 }
 
 async function batchDelete() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('当前没有选定客户，删除这一发没发出去。请在右上角选一家客户。')
+    return
+  }
   if (!selectedRowKeys.value.length) return message.warning('请先选择要删除的关键词')
   Modal.confirm({
     title: `确认删除 ${selectedRowKeys.value.length} 个关键词？`,
@@ -343,7 +425,7 @@ async function batchDelete() {
     cancelText: '取消',
     onOk: async () => {
       try {
-        const res = await keywordApi.batchDelete(selectedRowKeys.value, currentTenant()) as any
+        const res = await keywordApi.batchDelete(selectedRowKeys.value, tenantId) as any
         message.success(`已删除 ${res?.deleted ?? res?.data?.deleted ?? 0} 个`)
         selectedRowKeys.value = []
         await fetchAll()
@@ -436,11 +518,23 @@ function categoryClassColor(cat: string): string {
 }
 
 onMounted(fetchAll)
+watch(requestedTenantId, () => {
+  selectedRowKeys.value = []
+  currentPage.value = 1
+  fetchAll()
+})
 </script>
 
 <template>
   <div class="keyword-library-page">
     <PageTitle />
+    <a-alert
+      v-if="requestedTenantId === null"
+      class="scope-alert"
+      type="info"
+      show-icon
+      :message="scopeNotice"
+    />
     <a-spin :spinning="loading">
       <!-- 顶部标题区 -->
       <div class="page-header">
@@ -466,19 +560,19 @@ onMounted(fetchAll)
           </div>
         </div>
         <div class="header-actions">
-          <a-button @click="fetchAll">
+          <a-button :disabled="requestedTenantId === null" @click="fetchAll">
             <template #icon><ReloadOutlined /></template>
             刷新
           </a-button>
-          <a-button @click="openConfig">
+          <a-button :disabled="requestedTenantId === null" @click="openConfig">
             <template #icon><SettingOutlined /></template>
             扩展配置
           </a-button>
-          <a-button type="primary" :loading="expanding" @click="triggerExpand">
+          <a-button type="primary" :loading="expanding" :disabled="requestedTenantId === null" @click="triggerExpand">
             <template #icon><PlayCircleOutlined /></template>
             立即扩展（3源白名单）
           </a-button>
-          <a-button color="primary" variant="outlined" @click="showImportModal = true">
+          <a-button color="primary" variant="outlined" :disabled="requestedTenantId === null" @click="showImportModal = true">
             <template #icon><UploadOutlined /></template>
             导入关键词
           </a-button>
@@ -491,7 +585,7 @@ onMounted(fetchAll)
           <div class="stat-card__icon"><FundOutlined /></div>
           <div class="stat-card__content">
             <div class="stat-card__label">关键词总量</div>
-            <div class="stat-card__value">{{ libraryStats.total }}</div>
+            <div class="stat-card__value">{{ requestedTenantId === null ? '—' : libraryStats.total }}</div>
             <div class="stat-card__hint">全部客户词库（唯一真实源）</div>
           </div>
         </div>
@@ -500,7 +594,11 @@ onMounted(fetchAll)
           <div class="stat-card__content">
             <div class="stat-card__label">高转化漏斗（价格+选择+效果+本地）</div>
             <div class="stat-card__value">
-              {{ libraryStats.cat_price + libraryStats.cat_choice + libraryStats.cat_effect + libraryStats.cat_local }}
+              {{
+                requestedTenantId === null
+                  ? '—'
+                  : libraryStats.cat_price + libraryStats.cat_choice + libraryStats.cat_effect + libraryStats.cat_local
+              }}
             </div>
             <div class="stat-card__hint">最贴近企业成交链路的词</div>
           </div>
@@ -509,7 +607,7 @@ onMounted(fetchAll)
           <div class="stat-card__icon"><FileSearchOutlined /></div>
           <div class="stat-card__content">
             <div class="stat-card__label">已有内容建议（未生成文章）</div>
-            <div class="stat-card__value">{{ libraryStats.stage_suggested }}</div>
+            <div class="stat-card__value">{{ requestedTenantId === null ? '—' : libraryStats.stage_suggested }}</div>
             <div class="stat-card__hint">可直接进入 AI 生成页</div>
           </div>
         </div>
@@ -517,11 +615,11 @@ onMounted(fetchAll)
           <div class="stat-card__icon"><RiseOutlined /></div>
           <div class="stat-card__content">
             <div class="stat-card__label">已生成文章（生产进度）</div>
-            <div class="stat-card__value">{{ libraryStats.stage_articled }}</div>
+            <div class="stat-card__value">{{ requestedTenantId === null ? '—' : libraryStats.stage_articled }}</div>
             <div class="stat-card__hint">
               覆盖率：{{
-                libraryStats.total === 0
-                  ? '0%'
+                requestedTenantId === null || libraryStats.total === 0
+                  ? '—'
                   : Math.round(libraryStats.stage_articled * 100 / libraryStats.total) + '%'
               }}
             </div>
@@ -592,13 +690,13 @@ onMounted(fetchAll)
 
           <template #actions>
             <a-tooltip title="蒸馏时按优先级从高到低选词">
-              <a-button :disabled="!selectedRowKeys.length" @click="openPriorityModal">
+              <a-button :disabled="requestedTenantId === null || !selectedRowKeys.length" @click="openPriorityModal">
                 <template #icon><ThunderboltOutlined /></template>
                 设优先级（{{ selectedRowKeys.length }}）
               </a-button>
             </a-tooltip>
             <a-tooltip title="批量删除">
-              <a-button danger :disabled="!selectedRowKeys.length" @click="batchDelete">
+              <a-button danger :disabled="requestedTenantId === null || !selectedRowKeys.length" @click="batchDelete">
                 <template #icon><DeleteOutlined /></template>
                 删除（{{ selectedRowKeys.length }}）
               </a-button>
@@ -621,7 +719,8 @@ onMounted(fetchAll)
               :read-failed="readFailed"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
-              can-create
+              :not-sent="notSentLine"
+              :can-create="requestedTenantId !== null"
               create-label="导入关键词"
               @create="showImportModal = true"
             />
@@ -797,6 +896,10 @@ onMounted(fetchAll)
   background: @slate-50;
   min-height: 100vh;
   color: @slate-900;
+}
+
+.scope-alert {
+  margin-bottom: 16px;
 }
 
 .page-header {

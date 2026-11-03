@@ -1,6 +1,7 @@
 <template>
   <div class="articles-panel-page">
     <PageTitle />
+    <a-alert v-if="requestedTenantId === null" class="scope-alert" type="info" show-icon :message="scopeNotice" />
     <a-spin :spinning="loading">
       <!-- 顶部数据概览区 -->
       <a-row :gutter="[16, 16]" style="margin-bottom: 20px">
@@ -130,7 +131,7 @@
               </filter-bar>
 
               <!-- 状态快速标签 -->
-              <div class="status-tags">
+              <div v-if="requestedTenantId !== null" class="status-tags">
                 <span class="status-tags-label">状态（按已取的 {{ articles.length }} 篇统计）：</span>
                 <a-space wrap size="small">
                   <a-tag
@@ -264,7 +265,7 @@
             <div class="view-toolbar">
               <div class="view-info">
                 <span class="view-count">
-                  共 <strong>{{ filteredArticles.length }}</strong> 篇文章
+                  共 <strong>{{ requestedTenantId === null ? '—' : filteredArticles.length }}</strong> 篇文章
                   <span v-if="fetchedNote" class="view-note">（{{ fetchedNote }}）</span>
                 </span>
               </div>
@@ -327,6 +328,7 @@
                     :read-failed="readFailed"
                     :empty-line="emptyLine"
                     :empty-reason="emptyReason"
+                    :not-sent="notSentLine"
                   />
                   <span v-else>没有符合当前筛选条件的文章。</span>
                 </template>
@@ -422,6 +424,7 @@
                 :read-failed="readFailed"
                 :empty-line="emptyLine"
                 :empty-reason="emptyReason"
+                :not-sent="notSentLine"
               />
               <span v-else-if="filteredArticles.length === 0">没有符合当前筛选条件的文章。</span>
               <a-row :gutter="[16, 16]">
@@ -486,6 +489,7 @@
                 :read-failed="readFailed"
                 :empty-line="emptyLine"
                 :empty-reason="emptyReason"
+                :not-sent="notSentLine"
               />
               <span v-else-if="filteredArticles.length === 0">没有符合当前筛选条件的文章。</span>
               <a-row :gutter="[8, 8]">
@@ -521,7 +525,7 @@
         <a-col :xs="24" :xl="4">
           <div class="sidebar">
             <!-- 新建文章按钮 -->
-            <a-button type="primary" size="large" block class="create-btn" @click="showArticleEditor = true">
+            <a-button type="primary" size="large" block class="create-btn" :disabled="requestedTenantId === null" @click="showArticleEditor = true">
               <template #icon><EditOutlined /></template>
               新建文章
             </a-button>
@@ -747,6 +751,27 @@ import { logError } from '../../utils/errorLog'
 import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
+
+/**
+ * 这一屏摆的是「哪一家」的文章。没选客户时不再替人挑 1 号家：
+ * 一条请求都不发，四张卡与列表都摆「—」，并说清「这不是这一家没有」。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (auth.isSuperAdmin) return auth.selectedTenantId ?? null
+  return auth.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return auth.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的文章。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  return `这一屏只摆编号 ${id} 的客户的文章。`
+})
+
+const notSentLine = ref('')
 
 const loading = ref(false)
 // 空态的那一句只认后端（N-05）：读失败 / 后端答了成因 / 后端没答，三件事分开说
@@ -1036,6 +1061,10 @@ async function editArticle(article: any) {
 }
 
 function copyArticle(article: any) {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，这一发没发出去（没有复制）。请在右上角选一家客户。')
+    return
+  }
   Modal.confirm({
     title: '确认复制',
     content: `确定要复制文章"${article.title}"吗？`,
@@ -1297,6 +1326,10 @@ function batchDelete() {
 }
 
 async function saveDraft() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，这一发没发出去（草稿没有保存）。请在右上角选一家客户。')
+    return
+  }
   try {
     const payload = { ...articleForm, status: 'draft' }
     if (articleForm.id) {
@@ -1313,6 +1346,10 @@ async function saveDraft() {
 }
 
 async function submitReview() {
+  if (requestedTenantId.value === null) {
+    message.warning('当前没有选定客户，这一发没发出去（没有提交审核）。请在右上角选一家客户。')
+    return
+  }
   try {
     const payload = { ...articleForm, status: 'pending_review' }
     if (articleForm.id) {
@@ -1342,12 +1379,27 @@ async function loadData() {
   readFailed.value = ''
   emptyLine.value = ''
   emptyReason.value = null
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    articles.value = []
+    categories.value = []
+    authors.value = []
+    allTags.value = []
+    recentEdits.value = []
+    selectedRowKeys.value = []
+    selectedRows.value = []
+    for (const key of Object.keys(stats) as (keyof typeof stats)[]) stats[key] = null
+    notSentLine.value = '这一发没发出去，所以这里的文章一条都不是（不是「这一家没有文章」）。请在右上角选一家客户。'
+    loading.value = false
+    return
+  }
+  notSentLine.value = ''
   try {
     const [articlesData, categoriesData, authorsData, dashboardStats] = await Promise.all([
-      articleManageApi.list({ page: 1, size: 100 } as any),
-      categoryApi.list({ all: true }) as any,
-      adminApi.users.list({}).catch(() => []),
-      dashboardApi.getStats().catch(() => null),
+      articleManageApi.list({ tenantId, page: 1, size: 100 } as any),
+      categoryApi.list({ all: true, tenantId }) as any,
+      adminApi.users.list({ tenantId }).catch(() => []),
+      dashboardApi.getStats(tenantId).catch(() => null),
     ])
 
     const articleList = (articlesData as any)?.records || (articlesData as any) || []
@@ -1404,7 +1456,7 @@ async function loadData() {
 }
 
 watch(
-  () => auth.selectedTenantId,
+  requestedTenantId,
   () => {
     loadData()
   }
@@ -1416,6 +1468,10 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
+.scope-alert {
+  margin-bottom: 16px;
+}
+
 .articles-panel-page {
   width: 100%;
   padding: 8px 0;
