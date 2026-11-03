@@ -221,10 +221,8 @@ export const invoiceInfoApi = {
 export const paymentMethodApi = {
   // 获取可用支付方式（后端 BillingPaymentMethodController 回的是 code/name/icon/enabled，
   // 以前这里声明成 type，照着它写的消费者会拿到 undefined）
-  list: (tenantId: number) =>
-    http.get<{ code: string; name: string; icon: string; enabled: boolean }[]>('/billing/payment-methods', {
-      params: { tenantId },
-    }),
+  list: () =>
+    http.get<{ code: string; name: string; icon: string; enabled: boolean }[]>('/billing/payment-methods'),
 
   // 创建支付订单
   createOrder: (tenantId: number, amount: number, method: string, returnUrl?: string) =>
