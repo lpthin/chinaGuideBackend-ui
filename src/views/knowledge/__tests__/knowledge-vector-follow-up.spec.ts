@@ -52,7 +52,7 @@ describe('M-P15：排队向量化后界面自己把状态读回终态', () => {
   /** 回读按 tenantId 读，换租户后那一趟读的是另一家的列表；卸载后还在跑就是无主定时器 */
   it('换租户与离开页面都停表', () => {
     expect(view).toMatch(/onBeforeUnmount\(stopVectorFollow\)/)
-    const watchTenant = view.slice(view.indexOf('watch(\n  () => auth.selectedTenantId'))
+    const watchTenant = view.slice(view.indexOf('watch(\n  requestedTenantId'))
     expect(watchTenant).toMatch(/stopVectorFollow\(\)/)
   })
 

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { h } from 'vue'
+import { h, reactive } from 'vue'
 import { Button, Col, Empty, RadioButton, RadioGroup, Row, message } from 'ant-design-vue'
 import KnowledgeDocumentView from '../KnowledgeDocumentView.vue'
 import { knowledgeCategoryApi, knowledgeDocumentApi, knowledgeTagApi } from '../../../api/knowledge'
@@ -53,14 +53,17 @@ vi.mock('../../../api/knowledge', () => ({
   flattenCategories: (list: any[]) => list
 }))
 
+const authState = reactive({
+  selectedTenantId: 7 as number | null,
+  tenantId: 7,
+  accessToken: 'token-for-test',
+  user: { id: 1 },
+  isSuperAdmin: false,
+  hasPermission: () => true
+})
+
 vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({
-    selectedTenantId: 7,
-    accessToken: 'token-for-test',
-    user: { id: 1 },
-    isSuperAdmin: false,
-    hasPermission: () => true
-  })
+  useAuthStore: () => authState
 }))
 
 const TABLE_STUB = {
@@ -216,6 +219,9 @@ const categoryCalls = () =>
 describe('KnowledgeDocumentView 的空态成因（资料库，M-P74）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    authState.isSuperAdmin = false
+    authState.selectedTenantId = 7
+    authState.tenantId = 7
   })
 
   it.each(THREE_EMPTIES)('进了项目，后端回 %s 那一档时表格空槽里逐字念那一句，页面上没有「暂无数据」', async (reason, line) => {
@@ -293,5 +299,59 @@ describe('KnowledgeDocumentView 的空态成因（资料库，M-P74）', () => {
     expect(wrapper.find('.empty-line').exists()).toBe(false)
     expect(wrapper.findAll('.row')).toHaveLength(2)
     expect(wrapper.html()).not.toContain('一条都没有')
+  })
+})
+
+describe('资料库 · 平台档与选客户两档', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authState.isSuperAdmin = true
+    authState.selectedTenantId = null
+  })
+
+  afterEach(() => {
+    authState.isSuperAdmin = false
+    authState.selectedTenantId = 7
+  })
+
+  async function mountPlain() {
+    vi.mocked(knowledgeCategoryApi.all).mockResolvedValue({ records: [{ id: 7, name: '企业资料' }], total: 1, page: 1, size: 20, pages: 1 } as any)
+    vi.mocked(knowledgeTagApi.list).mockResolvedValue([] as any)
+    vi.mocked(knowledgeDocumentApi.list).mockImplementation(listHandler([{ records: [], total: 0, emptyReason: 'NONE', emptyLine: THREE_EMPTIES[0][1] }]) as any)
+    const wrapper = mount(KnowledgeDocumentView, {
+      attachTo: document.body,
+      global: { stubs: STUBS }
+    })
+    await flushPromises()
+    return wrapper
+  }
+
+  it('平台档：项目、未归类、标签三支口都不发请求，项目面板不渲，新建项目灰着', async () => {
+    const wrapper = await mountPlain()
+
+    expect(knowledgeCategoryApi.all).not.toHaveBeenCalled()
+    expect(knowledgeTagApi.list).not.toHaveBeenCalled()
+    expect(knowledgeDocumentApi.list).not.toHaveBeenCalled()
+
+    expect(wrapper.text()).toContain('请先在右上角切到「客户」并选一家')
+    expect(wrapper.find('.aspin-stub').exists()).toBe(false)
+    expect(wrapper.find('.project-card').exists()).toBe(false)
+    const newButton = wrapper.findAll('button').find(b => b.text().includes('新建项目'))!
+    expect(newButton.attributes('disabled')).toBeDefined()
+  })
+
+  it('选了客户：项目与标签按选中的那一家重取，进项目后的资料也带那一家', async () => {
+    const wrapper = await mountPlain()
+
+    authState.selectedTenantId = 558
+    await flushPromises()
+
+    expect(knowledgeCategoryApi.all).toHaveBeenLastCalledWith(558)
+    expect(knowledgeTagApi.list).toHaveBeenLastCalledWith({ tenantId: 558 })
+
+    await wrapper.find('.project-card').trigger('click')
+    await flushPromises()
+
+    expect(knowledgeDocumentApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ tenantId: 558, categoryId: 7 }))
   })
 })

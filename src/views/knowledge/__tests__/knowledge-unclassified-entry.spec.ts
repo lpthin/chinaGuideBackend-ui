@@ -64,7 +64,7 @@ describe('M-P15：没归到任何项目的资料在界面上有出口', () => {
     const back = view.slice(view.indexOf('function backToCategories()'),
       view.indexOf('async function createCategory'))
     expect(back).toMatch(/unclassifiedMode\.value = false/)
-    const watchTenant = view.slice(view.indexOf('watch(\n  () => auth.selectedTenantId'))
+    const watchTenant = view.slice(view.indexOf('watch(\n  requestedTenantId'))
     expect(watchTenant).toMatch(/unclassifiedMode\.value = false/)
   })
 

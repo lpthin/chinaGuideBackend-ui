@@ -35,9 +35,13 @@ vi.mock('../../../api/billing', () => ({
   }
 }))
 
-vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({ selectedTenantId: 15, tenantId: 15, isSuperAdmin: true })
+const auth = vi.hoisted(() => ({
+  selectedTenantId: 15 as number | null,
+  tenantId: 15,
+  isSuperAdmin: true
 }))
+
+vi.mock('../../../stores/auth', () => ({ useAuthStore: () => auth }))
 
 const PASS_THROUGH = (name: string) => ({
   name,
@@ -157,7 +161,8 @@ async function mountView(options: Options = {}) {
         'a-radio-group': PASS_THROUGH('ARadioGroup'),
         'a-radio': PASS_THROUGH('ARadio'),
         'a-textarea': PASS_THROUGH('ATextarea'),
-        'a-alert': PASS_THROUGH('AAlert'),
+        // 不声明 message 这个 prop：老的用例按 attributes('message') 读，新用例按屏上正文读，两头都要能对上
+        'a-alert': { name: 'AAlert', template: '<div class="AAlert-stub alert-stub">{{ $attrs.message }}</div>' },
         'a-form': PASS_THROUGH('AForm'),
         'a-form-item': PASS_THROUGH('AFormItem'),
         'a-button': Button,
@@ -190,6 +195,7 @@ function lastListParams() {
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  auth.selectedTenantId = 15
   // happy-dom 的 createObjectURL 不是这一屏要钉的东西
   window.URL.createObjectURL = vi.fn(() => 'blob:mp90')
   window.URL.revokeObjectURL = vi.fn()
@@ -344,6 +350,33 @@ describe('筛选栏那三格真落到请求上，且一变就回第一页', () =
     await flushPromises()
 
     expect(lastListParams()).toMatchObject({ keyword: '文章', page: 1 })
+  })
+})
+
+describe('超管没选客户时这一屏一口不发', () => {
+  it('平台模式：钱包和流水两发都不发，四张卡念「—」，两个写按钮是灰的，屏上说清为什么', async () => {
+    auth.selectedTenantId = null
+    const wrapper = await mountView()
+
+    expect(walletApi.getInfo).not.toHaveBeenCalled()
+    expect(walletApi.getTransactions).not.toHaveBeenCalled()
+    expect(stats(wrapper)).toEqual(['—', '—', '—', '—'])
+    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+
+    const exportButton = wrapper.findAll('button').find(node => node.text().includes('导出明细'))
+    expect(exportButton, '筛选栏里要有「导出明细」按钮').toBeTruthy()
+    expect(exportButton!.attributes('disabled')).toBeDefined()
+    const rechargeButton = wrapper.findAll('button').find(node => node.text().includes('充值'))
+    expect(rechargeButton, '筛选栏里要有「充值」按钮').toBeTruthy()
+    expect(rechargeButton!.attributes('disabled')).toBeDefined()
+  })
+
+  it('选了一家客户：钱包和流水都带这一家的编号去读', async () => {
+    const wrapper = await mountView()
+
+    expect(walletApi.getInfo).toHaveBeenCalledWith(15)
+    expect(lastListParams()).toMatchObject({ tenantId: 15 })
+    expect(wrapper.find('.alert-stub').exists()).toBe(false)
   })
 })
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { Button, message } from 'ant-design-vue'
 import DataReportView from '../DataReportView.vue'
@@ -45,7 +46,12 @@ vi.mock('../../../api/operation', () => ({
   }
 }))
 
-const authMock = { selectedTenantId: 15 as number | null, tenantId: 15 as number | null }
+// 真 store 里的这三格是响应式的（getter / state）；这里也用 reactive，切客户才会触发页面重取
+const authMock = reactive({
+  selectedTenantId: 15 as number | null,
+  tenantId: 15 as number | null,
+  isSuperAdmin: false
+})
 
 vi.mock('../../../stores/auth', () => ({
   useAuthStore: () => authMock
@@ -140,6 +146,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   authMock.selectedTenantId = 15
   authMock.tenantId = 15
+  authMock.isSuperAdmin = false
   mockAllOk()
   // happy-dom 不实现对象 URL 的创建；下载那一步的副作用不是这组用例要看的
   ;(window.URL as any).createObjectURL = vi.fn(() => 'blob:mock')
@@ -331,8 +338,47 @@ describe('导出那一步：认载荷形状，不认「后端回了东西」', (
   })
 })
 
-describe('谁的租户：普通管理员不许整屏空', () => {
-  it('没有「选中态」但登录态里有租户：仍按自己那家取数', async () => {
+describe('谁的租户：超管没选客户就一口不发，普通管理员按自己那家', () => {
+  it('超管还没选客户：七个读口零请求，四张卡摆「—」，导出按钮灰，屏上说清楚', async () => {
+    // 登录态里的 tenantId 在真实 store 里恒为 1 —— 这里故意摆成 1，钉住「不许偷偷读 1 号家」
+    authMock.isSuperAdmin = true
+    authMock.selectedTenantId = null
+    authMock.tenantId = 1
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(vi.mocked(operationApi.getStats)).not.toHaveBeenCalled()
+    expect(vi.mocked(operationApi.getTrafficTrend)).not.toHaveBeenCalled()
+    expect(vi.mocked(operationApi.getCategoryDistribution)).not.toHaveBeenCalled()
+    expect(vi.mocked(operationApi.getUserGrowth)).not.toHaveBeenCalled()
+    expect(vi.mocked(operationApi.getUserActivity)).not.toHaveBeenCalled()
+    expect(vi.mocked(operationApi.getTrafficSource)).not.toHaveBeenCalled()
+    expect(vi.mocked(operationApi.getDeviceDistribution)).not.toHaveBeenCalled()
+
+    expect(wrapper.findAll('.stat-value').map(node => node.text())).toEqual(['—', '—', '—', '—'])
+    expect(wrapper.find('.alert-msg').text()).toContain('当前没有选定客户')
+
+    const exportButton = wrapper.findAll('button').find(node => node.text().includes('导出报表'))
+    expect(exportButton, '「导出报表」按钮要在页面上').toBeTruthy()
+    expect(exportButton!.attributes('disabled')).toBeDefined()
+
+    expect(message.error).not.toHaveBeenCalled()
+  })
+
+  it('超管选了客户：按选中那一家取数，不是登录态里的 1 号家', async () => {
+    authMock.isSuperAdmin = true
+    authMock.selectedTenantId = 558
+    authMock.tenantId = 1
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(vi.mocked(operationApi.getStats)).toHaveBeenCalledWith(558, undefined, undefined)
+    expect(vi.mocked(operationApi.getTrafficTrend)).toHaveBeenCalledWith(558, 7, undefined, undefined)
+    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+  })
+
+  it('普通管理员没有「选中态」但登录态里有租户：仍按自己那家取数', async () => {
+    authMock.isSuperAdmin = false
     authMock.selectedTenantId = null
     authMock.tenantId = 15
     const wrapper = mountView()
@@ -342,14 +388,18 @@ describe('谁的租户：普通管理员不许整屏空', () => {
     expect(wrapper.find('.alert-stub').exists()).toBe(false)
   })
 
-  it('超管还没选租户：说清楚，不发请求，也不弹红', async () => {
-    authMock.selectedTenantId = null
-    authMock.tenantId = null
+  it('超管从有客户切回「不选」：卡片当场归「—」，也不再拿上一家去请求', async () => {
+    authMock.isSuperAdmin = true
+    authMock.selectedTenantId = 558
     const wrapper = mountView()
     await flushPromises()
+    expect(vi.mocked(operationApi.getStats)).toHaveBeenCalledWith(558, undefined, undefined)
 
-    expect(wrapper.find('.alert-msg').text()).toContain('还没选客户')
+    vi.mocked(operationApi.getStats).mockClear()
+    authMock.selectedTenantId = null
+    await flushPromises()
+
     expect(vi.mocked(operationApi.getStats)).not.toHaveBeenCalled()
-    expect(message.error).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.stat-value').map(node => node.text())).toEqual(['—', '—', '—', '—'])
   })
 })

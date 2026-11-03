@@ -54,7 +54,10 @@
         <!-- 平台档专属：上面那三格在这里天然是「—」（它们按「你在这家租户里的信」算），
              而「我发的公告被读了多少」是跨租户的问题，只有不选租户时才有意义，所以摆在这下面。 -->
         <a-card v-if="isPlatformMode" :bordered="false" class="broadcast-summary-card">
-          <template #title>我发出的公告 · 各家的阅读情况</template>
+          <template #title>
+            我发出的公告 · 各家的阅读情况
+            <a-tag color="blue" class="broadcast-summary-card__scope">当前：全部客户合计</a-tag>
+          </template>
           <a-alert v-if="broadcastNote" type="warning" show-icon>
             <template #message>{{ broadcastNote }}</template>
           </a-alert>
@@ -632,6 +635,11 @@ watch(actingTenantId, () => {
 
 .broadcast-summary-card {
   margin-bottom: 16px;
+
+  &__scope {
+    margin-left: 8px;
+    font-weight: 400;
+  }
 
   &__note {
     margin-top: 8px;

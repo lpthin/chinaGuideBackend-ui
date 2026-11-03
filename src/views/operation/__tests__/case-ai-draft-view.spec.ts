@@ -151,9 +151,19 @@ function estimate(overrides: Record<string, unknown> = {}) {
   }
 }
 
-async function mountView(permissions: string[] = CASE_CODES) {
+async function mountView(
+  permissions: string[] = CASE_CODES,
+  options: { superAdmin?: boolean; selectedTenantId?: number | null } = {}
+) {
   const auth = useAuthStore()
-  auth.user = { id: 1, username: 'tester', tenantId: 15, roles: ['SITE_ADMIN'], permissions } as any
+  auth.user = {
+    id: 1,
+    username: 'tester',
+    tenantId: 15,
+    roles: options.superAdmin ? ['SUPER_ADMIN'] : ['SITE_ADMIN'],
+    permissions
+  } as any
+  auth.selectedTenantId = options.selectedTenantId ?? null
   const wrapper = mount(CaseManageView, {
     attachTo: document.body,
     global: {
@@ -490,5 +500,44 @@ describe('CaseManageView 改筛选条件立刻重新取数', () => {
     expect(customerCaseApi.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, keyword: '种植' })
     )
+  })
+})
+
+describe('超管没选客户时这一屏一口不发', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(customerCaseApi.list).mockResolvedValue({ records: [CASE], total: 1, page: 1, size: 10 } as any)
+    vi.mocked(customerCaseApi.statistics).mockResolvedValue({
+      total: 1,
+      published: 1,
+      draft: 0,
+      totalViews: 3,
+      industryCount: 1
+    } as any)
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('平台模式：案例列表和统计两发都不发，三张卡念「—」，新建按钮是灰的，屏上说清为什么', async () => {
+    const wrapper = await mountView(CASE_CODES, { superAdmin: true, selectedTenantId: null })
+
+    expect(customerCaseApi.list).not.toHaveBeenCalled()
+    expect(customerCaseApi.statistics).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.stat-value').map((node: any) => node.text())).toEqual(['—', '—', '—'])
+    expect(wrapper.find('.AAlert-stub').text()).toContain('当前没有选定客户')
+
+    const addButton = wrapper.findAll('button').find((node: any) => node.text().includes('新建案例'))
+    expect(addButton, '筛选栏里要有「新建案例」按钮').toBeTruthy()
+    expect(addButton!.attributes('disabled')).toBeDefined()
+  })
+
+  it('选了一家客户：列表和统计都带这一家的编号去读', async () => {
+    const wrapper = await mountView(CASE_CODES, { superAdmin: true, selectedTenantId: 558 })
+
+    expect(customerCaseApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 558 }))
+    expect(customerCaseApi.statistics).toHaveBeenCalledWith(558)
+    expect(wrapper.find('.AAlert-stub').exists()).toBe(false)
   })
 })

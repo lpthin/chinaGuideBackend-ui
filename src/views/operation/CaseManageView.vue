@@ -14,7 +14,7 @@
           <a-card class="stat-card" hoverable>
             <div class="stat-content">
               <div class="stat-icon" style="background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)">
-                < TrophyOutlined />
+                <TrophyOutlined />
               </div>
               <div class="stat-info">
                 <div class="stat-value">{{ requestedTenantId === null ? '—' : formatNumber(stats.total) }}</div>

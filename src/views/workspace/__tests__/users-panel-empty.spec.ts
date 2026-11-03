@@ -40,6 +40,10 @@ vi.mock('../../../api/workspace', () => ({
     roles: {
       all: vi.fn()
     }
+  },
+  // 新增用户那栏「客户」下拉（M-P106 第 4 批）挂上来之后，这一屏会连带读一次客户列表
+  tenantApi: {
+    list: vi.fn().mockResolvedValue([])
   }
 }))
 

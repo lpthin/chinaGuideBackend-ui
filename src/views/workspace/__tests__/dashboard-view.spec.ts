@@ -173,6 +173,18 @@ describe('工作台 · 平台档（Q2a）', () => {
 })
 
 describe('工作台 · 租户档（趋势图置顶 + 效果五块）', () => {
+  it('租户档：效果口的请求都点着这一家的号', async () => {
+    authState.selectedTenantId = 1
+    const wrapper = mountDashboard()
+    await flushPromises()
+
+    expect(analyticsApi.overview).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 1 }))
+    expect(analyticsApi.bot).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 1 }))
+    expect(analyticsApi.trend).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 1 }))
+    expect(publishApi.recordStats).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 1 }))
+    wrapper.unmount()
+  })
+
   it('趋势图是主视觉，窗口 KPI 直接嵌在图头部，数据来自 trend 口', async () => {
     const wrapper = mountDashboard()
     await flushPromises()

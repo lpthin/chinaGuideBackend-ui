@@ -7,12 +7,12 @@
       >
         <template #extra>
           <a-space>
-            <a-button :loading="savingDraft" @click="handleSaveDraft">保存草稿</a-button>
-            <a-button type="primary" :loading="submittingReview" @click="handleSubmitReview">
+            <a-button :loading="savingDraft" :disabled="isPlatformMode" @click="handleSaveDraft">保存草稿</a-button>
+            <a-button type="primary" :loading="submittingReview" :disabled="isPlatformMode" @click="handleSubmitReview">
               提交审核
             </a-button>
-            <a-dropdown>
-              <a-button>
+            <a-dropdown :disabled="isPlatformMode">
+              <a-button :disabled="isPlatformMode">
                 更多操作
                 <template #icon><DownOutlined /></template>
               </a-button>
@@ -32,7 +32,7 @@
                 </a-menu>
               </template>
             </a-dropdown>
-            <a-button type="primary" v-if="articleForm.status === 'approved'" :loading="publishing" @click="handlePublish">
+            <a-button type="primary" v-if="articleForm.status === 'approved'" :loading="publishing" :disabled="isPlatformMode" @click="handlePublish">
               发布文章
             </a-button>
           </a-space>
@@ -209,7 +209,7 @@
 
           <a-card title="SEO设置" :bordered="false" style="margin-top: 16px">
             <template #extra>
-              <a-button size="small" type="link" :loading="generatingSeo" @click="handleGenerateSeo">
+              <a-button size="small" type="link" :loading="generatingSeo" :disabled="isPlatformMode" @click="handleGenerateSeo">
                 <BulbOutlined /> 智能生成
               </a-button>
             </template>
@@ -416,7 +416,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '../../stores/auth'
@@ -464,6 +464,9 @@ const requestedTenantId = computed<number | null>(() => {
   if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
   return authStore.user?.tenantId ?? null
 })
+
+/** 平台档 = 超管没选客户：文章按客户存，这一档不发请求、写口全灰 */
+const isPlatformMode = computed(() => requestedTenantId.value === null)
 
 const scopeNotice = computed(() => {
   const id = requestedTenantId.value
@@ -721,6 +724,10 @@ function validateForm(): boolean {
 }
 
 async function handleSaveDraft() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!validateForm()) return
 
   savingDraft.value = true
@@ -739,7 +746,7 @@ async function handleSaveDraft() {
     }
 
     if (isEdit.value) {
-      await articleApi.update(articleId.value, data, authStore.selectedTenantId ?? undefined)
+      await articleApi.update(articleId.value, data, requestedTenantId.value ?? undefined)
       message.success('草稿保存成功')
     } else {
       message.success('草稿保存成功（新建模式）')
@@ -754,6 +761,10 @@ async function handleSaveDraft() {
 }
 
 async function handleSubmitReview() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!isEdit.value) {
     message.warning('请先保存草稿，再提交审核')
     return
@@ -778,8 +789,8 @@ async function handleSubmitReview() {
       faqJson: geoForm.faqJson,
     }
 
-    await articleApi.update(articleId.value, data, authStore.selectedTenantId ?? undefined)
-    const result = await reviewApi.submitForReview(articleId.value, authStore.selectedTenantId ?? undefined)
+    await articleApi.update(articleId.value, data, requestedTenantId.value ?? undefined)
+    const result = await reviewApi.submitForReview(articleId.value, requestedTenantId.value ?? undefined)
     articleForm.status = (result?.status as ArticleStatus) || 'pending_review'
     message.success('已提交审核')
   } catch (error: any) {
@@ -790,6 +801,10 @@ async function handleSubmitReview() {
 }
 
 async function handlePublish() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!isEdit.value) {
     message.warning('请先保存草稿，审核通过后才能发布')
     return
@@ -814,9 +829,9 @@ async function handlePublish() {
       faqJson: geoForm.faqJson,
     }
 
-    await articleApi.update(articleId.value, data, authStore.selectedTenantId ?? undefined)
+    await articleApi.update(articleId.value, data, requestedTenantId.value ?? undefined)
     // 发布统一走后端 PublishExecutor 出口，编辑页不再自己改状态
-    const result = await publishApi.publish(articleId.value, undefined, authStore.selectedTenantId ?? undefined)
+    const result = await publishApi.publish(articleId.value, undefined, requestedTenantId.value ?? undefined)
     articleForm.status = result?.status === 'scheduled' ? 'scheduled' : 'published'
     message.success(result?.status === 'scheduled' ? '已加入发布队列' : '文章发布成功')
     router.push('/workspace/articles')
@@ -832,13 +847,17 @@ function handleDelete() {
 }
 
 async function confirmDelete() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!isEdit.value) {
     deleteVisible.value = false
     return
   }
 
   try {
-    await articleApi.delete(articleId.value, authStore.selectedTenantId ?? undefined)
+    await articleApi.delete(articleId.value, requestedTenantId.value ?? undefined)
     message.success('删除成功')
     deleteVisible.value = false
     router.push('/workspace/articles')
@@ -848,6 +867,10 @@ async function confirmDelete() {
 }
 
 async function handleGenerateSeo() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!articleForm.title.trim() && !articleForm.content.trim()) {
     message.warning('请先填写文章标题或内容')
     return
@@ -856,7 +879,7 @@ async function handleGenerateSeo() {
   generatingSeo.value = true
   try {
     const result = await aiGenerateApi.generateSeo({
-      tenantId: authStore.selectedTenantId,
+      tenantId: requestedTenantId.value ?? undefined,
       title: articleForm.title,
       content: articleForm.summary || articleForm.content,
       keywords: selectedTags.value.join(','),
@@ -883,10 +906,15 @@ function goBack() {
 
 async function loadArticleDetail() {
   if (!isEdit.value) return
+  // 平台档没有「这一家」：文章按客户存，这一发不发（scopeNotice 已把去哪儿选写在屏上）
+  if (isPlatformMode.value) {
+    loading.value = false
+    return
+  }
 
   loading.value = true
   try {
-    const article = await articleApi.get(articleId.value, authStore.selectedTenantId ?? undefined)
+    const article = await articleApi.get(articleId.value, requestedTenantId.value ?? undefined)
 
     articleForm.title = article.title || ''
     articleForm.summary = article.summary || ''
@@ -926,6 +954,12 @@ async function loadArticleDetail() {
 
 onMounted(() => {
   loadArticleDetail()
+  loadCategoryList()
+  loadHotTags()
+})
+
+// 顶栏切客户不会重挂这一屏：分类与热门标签是那一家的，切过去要跟着换（null 时自然清空、不发）
+watch(requestedTenantId, () => {
   loadCategoryList()
   loadHotTags()
 })

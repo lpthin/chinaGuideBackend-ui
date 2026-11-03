@@ -43,15 +43,15 @@ vi.mock('../../../api', () => ({
   }
 }))
 
-vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({
-    selectedTenantId: 15,
-    tenantId: 15,
-    user: { id: 1, tenantId: 15 },
-    isSuperAdmin: true,
-    hasPermission: () => true
-  })
+const auth = vi.hoisted(() => ({
+  selectedTenantId: 15 as number | null,
+  tenantId: 15,
+  user: { id: 1, tenantId: 15 },
+  isSuperAdmin: true,
+  hasPermission: () => true
 }))
+
+vi.mock('../../../stores/auth', () => ({ useAuthStore: () => auth }))
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual<Record<string, any>>('vue-router')
@@ -170,6 +170,7 @@ async function mountView(options: {
         'a-input-search': { name: 'AInputSearch', template: '<input class="search-stub" />' },
         'a-textarea': { name: 'ATextarea', template: '<textarea class="textarea-stub"></textarea>' },
         'a-button': { name: 'AButton', template: '<button class="button-stub"><slot /></button>' },
+        'a-alert': { name: 'AAlert', props: ['type', 'message'], template: '<div class="alert-stub">{{ message }}</div>' },
         'a-table': TABLE_STUB,
         'empty-list-hint': {
           name: 'EmptyListHint',
@@ -220,5 +221,37 @@ describe('ArticlesPanel 的四张统计卡认后端统计口', () => {
     const wrapper = await mountView({ rows: ROWS.slice(0, 5), listTotal: 5, stats: { ...STATS, totalArticles: 5 } })
 
     expect(wrapper.find('.view-note').exists()).toBe(false)
+  })
+})
+describe('超管没选客户时这一屏一口不发', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('平台模式：文章/分类/作者/统计四发都不发，四张卡念「—」，新建按钮是灰的，屏上说清为什么', async () => {
+    auth.selectedTenantId = null
+    const wrapper = await mountView()
+
+    expect(articleManageApi.list).not.toHaveBeenCalled()
+    expect(categoryApi.list).not.toHaveBeenCalled()
+    expect(adminApi.users.list).not.toHaveBeenCalled()
+    expect(dashboardApi.getStats).not.toHaveBeenCalled()
+    expect(texts(wrapper, '.stat-value')).toEqual(['—', '—', '—', '—'])
+    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+
+    const createButton = wrapper.findAll('button').find(node => node.text().includes('新建文章'))
+    expect(createButton, '侧栏里要有「新建文章」按钮').toBeTruthy()
+    expect(createButton!.attributes('disabled')).toBeDefined()
+  })
+
+  it('选了一家客户：列表、分类、作者、统计都带这一家的编号去读', async () => {
+    auth.selectedTenantId = 15
+    const wrapper = await mountView()
+
+    expect(articleManageApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
+    expect(categoryApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
+    expect(adminApi.users.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
+    expect(dashboardApi.getStats).toHaveBeenCalledWith(15)
+    expect(wrapper.find('.alert-stub').exists()).toBe(false)
   })
 })

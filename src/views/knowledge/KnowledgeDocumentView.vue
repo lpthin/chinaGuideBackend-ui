@@ -1,6 +1,12 @@
 <template>
   <div class="media-panel-page">
     <PageTitle />
+    <!-- 项目、资料、标签都按客户分开：平台档（超管没选客户）不发请求、写口全灰 -->
+    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
+      <template #message>
+        项目、资料与标签都按客户分开：请先在右上角切到「客户」并选一家，再读、再传。平台档这里不发业务请求。
+      </template>
+    </a-alert>
     <!-- 分类列表视图 -->
     <template v-if="!currentCategoryId && !unclassifiedMode">
       <div class="panel-header">
@@ -8,13 +14,13 @@
           <!-- 上面那条屏名就是「资料库」，这里再说一遍「资料库项目」是同一屏两个标题；只留这一句怎么做 -->
           <p class="subtitle">创建项目，上传文档和图片，自动解析向量化</p>
         </div>
-        <a-button type="primary" @click="showNewCategoryModal = true">
+        <a-button type="primary" :disabled="isPlatformMode" @click="openNewCategoryModal">
           <template #icon><PlusOutlined /></template>
           新建项目
         </a-button>
       </div>
 
-      <a-spin :spinning="loading">
+      <a-spin :spinning="loading" v-if="!isPlatformMode">
         <a-row :gutter="16">
           <a-col :span="6" v-for="category in categories" :key="category.id">
             <a-card class="project-card" hoverable @click="enterCategory(category.id)">
@@ -105,13 +111,13 @@
           <template #actions>
             <a-space>
               <template v-if="selectedIds.length > 0">
-                <a-button size="small" @click="showBatchCategoryModal">
+                <a-button size="small" :disabled="isPlatformMode" @click="showBatchCategoryModal">
                   设置项目
                 </a-button>
-                <a-button size="small" @click="showBatchTagModal">
+                <a-button size="small" :disabled="isPlatformMode" @click="showBatchTagModal">
                   设置标签
                 </a-button>
-                <a-button danger size="small" @click="batchDelete">
+                <a-button danger size="small" :disabled="isPlatformMode" @click="batchDelete">
                   删除选中 ({{ selectedIds.length }})
                 </a-button>
               </template>
@@ -124,7 +130,7 @@
                 :beforeUpload="handleBatchUpload"
                 accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
               >
-                <a-button type="primary" :loading="uploading">
+                <a-button type="primary" :loading="uploading" :disabled="isPlatformMode">
                   <template #icon><UploadOutlined /></template>
                   批量上传
                 </a-button>
@@ -637,6 +643,10 @@ import PageTitle from '../../components/PageTitle.vue'
 
 // ==================== 知识库文档相关状态 ====================
 const auth = useAuthStore()
+/** 这一屏的请求会打到哪一家：超管跟右上角走，租户用户由登录态定 */
+const requestedTenantId = computed(() => (auth.isSuperAdmin ? auth.selectedTenantId : auth.tenantId))
+/** 平台档 = 超管没选客户：资料库按客户分开，这一档不发请求、写口全灰 */
+const isPlatformMode = computed(() => requestedTenantId.value === null)
 const loading = ref(false)
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
@@ -763,12 +773,22 @@ const hasNextDoc = computed(() => previewIndex.value >= 0 && previewIndex.value 
 
 // ==================== 知识库文档相关方法 ====================
 async function loadCategories() {
+  // 平台档没有「这一家」：项目面板、未归类那张卡一起空着，这一发不发
+  if (isPlatformMode.value) {
+    categories.value = []
+    unclassifiedCount.value = null
+    panelEmptyLine.value = ''
+    panelEmptyReason.value = null
+    panelReadFailed.value = ''
+    loading.value = false
+    return
+  }
   loading.value = true
   panelEmptyLine.value = ''
   panelEmptyReason.value = null
   panelReadFailed.value = ''
   try {
-    const result = await knowledgeCategoryApi.all(auth.selectedTenantId!)
+    const result = await knowledgeCategoryApi.all(requestedTenantId.value!)
     categories.value = result.records
     panelEmptyLine.value = result.emptyLine || ''
     panelEmptyReason.value = asEmptyReason(result.emptyReason)
@@ -790,9 +810,13 @@ async function loadCategories() {
  * 0 = 真读了且一条都没有，卡撤下。</p>
  */
 async function loadUnclassifiedCount() {
+  if (isPlatformMode.value) {
+    unclassifiedCount.value = null
+    return
+  }
   try {
     const result = await knowledgeDocumentApi.list({
-      tenantId: auth.selectedTenantId!,
+      tenantId: requestedTenantId.value!,
       unclassified: true,
       page: 1,
       size: 1
@@ -806,13 +830,23 @@ async function loadUnclassifiedCount() {
 
 async function loadDocuments() {
   if (!currentCategoryId.value && !unclassifiedMode.value) return
+  // 平台档没有「这一家」：列表、总数、空态一并清掉，这一发不发
+  if (isPlatformMode.value) {
+    documents.value = []
+    pagination.value.total = 0
+    emptyLine.value = ''
+    emptyReason.value = null
+    readFailed.value = ''
+    loading.value = false
+    return
+  }
   loading.value = true
   emptyLine.value = ''
   emptyReason.value = null
   readFailed.value = ''
   try {
     const params: any = {
-      tenantId: auth.selectedTenantId!,
+      tenantId: requestedTenantId.value!,
       page: pagination.value.page,
       size: pagination.value.size
     }
@@ -874,7 +908,19 @@ function backToCategories() {
   loadCategories()
 }
 
+function openNewCategoryModal() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
+  showNewCategoryModal.value = true
+}
+
 async function createCategory() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   const name = newCategoryName.value.trim()
   if (!name) {
     message.warning('请输入项目名称')
@@ -884,7 +930,7 @@ async function createCategory() {
   newCategoryName.value = ''
   try {
     await knowledgeCategoryApi.create({
-      tenantId: auth.selectedTenantId!,
+      tenantId: requestedTenantId.value!,
       name,
       icon: 'folder',
       description: ''
@@ -898,13 +944,17 @@ async function createCategory() {
 }
 
 async function handleBatchUpload(file: File): Promise<boolean> {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return false
+  }
   if (!currentCategoryId.value) return false
 
   uploading.value = true
   try {
     const formData = new FormData()
     formData.append('file', file)
-    await knowledgeDocumentApi.upload(auth.selectedTenantId!, formData, undefined, currentCategoryId.value)
+    await knowledgeDocumentApi.upload(requestedTenantId.value!, formData, undefined, currentCategoryId.value)
     message.success(`${file.name} 上传成功`)
     await loadDocuments()
   } catch (e) {
@@ -991,6 +1041,10 @@ async function followVectorization(id: number, attempt = 0) {
 }
 
 async function batchDelete() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (selectedIds.value.length === 0) return
   Modal.confirm({
     title: '确认批量删除',
@@ -1014,8 +1068,13 @@ async function batchDelete() {
 
 // ==================== 标签相关方法 ====================
 async function loadTags() {
+  // 标签也按客户分开：平台档没有「这一家」，标签下拉空着，这一发不发
+  if (isPlatformMode.value) {
+    tags.value = []
+    return
+  }
   try {
-    const result = await knowledgeTagApi.list({ tenantId: auth.selectedTenantId! }) as any
+    const result = await knowledgeTagApi.list({ tenantId: requestedTenantId.value! }) as any
     tags.value = Array.isArray(result) ? result : (result as any).records || []
   } catch (e) {
     logError('knowledge/knowledge-document-view', '加载标签失败:', e)
@@ -1236,6 +1295,10 @@ function showBatchTagModal() {
 }
 
 async function handleBatchSetTags() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (selectedIds.value.length === 0) return
   batchTagSaving.value = true
   try {
@@ -1252,6 +1315,10 @@ async function handleBatchSetTags() {
 }
 
 async function handleBatchSetCategory() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (selectedIds.value.length === 0) return
   batchSaving.value = true
   try {
@@ -1383,7 +1450,7 @@ function getOcrStatusText(status: string): string {
 }
 
 watch(
-  () => auth.selectedTenantId,
+  requestedTenantId,
   async () => {
     stopVectorFollow()
     currentCategoryId.value = null
@@ -1405,6 +1472,10 @@ onBeforeUnmount(stopVectorFollow)
 
 <style lang="less" scoped>
 .media-panel-page {
+
+  .scope-alert {
+    margin-bottom: 16px;
+  }
 
   .panel-header {
     display: flex;

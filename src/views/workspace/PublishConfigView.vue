@@ -1,6 +1,11 @@
 <template>
   <div class="publish-config-page">
     <PageTitle />
+    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
+      <template #message>
+        发布配置按客户分开存：请先在右上角切到「客户」并选一家，再读、再改。平台档这里不发业务请求。
+      </template>
+    </a-alert>
     <a-tabs v-model:activeKey="activeTab">
       <a-tab-pane key="mode" tab="发布模式配置">
         <a-card :bordered="false">
@@ -31,8 +36,8 @@
 
             <a-form-item>
               <a-space>
-                <a-button @click="loadConfig">重置</a-button>
-                <a-button type="primary" @click="saveConfig">保存配置</a-button>
+                <a-button @click="loadConfig" :disabled="isPlatformMode">重置</a-button>
+                <a-button type="primary" @click="saveConfig" :disabled="isPlatformMode">保存配置</a-button>
               </a-space>
             </a-form-item>
           </a-form>
@@ -42,7 +47,7 @@
       <a-tab-pane key="platform" tab="发布平台配置">
         <a-card :bordered="false">
           <template #extra>
-            <a-button type="primary" @click="showAddPlatformModal">
+            <a-button type="primary" @click="showAddPlatformModal" :disabled="isPlatformMode">
               <template #icon><PlusOutlined /></template>
               新增发布平台
             </a-button>
@@ -65,13 +70,13 @@
               </template>
               <template v-else-if="column.key === 'actions'">
                 <a-space>
-                  <a-button type="link" size="small" @click="testPlatform(record)">
+                  <a-button type="link" size="small" @click="testPlatform(record)" :disabled="isPlatformMode">
                     <ExperimentOutlined /> 测试
                   </a-button>
-                  <a-button type="link" size="small" @click="editPlatform(record)">
+                  <a-button type="link" size="small" @click="editPlatform(record)" :disabled="isPlatformMode">
                     <EditOutlined /> 编辑
                   </a-button>
-                  <a-button type="link" size="small" danger @click="deletePlatform(record)">
+                  <a-button type="link" size="small" danger @click="deletePlatform(record)" :disabled="isPlatformMode">
                     <DeleteOutlined /> 删除
                   </a-button>
                 </a-space>
@@ -131,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   PlusOutlined, DeleteOutlined,
@@ -161,7 +166,11 @@ const configForm = reactive({
   publishFrequency: '',
 })
 
-const tenantId = computed(() => authStore.selectedTenantId ?? undefined)
+const requestedTenantId = computed(() => (authStore.isSuperAdmin ? authStore.selectedTenantId : authStore.tenantId))
+/** 平台档 = 超管没选客户：配置和平台清单都按客户存，这一档不发请求、写口全灰 */
+const isPlatformMode = computed(() => requestedTenantId.value === null)
+
+const tenantId = computed(() => requestedTenantId.value ?? undefined)
 
 const platformList = ref<any[]>([])
 
@@ -211,6 +220,14 @@ function getPlatformTypeName(type?: string) {
 }
 
 async function loadConfig() {
+  if (isPlatformMode.value) {
+    configId.value = null
+    configForm.publishMode = 'MANUAL'
+    configForm.autoPublishEnabled = false
+    configForm.reviewFlow = 'NONE'
+    configForm.publishFrequency = ''
+    return
+  }
   loading.value = true
   try {
     const data = await publishConfigApi.get(tenantId.value) as any
@@ -231,6 +248,10 @@ async function loadConfig() {
 }
 
 async function saveConfig() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   loading.value = true
   try {
     const saved = await publishConfigApi.update({
@@ -250,6 +271,10 @@ async function saveConfig() {
 }
 
 async function loadPlatforms() {
+  if (isPlatformMode.value) {
+    platformList.value = []
+    return
+  }
   platformLoading.value = true
   try {
     const data = await publishConfigApi.listPlatforms({ tenantId: tenantId.value }) as any
@@ -287,6 +312,10 @@ function editPlatform(record: any) {
 }
 
 async function handlePlatformModalOk() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!platformForm.name) {
     message.error('请输入平台名称')
     return
@@ -317,6 +346,10 @@ async function handlePlatformModalOk() {
 }
 
 function deletePlatform(record: any) {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   Modal.confirm({
     title: '确认删除',
     content: `确定删除发布平台「${record.name}」吗？删除后不可恢复。`,
@@ -335,6 +368,10 @@ function deletePlatform(record: any) {
 }
 
 async function testPlatform(record: any) {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
     const res = await publishConfigApi.testPlatform(record.id, tenantId.value) as any
     if (res?.success) {
@@ -351,12 +388,22 @@ onMounted(() => {
   loadConfig()
   loadPlatforms()
 })
+
+// 顶栏切客户不会重挂这一屏：不盯着它，切过去之后配置和平台清单还是上一家的
+watch(requestedTenantId, () => {
+  loadConfig()
+  loadPlatforms()
+})
 </script>
 
 <style scoped lang="less">
 .publish-config-page {
   width: 100%;
   padding: 8px 0;
+}
+
+.scope-alert {
+  margin-bottom: 16px;
 }
 
 .switch-hint {

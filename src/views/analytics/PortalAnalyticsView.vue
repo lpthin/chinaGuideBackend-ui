@@ -1,6 +1,9 @@
 <template>
   <div class="portal-analytics-page">
     <PageTitle />
+    <a-alert v-if="missingTenant" type="info" show-icon class="scope-alert">
+      访问统计按客户分开记：请先在右上角切到「客户」并选一家，再读。平台档这里不发业务请求。
+    </a-alert>
     <a-alert type="info" show-icon class="scope-note">
       <template #message>
         本页两块数字口径不同，不能相加：<b>人工浏览</b>来自门户前端埋点（只有真浏览器会执行那段脚本）；
@@ -17,10 +20,7 @@
       <a-form-item label="Top 页面">
         <a-select v-model:value="topSize" style="width: 110px" :options="TOP_OPTIONS" />
       </a-form-item>
-      <a-form-item v-if="missingTenant" class="toolbar-fill">
-        <a-tag color="orange">超级管理员请先在右上角选择客户：统计没有跨客户的全局视图</a-tag>
-      </a-form-item>
-      <a-form-item v-else class="toolbar-fill" />
+      <a-form-item class="toolbar-fill" />
       <a-form-item class="toolbar-actions">
         <a-button type="primary" :loading="loading" @click="loadAll">刷新</a-button>
       </a-form-item>
@@ -34,26 +34,26 @@
         </template>
         <a-row :gutter="16">
           <a-col :span="6">
-            <a-statistic title="页面浏览量 PV" :value="overview.pageviews" />
+            <a-statistic title="页面浏览量 PV" :value="missingTenant ? '—' : overview.pageviews" />
           </a-col>
           <a-col :span="6">
-            <a-statistic title="独立访客 UV（按天去重）" :value="overview.uniqueVisitors" />
+            <a-statistic title="独立访客 UV（按天去重）" :value="missingTenant ? '—' : overview.uniqueVisitors" />
           </a-col>
           <a-col :span="6">
             <a-statistic title="平均停留时长" :value="avgDurationText" />
           </a-col>
           <a-col :span="6">
-            <a-statistic title="有时长上报的页面数" :value="overview.durationEvents" />
+            <a-statistic title="有时长上报的页面数" :value="missingTenant ? '—' : overview.durationEvents" />
           </a-col>
         </a-row>
         <state-block
-          v-if="overview.empty"
+          v-if="!missingTenant && overview.empty"
           state="empty"
           class="empty-hint"
           title="该区间没有采到埋点数据（不等于 0 次浏览）：请确认门户已被访问，且访客侧埋点脚本已随本次发布上线"
         />
         <data-table
-          v-else
+          v-else-if="!missingTenant"
           class="inner-table"
           :columns="pageColumns"
           :data-source="pages.pages"
@@ -68,11 +68,11 @@
           <span class="block-hint">按 User-Agent 分类，词表在 bot-ua.yml，改配置即可增删爬虫</span>
         </template>
         <state-block
-          v-if="botSummary.empty"
+          v-if="!missingTenant && botSummary.empty"
           state="empty"
           title="该区间服务端没有识别到爬虫抓取（SEO 文件与门户接口都没有机器人请求）"
         />
-        <a-row v-else :gutter="16">
+        <a-row v-else-if="!missingTenant" :gutter="16">
           <a-col v-for="slice in botSummary.slices" :key="slice.botCategory" :span="8">
             <a-card size="small" :title="botCategoryLabel(slice.botCategory)" class="slice-card">
               <a-statistic :value="slice.hits" suffix="次" />
@@ -91,8 +91,8 @@
         <template #extra>
           <span class="block-hint">四条线分别对应两套采集口径，所以不做合计</span>
         </template>
-        <div v-show="!trend.empty" ref="trendRef" class="trend-chart" />
-        <state-block v-if="trend.empty" class="empty-hint" state="empty" title="该区间没有任何可绘制的数据" />
+        <div v-show="!missingTenant && !trend.empty" ref="trendRef" class="trend-chart" />
+        <state-block v-if="!missingTenant && trend.empty" class="empty-hint" state="empty" title="该区间没有任何可绘制的数据" />
       </a-card>
     </a-spin>
   </div>
@@ -162,6 +162,7 @@ const rangeParams = computed(() => ({
 }))
 
 const avgDurationText = computed(() => {
+  if (missingTenant.value) return '—'
   const value = overview.value.avgDurationMs
   if (!value) return '暂无时长上报'
   const seconds = Math.round(value / 1000)
@@ -265,6 +266,10 @@ watch(() => authStore.selectedTenantId, () => loadAll())
 
 .block-card {
   margin-bottom: 16px;
+}
+
+.scope-alert {
+  margin-bottom: 0;
 }
 
 .block-hint {

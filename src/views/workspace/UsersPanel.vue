@@ -57,6 +57,10 @@
           <template v-if="column.key === 'avatar'">
             <a-avatar :size="40">{{ record.nickname?.charAt(0) || record.username?.charAt(0) || 'U' }}</a-avatar>
           </template>
+          <!-- 平台档一屏里摆着所有客户的账号，不写清是谁家的人就分不出 张三 是哪一家的 -->
+          <template v-if="column.key === 'tenant'">
+            {{ record.tenantName || '未绑定客户' }}
+          </template>
           <template v-if="column.key === 'roles'">
             <a-space size="small" wrap>
               <a-tag v-for="role in record.roleNames" :key="role" color="blue" size="small">
@@ -115,6 +119,11 @@
         :rules="rules"
         layout="vertical"
       >
+        <!-- 账号必须挂在一家客户名下（M-P106 第 4 批）：改前这里没有这一栏，
+             超管没选客户时后端只能当场拒「请先选择客户」，界面却像是能建。 -->
+        <a-form-item v-if="!formState.id" label="客户" name="tenantId">
+          <tenant-select v-model:modelValue="formState.tenantId" placeholder="请选择账号所属客户" />
+        </a-form-item>
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="用户名" name="username">
@@ -222,6 +231,7 @@ import {
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import TenantSelect from '../../components/TenantSelect.vue'
 import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
@@ -273,6 +283,7 @@ const pagination = reactive({
 
 const formState = reactive({
   id: null as number | null,
+  tenantId: undefined as number | undefined,
   username: '',
   nickname: '',
   email: '',
@@ -282,6 +293,9 @@ const formState = reactive({
 })
 
 const rules = {
+  tenantId: [
+    { required: true, message: '请选择账号所属客户', trigger: 'change' },
+  ],
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, max: 20, message: '用户名长度为 3-20 个字符', trigger: 'blur' },
@@ -347,6 +361,11 @@ const columns = [
     dataIndex: 'nickname',
     key: 'nickname',
     width: 120,
+  },
+  {
+    title: '客户',
+    key: 'tenant',
+    width: 160,
   },
   {
     title: '邮箱',
@@ -441,6 +460,8 @@ function handleTableChange(pag: any) {
 
 function handleAdd() {
   formState.id = null
+  // 平台档没选客户时这里是空的，表单会拦住不让提交——不再让后端替人挑 1 号客户
+  formState.tenantId = authStore.selectedTenantId ?? undefined
   formState.username = ''
   formState.nickname = ''
   formState.email = ''
@@ -452,6 +473,7 @@ function handleAdd() {
 
 function handleEdit(record: any) {
   formState.id = record.id
+  formState.tenantId = record.tenantId
   formState.username = record.username
   formState.nickname = record.nickname
   formState.email = record.email || ''
@@ -474,6 +496,7 @@ async function handleSubmit() {
       message.success('更新成功')
     } else {
       await adminApi.users.create({
+        tenantId: formState.tenantId,
         username: formState.username,
         nickname: formState.nickname,
         email: formState.email,

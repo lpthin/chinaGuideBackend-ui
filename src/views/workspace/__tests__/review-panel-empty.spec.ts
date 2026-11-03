@@ -72,7 +72,8 @@ vi.mock('../../../api', () => ({
 vi.mock('../../../stores/auth', async () => {
   const { reactive } = await import('vue')
   const viewStore = reactive({
-    selectedTenantId: null as number | null,
+    selectedTenantId: 1 as number | null,
+    tenantId: 1,
     user: { id: 1 },
     isSuperAdmin: true,
     hasPermission: () => true
@@ -163,7 +164,8 @@ async function mountPanel(
         // 筛选走真实控件：标签真点、搜索框真打字
         'a-tag': Tag,
         'a-input-search': Input.Search,
-        'a-empty': PASS_THROUGH('AEmpty')
+        'a-empty': PASS_THROUGH('AEmpty'),
+        'a-alert': { name: 'AAlert', template: '<div class="alert-stub"><slot name="message" /><slot /></div>' }
       }
     }
   })
@@ -177,7 +179,7 @@ function statValues(wrapper: any): string[] {
 }
 
 beforeEach(() => {
-  store.current.selectedTenantId = null
+  store.current.selectedTenantId = 1
   vi.mocked(reviewApi.pendingList).mockReset()
   vi.mocked(reviewApi.getReviewStats).mockReset()
 })
@@ -278,5 +280,33 @@ describe('审核管理「待审核」列表的空态', () => {
 
     const onlyPage = await mountPanel({ records: [row(1), row(2)], total: 2 })
     expect(onlyPage.find('.list-page-note').exists()).toBe(false)
+  })
+})
+
+/**
+ * 平台档（超管没选客户）：待审列表与审核统计都按客户分开，这一档没有「这一家」，
+ * 所以两支口都不许发，四张卡摆 `—`；选了客户之后按选中的那一家重取。
+ */
+describe('审核管理 · 平台档与选客户两档', () => {
+  it('平台档：列表与统计都不发请求，四张卡摆 —，屏上写清去哪儿选客户', async () => {
+    store.current.selectedTenantId = null
+    const wrapper = await mountPanel({ records: [row(1)], total: 1 })
+
+    expect(reviewApi.pendingList).not.toHaveBeenCalled()
+    expect(reviewApi.getReviewStats).not.toHaveBeenCalled()
+    expect(statValues(wrapper)).toEqual(['—', '—', '—', '—'])
+    expect(wrapper.text()).toContain('请先在右上角切到「客户」并选一家')
+  })
+
+  it('选了客户：两支口都按选中的那一家重取', async () => {
+    store.current.selectedTenantId = null
+    await mountPanel({ records: [], total: 0 })
+    expect(reviewApi.pendingList).not.toHaveBeenCalled()
+
+    store.current.selectedTenantId = 558
+    await flushPromises()
+
+    expect(reviewApi.pendingList).toHaveBeenCalledWith({ tenantId: 558 })
+    expect(reviewApi.getReviewStats).toHaveBeenCalledWith(558)
   })
 })

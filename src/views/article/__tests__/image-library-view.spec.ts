@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { h } from 'vue'
 import { message } from 'ant-design-vue'
+import { Button } from 'ant-design-vue'
 import ImageLibraryView from '../ImageLibraryView.vue'
 import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
 
@@ -45,6 +46,9 @@ const GLOBALS = {
     'a-spin': PASS('ASpin'),
     'a-select': PASS('ASelect'),
     'a-select-option': { name: 'ASelectOption', template: '<span class="opt"><slot /></span>' },
+    'a-alert': { name: 'AAlert', props: ['type', 'message'], template: '<div class="alert-stub">{{ message }}</div>' },
+    // 全局桩件把 a-button 桩成 true，这里要看「灰没灰」，得挂真按钮
+    'a-button': Button,
   },
 }
 
@@ -311,5 +315,38 @@ describe('素材库的空态成因', () => {
 
     expect(wrapper.find('.empty-line').exists()).toBe(false)
     expect(wrapper.html()).not.toContain('一条都没有')
+  })
+})
+
+describe('超管没选客户时这一屏一口不发', () => {
+  beforeEach(() => {
+    Object.values(api).forEach(fn => fn.mockReset())
+    api.list.mockResolvedValue({ records: [], total: 0, page: 1, size: 24 } as any)
+    api.categories.mockResolvedValue([] as any)
+  })
+
+  it('平台模式：列表与类别两发都不发，四张卡念「—」，上传按钮是灰的，屏上说清为什么', async () => {
+    auth.isSuperAdmin = true
+    auth.selectedTenantId = null
+    const wrapper = await mountView()
+
+    expect(api.list).not.toHaveBeenCalled()
+    expect(api.categories).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.stat-value').map(node => node.text())).toEqual(['—', '—', '—', '—'])
+    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+
+    const uploadButton = wrapper.findAll('button').find(node => node.text().includes('上传文件'))
+    expect(uploadButton, '筛选栏里要有「上传文件」按钮').toBeTruthy()
+    expect(uploadButton!.attributes('disabled')).toBeDefined()
+  })
+
+  it('选了一家客户：列表和类别都带这一家的编号去读', async () => {
+    auth.isSuperAdmin = true
+    auth.selectedTenantId = 15
+    const wrapper = await mountView()
+
+    expect(api.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
+    expect(api.categories).toHaveBeenCalledWith(15)
+    expect(wrapper.find('.alert-stub').exists()).toBe(false)
   })
 })

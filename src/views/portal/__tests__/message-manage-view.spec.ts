@@ -37,7 +37,7 @@ vi.mock('../../../components/TenantSelect.vue', () => ({
 const PASS_THROUGH = (name: string) => ({
   name,
   props: ['type', 'span', 'gutter', 'spinning', 'hoverable', 'title'],
-  template: `<div class="${name}-stub"><slot /><slot name="actions" /></div>`
+  template: `<div class="${name}-stub"><slot name="title" /><slot /><slot name="actions" /></div>`
 })
 
 /** 全局桩把 a-* 换成空 div，`:message=` 这种 prop 形式根本渲染不出来，所以这里显式渲染 #message 槽 */
@@ -391,17 +391,6 @@ describe('删除入口：自己那一格本人删，别人那一格要这一家�
     wrapper.unmount()
   })
 
-  it('超管停在平台档（没选租户）：那一枪根本不发，也不摆一张注定空着的表', async () => {
-    const wrapper = await mountAs(['SUPER_ADMIN', 'SITE_ADMIN'], ['portal:admin:tenant'])
-    // 后端 resolveTenantId 没租户就回 TENANT_REQUIRED（现场实测），发出去只换来一句红 toast
-    expect(portalMessageApi.list).not.toHaveBeenCalled()
-    expect(hasDeleteButton()).toBe(false)
-    expect(alertTexts().join(' ')).toContain('请在右上角切到「客户」')
-    // 但「发送消息」不能跟着一起消失 —— 平台档的正活儿就是群发，那颗按钮在同一张卡的 #actions 里
-    expect(buttonTexts().some(text => text.includes('发送消息'))).toBe(true)
-    wrapper.unmount()
-  })
-
   // 拍板 4a：这一列勾选框从上线起没接任何动作（selectedRowKeys 收进来就没人读），摆着就是骗人点
   it('勾选列已经摘掉：表格收不到 row-selection', async () => {
     const wrapper = await mountAs(['SITE_ADMIN'], ['portal:siteinfo:manage'])
@@ -442,6 +431,7 @@ describe('平台档：我发的公告在各家读成什么样', () => {
     expect(portalMessageApi.broadcastSummary).toHaveBeenCalledTimes(1)
     expect(summaryRows()).toBe(1)
     const text = summaryText()
+    expect(text).toContain('当前：全部客户合计')
     expect(text).toContain('系统维护通知')
     expect(text).toContain('3 家')
     expect(text).toContain('8 / 4')

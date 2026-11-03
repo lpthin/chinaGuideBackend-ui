@@ -1,6 +1,12 @@
 <template>
   <div class="review-panel-page">
     <PageTitle />
+    <!-- 待审列表与审核统计都按客户分开：平台档（超管没选客户）不发请求、写口全灰 -->
+    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
+      <template #message>
+        待审文章与审核统计都按客户分开：请先在右上角切到「客户」并选一家，再读、再审。平台档这里不发业务请求。
+      </template>
+    </a-alert>
     <a-spin :spinning="loading">
       <!-- 顶部数据概览区：全部取自 reviewApi.getReviewStats。
            那四张卡读的是另一支口，它对认不出的租户只回 0，所以「这一发读失败」或「选中那一家读不到」时
@@ -75,11 +81,11 @@
                   优先级说明
                 </a-button>
               </a-tooltip>
-              <a-button type="primary" :loading="batchLoading" :disabled="!selectedRows.length" @click="batchPass">
+              <a-button type="primary" :loading="batchLoading" :disabled="!selectedRows.length || isPlatformMode" @click="batchPass">
                 <template #icon><CheckOutlined /></template>
                 批量通过 ({{ selectedRows.length }})
               </a-button>
-              <a-button type="primary" danger :disabled="!selectedRows.length" @click="() => selectedRows.length && (showBatchRejectModal = true)">
+              <a-button type="primary" danger :disabled="!selectedRows.length || isPlatformMode" @click="() => selectedRows.length && !isPlatformMode && (showBatchRejectModal = true)">
                 <template #icon><CloseOutlined /></template>
                 批量驳回
               </a-button>
@@ -208,7 +214,7 @@
                   </div>
                 </div>
                 <div class="detail-actions">
-                  <a-button @click="editArticle(currentArticle)">
+                  <a-button :disabled="isPlatformMode" @click="editArticle(currentArticle)">
                     <template #icon><EditOutlined /></template>
                     编辑文章
                   </a-button>
@@ -225,7 +231,7 @@
                 </div>
               </template>
               <template #extra>
-                <a-button size="small" :loading="preReviewing" @click="runPreReview">
+                <a-button size="small" :loading="preReviewing" :disabled="isPlatformMode" @click="runPreReview">
                   {{ hasPreReview(currentArticle) ? '重新预审' : '开始预审' }}
                 </a-button>
               </template>
@@ -360,11 +366,11 @@
                   />
                 </div>
                 <div class="action-buttons">
-                  <a-button type="primary" size="large" class="pass-btn" @click="passArticle">
+                  <a-button type="primary" size="large" class="pass-btn" :disabled="isPlatformMode" @click="passArticle">
                     <template #icon><CheckCircleOutlined /></template>
                     通过审核
                   </a-button>
-                  <a-button type="primary" danger size="large" class="reject-btn" @click="showRejectModal = true">
+                  <a-button type="primary" danger size="large" class="reject-btn" :disabled="isPlatformMode" @click="showRejectModal = true">
                     <template #icon><CloseCircleOutlined /></template>
                     驳回
                   </a-button>
@@ -495,6 +501,10 @@ import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
+/** 这一屏的请求会打到哪一家：超管跟右上角走，租户用户由登录态定 */
+const requestedTenantId = computed(() => (authStore.isSuperAdmin ? authStore.selectedTenantId : authStore.tenantId))
+/** 平台档 = 超管没选客户：待审与统计都按客户存，这一档不发请求、写口全灰 */
+const isPlatformMode = computed(() => requestedTenantId.value === null)
 const loading = ref(false)
 const batchLoading = ref(false)
 const showRejectModal = ref(false)
@@ -546,7 +556,9 @@ const listReadFailed = ref('')
 
 // 顶部四张卡读的是另一支口（getReviewStats），它对认不出的租户只回 0，
 // 所以这一发读失败或读不到时摆 `—`，不摆 0
-const cardsUnreadable = computed(() => !!listReadFailed.value || listEmptyReason.value === 'NOT_VISIBLE')
+const cardsUnreadable = computed(
+  () => isPlatformMode.value || !!listReadFailed.value || listEmptyReason.value === 'NOT_VISIBLE'
+)
 
 const rejectReason = ref('')
 const rejectDetail = ref('')
@@ -623,6 +635,10 @@ function hasPreReview(article: any) {
 const preReviewing = ref(false)
 
 async function runPreReview() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   const article = currentArticle.value
   if (!article) {
     message.warning('请先选择一篇文章')
@@ -630,7 +646,7 @@ async function runPreReview() {
   }
   preReviewing.value = true
   try {
-    const result = await reviewApi.preReview(articleIdOf(article), authStore.selectedTenantId ?? undefined) as any
+    const result = await reviewApi.preReview(articleIdOf(article), requestedTenantId.value ?? undefined) as any
     Object.assign(article, result)
     message.success('AI 预审完成')
   } catch (e: any) {
@@ -674,8 +690,10 @@ function editArticle(record: any) {
 }
 
 async function loadReviewStats() {
+  // 统计按客户算：平台档没有「这一家」，这一发不发（四张卡由 cardsUnreadable 摆 `—`）
+  if (isPlatformMode.value) return
   try {
-    const res = await reviewApi.getReviewStats(authStore.selectedTenantId ?? undefined) as any
+    const res = await reviewApi.getReviewStats(requestedTenantId.value ?? undefined) as any
     if (res) {
       if (res.rejectDistribution) {
         rejectData.value = res.rejectDistribution
@@ -702,12 +720,24 @@ async function loadReviewStats() {
 }
 
 async function loadData() {
+  // 待审按客户分开存：平台档没有「这一家」，这一发不发、旧行清掉（四张卡一并摆 `—`）
+  if (isPlatformMode.value) {
+    articles.value = []
+    currentArticle.value = null
+    selectedRows.value = []
+    listTotal.value = 0
+    listReadFailed.value = ''
+    listEmptyLine.value = ''
+    listEmptyReason.value = null
+    loading.value = false
+    return
+  }
   loading.value = true
   listReadFailed.value = ''
   listEmptyLine.value = ''
   listEmptyReason.value = null
   try {
-    const articlesRes = await reviewApi.pendingList({ tenantId: authStore.selectedTenantId ?? undefined }) as any
+    const articlesRes = await reviewApi.pendingList({ tenantId: requestedTenantId.value ?? undefined }) as any
     articles.value = articlesRes?.records || []
     listTotal.value = articlesRes?.total || 0
     listEmptyLine.value = articlesRes?.emptyLine || ''
@@ -731,12 +761,16 @@ function articleIdOf(row: any) {
 }
 
 async function passArticle() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!currentArticle.value) return
   try {
     await reviewApi.approve(
       articleIdOf(currentArticle.value),
       reviewOpinion.value,
-      authStore.selectedTenantId ?? undefined
+      requestedTenantId.value ?? undefined
     )
     message.success('审核通过')
     await loadData()
@@ -748,12 +782,16 @@ async function passArticle() {
 }
 
 async function rejectArticle() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!currentArticle.value) return
   try {
     await reviewApi.reject(
       articleIdOf(currentArticle.value),
       rejectDetail.value || rejectReason.value,
-      authStore.selectedTenantId ?? undefined
+      requestedTenantId.value ?? undefined
     )
     message.success('已驳回')
     showRejectModal.value = false
@@ -767,6 +805,10 @@ async function rejectArticle() {
 
 /** 批量：逐条调用审核接口，如实汇报成功/失败条数（全部失败时不报成功） */
 async function batchReview(mode: 'approve' | 'reject', comment: string, label: string) {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return { succeeded: 0, failed: 0 }
+  }
   const rows = selectedRows.value.slice()
   if (!rows.length) return { succeeded: 0, failed: 0 }
   batchLoading.value = true
@@ -775,9 +817,9 @@ async function batchReview(mode: 'approve' | 'reject', comment: string, label: s
   for (const row of rows) {
     try {
       if (mode === 'approve') {
-        await reviewApi.approve(articleIdOf(row), comment, authStore.selectedTenantId ?? undefined)
+        await reviewApi.approve(articleIdOf(row), comment, requestedTenantId.value ?? undefined)
       } else {
-        await reviewApi.reject(articleIdOf(row), comment, authStore.selectedTenantId ?? undefined)
+        await reviewApi.reject(articleIdOf(row), comment, requestedTenantId.value ?? undefined)
       }
       succeeded++
     } catch (error) {
@@ -900,7 +942,8 @@ watch(statsPanelKey, (val) => {
   }
 })
 
-watch(() => authStore.selectedTenantId, () => {
+// 顶栏切客户不会重挂这一屏：待审列表与统计都是那一家的，切过去要跟着换
+watch(requestedTenantId, () => {
   loadData()
 })
 
@@ -914,6 +957,10 @@ onUnmounted(() => {
 .review-panel-page {
   width: 100%;
   padding: 8px 0;
+
+  .scope-alert {
+    margin-bottom: 16px;
+  }
 }
 
 .stats-row {

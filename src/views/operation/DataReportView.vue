@@ -3,12 +3,12 @@
     <PageTitle />
     <a-spin :spinning="loading">
       <a-alert
-        v-if="!tenantId"
+        v-if="requestedTenantId === null"
         type="info"
         show-icon
         style="margin-bottom: 16px"
-        message="还没选客户"
-        description="页面顶部的客户下拉里先选一家，这里才会显示这一家的报表。"
+        message="当前没有选定客户"
+        description="这一屏的报表按客户分开记。请在右上角选一家客户，再回来看；现在不会去读任何一家的数。"
       />
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -18,7 +18,7 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ fmtCount(stats.totalArticles) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : fmtCount(stats.totalArticles) }}</div>
                 <div class="stat-title">文章总数</div>
               </div>
             </div>
@@ -31,7 +31,7 @@
                 <EyeOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ fmtCount(stats.totalViews) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : fmtCount(stats.totalViews) }}</div>
                 <div class="stat-title">总浏览量</div>
               </div>
             </div>
@@ -44,7 +44,7 @@
                 <UserOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ fmtCount(stats.totalUsers) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : fmtCount(stats.totalUsers) }}</div>
                 <div class="stat-title">活跃用户</div>
               </div>
             </div>
@@ -57,7 +57,7 @@
                 <LikeOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ fmtCount(stats.totalLikes) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : fmtCount(stats.totalLikes) }}</div>
                 <div class="stat-title">总互动量</div>
               </div>
             </div>
@@ -88,7 +88,12 @@
                 <a-select-option value="user">导出：用户数据</a-select-option>
                 <a-select-option value="traffic">导出：流量数据</a-select-option>
               </a-select>
-              <a-button type="primary" :loading="exporting" @click="exportReport">
+              <a-button
+                type="primary"
+                :loading="exporting"
+                :disabled="requestedTenantId === null"
+                @click="exportReport"
+              >
                 <template #icon><DownloadOutlined /></template>
                 导出报表
               </a-button>
@@ -336,8 +341,13 @@ const hasDateRange = computed(
   () => Array.isArray(queryParams.dateRange) && queryParams.dateRange.length === 2
 )
 
-/** 超管看选中的那一家，普通用户看自己登录态里那家；以前只认选中态，普通租户管理员整屏恒 0 */
-const tenantId = computed<number>(() => authStore.selectedTenantId || authStore.tenantId || 0)
+/**
+ * 超管看右上角选中的那一家，普通用户看自己登录态里那家。
+ * 超管没选客户就是「没选」——以前这里兜到 1 号家，于是平台模式静默读了一家客户的数据。
+ */
+const requestedTenantId = computed<number | null>(() =>
+  authStore.isSuperAdmin ? authStore.selectedTenantId : authStore.tenantId
+)
 
 function emptyText(key: SectionKey): string {
   return failed[key]
@@ -457,13 +467,13 @@ function clearStats() {
 }
 
 async function loadStats() {
-  if (!tenantId.value) {
+  if (requestedTenantId.value === null) {
     clearStats()
     return
   }
   try {
     const { startDate, endDate } = dateParams()
-    const res: any = await operationApi.getStats(tenantId.value, startDate, endDate)
+    const res: any = await operationApi.getStats(requestedTenantId.value, startDate, endDate)
     stats.totalArticles = asCount(res?.totalArticles)
     stats.totalViews = asCount(res?.totalViews)
     stats.totalUsers = asCount(res?.totalUsers)
@@ -476,13 +486,13 @@ async function loadStats() {
 }
 
 async function loadTrafficTrend() {
-  if (!tenantId.value) {
+  if (requestedTenantId.value === null) {
     chartData.value = []
     return
   }
   try {
     const { startDate, endDate } = dateParams()
-    const res: any = await operationApi.getTrafficTrend(tenantId.value, 7, startDate, endDate)
+    const res: any = await operationApi.getTrafficTrend(requestedTenantId.value, 7, startDate, endDate)
     chartData.value = mapTrafficTrend(res || [])
     failed.trend = false
   } catch (error) {
@@ -494,13 +504,13 @@ async function loadTrafficTrend() {
 }
 
 async function loadCategoryDistribution() {
-  if (!tenantId.value) {
+  if (requestedTenantId.value === null) {
     categoryData.value = []
     return
   }
   try {
     const { startDate, endDate } = dateParams()
-    const res: any = await operationApi.getCategoryDistribution(tenantId.value, startDate, endDate)
+    const res: any = await operationApi.getCategoryDistribution(requestedTenantId.value, startDate, endDate)
     categoryData.value = mapCategoryDistribution(res || [])
     failed.category = false
   } catch (error) {
@@ -512,13 +522,13 @@ async function loadCategoryDistribution() {
 }
 
 async function loadUserGrowth() {
-  if (!tenantId.value) {
+  if (requestedTenantId.value === null) {
     userGrowthData.value = []
     return
   }
   try {
     const { startDate, endDate } = dateParams()
-    const res: any = await operationApi.getUserGrowth(tenantId.value, 6, startDate, endDate)
+    const res: any = await operationApi.getUserGrowth(requestedTenantId.value, 6, startDate, endDate)
     userGrowthData.value = mapUserGrowth(res || [])
     failed.growth = false
   } catch (error) {
@@ -530,13 +540,13 @@ async function loadUserGrowth() {
 }
 
 async function loadUserActivity() {
-  if (!tenantId.value) {
+  if (requestedTenantId.value === null) {
     userActivityData.value = []
     return
   }
   try {
     const { startDate, endDate } = dateParams()
-    const res: any = await operationApi.getUserActivity(tenantId.value, startDate, endDate)
+    const res: any = await operationApi.getUserActivity(requestedTenantId.value, startDate, endDate)
     userActivityData.value = mapUserActivity(res || [])
     failed.activity = false
   } catch (error) {
@@ -548,13 +558,13 @@ async function loadUserActivity() {
 }
 
 async function loadTrafficSource() {
-  if (!tenantId.value) {
+  if (requestedTenantId.value === null) {
     sourceData.value = []
     return
   }
   try {
     const { startDate, endDate } = dateParams()
-    const res: any = await operationApi.getTrafficSource(tenantId.value, startDate, endDate)
+    const res: any = await operationApi.getTrafficSource(requestedTenantId.value, startDate, endDate)
     sourceData.value = mapTrafficSource(res || [])
     failed.source = false
   } catch (error) {
@@ -566,13 +576,13 @@ async function loadTrafficSource() {
 }
 
 async function loadDeviceDistribution() {
-  if (!tenantId.value) {
+  if (requestedTenantId.value === null) {
     deviceData.value = []
     return
   }
   try {
     const { startDate, endDate } = dateParams()
-    const res: any = await operationApi.getDeviceDistribution(tenantId.value, startDate, endDate)
+    const res: any = await operationApi.getDeviceDistribution(requestedTenantId.value, startDate, endDate)
     deviceData.value = mapDeviceDistribution(res || [])
     failed.device = false
   } catch (error) {
@@ -584,7 +594,7 @@ async function loadDeviceDistribution() {
 }
 
 async function loadAllData() {
-  if (!tenantId.value) {
+  if (requestedTenantId.value === null) {
     clearStats()
     chartData.value = []
     categoryData.value = []
@@ -653,7 +663,7 @@ function jsonReason(text: string): string {
 }
 
 async function exportReport() {
-  if (!tenantId.value) {
+  if (requestedTenantId.value === null) {
     message.warning('先在页面顶部选一家客户，再导出这一家的报表')
     return
   }
@@ -668,7 +678,7 @@ async function exportReport() {
   try {
     const { startDate, endDate } = dateParams()
     const payload: any = await operationApi.exportStats(
-      tenantId.value,
+      requestedTenantId.value,
       type as 'article' | 'knowledge' | 'user' | 'traffic',
       startDate,
       endDate
@@ -702,7 +712,7 @@ async function exportReport() {
   }
 }
 
-watch(tenantId, () => {
+watch(requestedTenantId, () => {
   loadAllData()
 })
 

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { Button, Col, RadioButton, RadioGroup, Row, message } from 'ant-design-vue'
 import KnowledgeDocumentView from '../KnowledgeDocumentView.vue'
 import { knowledgeCategoryApi, knowledgeDocumentApi, knowledgeTagApi } from '../../../api/knowledge'
@@ -34,14 +35,17 @@ vi.mock('../../../api/knowledge', () => ({
   flattenCategories: (list: any[]) => list ?? []
 }))
 
+const authState = reactive({
+  selectedTenantId: 7 as number | null,
+  tenantId: 7,
+  accessToken: 'token-for-test',
+  user: { id: 1 },
+  isSuperAdmin: false,
+  hasPermission: () => true
+})
+
 vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({
-    selectedTenantId: 7,
-    accessToken: 'token-for-test',
-    user: { id: 1 },
-    isSuperAdmin: false,
-    hasPermission: () => true
-  })
+  useAuthStore: () => authState
 }))
 
 const PASS_THROUGH = (name: string, tag = 'div') => ({
@@ -122,6 +126,9 @@ const panelCall = () => vi.mocked(knowledgeCategoryApi.all).mock.calls[0] as any
 describe('KnowledgeDocumentView 项目面板的空态成因（资料库项目，M-P75）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    authState.isSuperAdmin = false
+    authState.selectedTenantId = 7
+    authState.tenantId = 7
   })
 
   it('后端回 NONE：逐字念「查过了，一条都没有」，并在下面摆一颗新建项目', async () => {

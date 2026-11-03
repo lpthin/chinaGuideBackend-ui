@@ -63,7 +63,8 @@ export const useAuthStore = defineStore('auth', () => {
   const username = computed(() => user.value?.username || '')
   const nickname = computed(() => user.value?.nickname || '')
   const avatar = computed(() => user.value?.avatar || '')
-  const tenantId = computed(() => user.value?.tenantId || 1)
+  // 没有归属就是 0，不再偷偷算成 1 号客户：登录口已经不让无客户账号进来（M-P106 第 4 批）。
+  const tenantId = computed(() => user.value?.tenantId ?? 0)
   const roles = computed(() => user.value?.roles || [])
   const permissions = computed(() => user.value?.permissions || [])
 

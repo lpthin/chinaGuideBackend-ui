@@ -1,6 +1,12 @@
 <template>
   <div class="system-settings">
     <PageTitle />
+    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
+      <template #message>
+        这里的站点信息、AI 配置与工作流配置都按客户分开存：请先在右上角切到「客户」并选一家，再读、再改。
+        平台档这里不发业务请求。
+      </template>
+    </a-alert>
     <a-card :bordered="false">
       <a-tabs v-model:activeKey="activeTab" type="card">
         <!-- 站点设置 -->
@@ -30,6 +36,7 @@
                 list-type="picture-card"
                 :max-count="1"
                 accept="image/*"
+                :disabled="isPlatformMode"
               >
                 <div>
                   <plus-outlined />
@@ -51,10 +58,10 @@
             </a-form-item>
             <a-form-item :wrapper-col="{ offset: 4, span: 16 }">
               <a-space>
-                <a-button type="primary" :loading="saving" @click="saveSiteSettings">
+                <a-button type="primary" :loading="saving" :disabled="isPlatformMode" @click="saveSiteSettings">
                   保存设置
                 </a-button>
-                <a-button @click="resetSiteForm">重置</a-button>
+                <a-button :disabled="isPlatformMode" @click="resetSiteForm">重置</a-button>
               </a-space>
             </a-form-item>
           </a-form>
@@ -119,10 +126,10 @@
             </a-form-item>
             <a-form-item :wrapper-col="{ offset: 4, span: 16 }">
               <a-space>
-                <a-button type="primary" :loading="saving" @click="saveAiSettings">
+                <a-button type="primary" :loading="saving" :disabled="isPlatformMode" @click="saveAiSettings">
                   保存设置
                 </a-button>
-                <a-button :loading="testing" @click="testAiConnection">测试连接</a-button>
+                <a-button :loading="testing" :disabled="isPlatformMode" @click="testAiConnection">测试连接</a-button>
               </a-space>
             </a-form-item>
           </a-form>
@@ -208,10 +215,10 @@
 
             <a-form-item :wrapper-col="{ offset: 4, span: 16 }">
               <a-space>
-                <a-button type="primary" :loading="saving" @click="saveWorkflowSettings">
+                <a-button type="primary" :loading="saving" :disabled="isPlatformMode" @click="saveWorkflowSettings">
                   保存设置
                 </a-button>
-                <a-button @click="resetWorkflowForm">重置</a-button>
+                <a-button :disabled="isPlatformMode" @click="resetWorkflowForm">重置</a-button>
               </a-space>
             </a-form-item>
           </a-form>
@@ -222,7 +229,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import type { UploadProps } from 'ant-design-vue'
@@ -234,6 +241,10 @@ import type { SiteSettings, AiSettings, WorkflowSettings } from '../../types/wor
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
+
+/** 这一屏的设置按客户存：平台档（超管没选客户）不发请求、写口全灰 */
+const requestedTenantId = computed(() => (authStore.isSuperAdmin ? authStore.selectedTenantId : authStore.tenantId))
+const isPlatformMode = computed(() => requestedTenantId.value === null)
 
 const activeTab = ref('site')
 const saving = ref(false)
@@ -317,7 +328,11 @@ const beforeUploadLogo: UploadProps['beforeUpload'] = (file) => {
 }
 
 const uploadLogo = async (file: File) => {
-  const tenantId = authStore.selectedTenantId
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
+  const tenantId = requestedTenantId.value
   const formData = new FormData()
   formData.append('file', file)
   formData.append('category', 'logo')
@@ -337,9 +352,38 @@ const uploadLogo = async (file: File) => {
 }
 
 const fetchSettings = async () => {
+  if (isPlatformMode.value) {
+    // 平台档没有「这一家」的设置：把上一家留下的值清掉，免得看起来像读到了平台级配置
+    siteForm.siteName = ''
+    siteForm.siteDescription = ''
+    siteForm.logo = ''
+    siteForm.contactEmail = ''
+    siteForm.contactPhone = ''
+    siteForm.icp = ''
+    siteForm.copyright = ''
+    logoFileList.value = []
+    aiForm.defaultModel = 'gpt-4'
+    aiForm.apiKey = ''
+    aiForm.apiBaseUrl = 'https://api.openai.com/v1'
+    aiForm.temperature = 0.7
+    aiForm.maxTokens = 4096
+    aiForm.streamEnabled = true
+    aiForm.systemPrompt = ''
+    workflowForm.keywordCrawlInterval = 'daily'
+    workflowForm.keywordCrawlLimit = 100
+    workflowForm.autoCrawlEnabled = true
+    workflowForm.clusterThreshold = 0.7
+    workflowForm.minClusterSize = 5
+    workflowForm.autoGenerateEnabled = false
+    workflowForm.dailyGenerateLimit = 10
+    workflowForm.autoReviewEnabled = true
+    workflowForm.autoPublishEnabled = false
+    workflowForm.publishTime = undefined
+    return
+  }
   loading.value = true
   try {
-    const result = await adminApi.settings.get(authStore.selectedTenantId || undefined) as any
+    const result = await adminApi.settings.get(requestedTenantId.value ?? undefined) as any
 
     if (result.site) {
       const site = result.site as any
@@ -387,6 +431,10 @@ const fetchSettings = async () => {
 }
 
 const saveSiteSettings = async () => {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
     await siteFormRef.value?.validate()
     saving.value = true
@@ -403,7 +451,7 @@ const saveSiteSettings = async () => {
 
     await adminApi.settings.update(
       { site: siteData },
-      authStore.selectedTenantId || undefined
+      requestedTenantId.value ?? undefined
     )
 
     message.success('站点设置保存成功')
@@ -423,6 +471,10 @@ const resetSiteForm = () => {
 }
 
 const saveAiSettings = async () => {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
     saving.value = true
 
@@ -438,7 +490,7 @@ const saveAiSettings = async () => {
 
     await adminApi.settings.update(
       { ai: aiData },
-      authStore.selectedTenantId || undefined
+      requestedTenantId.value ?? undefined
     )
 
     message.success('AI配置保存成功')
@@ -450,6 +502,10 @@ const saveAiSettings = async () => {
 }
 
 const testAiConnection = async () => {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
     testing.value = true
 
@@ -461,7 +517,7 @@ const testAiConnection = async () => {
 
     const result = await adminApi.settings.testAiConnection(
       aiConfig,
-      authStore.selectedTenantId || undefined
+      requestedTenantId.value ?? undefined
     ) as any
 
     if (result.success) {
@@ -477,6 +533,10 @@ const testAiConnection = async () => {
 }
 
 const saveWorkflowSettings = async () => {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
     saving.value = true
 
@@ -495,7 +555,7 @@ const saveWorkflowSettings = async () => {
 
     await adminApi.settings.update(
       { workflow: workflowData },
-      authStore.selectedTenantId || undefined
+      requestedTenantId.value ?? undefined
     )
 
     message.success('工作流配置保存成功')
@@ -510,12 +570,10 @@ const resetWorkflowForm = () => {
   workflowFormRef.value?.resetFields()
 }
 
-watch(
-  () => authStore.selectedTenantId,
-  () => {
-    fetchSettings()
-  }
-)
+// 顶栏切客户不会重挂这一屏：盯着「这次请求会打到哪一家」，切过去之后表单要跟着换成那一家的
+watch(requestedTenantId, () => {
+  fetchSettings()
+})
 
 onMounted(() => {
   fetchSettings()
@@ -524,6 +582,10 @@ onMounted(() => {
 
 <style scoped lang="less">
 .system-settings {
+
+  .scope-alert {
+    margin-bottom: 16px;
+  }
 
   h3 {
     margin: 0 0 20px;

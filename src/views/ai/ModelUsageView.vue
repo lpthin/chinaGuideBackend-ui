@@ -67,6 +67,11 @@
         </a-row>
         <!-- 这一屏所有「总数」取的是哪一段，由后端随响应说回来，界面照念（不写死「本月」） -->
         <div v-if="windowText" class="usage-window">{{ windowText }}</div>
+        <!-- 平台档（超管没选客户）这四格与调用日志按全部客户合计；额度那两块按客户分账，读不到 -->
+        <div v-if="isPlatformMode" class="usage-window usage-window--platform">
+          当前：全部客户合计。上方四格、趋势与调用日志是各家相加；
+          右栏「本月额度（两池分账）」和 GEO 池水位按客户分账，请先在右上角选择客户再读、再设。
+        </div>
       </a-card>
 
       <!-- 统计口读失败时整排退化成一句「读取失败」：四格 ¥0.00 / 0 / 0 / 0.0% 读起来像「这个月一次都没调用」，
@@ -573,6 +578,9 @@ import {
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
+
+/** 平台档 = 超管且右上角没选客户：统计按全部客户合计读，额度按客户分账 → 这一档只出前者 */
+const isPlatformMode = computed(() => authStore.isSuperAdmin && authStore.selectedTenantId === null)
 
 const loading = ref(false)
 const quickDate = ref<string>('month')
@@ -1282,6 +1290,11 @@ onMounted(() => {
   margin-top: 8px;
   font-size: 12px;
   color: #8c8c8c;
+}
+
+/* 平台档那一句是「这屏按什么范围读」的交代，别和取数区间一样淡 */
+.usage-window--platform {
+  color: #1677ff;
 }
 
 .perf-value--none {

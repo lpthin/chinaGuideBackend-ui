@@ -1,6 +1,12 @@
 <template>
   <div class="publish-center-page">
     <PageTitle />
+    <!-- 发布候选 / 队列 / 记录都按客户分开存：平台档（超管没选客户）不发请求、写口全灰 -->
+    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
+      <template #message>
+        发布候选、待发布队列与发布记录都按客户分开：请先在右上角切到「客户」并选一家，再读、再发。平台档这里不发业务请求。
+      </template>
+    </a-alert>
     <a-row :gutter="16" class="stat-row">
       <!-- 统计那一发没答回来时摆 `—` 不摆 0：0 说的是「查过了，结果就是空」，而那一发根本没答
            （M-P79，与 M-P77 聚类那一屏同一个缺陷形状）。 -->
@@ -55,16 +61,16 @@
             </a-form-item>
             <a-form-item class="toolbar-actions">
               <a-space>
-                <a-button :disabled="!selectedArticleIds.length" @click="openScheduleModal(selectedArticleIds)">
+                <a-button :disabled="!selectedArticleIds.length || isPlatformMode" @click="openScheduleModal(selectedArticleIds)">
                   <template #icon><ClockCircleOutlined /></template>
                   批量定时发布{{ selectedArticleIds.length ? `(${selectedArticleIds.length})` : '' }}
                 </a-button>
                 <a-popconfirm
                   title="确定立即发布选中的文章吗？"
-                  :disabled="!selectedArticleIds.length"
+                  :disabled="!selectedArticleIds.length || isPlatformMode"
                   @confirm="batchPublishNow"
                 >
-                  <a-button type="primary" :disabled="!selectedArticleIds.length" :loading="submitting">
+                  <a-button type="primary" :disabled="!selectedArticleIds.length || isPlatformMode" :loading="submitting">
                     <template #icon><SendOutlined /></template>
                     批量立即发布
                   </a-button>
@@ -97,10 +103,10 @@
               </template>
               <template v-else-if="column.key === 'actions'">
                 <a-space size="small">
-                  <a-popconfirm title="立即发布该文章？" @confirm="publishNow(record)">
-                    <a-button type="link" size="small">立即发布</a-button>
+                  <a-popconfirm title="立即发布该文章？" :disabled="isPlatformMode" @confirm="publishNow(record)">
+                    <a-button type="link" size="small" :disabled="isPlatformMode">立即发布</a-button>
                   </a-popconfirm>
-                  <a-button type="link" size="small" @click="openScheduleModal([record.id])">定时发布</a-button>
+                  <a-button type="link" size="small" :disabled="isPlatformMode" @click="openScheduleModal([record.id])">定时发布</a-button>
                   <a-button type="link" size="small" @click="viewArticle(record.id)">查看</a-button>
                 </a-space>
               </template>
@@ -211,14 +217,16 @@
                   <a-popconfirm
                     v-if="isQueueRetryable(record.status)"
                     title="立即执行这条队列任务？"
+                    :disabled="isPlatformMode"
                     @confirm="runQueueItem(record)"
                   >
-                    <a-button type="link" size="small">立即发布</a-button>
+                    <a-button type="link" size="small" :disabled="isPlatformMode">立即发布</a-button>
                   </a-popconfirm>
                   <a-button
                     v-if="record.status === 'pending'"
                     type="link"
                     size="small"
+                    :disabled="isPlatformMode"
                     @click="openPriorityModal(record)"
                   >
                     改优先级
@@ -226,16 +234,18 @@
                   <a-popconfirm
                     v-if="record.status === 'pending' || record.status === 'publishing'"
                     title="取消后文章回到「审核通过」，可重新发布。确定取消？"
+                    :disabled="isPlatformMode"
                     @confirm="cancelQueueItem(record)"
                   >
-                    <a-button type="link" size="small" danger>取消</a-button>
+                    <a-button type="link" size="small" danger :disabled="isPlatformMode">取消</a-button>
                   </a-popconfirm>
                   <a-popconfirm
                     v-if="isQueueDeletable(record.status)"
                     title="删除这条队列记录？"
+                    :disabled="isPlatformMode"
                     @confirm="removeQueueItem(record)"
                   >
-                    <a-button type="link" size="small" danger>删除</a-button>
+                    <a-button type="link" size="small" danger :disabled="isPlatformMode">删除</a-button>
                   </a-popconfirm>
                 </a-space>
               </template>
@@ -388,7 +398,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   ClockCircleOutlined,
@@ -416,6 +426,11 @@ import PageTitle from '../../components/PageTitle.vue'
 const router = useRouter()
 const authStore = useAuthStore()
 
+/** 这一屏的请求会打到哪一家：超管跟右上角走，租户用户由登录态定 */
+const requestedTenantId = computed(() => (authStore.isSuperAdmin ? authStore.selectedTenantId : authStore.tenantId))
+/** 平台档 = 超管没选客户：候选 / 队列 / 记录都按客户存，这一档不发请求、写口全灰 */
+const isPlatformMode = computed(() => requestedTenantId.value === null)
+
 const activeTab = ref<'candidates' | 'queue' | 'records'>('candidates')
 const submitting = ref(false)
 
@@ -439,8 +454,9 @@ const candidateReadFailed = ref('')
 // 判据取发布候选那一发的答语——这一发每次进屏、每次换身份都会发，是这一屏的探路读口。
 // 与 AuditLogView / CategoriesPanel 那一屏同一条规则（读失败或读不到都摆 `—`）。
 const identityUnreadable = computed(() => candidateEmptyReason.value === 'NOT_VISIBLE')
-const queueCardsUnreadable = computed(() => queueStatsUnreadable.value || identityUnreadable.value)
-const recordCardsUnreadable = computed(() => recordStatsUnreadable.value || identityUnreadable.value)
+// 平台档没有「这一家」：六张卡一起摆 `—`，与「读回来是 0」分开
+const queueCardsUnreadable = computed(() => isPlatformMode.value || queueStatsUnreadable.value || identityUnreadable.value)
+const recordCardsUnreadable = computed(() => isPlatformMode.value || recordStatsUnreadable.value || identityUnreadable.value)
 
 const candidateColumns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 90 },
@@ -476,6 +492,15 @@ function goReview() {
 }
 
 async function loadCandidates() {
+  // 平台档没有「这一家」：这一发不发，表清空（上面那句已写明去哪儿选）
+  if (isPlatformMode.value) {
+    candidates.value = []
+    candidateTotal.value = 0
+    candidateEmptyLine.value = ''
+    candidateEmptyReason.value = null
+    candidateReadFailed.value = ''
+    return
+  }
   candidateLoading.value = true
   candidateEmptyLine.value = ''
   candidateEmptyReason.value = null
@@ -485,7 +510,7 @@ async function loadCandidates() {
       status: 'approved',
       page: candidateQuery.page,
       size: candidateQuery.size,
-      tenantId: authStore.selectedTenantId ?? undefined,
+      tenantId: requestedTenantId.value ?? undefined,
     }) as any
     candidates.value = res?.records || []
     candidateTotal.value = res?.total || 0
@@ -509,8 +534,12 @@ async function loadCandidates() {
 }
 
 async function publishNow(article: any) {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
-    const result = await publishApi.publish(article.id, {}, authStore.selectedTenantId ?? undefined)
+    const result = await publishApi.publish(article.id, {}, requestedTenantId.value ?? undefined)
     if (result?.status === 'success') {
       message.success(`「${article.title || article.id}」已发布`)
     } else {
@@ -523,13 +552,17 @@ async function publishNow(article: any) {
 }
 
 async function batchPublishNow() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!selectedArticleIds.value.length) return
   submitting.value = true
   try {
     const result = await articleApi.batchPublish(
       selectedArticleIds.value,
       undefined,
-      authStore.selectedTenantId ?? undefined
+      requestedTenantId.value ?? undefined
     )
     reportBatchResult(result, '发布')
     selectedArticleIds.value = []
@@ -547,6 +580,10 @@ const scheduleArticleIds = ref<number[]>([])
 const scheduleForm = reactive<{ scheduledTime: string | null; priority: number }>({ scheduledTime: null, priority: 5 })
 
 function openScheduleModal(articleIds: number[]) {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!articleIds.length) {
     message.warning('请先选择文章')
     return
@@ -558,6 +595,10 @@ function openScheduleModal(articleIds: number[]) {
 }
 
 async function confirmSchedule() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!scheduleForm.scheduledTime) {
     message.warning('请选择发布时间')
     return
@@ -566,7 +607,7 @@ async function confirmSchedule() {
   try {
     const options = { scheduledTime: scheduleForm.scheduledTime, priority: scheduleForm.priority }
     if (scheduleArticleIds.value.length === 1) {
-      const result = await publishApi.publish(scheduleArticleIds.value[0], options, authStore.selectedTenantId ?? undefined)
+      const result = await publishApi.publish(scheduleArticleIds.value[0], options, requestedTenantId.value ?? undefined)
       if (result?.queueId) {
         message.success(`已加入队列，计划 ${formatDateTime(result.scheduledAt)} 发布`)
       } else if (result?.status === 'success') {
@@ -575,7 +616,7 @@ async function confirmSchedule() {
         message.warning(`发布未完成（状态：${result?.status || '未知'}）`)
       }
     } else {
-      const result = await articleApi.batchPublish(scheduleArticleIds.value, options, authStore.selectedTenantId ?? undefined)
+      const result = await articleApi.batchPublish(scheduleArticleIds.value, options, requestedTenantId.value ?? undefined)
       reportBatchResult(result, '入队')
     }
     scheduleModalVisible.value = false
@@ -673,6 +714,16 @@ function handleQueueTableChange(pag: any) {
 }
 
 async function loadQueue() {
+  // 队列按客户分开存：平台档没有「这一家」，这一发不发（六张卡一并摆 `—`）
+  if (isPlatformMode.value) {
+    queueList.value = []
+    queueTotal.value = 0
+    queueEmptyLine.value = ''
+    queueEmptyReason.value = null
+    queueReadFailed.value = ''
+    queueLoading.value = false
+    return
+  }
   queueLoading.value = true
   queueEmptyLine.value = ''
   queueEmptyReason.value = null
@@ -683,7 +734,7 @@ async function loadQueue() {
       keyword: queueQuery.keyword || undefined,
       page: queueQuery.page,
       size: queueQuery.size,
-      tenantId: authStore.selectedTenantId ?? undefined,
+      tenantId: requestedTenantId.value ?? undefined,
     }) as any
     queueList.value = res?.records || []
     queueTotal.value = res?.total || 0
@@ -706,8 +757,12 @@ async function loadQueue() {
 }
 
 async function runQueueItem(record: PublishTask) {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
-    const result = await publishQueueApi.publishNow(record.id, authStore.selectedTenantId ?? undefined)
+    const result = await publishQueueApi.publishNow(record.id, requestedTenantId.value ?? undefined)
     if (result?.status === 'success') {
       message.success(`已发布，完成时间 ${formatDateTime(result.publishTime)}`)
     } else {
@@ -720,8 +775,12 @@ async function runQueueItem(record: PublishTask) {
 }
 
 async function cancelQueueItem(record: PublishTask) {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
-    await publishQueueApi.cancel(record.id, authStore.selectedTenantId ?? undefined)
+    await publishQueueApi.cancel(record.id, requestedTenantId.value ?? undefined)
     message.success('已取消发布，文章回到审核通过状态')
     refreshAll()
   } catch (error: any) {
@@ -730,8 +789,12 @@ async function cancelQueueItem(record: PublishTask) {
 }
 
 async function removeQueueItem(record: PublishTask) {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
-    await publishQueueApi.remove(record.id, authStore.selectedTenantId ?? undefined)
+    await publishQueueApi.remove(record.id, requestedTenantId.value ?? undefined)
     message.success('队列记录已删除')
     refreshAll()
   } catch (error: any) {
@@ -753,10 +816,14 @@ function openPriorityModal(record: PublishTask) {
 }
 
 async function confirmPriority() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   if (!currentQueueRecord.value) return
   prioritySaving.value = true
   try {
-    await publishQueueApi.adjustPriority(currentQueueRecord.value.id, priorityValue.value, authStore.selectedTenantId ?? undefined)
+    await publishQueueApi.adjustPriority(currentQueueRecord.value.id, priorityValue.value, requestedTenantId.value ?? undefined)
     message.success('优先级已调整')
     priorityModalVisible.value = false
     loadQueue()
@@ -815,6 +882,16 @@ function handleRecordTableChange(pag: any) {
 }
 
 async function loadRecords() {
+  // 发布记录按客户分开存：平台档没有「这一家」，这一发不发（六张卡一并摆 `—`）
+  if (isPlatformMode.value) {
+    recordList.value = []
+    recordTotal.value = 0
+    recordEmptyLine.value = ''
+    recordEmptyReason.value = null
+    recordReadFailed.value = ''
+    recordLoading.value = false
+    return
+  }
   recordLoading.value = true
   recordEmptyLine.value = ''
   recordEmptyReason.value = null
@@ -824,7 +901,7 @@ async function loadRecords() {
       status: recordQuery.status,
       page: recordQuery.page,
       size: recordQuery.size,
-      tenantId: authStore.selectedTenantId ?? undefined,
+      tenantId: requestedTenantId.value ?? undefined,
     })
     recordList.value = res?.records || []
     recordTotal.value = res?.total || 0
@@ -848,7 +925,9 @@ async function loadRecords() {
 
 // ---------------- 统计 ----------------
 async function loadStats() {
-  const tenantId = authStore.selectedTenantId ?? undefined
+  // 队列与记录统计都按客户算：平台档没有「这一家」，这一发不发（六张卡由 isPlatformMode 摆 `—`）
+  if (isPlatformMode.value) return
+  const tenantId = requestedTenantId.value ?? undefined
   try {
     const data = await publishQueueApi.getStats(tenantId) as any
     queueStatsUnreadable.value = !data
@@ -920,11 +999,20 @@ onMounted(() => {
   loadQueue()
   loadRecords()
 })
+
+// 顶栏切客户不会重挂这一屏：候选 / 队列 / 记录 / 统计都是那一家的，切过去要跟着换
+watch(requestedTenantId, () => {
+  refreshAll()
+})
 </script>
 
 <style scoped lang="less">
 .publish-center-page {
   width: 100%;
+
+  .scope-alert {
+    margin-bottom: 16px;
+  }
 }
 
 .stat-row {

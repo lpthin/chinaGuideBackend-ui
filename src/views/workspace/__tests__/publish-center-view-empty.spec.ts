@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { h } from 'vue'
+import { h, reactive } from 'vue'
 import { Button, Col, Form, FormItem, Row, Tabs, message } from 'ant-design-vue'
 import PublishCenterView from '../PublishCenterView.vue'
 import { articleApi, publishApi, publishQueueApi } from '../../../api/workspace'
@@ -71,14 +71,27 @@ vi.mock('../../../api/workspace', () => ({
   }
 }))
 
+/**
+ * 登录态用响应式的：平台档那两条要真改 `selectedTenantId` 再等 watch 重取，
+ * 一次性对象（每次 useAuthStore() 现造一个）既接不住 computed，也接不住 watch。
+ */
+const authState = reactive({
+  selectedTenantId: 1 as number | null,
+  tenantId: 1,
+  user: { id: 1 },
+  isSuperAdmin: true,
+  hasPermission: () => true
+})
+
 vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({
-    selectedTenantId: null,
-    user: { id: 1 },
-    isSuperAdmin: true,
-    hasPermission: () => true
-  })
+  useAuthStore: () => authState
 }))
+
+beforeEach(() => {
+  authState.isSuperAdmin = true
+  authState.selectedTenantId = 1
+  authState.tenantId = 1
+})
 
 vi.mock('vue-router', async importOriginal => {
   const actual = await importOriginal<Record<string, any>>()
@@ -623,5 +636,58 @@ describe('PublishCenterView 顶部统计卡：那一发没答回来时摆 — �
 
     expect(statOf(wrapper, '队列待发布')).toBe('队列待发布|7|')
     expect(statOf(wrapper, '成功率')).toBe('成功率|90|%')
+  })
+})
+
+/**
+ * 平台档（超管没选客户）：这一屏的候选、队列、记录与两处统计全部按客户分开，
+ * 平台档没有「这一家」，所以一发业务请求都不许发，六张统计卡摆 `—`。
+ * 选了客户之后，同一屏要按选中的那一家重取。
+ */
+describe('PublishCenterView · 平台档与选客户两档', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(publishApi.records).mockReset()
+    document.body.innerHTML = ''
+  })
+
+  function statOf(wrapper: any, title: string) {
+    const node = wrapper.findAll('.statistic-stub').find((n: any) => n.text().startsWith(`${title}|`))
+    if (!node) {
+      throw new Error(`找不到标题为「${title}」的统计卡`)
+    }
+    return node.text()
+  }
+
+  it('平台档：五处业务口一发都不发，六张卡摆 —，屏上写清去哪儿选客户', async () => {
+    authState.selectedTenantId = null
+    const wrapper = mountCenter()
+    await flushPromises()
+
+    expect(articleApi.list).not.toHaveBeenCalled()
+    expect(publishQueueApi.list).not.toHaveBeenCalled()
+    expect(publishApi.records).not.toHaveBeenCalled()
+    expect(publishQueueApi.getStats).not.toHaveBeenCalled()
+    expect(publishApi.recordStats).not.toHaveBeenCalled()
+    for (const title of ['队列待发布', '发布中', '发布失败', '今日队列完成', '发布记录成功', '成功率']) {
+      expect(statOf(wrapper, title)).toContain('|—|')
+    }
+    expect(wrapper.text()).toContain('请先在右上角切到「客户」并选一家')
+  })
+
+  it('选了客户：五处业务口按选中的那一家重取', async () => {
+    authState.selectedTenantId = null
+    mountCenter()
+    await flushPromises()
+    expect(articleApi.list).not.toHaveBeenCalled()
+
+    authState.selectedTenantId = 558
+    await flushPromises()
+
+    expect(articleApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 558 }))
+    expect(publishQueueApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 558 }))
+    expect(publishApi.records).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 558 }))
+    expect(publishQueueApi.getStats).toHaveBeenCalledWith(558)
+    expect(publishApi.recordStats).toHaveBeenCalledWith({ tenantId: 558 })
   })
 })

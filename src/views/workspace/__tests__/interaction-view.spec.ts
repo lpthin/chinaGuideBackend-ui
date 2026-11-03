@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { Button, InputNumber, RadioGroup, Switch, message } from 'ant-design-vue'
 import InteractionView from '../InteractionView.vue'
 import { interactionApi, type InteractionConfig, type InteractionSeedTask } from '../../../api/interaction'
@@ -37,28 +38,24 @@ vi.mock('../../../api/interaction', () => ({
   }
 }))
 
-const authState = {
+const authState = reactive({
   permissions: [] as string[],
-  selectedTenantId: null as number | null
-}
+  selectedTenantId: null as number | null,
+  tenantId: undefined as number | undefined,
+  isSuperAdmin: false,
+  hasPermission(code: string) {
+    return this.permissions.includes(code)
+  }
+})
 
 vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({
-    get permissions() {
-      return authState.permissions
-    },
-    get selectedTenantId() {
-      return authState.selectedTenantId
-    },
-    isSuperAdmin: false,
-    hasPermission: (code: string) => authState.permissions.includes(code)
-  })
+  useAuthStore: () => authState
 }))
 
 const PASS_THROUGH = (name: string) => ({
   name,
   props: ['title', 'message', 'description', 'type', 'showIcon', 'size', 'label', 'bordered', 'loading', 'okText', 'cancelText'],
-  template: `<div class="${name}-stub"><span>{{ title }}{{ message }}{{ description }}</span><slot /><slot name="extra" /><slot name="actions" /></div>`
+  template: `<div class="${name}-stub"><span>{{ title }}{{ message }}{{ description }}</span><slot name="message" /><slot /><slot name="extra" /><slot name="actions" /></div>`
 })
 
 const TABLE_STUB = {
@@ -125,9 +122,12 @@ async function mountView(options: {
   commentsPayload?: any
   /** 覆盖排产那一口的回包（换壳后是 records 那一形） */
   seedPayload?: any
+  /** 平台档：超管且没选客户 */
+  superAdmin?: boolean
 } = {}) {
   authState.permissions = options.permissions ?? [VIEW, MANAGE]
   authState.selectedTenantId = null
+  authState.isSuperAdmin = options.superAdmin ?? false
 
   if (options.configError) {
     vi.mocked(interactionApi.config).mockRejectedValue(new Error(options.configError))
@@ -230,6 +230,35 @@ function byId(wrapper: any, selector: string): HTMLInputElement {
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
+})
+
+describe('平台档与选客户两档', () => {
+  it('平台档：配置、总账、队列、排产四处都不发请求，十格摆 —，开关与保存口全灰', async () => {
+    const wrapper = await mountView({ superAdmin: true })
+
+    expect(interactionApi.config).not.toHaveBeenCalled()
+    expect(interactionApi.stats).not.toHaveBeenCalled()
+    expect(interactionApi.comments).not.toHaveBeenCalled()
+    expect(interactionApi.seedTasks).not.toHaveBeenCalled()
+
+    expect(wrapper.findAll('.stat-cell__value').map(n => n.text().trim())).toEqual(Array(10).fill('—'))
+    expect(wrapper.text()).toContain('请先在右上角切到「客户」并选一家')
+    expect(byId(wrapper, '#interaction-ai-comment').disabled).toBe(true)
+    expect(wrapper.find('#interaction-save-config').attributes('disabled')).toBeDefined()
+  })
+
+  it('选了客户：四处都按选中的那一家重取', async () => {
+    const wrapper = await mountView({ superAdmin: true })
+
+    authState.selectedTenantId = 558
+    await flushPromises()
+
+    expect(interactionApi.config).toHaveBeenLastCalledWith(558)
+    expect(interactionApi.stats).toHaveBeenLastCalledWith(558)
+    expect(interactionApi.comments).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 }), 558)
+    expect(interactionApi.seedTasks).toHaveBeenLastCalledWith(20, 558)
+    expect(wrapper.findAll('.stat-cell__value').map(n => n.text().trim())).not.toContain('—')
+  })
 })
 
 describe('配置卡', () => {

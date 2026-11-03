@@ -1,6 +1,12 @@
 <template>
   <div class="interaction-page">
     <PageTitle />
+    <!-- 互动配置、总账、待审队列与排产计划都按客户分开：平台档（超管没选客户）不发请求、写口全灰 -->
+    <a-alert v-if="isPlatformMode" class="scope-alert" type="info" show-icon>
+      <template #message>
+        互动设置、互动总账、待审评论与排产计划都按客户分开：请先在右上角切到「客户」并选一家，再读、再改。平台档这里不发业务请求。
+      </template>
+    </a-alert>
     <a-alert
       class="lead-alert"
       type="info"
@@ -16,7 +22,7 @@
           <a-switch
             id="interaction-ai-comment"
             :checked="form.aiCommentEnabled === 1"
-            :disabled="!canManage"
+            :disabled="!canManage || isPlatformMode"
             @update:checked="(v: boolean) => (form.aiCommentEnabled = v ? 1 : 0)"
           />
           <span class="field-hint">开了之后，新发布的稿子会在发布后一个月内挑随机时刻补写评论。</span>
@@ -26,14 +32,14 @@
           <a-switch
             id="interaction-virtual-like"
             :checked="form.virtualLikeEnabled === 1"
-            :disabled="!canManage"
+            :disabled="!canManage || isPlatformMode"
             @update:checked="(v: boolean) => (form.virtualLikeEnabled = v ? 1 : 0)"
           />
           <span class="field-hint">开了之后，发布那一刻就按下面的区间写一个点赞数；关掉只显真人点的。</span>
         </a-form-item>
 
         <a-form-item label="读者评论怎么处理">
-          <a-radio-group id="interaction-moderation-mode" v-model:value="form.moderationMode" :disabled="!canManage">
+          <a-radio-group id="interaction-moderation-mode" v-model:value="form.moderationMode" :disabled="!canManage || isPlatformMode">
             <a-radio-button value="review">先进待审队列，我点放行才对外</a-radio-button>
             <a-radio-button value="auto">安全闸判过就直接显示</a-radio-button>
           </a-radio-group>
@@ -48,16 +54,16 @@
             v-model:value="form.aiCommentMaxPerArticle"
             :min="1"
             :max="10"
-            :disabled="!canManage"
+            :disabled="!canManage || isPlatformMode"
           />
           <span class="field-hint">1~10 条。一篇稿子底下十几条「好评」看起来就不像真实读者了。</span>
         </a-form-item>
 
         <a-form-item label="补写的点赞数区间">
           <a-space>
-            <a-input-number id="interaction-like-min" v-model:value="form.likeSeedMin" :min="0" :max="999" :disabled="!canManage" />
+            <a-input-number id="interaction-like-min" v-model:value="form.likeSeedMin" :min="0" :max="999" :disabled="!canManage || isPlatformMode" />
             <span class="range-sep">~</span>
-            <a-input-number id="interaction-like-max" v-model:value="form.likeSeedMax" :min="0" :max="999" :disabled="!canManage" />
+            <a-input-number id="interaction-like-max" v-model:value="form.likeSeedMax" :min="0" :max="999" :disabled="!canManage || isPlatformMode" />
           </a-space>
           <span class="field-hint">发布时在这段里随机取一个数。上界小于下界会存不下。</span>
         </a-form-item>
@@ -65,7 +71,7 @@
         <a-form-item>
           <a-space>
             <a-button :disabled="configLoading" @click="loadConfig">重新读取</a-button>
-            <a-button id="interaction-save-config" type="primary" :loading="saving" :disabled="!canManage" @click="saveConfig">
+            <a-button id="interaction-save-config" type="primary" :loading="saving" :disabled="!canManage || isPlatformMode" @click="saveConfig">
               保存设置
             </a-button>
           </a-space>
@@ -245,7 +251,10 @@ const authStore = useAuthStore()
 const MANAGE_CODE = 'interaction:manage'
 
 const canManage = computed(() => authStore.hasPermission(MANAGE_CODE))
-const tenantId = computed(() => authStore.selectedTenantId ?? undefined)
+/** 这一屏的请求会打到哪一家：超管跟右上角走，租户用户由登录态定 */
+const requestedTenantId = computed(() => (authStore.isSuperAdmin ? authStore.selectedTenantId : authStore.tenantId))
+/** 平台档 = 超管没选客户：互动都按客户存，这一档不发请求、写口全灰 */
+const isPlatformMode = computed(() => requestedTenantId.value === null)
 
 const configLoading = ref(false)
 const saving = ref(false)
@@ -321,9 +330,10 @@ const STAT_CELLS: Array<{ key: keyof InteractionStats, label: string }> = [
   { key: 'seedFailed', label: '补写失败' }
 ]
 
+// 平台档没有「这一家」：十格一起摆 `—`，与「读回来是 0」分开
 const statCells = computed(() => STAT_CELLS.map(cell => ({
   label: cell.label,
-  value: stats.value ? Number(stats.value[cell.key] ?? 0) : 0
+  value: isPlatformMode.value ? '—' : (stats.value ? Number(stats.value[cell.key] ?? 0) : 0)
 })))
 
 /** 状态码的中文只在这一处映射，没见过的码原样显示它自己（与每日产出那页同一纪律） */
@@ -375,9 +385,15 @@ function applyConfig(cfg: InteractionConfig) {
 }
 
 async function loadConfig() {
+  // 配置按客户分开存：平台档没有「这一家」，这一发不发（开关与保存口由 isPlatformMode 全灰）
+  if (isPlatformMode.value) {
+    configError.value = ''
+    configLoading.value = false
+    return
+  }
   configLoading.value = true
   try {
-    const cfg = await interactionApi.config(tenantId.value)
+    const cfg = await interactionApi.config(requestedTenantId.value ?? undefined)
     if (cfg) applyConfig(cfg)
     configError.value = ''
   } catch (error: any) {
@@ -388,9 +404,13 @@ async function loadConfig() {
 }
 
 async function saveConfig() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   saving.value = true
   try {
-    const saved = await interactionApi.saveConfig({ ...form }, tenantId.value)
+    const saved = await interactionApi.saveConfig({ ...form }, requestedTenantId.value ?? undefined)
     if (saved) applyConfig(saved)
     message.success('设置已保存')
   } catch (error: any) {
@@ -402,9 +422,16 @@ async function saveConfig() {
 }
 
 async function loadStats() {
+  // 总账按客户算：平台档没有「这一家」，这一发不发（十格由 statCells 摆 `—`）
+  if (isPlatformMode.value) {
+    stats.value = null
+    statsError.value = ''
+    statsLoading.value = false
+    return
+  }
   statsLoading.value = true
   try {
-    stats.value = await interactionApi.stats(tenantId.value)
+    stats.value = await interactionApi.stats(requestedTenantId.value ?? undefined)
     statsError.value = ''
   } catch (error: any) {
     stats.value = null
@@ -415,9 +442,19 @@ async function loadStats() {
 }
 
 async function loadQueue() {
+  // 待审队列按客户分开存：平台档没有「这一家」，这一发不发、旧行清掉
+  if (isPlatformMode.value) {
+    comments.value = []
+    total.value = 0
+    queueEmptyLine.value = ''
+    queueEmptyReason.value = null
+    queueError.value = ''
+    queueLoading.value = false
+    return
+  }
   queueLoading.value = true
   try {
-    const data = await interactionApi.comments({ status: statusFilter.value, page: page.value, size: pageSize.value }, tenantId.value)
+    const data = await interactionApi.comments({ status: statusFilter.value, page: page.value, size: pageSize.value }, requestedTenantId.value ?? undefined)
     comments.value = data?.items ?? []
     total.value = data?.total ?? 0
     queueEmptyLine.value = data?.emptyLine ?? ''
@@ -447,8 +484,12 @@ function reloadQueue() {
 }
 
 async function moderate(record: InteractionCommentItem, action: 'approve' | 'reject' | 'remove') {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
   try {
-    await interactionApi.moderate(record.id, action, tenantId.value)
+    await interactionApi.moderate(record.id, action, requestedTenantId.value ?? undefined)
     message.success(action === 'approve' ? '已放行，这条会显示在你官网上' : '已处理')
     await Promise.all([loadQueue(), loadStats()])
   } catch (error: any) {
@@ -457,9 +498,18 @@ async function moderate(record: InteractionCommentItem, action: 'approve' | 'rej
 }
 
 async function loadSeedTasks() {
+  // 排产计划按客户分开存：平台档没有「这一家」，这一发不发、旧行清掉
+  if (isPlatformMode.value) {
+    seedTasks.value = []
+    seedEmptyLine.value = ''
+    seedEmptyReason.value = null
+    seedError.value = ''
+    seedLoading.value = false
+    return
+  }
   seedLoading.value = true
   try {
-    const data = await interactionApi.seedTasks(20, tenantId.value)
+    const data = await interactionApi.seedTasks(20, requestedTenantId.value ?? undefined)
     seedTasks.value = Array.isArray(data?.records) ? data.records : []
     seedEmptyLine.value = data?.emptyLine ?? ''
     seedEmptyReason.value = asEmptyReason(data?.emptyReason)
@@ -474,7 +524,8 @@ async function loadSeedTasks() {
   }
 }
 
-watch(() => authStore.selectedTenantId, () => {
+// 顶栏切客户不会重挂这一屏：配置 / 总账 / 队列 / 排产都是那一家的，切过去要跟着换
+watch(requestedTenantId, () => {
   loadConfig()
   loadStats()
   reloadQueue()
@@ -493,6 +544,10 @@ onMounted(() => {
 .interaction-page {
   width: 100%;
   padding: 8px 0;
+
+  .scope-alert {
+    margin-bottom: 16px;
+  }
 }
 
 .lead-alert,

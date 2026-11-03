@@ -125,7 +125,7 @@ async function handleLogin() {
       email: '',
       phone: '',
       avatar: '',
-      tenantId: resp?.tenantId || 1,
+      tenantId: resp?.tenantId ?? 0,
       tenantName: resp?.tenantCode || '',
       roles: resp?.roles || [],
       permissions: resp?.permissions || [],

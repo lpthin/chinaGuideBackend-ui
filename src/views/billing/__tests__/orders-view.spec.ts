@@ -23,14 +23,18 @@ vi.mock('../../../api/billing', () => ({
   }
 }))
 
-vi.mock('../../../stores/auth', () => ({
-  useAuthStore: () => ({ selectedTenantId: 558, tenantId: 558, isSuperAdmin: true })
+const auth = vi.hoisted(() => ({
+  selectedTenantId: 558 as number | null,
+  tenantId: 558,
+  isSuperAdmin: true
 }))
+
+vi.mock('../../../stores/auth', () => ({ useAuthStore: () => auth }))
 
 const PASS_THROUGH = (name: string) => ({
   name,
   props: ['title', 'bordered', 'gutter', 'span', 'label', 'value', 'placeholder', 'size', 'type', 'loading'],
-  template: `<div class="${name}-stub"><slot /></div>`
+  template: `<div class="${name}-stub"><slot /><slot name="actions" /><slot name="extra" /></div>`
 })
 
 const MODAL_STUB = {
@@ -40,6 +44,12 @@ const MODAL_STUB = {
     title: { type: String, default: '' }
   },
   template: `<div class="modal-stub" v-if="open"><span class="modal-title">{{ title }}</span><slot /></div>`
+}
+
+const ALERT_STUB = {
+  name: 'AAlert',
+  props: ['type', 'message'],
+  template: '<div class="alert-stub">{{ message }}</div>'
 }
 
 const DESCRIPTIONS_ITEM_STUB = {
@@ -111,6 +121,7 @@ async function mountView(records: any[] = [order(4)]) {
         'a-button': Button,
         'a-modal': MODAL_STUB,
         'a-table': TABLE_STUB,
+        'a-alert': ALERT_STUB,
         FilterBar: PASS_THROUGH('FilterBar')
       }
     }
@@ -153,6 +164,29 @@ function describedBy(modal: any, label: string): string {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  auth.selectedTenantId = 558
+})
+
+describe('超管没选客户时这一屏一口不发', () => {
+  it('平台模式：订单请求一条都不发，四张卡念「—」，导出按钮是灰的，屏上说清为什么', async () => {
+    auth.selectedTenantId = null
+    const wrapper = await mountView()
+
+    expect(orderApi.list).not.toHaveBeenCalled()
+    expect(statValues(wrapper)).toEqual(['—', '—', '—', '—'])
+    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+    const exportButton = wrapper.findAll('button').find(node => node.text().includes('导出'))
+    expect(exportButton, '筛选栏里要有「导出」按钮').toBeTruthy()
+    expect(exportButton!.attributes('disabled')).toBeDefined()
+  })
+
+  it('选了一家客户：订单请求带的就是这一家的编号', async () => {
+    const wrapper = await mountView()
+
+    expect(orderApi.list).toHaveBeenCalledTimes(1)
+    expect(lastListParams().tenantId).toBe(558)
+    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+  })
 })
 
 describe('详情弹窗那几格念的是后端真回的键', () => {

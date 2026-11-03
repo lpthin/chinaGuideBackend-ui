@@ -996,3 +996,59 @@ describe('调用日志那张表的空态：那三种空在界面上分得开', (
     expect(wrapper.find('.logs-empty').text()).toBe('')
   })
 })
+
+/**
+ * M-P106 第 3 批（附表初判「A + B」）：这一屏读数是 A 类，额度是 B 类。
+ *
+ * 平台档（超管没选客户）四格、趋势与调用日志按全部客户合计读——这四口本来就不带客户号，
+ * 后端按全局视角查；额度那两块按客户分账，没有归属就不读。选了客户以后四口带的就是那一家。
+ */
+function mockUsageApis() {
+  vi.mocked(aiModelApi.getStats).mockResolvedValue(STATS as never)
+  vi.mocked(aiModelApi.getUsageByModel).mockResolvedValue([] as never)
+  vi.mocked(aiModelApi.getUsageTrend).mockResolvedValue([] as never)
+  vi.mocked(aiModelApi.getLogs).mockResolvedValue({ records: [], total: 0 } as never)
+  vi.mocked(statsApi.overview).mockResolvedValue({ pools: [POOLS[0]] } as never)
+  vi.mocked(geoQuotaApi.status).mockResolvedValue(null as never)
+}
+
+describe('M-P106：平台档按全部客户合计读，客户档按选中的客户读', () => {
+  afterEach(() => {
+    const auth = useAuthStore()
+    auth.user = null
+    auth.selectedTenantId = null
+  })
+
+  it('平台档：四口照发、都不带客户号；额度两块不读，屏上写明是全部客户合计', async () => {
+    becomeSuperAdmin()
+    useAuthStore().selectedTenantId = null
+    mockUsageApis()
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(aiModelApi.getStats).toHaveBeenCalledWith(expect.objectContaining({ tenantId: undefined }))
+    expect(aiModelApi.getUsageByModel).toHaveBeenCalledWith(expect.objectContaining({ tenantId: undefined }))
+    expect(aiModelApi.getUsageTrend).toHaveBeenCalledWith(expect.objectContaining({ tenantId: undefined }))
+    expect(aiModelApi.getLogs).toHaveBeenCalledWith(expect.objectContaining({ tenantId: undefined }))
+    // 额度按客户分账：没有归属就不读，也不念一个不知道是谁的上限
+    expect(statsApi.overview).not.toHaveBeenCalled()
+    expect(geoQuotaApi.status).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('当前：全部客户合计')
+  })
+
+  it('选了客户 558：四口带的就是 558，额度两块也读 558', async () => {
+    becomeSuperAdmin()
+    useAuthStore().selectedTenantId = 558
+    mockUsageApis()
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(aiModelApi.getStats).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 558 }))
+    expect(aiModelApi.getUsageByModel).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 558 }))
+    expect(aiModelApi.getUsageTrend).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 558 }))
+    expect(aiModelApi.getLogs).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 558 }))
+    expect(statsApi.overview).toHaveBeenCalledWith(558)
+    expect(geoQuotaApi.status).toHaveBeenCalledWith(558)
+    expect(wrapper.text()).not.toContain('当前：全部客户合计')
+  })
+})
