@@ -1,6 +1,7 @@
 <template>
   <div class="article-template-page">
     <PageTitle />
+    <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
     <a-row :gutter="16" style="margin-bottom: 16px">
       <a-col :span="6">
         <a-card class="stat-card" hoverable>
@@ -9,7 +10,7 @@
               <FileTextOutlined />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ totalTemplates }}</div>
+              <div class="stat-value">{{ requestedTenantId === null ? '—' : totalTemplates }}</div>
               <div class="stat-title">模板总数</div>
             </div>
           </div>
@@ -22,7 +23,7 @@
               <EditOutlined />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ systemCount }}</div>
+              <div class="stat-value">{{ requestedTenantId === null ? '—' : systemCount }}</div>
               <div class="stat-title">系统模板</div>
             </div>
           </div>
@@ -35,7 +36,7 @@
               <FileDoneOutlined />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ customCount }}</div>
+              <div class="stat-value">{{ requestedTenantId === null ? '—' : customCount }}</div>
               <div class="stat-title">自定义模板</div>
             </div>
           </div>
@@ -48,7 +49,7 @@
               <ClockCircleOutlined />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ activeCount }}</div>
+              <div class="stat-value">{{ requestedTenantId === null ? '—' : activeCount }}</div>
               <div class="stat-title">启用中</div>
             </div>
           </div>
@@ -90,7 +91,7 @@
         />
         <template #actions>
           <a-space>
-            <a-button type="primary" @click="openModal()">
+            <a-button v-if="requestedTenantId !== null" type="primary" @click="openModal()">
               <template #icon><PlusOutlined /></template>
               新建模板
             </a-button>
@@ -112,6 +113,7 @@
         <template #emptyText>
           <empty-list-hint
             :loading="loading"
+            :not-sent="notSentLine"
             :read-failed="readFailed"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
@@ -327,12 +329,33 @@ import {
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
-const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
+
+// 改前是 `selectedTenantId || tenantId || 1`：超管没选客户时悄悄查 1 号家，
+// 屏上摆的是「模板总数 0 / 这一档查过了，一条都没有」，看不出自己看错了一家。
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的模板。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  const code = authStore.selectedTenantCode
+  const who = authStore.isSuperAdmin
+    ? `当前看的是${code ? `客户「${code}」` : '选中的那一家客户'}（编号 #${id}）`
+    : `当前看的是你所在客户（编号 #${id}）`
+  return `${who}的生成模板。`
+})
 
 const loading = ref(false)
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
 const readFailed = ref('')
+const notSentLine = ref('')
 const modalVisible = ref(false)
 const modalLoading = ref(false)
 
@@ -484,13 +507,18 @@ const handleSubmit = async () => {
   } catch {
     return
   }
+  const tenantId = requestedTenantId.value
+  if (tenantId === null && !editingTemplate.value) {
+    message.warning('还没选定客户：新建的模板要记在谁名下？先在右上角选一家客户')
+    return
+  }
   modalLoading.value = true
   try {
     if (editingTemplate.value) {
       await articleTemplateApi.update(editingTemplate.value.id, buildPayload())
       message.success('更新成功')
     } else {
-      await articleTemplateApi.create(getTenantId(), buildPayload())
+      await articleTemplateApi.create(tenantId as number, buildPayload())
       message.success('创建成功')
     }
     modalVisible.value = false
@@ -541,13 +569,27 @@ const deleteTemplate = async (id: number) => {
 }
 
 const loadTemplates = async () => {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    templateList.value = []
+    pagination.total = 0
+    emptyLine.value = ''
+    emptyReason.value = null
+    readFailed.value = ''
+    notSentLine.value = authStore.isSuperAdmin
+      ? '当前没有选定客户，这一发没发出去，所以这里的模板一条都不是（不是「这一家没有模板」）。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一发没发出去，所以这里的模板一条都不是。'
+    loading.value = false
+    return
+  }
+  notSentLine.value = ''
   loading.value = true
   emptyLine.value = ''
   emptyReason.value = null
   readFailed.value = ''
   try {
     const result = await articleTemplateApi.list({
-      tenantId: getTenantId(),
+      tenantId,
       page: pagination.current,
       size: pagination.pageSize,
       category: filterCategory.value,
@@ -574,8 +616,16 @@ const loadTemplates = async () => {
 }
 
 const loadStats = async () => {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    totalTemplates.value = 0
+    systemCount.value = 0
+    customCount.value = 0
+    activeCount.value = 0
+    return
+  }
   try {
-    const result = await articleTemplateApi.list({ tenantId: getTenantId(), page: 1, size: 1000 })
+    const result = await articleTemplateApi.list({ tenantId, page: 1, size: 1000 })
     const all = result.records || []
     totalTemplates.value = result.total ?? all.length
     systemCount.value = all.filter(t => t.isSystem).length
@@ -606,6 +656,10 @@ onMounted(() => {
 <style scoped lang="less">
 .article-template-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 12px;
 }
 
 .card-header {

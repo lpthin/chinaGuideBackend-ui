@@ -39,6 +39,8 @@
         </template>
       </a-page-header>
 
+      <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
+
       <a-row :gutter="24" style="margin-top: 16px">
         <a-col :span="18">
           <a-card :bordered="false">
@@ -452,6 +454,29 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
+/**
+ * 这一屏的分类与热门标签属于谁。超管没选定客户就是 null ⇒ 这两发不发。
+ *
+ * 改前两处都是 `selectedTenantId || tenantId`：没选定客户时会被 `tenantId` 那个 getter
+ * 悄悄带回登录账号名下那一家，下拉里摆的是那一家（1 号）的分类与标签。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，分类与热门标签这两发没发出去，下拉里不会有任何一家的选项。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，分类与热门标签这两发没发出去。'
+  }
+  const code = authStore.selectedTenantCode
+  const label = code ? `客户 ${code}（编号 ${id}）` : `编号 ${id} 的客户`
+  return `分类与热门标签只摆 ${label} 的那一份。`
+})
+
 const loading = ref(false)
 const savingDraft = ref(false)
 const submittingReview = ref(false)
@@ -521,8 +546,12 @@ const categoryList = ref<{ id: number; name: string }[]>([])
 const hotTags = ref<string[]>([])
 
 async function loadCategoryList() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    categoryList.value = []
+    return
+  }
   try {
-    const tenantId = authStore.selectedTenantId || authStore.tenantId
     const res = await articleCategoryApi.all(tenantId) as any
     const list = Array.isArray(res) ? res : (res?.data || [])
     categoryList.value = list.map((c: any) => ({ id: c.id, name: c.name }))
@@ -532,8 +561,12 @@ async function loadCategoryList() {
 }
 
 async function loadHotTags() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    hotTags.value = []
+    return
+  }
   try {
-    const tenantId = authStore.selectedTenantId || authStore.tenantId
     const res = await caseTagApi.hot(tenantId, 10) as any
     const list = Array.isArray(res) ? res : (res?.data || [])
     hotTags.value = list.map((t: any) => t.name || t)
@@ -901,6 +934,10 @@ onMounted(() => {
 <style scoped lang="less">
 .article-edit-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 12px;
 }
 
 .editor-container {

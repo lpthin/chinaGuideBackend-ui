@@ -8,10 +8,19 @@
         <template #extra>
           <a-space>
             <a-button @click="goBack">取消</a-button>
-            <a-button type="primary" :loading="saving" @click="handleSave">保存</a-button>
+            <a-button
+              type="primary"
+              :loading="saving"
+              :disabled="requestedTenantId === null"
+              @click="handleSave"
+            >
+              保存
+            </a-button>
           </a-space>
         </template>
       </a-page-header>
+
+      <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
 
       <a-row :gutter="24" style="margin-top: 16px">
         <a-col :span="18">
@@ -108,7 +117,13 @@
             <a-divider />
 
             <a-space direction="vertical" style="width: 100%">
-              <a-button type="primary" block :loading="saving" @click="handleSave">
+              <a-button
+                type="primary"
+                block
+                :loading="saving"
+                :disabled="requestedTenantId === null"
+                @click="handleSave"
+              >
                 <SaveOutlined /> 保存
               </a-button>
               <a-button block @click="handlePreview">
@@ -155,7 +170,29 @@ import type { KnowledgeCategory, KnowledgeCardForm, KnowledgeTag, KnowledgeDocum
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
-const getTenantId = () => authStore.selectedTenantId || authStore.tenantId || 1
+
+/**
+ * 这张卡片要记在谁名下。超管没选定客户就是 null ⇒ 这一屏不发请求、也不许保存。
+ *
+ * 改前是 `selectedTenantId || tenantId || 1`：没选定客户时会被 `tenantId` 那个 getter
+ * 悄悄带回登录账号名下那一家，最后那个 `|| 1` 更会把新卡片直接记到 1 号客户名下。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏既不发请求也不许保存。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏既不发请求也不许保存。'
+  }
+  const code = authStore.selectedTenantCode
+  const label = code ? `客户 ${code}（编号 ${id}）` : `编号 ${id} 的客户`
+  return `这张卡片会记在 ${label} 名下。`
+})
 
 const router = useRouter()
 const route = useRoute()
@@ -173,7 +210,7 @@ const isEdit = computed(() => !!route.params.id)
 const cardId = computed(() => Number(route.params.id))
 
 const formData = reactive<KnowledgeCardForm>({
-  tenantId: getTenantId(),
+  tenantId: requestedTenantId.value ?? 0,
   categoryId: null as any,
   title: '',
   content: '',
@@ -199,11 +236,16 @@ async function handleDocumentSearch(keyword: string) {
     documentOptions.value = []
     return
   }
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    documentOptions.value = []
+    return
+  }
   docSearchTimer.value = setTimeout(async () => {
     docSearching.value = true
     try {
       const result = await knowledgeDocumentApi.list({
-        tenantId: getTenantId(),
+        tenantId,
         keyword: keyword.trim(),
         page: 1,
         size: 20,
@@ -232,6 +274,11 @@ function handlePreview() {
 }
 
 async function handleSave() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('还没选定客户：这张卡片要记在谁名下？先在右上角选一家客户')
+    return
+  }
   if (!formData.title) {
     message.error('请输入卡片标题')
     return
@@ -241,6 +288,7 @@ async function handleSave() {
     return
   }
 
+  formData.tenantId = tenantId
   saving.value = true
   try {
     if (isEdit.value) {
@@ -259,8 +307,13 @@ async function handleSave() {
 }
 
 async function loadCategories() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    categories.value = []
+    return
+  }
   try {
-    const result = await knowledgeCategoryApi.all(getTenantId())
+    const result = await knowledgeCategoryApi.all(tenantId)
     categories.value = flattenCategories(result.records)
   } catch (error) {
     message.error(`加载分类失败：${describeHttpError(error)}`)
@@ -269,8 +322,13 @@ async function loadCategories() {
 }
 
 async function loadTags() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    tags.value = []
+    return
+  }
   try {
-    const result = await knowledgeTagApi.list({ tenantId: getTenantId() })
+    const result = await knowledgeTagApi.list({ tenantId })
     tags.value = Array.isArray(result) ? result : (result as any).records || []
   } catch (error) {
     message.error(`加载标签失败：${describeHttpError(error)}`)
@@ -315,6 +373,10 @@ onMounted(async () => {
 <style scoped lang="less">
 .knowledge-card-edit-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 12px;
 }
 
 .selected-doc-info {

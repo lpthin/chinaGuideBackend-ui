@@ -10,11 +10,23 @@
     <template #extra>
       <a-space>
         <a-button @click="handleClose">取消</a-button>
-        <a-button type="primary" :loading="saving" @click="handleSave">保存</a-button>
+        <a-button
+          type="primary"
+          :loading="saving"
+          :disabled="!caseId && requestedTenantId === null"
+          @click="handleSave"
+        >保存</a-button>
       </a-space>
     </template>
 
     <a-spin :spinning="loading">
+      <a-alert
+        v-if="requestedTenantId === null && !caseId"
+        class="scope-alert"
+        type="info"
+        show-icon
+        message="当前没有选定客户，这张新案例记不到任何一家名下：分类与热门标签也没取。请先在右上角选一家客户再新建。"
+      />
       <a-form
         ref="formRef"
         :model="formState"
@@ -236,6 +248,16 @@ const emit = defineEmits<{
   (e: 'success'): void
 }>()
 
+/**
+ * 这张案例记在谁名下。超管没选定客户就是 null ⇒ 不取分类/标签，也不许新建。
+ *
+ * 改前 `selectedTenantId || tenantId || 1`：没选定客户时会悄悄落到 1 号家。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
 const loading = ref(false)
 const saving = ref(false)
 const formRef = ref()
@@ -246,7 +268,7 @@ const hotTags = ref<string[]>([])
 const categories = ref<CaseCategory[]>([])
 
 const formState = reactive({
-  tenantId: getTenantId(),
+  tenantId: requestedTenantId.value ?? 0,
   categoryId: 1,
   title: '',
   summary: '',
@@ -283,12 +305,21 @@ watch(() => props.open, (newVal) => {
   }
 })
 
-function getTenantId() {
-  return authStore.selectedTenantId || authStore.tenantId || 1
-}
+// 新建到一半换了客户：分类/标签与归属都得跟着换，不能把这一家的表单存到另一家
+watch(requestedTenantId, async () => {
+  if (props.open && !props.caseId) {
+    await loadInitialData()
+    resetForm()
+  }
+})
 
 async function loadInitialData() {
-  const tenantId = getTenantId()
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    categories.value = []
+    hotTags.value = []
+    return
+  }
   try {
     await Promise.all([
       loadCategories(tenantId),
@@ -319,7 +350,7 @@ async function loadHotTags(tenantId: number) {
 }
 
 function resetForm() {
-  const tenantId = getTenantId()
+  const tenantId = requestedTenantId.value ?? 0
   caseData.value = null
   formState.tenantId = tenantId
   formState.categoryId = categories.value.length > 0 ? categories.value[0].id : 0
@@ -342,7 +373,7 @@ async function loadCaseData(id: number) {
   try {
     const caseInfo = await caseApi.get(id)
     caseData.value = caseInfo
-    formState.tenantId = caseInfo.tenantId || getTenantId()
+    formState.tenantId = caseInfo.tenantId ?? requestedTenantId.value ?? 0
     formState.categoryId = caseInfo.categoryId || (categories.value.length > 0 ? categories.value[0].id : 0)
     formState.title = caseInfo.title || ''
     formState.summary = caseInfo.summary || ''
@@ -369,6 +400,10 @@ function handleClose() {
 }
 
 async function handleSave() {
+  if (!props.caseId && requestedTenantId.value === null) {
+    message.warning('还没选定客户：这张新案例要记在谁名下？先在右上角选一家客户')
+    return
+  }
   try {
     await formRef.value?.validate()
   } catch (error) {
@@ -411,6 +446,10 @@ function handlePreview(file: any) {
 </script>
 
 <style scoped lang="less">
+.scope-alert {
+  margin-bottom: 12px;
+}
+
 .content-preview {
   padding: 16px;
   background: #fafafa;

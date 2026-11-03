@@ -18,7 +18,7 @@
         </a-col>
         <a-col :span="6">
           <a-statistic
-            title="启用数"
+            title="本页启用"
             :value="stats.activeCount"
             :value-style="{ color: '#52c41a' }"
           >
@@ -27,7 +27,7 @@
         </a-col>
         <a-col :span="6">
           <a-statistic
-            title="高危规则"
+            title="本页高危"
             :value="stats.criticalCount"
             :value-style="{ color: '#ff4d4f' }"
           >
@@ -36,7 +36,7 @@
         </a-col>
         <a-col :span="6">
           <a-statistic
-            title="中危规则"
+            title="本页中危"
             :value="stats.highCount"
             :value-style="{ color: '#faad14' }"
           >
@@ -472,7 +472,9 @@ const fetchRules = async () => {
 }
 
 const calculateStats = (records: AlertRule[]) => {
-  stats.total = records.length
+  // 规则总数认后端 paged 回的 total（当前筛选条件下的总数），不拿本页最多 10 行冒充
+  stats.total = pagination.total ?? 0
+  // 下面三个只数本页摆出来的行，卡片标题已写明「本页」
   stats.activeCount = records.filter(r => r.isActive === 1).length
   stats.criticalCount = records.filter(r => r.severity === 'critical').length
   stats.highCount = records.filter(r => r.severity === 'high').length

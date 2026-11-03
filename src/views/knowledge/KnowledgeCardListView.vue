@@ -2,6 +2,7 @@
   <div class="knowledge-card-list-page">
     <PageTitle />
     <a-spin :spinning="loading">
+      <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
@@ -10,7 +11,7 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ pagination.total }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : pagination.total }}</div>
                 <!-- 屏名已经念过一遍，这里只说这一格数的是什么 -->
                 <div class="stat-title">卡片总数</div>
               </div>
@@ -24,7 +25,7 @@
                 <FolderOpenOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalCategories }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : stats.totalCategories }}</div>
                 <div class="stat-title">分类数</div>
               </div>
             </div>
@@ -82,7 +83,7 @@
                   删除选中 ({{ selectedRowKeys.length }})
                 </a-button>
               </template>
-              <a-button type="primary" @click="goToEdit()">
+              <a-button v-if="requestedTenantId !== null" type="primary" @click="goToEdit()">
                 <template #icon><PlusOutlined /></template>
                 新建卡片
               </a-button>
@@ -96,10 +97,11 @@
               <!-- 卡片视图没行时以前什么都不摆，看着像这一屏坏了（M-P74） -->
               <empty-list-hint
                 :loading="loading"
+                :not-sent="notSentLine"
                 :read-failed="readFailed"
                 :empty-line="emptyLine"
                 :empty-reason="emptyReason"
-                can-create
+                :can-create="canCreateHere"
                 create-label="新建卡片"
                 @create="goToEdit()"
               />
@@ -171,10 +173,11 @@
           <template #emptyText>
             <empty-list-hint
               :loading="loading"
+              :not-sent="notSentLine"
               :read-failed="readFailed"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
-              can-create
+              :can-create="canCreateHere"
               create-label="新建卡片"
               @create="goToEdit()"
             />
@@ -289,7 +292,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, h, watch } from 'vue'
+import { ref, reactive, computed, onMounted, h, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -311,6 +314,7 @@ import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   JUMP_BACK_NOTICE,
   asEmptyReason,
+  offersCreateOnEmpty,
   shouldJumpBackToFirstPage,
   type EmptyReason,
 } from '../../utils/emptyPage'
@@ -318,11 +322,48 @@ import PageTitle from '../../components/PageTitle.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
+
+/**
+ * 这一屏的数属于谁。超管没选定客户就是 null ⇒ 一发请求都不发。
+ *
+ * 改前三个取数口都是 `auth.selectedTenantId!` / `selectedTenantId || tenantId`：
+ * 没选定客户时前一个发出 `tenantId=undefined`，后一个被 `tenantId` 那个 getter 悄悄带回登录账号
+ * 名下那一家，界面就把那家的卡片当「这一屏的数」摆出来。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (auth.isSuperAdmin) return auth.selectedTenantId ?? null
+  return auth.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return auth.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的知识卡片。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  const code = auth.selectedTenantCode
+  const label = code ? `客户 ${code}（编号 ${id}）` : `编号 ${id} 的客户`
+  return `这一屏只摆 ${label} 的知识卡片。`
+})
+
+/** 没发出去与读失败各说各的：两种都不是「这一家没有卡片」 */
+const notSentLine = ref('')
+
 const loading = ref(false)
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
 const readFailed = ref('')
 const viewMode = ref<'card' | 'list'>('card')
+
+/** 该不该摆「新建卡片」：选定客户了、这一发读回来了、且后端答的是「真的没有」 */
+const canCreateHere = computed(
+  () =>
+    requestedTenantId.value !== null &&
+    !notSentLine.value &&
+    !readFailed.value &&
+    offersCreateOnEmpty(emptyReason.value)
+)
 const cardList = ref<KnowledgeCard[]>([])
 const categories = ref<KnowledgeCategory[]>([])
 const tags = ref<KnowledgeTag[]>([])
@@ -488,8 +529,14 @@ async function handleBatchSetTags() {
 }
 
 async function loadCategories() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    categories.value = []
+    stats.totalCategories = 0
+    return
+  }
   try {
-    const result = flattenCategories((await knowledgeCategoryApi.all(auth.selectedTenantId!)).records)
+    const result = flattenCategories((await knowledgeCategoryApi.all(tenantId)).records)
     categories.value = result
     stats.totalCategories = result.length
   } catch (error) {
@@ -500,8 +547,13 @@ async function loadCategories() {
 }
 
 async function loadTags() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    tags.value = []
+    return
+  }
   try {
-    const result = await knowledgeTagApi.list({ tenantId: auth.selectedTenantId! })
+    const result = await knowledgeTagApi.list({ tenantId })
     tags.value = Array.isArray(result) ? result : (result as any).records || []
   } catch (error) {
     message.error(`加载标签列表失败：${describeHttpError(error)}`)
@@ -510,13 +562,29 @@ async function loadTags() {
 }
 
 async function loadData() {
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    // 没选定客户 ⇒ 这一发不发。列表清空、总数清零，界面上那一行念的是「没发出去」
+    cardList.value = []
+    pagination.total = 0
+    emptyLine.value = ''
+    emptyReason.value = null
+    readFailed.value = ''
+    notSentLine.value = auth.isSuperAdmin
+      ? '当前没有选定客户，这一发没发出去，所以这里的卡片一条都不是（不是「这一家没有卡片」）。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一发没发出去，所以这里的卡片一条都不是。'
+    loading.value = false
+    return
+  }
+  notSentLine.value = ''
   loading.value = true
+  // 上一家答的那一种空不许留着：加载中那一眼摆出来的成因必须是这一次的
   emptyLine.value = ''
   emptyReason.value = null
   readFailed.value = ''
   try {
     const params = {
-      tenantId: auth.selectedTenantId || auth.tenantId,
+      tenantId,
       ...queryParams,
       page: pagination.page,
       size: pagination.size,
@@ -542,14 +610,20 @@ async function loadData() {
   }
 }
 
-watch(
-  () => auth.selectedTenantId,
-  async () => {
-    await loadCategories()
-    await loadTags()
-    await loadData()
-  }
-)
+// 换了一家公司，上一家的卡片与筛选不能继续摆着当这一家的
+watch(requestedTenantId, async () => {
+  cardList.value = []
+  categories.value = []
+  tags.value = []
+  pagination.total = 0
+  pagination.page = 1
+  queryParams.categoryId = null
+  queryParams.tag = ''
+  queryParams.keyword = ''
+  await loadCategories()
+  await loadTags()
+  await loadData()
+})
 
 onMounted(async () => {
   await loadCategories()
@@ -561,6 +635,10 @@ onMounted(async () => {
 <style scoped lang="less">
 .knowledge-card-list-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 12px;
 }
 
 .stat-card {

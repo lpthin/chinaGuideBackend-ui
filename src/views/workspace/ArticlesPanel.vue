@@ -11,13 +11,13 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.totalArticles }}</div>
+                <div class="stat-value">{{ statText(stats.totalArticles) }}</div>
                 <div class="stat-title">文章总数</div>
               </div>
             </div>
             <div class="stat-footer">
               <span class="stat-trend">
-                {{ statusCounts.published }}
+                {{ statText(stats.publishedCount) }}
               </span>
               <span class="stat-label">已发布</span>
             </div>
@@ -30,15 +30,15 @@
                 <PlusCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.todayCount }}</div>
+                <div class="stat-value">{{ statText(stats.todayCount) }}</div>
                 <div class="stat-title">今日新增</div>
               </div>
             </div>
             <div class="stat-footer">
               <span class="stat-trend">
-                {{ stats.weekCount }}
+                {{ statText(stats.weekCount) }}
               </span>
-              <span class="stat-label">近 7 天</span>
+              <span class="stat-label">近 7 天新增</span>
             </div>
           </a-card>
         </a-col>
@@ -49,15 +49,15 @@
                 <CalendarOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.monthPublished }}</div>
-                <div class="stat-title">本月发布</div>
+                <div class="stat-value">{{ statText(stats.pendingReview) }}</div>
+                <div class="stat-title">待审核</div>
               </div>
             </div>
             <div class="stat-footer">
               <span class="stat-trend">
-                {{ stats.yearPublished }}
+                {{ statText(stats.monthCreated) }}
               </span>
-              <span class="stat-label">本年发布</span>
+              <span class="stat-label">本月新增</span>
             </div>
           </a-card>
         </a-col>
@@ -68,15 +68,15 @@
                 <FireOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ stats.topViews }}</div>
-                <div class="stat-title">热门Top1阅读量</div>
+                <div class="stat-value">{{ statText(stats.topViews) }}</div>
+                <div class="stat-title">前 {{ articles.length }} 篇最高阅读量</div>
               </div>
             </div>
             <div class="stat-footer">
               <span class="stat-trend">
-                {{ stats.viewsSum }}
+                {{ statText(stats.viewsSum) }}
               </span>
-              <span class="stat-label">列表阅读合计</span>
+              <span class="stat-label">前 {{ articles.length }} 篇阅读合计</span>
             </div>
           </a-card>
         </a-col>
@@ -131,7 +131,7 @@
 
               <!-- 状态快速标签 -->
               <div class="status-tags">
-                <span class="status-tags-label">状态：</span>
+                <span class="status-tags-label">状态（按已取的 {{ articles.length }} 篇统计）：</span>
                 <a-space wrap size="small">
                   <a-tag
                     :class="{ 'status-tag-active': !filterForm.status }"
@@ -263,7 +263,10 @@
             <!-- 视图切换区 -->
             <div class="view-toolbar">
               <div class="view-info">
-                <span class="view-count">共 <strong>{{ filteredArticles.length }}</strong> 篇文章</span>
+                <span class="view-count">
+                  共 <strong>{{ filteredArticles.length }}</strong> 篇文章
+                  <span v-if="fetchedNote" class="view-note">（{{ fetchedNote }}）</span>
+                </span>
               </div>
               <a-space>
                 <a-segmented v-model:value="viewMode" @change="changeViewMode"
@@ -535,7 +538,7 @@
                   </div>
                   <div class="entry-info">
                     <div class="entry-name">草稿箱</div>
-                    <div class="entry-count">{{ draftCount }} 篇</div>
+                    <div class="entry-count">{{ statText(stats.draftCount) }} 篇</div>
                   </div>
                   <RightOutlined class="entry-arrow" />
                 </div>
@@ -545,7 +548,7 @@
                   </div>
                   <div class="entry-info">
                     <div class="entry-name">待审核</div>
-                    <div class="entry-count">{{ reviewCount }} 篇</div>
+                    <div class="entry-count">{{ statText(stats.pendingReview) }} 篇</div>
                   </div>
                   <RightOutlined class="entry-arrow" />
                 </div>
@@ -731,7 +734,7 @@ import {
   CloseCircleOutlined,
   ClockCircleOutlined,
 } from '@ant-design/icons-vue'
-import { adminApi, articleManageApi, categoryApi } from '../../api'
+import { adminApi, articleManageApi, categoryApi, dashboardApi } from '../../api'
 import { formatTime, formatDate } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
 import FilterBar from '../../components/FilterBar.vue'
@@ -759,15 +762,23 @@ const viewMode = ref<'list' | 'card' | 'thumbnail'>('list')
 const showAdvancedFilter = ref(false)
 const searchType = ref('all')
 
+/**
+ * 四个卡片的数全部取后端统计口（/workspace/dashboard/stats），不再拿本屏已取的那 100 篇冒充全量；
+ * null 表示这一发没取到，界面念「—」，不许念 0
+ */
 const stats = reactive({
-  totalArticles: 0,
-  todayCount: 0,
-  weekCount: 0,
-  monthPublished: 0,
-  yearPublished: 0,
-  topViews: 0,
-  viewsSum: 0,
+  totalArticles: null as number | null,
+  publishedCount: null as number | null,
+  draftCount: null as number | null,
+  todayCount: null as number | null,
+  weekCount: null as number | null,
+  pendingReview: null as number | null,
+  monthCreated: null as number | null,
+  topViews: null as number | null,
+  viewsSum: null as number | null,
 })
+
+const statText = (v: number | null) => (v === null ? '—' : String(v))
 
 const filterForm = reactive({
   categoryId: undefined as number | undefined,
@@ -799,6 +810,13 @@ const categories = ref<any[]>([])
 const authors = ref<any[]>([])
 const allTags = ref<string[]>([])
 
+/** 这一屏只取前 100 篇；总数比取到的多时把这层说清楚，别让人把「取了 100」读成「全量」 */
+const fetchedNote = computed(() => {
+  const total = stats.totalArticles
+  if (total === null || total <= articles.value.length) return ''
+  return `这一屏只取了前 ${articles.value.length} 篇，这家共 ${total} 篇`
+})
+
 const selectedRowKeys = ref<number[]>([])
 const selectedRows = ref<any[]>([])
 
@@ -820,9 +838,6 @@ const articleForm = reactive({
 })
 
 const recentEdits = ref<any[]>([])
-
-const draftCount = computed(() => articles.value.filter(a => a.status?.toLowerCase() === 'draft').length)
-const reviewCount = computed(() => articles.value.filter(a => a.status?.toLowerCase() === 'pending_review').length)
 
 /** 创建时间戳，无 createdAt 时退到 updatedAt，都没有则返回 0（时间筛选会把它排除） */
 function createdTimeOf(item: any): number {
@@ -1328,10 +1343,11 @@ async function loadData() {
   emptyLine.value = ''
   emptyReason.value = null
   try {
-    const [articlesData, categoriesData, authorsData] = await Promise.all([
+    const [articlesData, categoriesData, authorsData, dashboardStats] = await Promise.all([
       articleManageApi.list({ page: 1, size: 100 } as any),
       categoryApi.list({ all: true }) as any,
       adminApi.users.list({}).catch(() => []),
+      dashboardApi.getStats().catch(() => null),
     ])
 
     const articleList = (articlesData as any)?.records || (articlesData as any) || []
@@ -1364,27 +1380,17 @@ async function loadData() {
       .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
       .slice(0, 5)
 
-    // 总数取接口返回的 total，不能拿当前页条数冒充；
-    // 「发布」口径按 publishedAt，创建口径按 createdAt
-    stats.totalArticles = (articlesData as any)?.total ?? articleList.length
-    const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-    const startOfWeek = startOfToday - 6 * 24 * 3600 * 1000
-    const startOfYear = new Date(now.getFullYear(), 0, 1).getTime()
-    const created = (a: any) => new Date(a.createdAt || 0).getTime()
-    const published = (a: any) => (a.publishedAt ? new Date(a.publishedAt).getTime() : 0)
-    const inMonth = (t: number) => {
-      if (!t) return false
-      const d = new Date(t)
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    }
-    stats.todayCount = articleList.filter((a: any) => created(a) >= startOfToday).length
-    stats.weekCount = articleList.filter((a: any) => created(a) >= startOfWeek).length
-    stats.monthPublished = articleList.filter((a: any) => inMonth(published(a))).length
-    stats.yearPublished = articleList.filter((a: any) => {
-      const t = published(a)
-      return t >= startOfYear
-    }).length
+    // 前三张卡片认后端统计口（整家口径）；这一发没取到就念「—」，不拿本屏这 100 篇补
+    const ds = dashboardStats
+    const num = (v: number | null | undefined) => (typeof v === 'number' ? v : null)
+    stats.totalArticles = num(ds?.totalArticles) ?? num((articlesData as any)?.total)
+    stats.publishedCount = num(ds?.publishedCount)
+    stats.draftCount = num(ds?.draftCount)
+    stats.todayCount = num(ds?.todayCount)
+    stats.weekCount = num(ds?.articlesWeek)
+    stats.pendingReview = num(ds?.pendingReview)
+    stats.monthCreated = num(ds?.monthCount)
+    // 阅读量没有「全站最高一篇」的统计口，第四张卡片只数本屏已取的前 100 篇（标题已写明范围）
     stats.viewsSum = articleList.reduce((n: number, a: any) => n + (a.viewCount || 0), 0)
     const topArticle = articleList.reduce((max: any, a: any) => (a.viewCount || 0) > (max?.viewCount || 0) ? a : max, null)
     stats.topViews = topArticle?.viewCount || 0
@@ -1593,6 +1599,11 @@ onMounted(() => {
       color: #1890ff;
       font-size: 16px;
     }
+  }
+
+  .view-note {
+    font-size: 12px;
+    color: #8c8c8c;
   }
 }
 

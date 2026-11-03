@@ -2,6 +2,7 @@
   <div class="case-list-page">
     <PageTitle />
     <a-spin :spinning="loading">
+      <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
@@ -10,7 +11,7 @@
                 <FileTextOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ formatNumber(stats.total) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : formatNumber(stats.total) }}</div>
                 <div class="stat-title">案例总数</div>
               </div>
             </div>
@@ -23,7 +24,7 @@
                 <CheckCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ formatNumber(stats.published) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : formatNumber(stats.published) }}</div>
                 <div class="stat-title">已发布</div>
               </div>
             </div>
@@ -36,7 +37,7 @@
                 <EditOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ formatNumber(stats.draft) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : formatNumber(stats.draft) }}</div>
                 <div class="stat-title">草稿</div>
               </div>
             </div>
@@ -49,7 +50,7 @@
                 <ClockCircleOutlined />
               </div>
               <div class="stat-info">
-                <div class="stat-value">{{ formatNumber(stats.pendingReview) }}</div>
+                <div class="stat-value">{{ requestedTenantId === null ? '—' : formatNumber(stats.pendingReview) }}</div>
                 <div class="stat-title">待审核</div>
               </div>
             </div>
@@ -121,7 +122,7 @@
                 <template #icon><DeleteOutlined /></template>
                 批量删除
               </a-button>
-              <a-button type="primary" @click="handleAdd">
+              <a-button v-if="requestedTenantId !== null" type="primary" @click="handleAdd">
                 <template #icon><PlusOutlined /></template>
                 新建案例
               </a-button>
@@ -143,10 +144,11 @@
           <template #emptyText>
             <empty-list-hint
               :loading="tableLoading"
+              :not-sent="notSentLine"
               :read-failed="readFailed"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
-              can-create
+              :can-create="canCreateHere"
               create-label="新建案例"
               @create="handleAdd"
             />
@@ -284,6 +286,7 @@ import { formatDateTime, formatNumber } from '../../utils/format'
 import {
   JUMP_BACK_NOTICE,
   asEmptyReason,
+  offersCreateOnEmpty,
   shouldJumpBackToFirstPage,
   type EmptyReason,
 } from '../../utils/emptyPage'
@@ -293,11 +296,43 @@ import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 
+/**
+ * 这一屏的数属于谁。超管没选定客户就是 null ⇒ 一发请求都不发。
+ *
+ * 改前三处都是 `selectedTenantId || tenantId`：没选定客户时会被 `tenantId` 那个 getter
+ * 悄悄带回登录账号名下那一家，四张统计卡与案例表摆的都是那一家（1 号）的数。
+ */
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的案例。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  const code = authStore.selectedTenantCode
+  const label = code ? `客户 ${code}（编号 ${id}）` : `编号 ${id} 的客户`
+  return `这一屏只摆 ${label} 的案例。`
+})
+
 const loading = ref(false)
 const tableLoading = ref(false)
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
 const readFailed = ref('')
+/** 没发出去与读失败各说各的：两种都不是「这一家没有案例」 */
+const notSentLine = ref('')
+const canCreateHere = computed(
+  () =>
+    requestedTenantId.value !== null &&
+    !notSentLine.value &&
+    !readFailed.value &&
+    offersCreateOnEmpty(emptyReason.value)
+)
 const drawerVisible = ref(false)
 const currentCaseId = ref<number | null>(null)
 const selectedRowKeys = ref<number[]>([])
@@ -432,7 +467,14 @@ function getReviewStatusColor(reviewStatus: string): string {
 }
 
 async function loadStats() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    stats.total = null
+    stats.published = null
+    stats.draft = null
+    stats.pendingReview = null
+    return
+  }
   try {
     const res = await caseApi.statistics(tenantId)
     stats.total = res.total
@@ -449,7 +491,11 @@ async function loadStats() {
 }
 
 async function loadCategories() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    categories.value = []
+    return
+  }
   try {
     const res = await caseCategoryApi.list({ tenantId, status: 'ACTIVE' })
     categories.value = res || []
@@ -460,11 +506,21 @@ async function loadCategories() {
 }
 
 async function loadCases() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
   tableLoading.value = true
   emptyLine.value = ''
   emptyReason.value = null
   readFailed.value = ''
+  if (tenantId === null) {
+    caseList.value = []
+    pagination.total = 0
+    notSentLine.value = authStore.isSuperAdmin
+      ? '当前没有选定客户，这一发没发出去，所以这里的案例一条都不是（不是「这一家没有案例」）。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一发没发出去，所以这里的案例一条都不是。'
+    tableLoading.value = false
+    return
+  }
+  notSentLine.value = ''
   try {
     const params: any = {
       tenantId,
@@ -616,14 +672,21 @@ function handleBatchDelete() {
   })
 }
 
-watch(
-  () => authStore.selectedTenantId,
-  () => {
-    pagination.current = 1
-    loadCategories()
-    reload()
-  }
-)
+watch(requestedTenantId, () => {
+  // 换一家客户时先把手头这一家的东西清空，别让上一家的数在等请求时还挂在屏上
+  caseList.value = []
+  pagination.total = 0
+  pagination.current = 1
+  stats.total = null
+  stats.published = null
+  stats.draft = null
+  stats.pendingReview = null
+  emptyLine.value = ''
+  emptyReason.value = null
+  readFailed.value = ''
+  loadCategories()
+  reload()
+})
 
 onMounted(async () => {
   loading.value = true
@@ -638,6 +701,10 @@ onMounted(async () => {
 <style scoped lang="less">
 .case-list-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 12px;
 }
 
 .stat-card {

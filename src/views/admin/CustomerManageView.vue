@@ -2,6 +2,7 @@
   <div class="customer-manage-page">
     <PageTitle />
     <a-spin :spinning="loading">
+      <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
       <!-- 客户统计卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -82,7 +83,7 @@
           </a-select>
           <!-- 这一页的表单一直有「新建」那一路，但界面上没有入口：按钮摆在这里，空态那一句也指回来 -->
           <template #actions>
-            <a-button type="primary" @click="openCreate">新建客户</a-button>
+            <a-button v-if="requestedTenantId !== null" type="primary" @click="openCreate">新建客户</a-button>
           </template>
         </filter-bar>
       </a-card>
@@ -133,6 +134,7 @@
                  这一页有「新建客户」这个动作，所以「真的没有」那一档下面会摆一颗新建按钮。 -->
             <empty-list-hint
               :loading="tableLoading"
+              :not-sent="notSentLine"
               :read-failed="readFailed"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
@@ -210,7 +212,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   TeamOutlined,
@@ -235,6 +237,27 @@ import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
 
+// 改前是 `selectedTenantId || tenantId`：超管没选客户时，`tenantId` 回的是账号名下那一家（编号 1），
+// 屏上四张卡全 0、空态念「这一档查过了，一条都没有」——看不出自己查错了人。
+const requestedTenantId = computed<number | null>(() => {
+  if (authStore.isSuperAdmin) return authStore.selectedTenantId ?? null
+  return authStore.user?.tenantId ?? null
+})
+
+const scopeNotice = computed(() => {
+  const id = requestedTenantId.value
+  if (id === null) {
+    return authStore.isSuperAdmin
+      ? '当前没有选定客户，这一屏不发请求、也不摆任何一家的客户列表。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一屏不发请求、也不摆数。'
+  }
+  const code = authStore.selectedTenantCode
+  const who = authStore.isSuperAdmin
+    ? `当前看的是${code ? `客户「${code}」` : '选中的那一家客户'}（编号 #${id}）`
+    : `当前看的是你所在客户（编号 #${id}）`
+  return `${who}的客户。`
+})
+
 const loading = ref(false)
 const tableLoading = ref(false)
 const detailModalVisible = ref(false)
@@ -252,6 +275,7 @@ const customerStats = reactive({
 const readFailed = ref('')
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
+const notSentLine = ref('')
 
 const queryParams = reactive({
   keyword: '',
@@ -299,6 +323,7 @@ function updateStats() {
 
 /** 读失败与「这一家读不到」都不许念成 0：0 是一个查过之后的结论 */
 function statText(count: number): string | number {
+  if (requestedTenantId.value === null) return '—'
   if (readFailed.value) return '没取到'
   if (emptyReason.value === 'NOT_VISIBLE') return '读不到'
   return count
@@ -352,7 +377,20 @@ function getLevelColor(level: string): string {
 }
 
 async function loadCustomerList() {
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    customerListData.value = []
+    paginationConfig.total = 0
+    updateStats()
+    readFailed.value = ''
+    emptyLine.value = ''
+    emptyReason.value = null
+    notSentLine.value = authStore.isSuperAdmin
+      ? '当前没有选定客户，这一发没发出去，所以这里的客户一条都不是（不是「这一家没有客户」）。请在右上角选一家客户。'
+      : '登录信息里没有客户编号，这一发没发出去，所以这里的客户一条都不是。'
+    return
+  }
+  notSentLine.value = ''
   tableLoading.value = true
   readFailed.value = ''
   emptyLine.value = ''
@@ -460,7 +498,11 @@ async function handleConfirmEdit() {
     return
   }
 
-  const tenantId = authStore.selectedTenantId || authStore.tenantId
+  const tenantId = requestedTenantId.value
+  if (tenantId === null) {
+    message.warning('还没选定客户：这条客户记录要记在谁名下？先在右上角选一家客户')
+    return
+  }
 
   try {
     if (editingCustomer.value) {
@@ -503,6 +545,10 @@ onMounted(() => {
 <style scoped lang="less">
 .customer-manage-page {
   width: 100%;
+}
+
+.scope-alert {
+  margin-bottom: 12px;
 }
 
 .stat-card {

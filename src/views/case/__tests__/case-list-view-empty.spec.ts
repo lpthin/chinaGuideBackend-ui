@@ -46,9 +46,9 @@ vi.mock('../../../api/case', () => ({
 
 vi.mock('../../../stores/auth', () => ({
   useAuthStore: () => ({
-    selectedTenantId: null,
-    tenantId: null,
-    user: { id: 1 },
+    selectedTenantId: 1,
+    tenantId: 1,
+    user: { id: 1, tenantId: 1 },
     isSuperAdmin: true,
     hasPermission: () => true
   })
