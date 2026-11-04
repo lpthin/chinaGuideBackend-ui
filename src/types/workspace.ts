@@ -331,6 +331,8 @@ export interface WorkflowSettings {
 export interface AlertRule {
   id: number
   tenantId: number
+  /** 归属的人话名字，后端读路径拼出来的：认不出来（含已注销）的号念「未知客户 #号」 */
+  tenantLabel?: string
   name: string
   triggerType: 'api_error' | 'exception' | 'ai_model_unreachable' | 'ai_model_missing' | 'custom'
   triggerCondition: string | null
@@ -415,6 +417,8 @@ export interface AlertRecordStats {
 export interface AlertChannelConfig {
   id: number
   tenantId: number
+  /** 归属的人话名字，后端读路径拼出来的：认不出来（含已注销）的号念「未知客户 #号」 */
+  tenantLabel?: string
   channelType: 'webhook' | 'sms' | 'email'
   name: string
   config: Record<string, any>

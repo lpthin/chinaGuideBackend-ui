@@ -50,6 +50,8 @@ export interface TemplateVariable {
 export interface Article {
   id: number
   tenantId: number
+  /** tenant_id 念成人话：平台档（没选客户）也能看出这一篇属哪家 */
+  tenantName?: string
   categoryId: number
   categoryName?: string
   templateId?: number | null

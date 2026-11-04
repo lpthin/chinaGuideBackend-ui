@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { Button, Input, InputNumber, RadioGroup, RadioButton, Switch, message } from 'ant-design-vue'
 import DailyOutputView from '../DailyOutputView.vue'
 import { dailyOutputApi, type DailyOutputConfig, type DailyOutputRun } from '../../../api/dailyOutput'
@@ -28,10 +29,11 @@ vi.mock('../../../api/dailyOutput', () => ({
   dailyOutputApi: { config: vi.fn(), save: vi.fn(), runs: vi.fn() }
 }))
 
-const authState = {
+const authState = reactive({
   permissions: [] as string[],
-  selectedTenantId: null as number | null
-}
+  selectedTenantId: null as number | null,
+  isSuperAdmin: false
+})
 
 vi.mock('../../../stores/auth', () => ({
   useAuthStore: () => ({
@@ -41,7 +43,9 @@ vi.mock('../../../stores/auth', () => ({
     get selectedTenantId() {
       return authState.selectedTenantId
     },
-    isSuperAdmin: false,
+    get isSuperAdmin() {
+      return authState.isSuperAdmin
+    },
     hasPermission: (code: string) => authState.permissions.includes(code)
   })
 }))
@@ -102,16 +106,24 @@ function run(overrides: Partial<DailyOutputRun> = {}): DailyOutputRun {
   }
 }
 
+const mountedWrappers: any[] = []
+
 async function mountView(options: {
   permissions?: string[]
+  isSuperAdmin?: boolean
+  tenantId?: number | null
   cfg?: DailyOutputConfig | null
   configError?: string
   runs?: DailyOutputRun[]
   runsError?: string
+  configImpl?: () => Promise<any>
 } = {}) {
   authState.permissions = options.permissions ?? [VIEW, MANAGE]
-  authState.selectedTenantId = null
-  if (options.configError) {
+  authState.isSuperAdmin = options.isSuperAdmin ?? false
+  authState.selectedTenantId = options.tenantId ?? null
+  if (options.configImpl) {
+    vi.mocked(dailyOutputApi.config).mockImplementation(options.configImpl as any)
+  } else if (options.configError) {
     vi.mocked(dailyOutputApi.config).mockRejectedValue(new Error(options.configError))
   } else {
     vi.mocked(dailyOutputApi.config).mockResolvedValue((options.cfg ?? config()) as any)
@@ -144,6 +156,7 @@ async function mountView(options: {
     }
   })
   await flushPromises()
+  mountedWrappers.push(wrapper)
   return wrapper
 }
 
@@ -152,6 +165,8 @@ function byId(wrapper: any, selector: string): HTMLInputElement {
 }
 
 beforeEach(() => {
+  // 上一支的组件还挂在同一个响应式 authState 上，切客户会把它们一起叫起来：先卸掉，读数才只算本支
+  while (mountedWrappers.length) mountedWrappers.pop().unmount()
   document.body.innerHTML = ''
   vi.clearAllMocks()
 })
@@ -260,5 +275,67 @@ describe('改得动的那一半按权限码摆', () => {
     // 后端补齐过的值（例如 3:00 → 03:00）必须以接口那份为准，否则界面显示的和库里跑的不是同一个时刻
     expect(byId(wrapper, '#daily-output-run-time').value).toBe('02:00')
     expect(byId(wrapper, '#daily-output-daily-count').value).toBe('3')
+  })
+})
+
+/**
+ * 平台档（超管没选客户）：这一页按客户存，没有「这一家」就不发请求，
+ * 两处读数摆「—」，写口全灰，并说清先去选客户。
+ */
+describe('平台档（超管没选客户）', () => {
+  it('不发请求、不摆默认值：两处都念破折号，写口置灰', async () => {
+    const wrapper = await mountView({ isSuperAdmin: true })
+
+    expect(dailyOutputApi.config).not.toHaveBeenCalled()
+    expect(dailyOutputApi.runs).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('当前没有选定客户')
+    expect(wrapper.findAll('.platform-dash')).toHaveLength(2)
+    expect(wrapper.text()).not.toContain('还没有留痕')
+
+    const save = wrapper.find('#daily-output-save')
+    expect(save.element.getAttribute('disabled')).not.toBeNull()
+    await save.trigger('click')
+    await flushPromises()
+    expect(dailyOutputApi.save).not.toHaveBeenCalled()
+  })
+
+  it('选上客户之后才读这一家的，平台档留下的空形状撤掉', async () => {
+    const wrapper = await mountView({ isSuperAdmin: true })
+    expect(dailyOutputApi.config).not.toHaveBeenCalled()
+
+    authState.selectedTenantId = 15
+    await flushPromises()
+
+    expect(dailyOutputApi.config).toHaveBeenCalledTimes(1)
+    expect(dailyOutputApi.runs).toHaveBeenCalledTimes(1)
+    expect(byId(wrapper, '#daily-output-run-time').value).toBe('03:15')
+    expect(wrapper.findAll('.platform-dash')).toHaveLength(0)
+  })
+
+  it('切回平台档之后，上一家晚到的回包不许落回表单', async () => {
+    const deferred: { resolve: (value: any) => void } = { resolve: () => {} }
+    // 15 号家那一发先发出去，但不回来；平台档不再发新的读，所以这一发只能靠「换过客户」这一点拦住
+    const wrapper = await mountView({
+      isSuperAdmin: true,
+      tenantId: 15,
+      configImpl: () =>
+        new Promise((resolve) => {
+          deferred.resolve = resolve
+        })
+    })
+    expect(dailyOutputApi.config).toHaveBeenCalledTimes(1)
+    expect(wrapper.findAll('.platform-dash')).toHaveLength(0)
+
+    authState.selectedTenantId = null
+    await flushPromises()
+    expect(wrapper.findAll('.platform-dash')).toHaveLength(2)
+
+    deferred.resolve(config({ runTime: '05:45' }))
+    await flushPromises()
+
+    expect(wrapper.findAll('.platform-dash')).toHaveLength(2)
+    // 表单在平台档是渲着的（灰的），所以不能说「没有这一格」：要钉的是旧那一发没把 05:45 填进来
+    expect(byId(wrapper, '#daily-output-run-time').value).toBe('')
+    expect(wrapper.find('#daily-output-run-time').attributes('disabled')).not.toBeUndefined()
   })
 })

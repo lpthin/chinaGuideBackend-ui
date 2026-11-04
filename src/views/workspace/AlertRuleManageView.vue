@@ -5,6 +5,16 @@
         <h3>报警规则管理</h3>
       </template>
 
+      <!-- 超管没选客户时这一页是所有客户混着看：读没问题，但新建没有落脚的归属 -->
+      <a-alert
+        v-if="isPlatformMode"
+        type="info"
+        show-icon
+        message="当前没有选定客户，这一页是所有客户的规则混在一起"
+        description="新增规则要先在右上角选一家客户；编辑、删除、启停按表里那一行自己的归属执行，不受影响。"
+        style="margin-bottom: 16px"
+      />
+
       <!-- 统计卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -279,8 +289,15 @@ import type { AlertRule, AlertRuleForm } from '../../types/workspace'
 import { formatDateTime } from '../../utils/format'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
+import { useTenantReadGuard } from '../../utils/latestRead'
 
 const authStore = useAuthStore()
+
+const isPlatformMode = computed(() => authStore.isSuperAdmin && authStore.selectedTenantId === null)
+
+/** 切客户时只认最后一发：旧客户那几发晚到的回包不许落到界面上 */
+const tenantScope = computed(() => (authStore.isSuperAdmin ? authStore.selectedTenantId : authStore.tenantId))
+const latestRead = useTenantReadGuard(tenantScope)
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -346,6 +363,13 @@ const formRules = {
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
+  {
+    title: '归属',
+    dataIndex: 'tenantLabel',
+    key: 'tenantLabel',
+    width: 140,
+    customRender: ({ text }: { text: string }) => text || '-'
+  },
   { title: '规则名称', dataIndex: 'name', key: 'name', ellipsis: true },
   { title: '触发类型', key: 'triggerType', dataIndex: 'triggerType', width: 120 },
   { title: '严重级别', key: 'severity', dataIndex: 'severity', width: 100 },
@@ -421,7 +445,9 @@ const toRulePayload = (form: AlertRuleForm): Partial<AlertRule> => {
   }
 }
 
-const fetchRules = async () => {
+/** 回 true 表示这一发的结果仍然算数（没被切客户之后的请求顶掉） */
+const fetchRules = async (): Promise<boolean> => {
+  const ticket = latestRead.begin()
   loading.value = true
   emptyLine.value = ''
   emptyReason.value = null
@@ -450,6 +476,7 @@ const fetchRules = async () => {
     }
 
     const result = await alertApi.rules.list(params) as any
+    if (!latestRead.isCurrent(ticket)) return false
     ruleList.value = result.records || []
     pagination.total = result.total || 0
     emptyLine.value = result.emptyLine || ''
@@ -458,16 +485,22 @@ const fetchRules = async () => {
     // 判据要 current>1，所以回到第一页那一发不可能再触发它——最多多发一发，不会来回跳。
     if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current ?? 1)) {
       pagination.current = 1
-      await fetchRules()
-      message.info(JUMP_BACK_NOTICE)
+      const jumped = await fetchRules()
+      if (jumped) message.info(JUMP_BACK_NOTICE)
+      // 内层已经算过统计了；这一层不再拿旧数盖一遍
+      return jumped
     }
     // 统计按「现在表上摆的这几行」算，所以排在自动翻回去之后：翻过头那一发本来就没行。
     calculateStats(ruleList.value)
+    return true
   } catch (error) {
+    // 旧客户那一发晚到的失败也不许往新客户的屏上报错
+    if (!latestRead.isCurrent(ticket)) return false
     readFailed.value = describeHttpError(error)
     message.error(`获取报警规则失败：${readFailed.value}`)
+    return true
   } finally {
-    loading.value = false
+    if (latestRead.isCurrent(ticket)) loading.value = false
   }
 }
 
@@ -501,6 +534,11 @@ const handleTableChange = (pag: TablePaginationConfig) => {
 }
 
 const handleAdd = () => {
+  // 没选客户时后端会拒（新建没有落脚的归属），界面先在这儿说清楚，不让人白填一遍
+  if (isPlatformMode.value) {
+    message.warning('当前没有选定客户，新增规则没有归属：请先在右上角选一家客户')
+    return
+  }
   isEdit.value = false
   Object.assign(formData, {
     id: undefined,

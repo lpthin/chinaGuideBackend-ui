@@ -1,6 +1,15 @@
 <template>
   <div class="daily-output-page">
     <PageTitle />
+    <!-- 超管没选客户时这一页按客户配置的东西读不到、也存不进去：先说清楚，别让人对着空表单猜 -->
+    <a-alert
+      v-if="isPlatformMode"
+      class="lead-alert"
+      type="info"
+      show-icon
+      message="当前没有选定客户：每日自动产出是按客户单独配置的"
+      description="先在右上角选一家客户，这一页才会读出并允许修改那一家的配置与留痕；平台档这里不发业务请求。"
+    />
     <a-alert
       class="lead-alert"
       type="info"
@@ -10,6 +19,10 @@
     />
 
     <a-card title="每日自动产出" :bordered="false" :loading="loading">
+      <div v-if="isPlatformMode" class="platform-empty">
+        <span class="platform-dash">—</span>
+        <span class="platform-hint">还没选定客户，这一家的配置读不到。</span>
+      </div>
       <a-alert
         v-if="configError"
         type="error"
@@ -22,7 +35,7 @@
           <a-switch
             id="daily-output-enabled"
             :checked="form.enabled === 1"
-            :disabled="!canManage"
+            :disabled="!canManage || isPlatformMode"
             @update:checked="(v: boolean) => (form.enabled = v ? 1 : 0)"
           />
           <span class="field-hint">关掉之后不再每天排产，已经产出的稿子不受影响。</span>
@@ -32,7 +45,7 @@
           <a-input
             id="daily-output-run-time"
             v-model:value="form.runTime"
-            :disabled="!canManage"
+            :disabled="!canManage || isPlatformMode"
             style="width: 160px"
             placeholder="HH:mm"
           />
@@ -45,13 +58,13 @@
             v-model:value="form.dailyCount"
             :min="1"
             :max="20"
-            :disabled="!canManage"
+            :disabled="!canManage || isPlatformMode"
           />
           <span class="field-hint">1~20 篇。这是「排产」的篇数，实际成稿要看额度与选题池还剩多少。</span>
         </a-form-item>
 
         <a-form-item label="产出之后">
-          <a-radio-group id="daily-output-publish-mode" v-model:value="form.publishMode" :disabled="!canManage">
+          <a-radio-group id="daily-output-publish-mode" v-model:value="form.publishMode" :disabled="!canManage || isPlatformMode">
             <a-radio-button value="review">进人工审核队列</a-radio-button>
             <a-radio-button value="auto_publish">过质检后自动发布</a-radio-button>
           </a-radio-group>
@@ -59,12 +72,12 @@
 
         <a-form-item>
           <a-space>
-            <a-button :disabled="loading" @click="load">重新读取</a-button>
+            <a-button :disabled="loading || isPlatformMode" @click="load">重新读取</a-button>
             <a-button
               id="daily-output-save"
               type="primary"
               :loading="saving"
-              :disabled="!canManage"
+              :disabled="!canManage || isPlatformMode"
               @click="save"
             >保存配置</a-button>
           </a-space>
@@ -79,10 +92,14 @@
 
     <a-card title="最近留痕" :bordered="false">
       <template #extra>
-        <a-button size="small" :loading="runsLoading" @click="loadRuns">刷新</a-button>
+        <a-button size="small" :loading="runsLoading" :disabled="isPlatformMode" @click="loadRuns">刷新</a-button>
       </template>
+      <div v-if="isPlatformMode" class="platform-empty">
+        <span class="platform-dash">—</span>
+        <span class="platform-hint">还没选定客户，这一家的留痕读不到。</span>
+      </div>
       <a-alert
-        v-if="runsError"
+        v-else-if="runsError"
         type="error"
         show-icon
         message="留痕没读到"
@@ -124,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   dailyOutputApi,
@@ -133,6 +150,7 @@ import {
 } from '../../api/dailyOutput'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
+import { useTenantReadGuard } from '../../utils/latestRead'
 import PageTitle from '../../components/PageTitle.vue'
 
 /**
@@ -164,6 +182,11 @@ const lastEditedAt = ref<string | null>(null)
 
 const tenantId = computed(() => authStore.selectedTenantId ?? undefined)
 const canManage = computed(() => authStore.hasPermission(MANAGE_CODE))
+/** 超管没选客户：这一页按客户存的东西没有可读的那一家，读口不发请求、写口全灰 */
+const isPlatformMode = computed(() => authStore.isSuperAdmin && authStore.selectedTenantId === null)
+/** 切客户时只认最后一发：旧客户那几发晚到的回包不许落到界面上 */
+const tenantScope = computed(() => (authStore.isSuperAdmin ? authStore.selectedTenantId : authStore.tenantId))
+const latestRead = useTenantReadGuard(tenantScope)
 
 const runColumns = [
   { title: '日期', dataIndex: 'runDate', key: 'runDate', width: 120 },
@@ -203,28 +226,56 @@ function applyConfig(cfg: DailyOutputConfig) {
   lastEditedAt.value = cfg.updatedAt ?? null
 }
 
+/** 切到平台档或换一家时先把上一家的读数清掉，免得旧值和「还没读」混在一起 */
+function clearReadState() {
+  form.enabled = 0
+  form.runTime = ''
+  form.dailyCount = 5
+  form.publishMode = 'review'
+  lastEditedAt.value = null
+  runs.value = []
+  runsError.value = ''
+  configError.value = ''
+}
+
 async function load() {
+  if (isPlatformMode.value) {
+    clearReadState()
+    return
+  }
+  const ticket = latestRead.begin('config')
   loading.value = true
   try {
     const cfg = await dailyOutputApi.config(tenantId.value)
+    if (!latestRead.isCurrent(ticket)) return
     if (cfg) applyConfig(cfg)
     configError.value = ''
   } catch (error: any) {
+    if (!latestRead.isCurrent(ticket)) return
     // 读失败就老实地说读失败：表单不回填一套默认值，那形状读起来像「这一家已经存过了」
     configError.value = error?.message || '配置读取失败'
   } finally {
-    loading.value = false
+    if (latestRead.isCurrent(ticket)) loading.value = false
   }
 }
 
 async function save() {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
+  // 保存这一发不占「只认最后一发」的号（那会把正在读的同客户请求顶掉），只记住动手时是哪一家
+  const savingTenant = tenantScope.value
   saving.value = true
   try {
     const saved = await dailyOutputApi.save({ ...form }, tenantId.value)
+    // 中途换了客户：这一发的回包属于上一家，不能拿它盖住新客户的表单
+    if (tenantScope.value !== savingTenant) return
     if (saved) applyConfig(saved)
     message.success('配置已保存')
     await loadRuns()
   } catch (error: any) {
+    if (tenantScope.value !== savingTenant) return
     // 校验话术的出处在后端（那里也是自动链自己判同一套取值的地方），这里原样念，不抄第二份
     message.error(error?.message || '保存失败')
   } finally {
@@ -233,17 +284,24 @@ async function save() {
 }
 
 async function loadRuns() {
+  if (isPlatformMode.value) {
+    clearReadState()
+    return
+  }
+  const ticket = latestRead.begin('runs')
   runsLoading.value = true
   try {
     const data = await dailyOutputApi.runs(tenantId.value)
+    if (!latestRead.isCurrent(ticket)) return
     runs.value = Array.isArray(data) ? data : []
     runsError.value = ''
   } catch (error: any) {
+    if (!latestRead.isCurrent(ticket)) return
     // 这一张表最坏的形状是「读失败渲成一张空表」——空表读起来像「这一家一天都没跑过」
     runs.value = []
     runsError.value = error?.message || '留痕读取失败'
   } finally {
-    runsLoading.value = false
+    if (latestRead.isCurrent(ticket)) runsLoading.value = false
   }
 }
 
@@ -253,6 +311,15 @@ onMounted(() => {
   load()
   loadRuns()
 })
+
+watch(
+  () => authStore.selectedTenantId,
+  () => {
+    clearReadState()
+    load()
+    loadRuns()
+  }
+)
 </script>
 
 <style scoped lang="less">
@@ -307,5 +374,23 @@ onMounted(() => {
 .empty-runs {
   padding: 16px 0;
   color: #8c8c8c;
+}
+
+.platform-empty {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0 4px;
+  color: #8c8c8c;
+}
+
+.platform-dash {
+  font-size: 22px;
+  line-height: 1;
+  color: #bfbfbf;
+}
+
+.platform-hint {
+  font-size: 13px;
 }
 </style>

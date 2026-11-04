@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { h } from 'vue'
+import { h, reactive } from 'vue'
 import {
   Button,
   Form,
@@ -53,9 +53,9 @@ vi.mock('../../../api/workspace', () => ({
   }
 }))
 
-const authState = {
+const authState = reactive({
   selectedTenantId: null as number | null
-}
+})
 
 vi.mock('../../../stores/auth', () => ({
   useAuthStore: () => ({
@@ -155,9 +155,21 @@ const EMAIL_ROW = {
   updatedAt: '2026-10-08T00:57:11'
 } as unknown as AlertChannelConfig
 
-async function mountView(rows: AlertChannelConfig[] = [WEBHOOK_ROW, EMAIL_ROW]) {
-  authState.selectedTenantId = null
-  vi.mocked(alertApi.channels.list).mockResolvedValue({ records: rows, total: rows.length } as any)
+/** 挂过的界面在下一个用例前必须卸掉：它还挂着 watch，会跟着后一个用例的切客户一起发请求 */
+const mountedWrappers: any[] = []
+
+async function mountView(
+  rows: AlertChannelConfig[] = [WEBHOOK_ROW, EMAIL_ROW],
+  tenantId: number | null = 15,
+  listImpl?: (params: any) => Promise<any>
+) {
+  // 默认站进一家客户：新增要先有归属；平台档单独有两条用例
+  authState.selectedTenantId = tenantId
+  if (listImpl) {
+    vi.mocked(alertApi.channels.list).mockImplementation(listImpl as any)
+  } else {
+    vi.mocked(alertApi.channels.list).mockResolvedValue({ records: rows, total: rows.length } as any)
+  }
   vi.mocked(alertApi.channels.create).mockResolvedValue({ id: 9 } as any)
   vi.mocked(alertApi.channels.update).mockResolvedValue({ id: 1 } as any)
 
@@ -191,6 +203,7 @@ async function mountView(rows: AlertChannelConfig[] = [WEBHOOK_ROW, EMAIL_ROW]) 
       }
     }
   })
+  mountedWrappers.push(wrapper)
   await flushPromises()
   return wrapper
 }
@@ -223,6 +236,7 @@ const clickOk = async (wrapper: any) => {
 }
 
 beforeEach(() => {
+  while (mountedWrappers.length) mountedWrappers.pop().unmount()
   document.body.innerHTML = ''
   vi.clearAllMocks()
 })
@@ -318,5 +332,92 @@ describe('编辑渠道', () => {
     expect(inputValue(wrapper, 'input[placeholder="请输入Webhook地址"]')).toBe('')
     expect(buttonByText(wrapper, '确 定')).toBeTruthy()
     expect(wrapper.text()).not.toContain('地址与密钥读回来是掩码')
+  })
+})
+
+describe('切客户时只认最后一发', () => {
+  it('上一家晚到的回包不许盖掉这一家的行', async () => {
+    const deferred: { resolve: (value: any) => void } = { resolve: () => {} }
+    const listImpl = (params: any) => {
+      if (params.tenantId === 15) {
+        // 15 号家那一发先发出去，但不回来
+        return new Promise((resolve) => {
+          deferred.resolve = resolve
+        })
+      }
+      return Promise.resolve({
+        records: [{ ...WEBHOOK_ROW, id: 21, tenantId: 16, name: '十六号家的渠道' }],
+        total: 1
+      })
+    }
+
+    const wrapper = await mountView(undefined, 15, listImpl)
+    expect(alertApi.channels.list).toHaveBeenCalledTimes(1)
+
+    authState.selectedTenantId = 16
+    await flushPromises()
+    const table = wrapper.findComponent({ name: 'ATable' })
+    expect((table.props('dataSource') as any[])[0].id).toBe(21)
+
+    // 15 号家那一发此刻才回来
+    deferred.resolve({
+      records: [{ ...WEBHOOK_ROW, id: 1, tenantId: 15, name: '十五号家的渠道' }],
+      total: 1
+    })
+    await flushPromises()
+
+    expect((table.props('dataSource') as any[])[0].id).toBe(21)
+    expect(wrapper.text()).not.toContain('十五号家的渠道')
+  })
+
+  it('上一家晚到的失败也不往这一家的屏上报错', async () => {
+    const deferred: { reject: (reason: any) => void } = { reject: () => {} }
+    const listImpl = (params: any) => {
+      if (params.tenantId === 15) {
+        return new Promise((_resolve, reject) => {
+          deferred.reject = reject
+        })
+      }
+      return Promise.resolve({ records: [{ ...WEBHOOK_ROW, id: 21, tenantId: 16 }], total: 1 })
+    }
+
+    const wrapper = await mountView(undefined, 15, listImpl)
+
+    authState.selectedTenantId = 16
+    await flushPromises()
+    vi.mocked(message.error).mockClear()
+
+    deferred.reject(new Error('十五号家的接口挂了'))
+    await flushPromises()
+
+    expect(message.error).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('十五号家的接口挂了')
+  })
+})
+
+describe('平台档（超管没选客户）', () => {
+  const rowWithLabel = {
+    ...WEBHOOK_ROW,
+    tenantLabel: '演示客户甲'
+  } as unknown as AlertChannelConfig
+
+  it('这一页照读，摆出常驻说明与每一行的归属', async () => {
+    const wrapper = await mountView([rowWithLabel], null)
+
+    expect(wrapper.text()).toContain('当前没有选定客户')
+    const table = wrapper.findComponent({ name: 'ATable' })
+    expect(table.props('columns')).toContainEqual(
+      expect.objectContaining({ title: '归属', dataIndex: 'tenantLabel' })
+    )
+  })
+
+  it('新增先拦住：不弹窗、不发请求，并说清去哪儿选客户', async () => {
+    const wrapper = await mountView([rowWithLabel], null)
+
+    await openAdd(wrapper)
+
+    expect(message.warning).toHaveBeenCalledWith('当前没有选定客户，新增渠道没有归属：请先在右上角选一家客户')
+    expect(wrapper.findComponent({ name: 'AModal' }).props('open')).toBe(false)
+    expect(alertApi.channels.create).not.toHaveBeenCalled()
   })
 })

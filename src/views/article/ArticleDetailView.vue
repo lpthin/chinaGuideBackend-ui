@@ -1,5 +1,24 @@
 <template>
   <div class="article-detail-page">
+    <!-- 平台档能看这一篇、也能看出它属于哪家，但编辑/删除要落到某一家的账上：
+         没选客户时先摆说明、按钮置灰，别让人点了才被后端拒 -->
+    <!-- 读失败排在第一位：哪种档位下都要先把「没读到」说出来，不能被「只读」那条盖住 -->
+    <a-alert
+      v-if="loadFailure"
+      type="warning"
+      show-icon
+      class="article-detail-page__notice"
+      :message="`这一篇没读到：${loadFailure}`"
+      description="读不到不等于「文章已被删除」；恢复后请重新打开本页。"
+    />
+    <a-alert
+      v-else-if="isPlatformMode"
+      type="info"
+      show-icon
+      class="article-detail-page__notice"
+      message="当前没有选定客户，这一屏只读"
+      description="可以看这一篇属于哪家客户；要编辑或删除，请先在右上角选那一家客户。"
+    />
     <a-spin :spinning="loading">
       <a-page-header
         :title="article?.title"
@@ -10,7 +29,7 @@
             <a-button @click="copyLink">
               <ShareAltOutlined /> 复制本页链接
             </a-button>
-            <a-button type="primary" @click="goToEdit">编辑</a-button>
+            <a-button type="primary" :disabled="!canWrite" @click="goToEdit">编辑</a-button>
           </a-space>
         </template>
       </a-page-header>
@@ -20,6 +39,7 @@
           <a-card :bordered="false" v-if="article">
             <div class="article-meta">
               <a-space>
+                <a-tag v-if="article.tenantName" color="purple">归属客户：{{ article.tenantName }}</a-tag>
                 <a-tag v-if="categoryName" color="blue">{{ categoryName }}</a-tag>
                 <span v-else class="category-empty">分类未设置</span>
                 <span><UserOutlined /> {{ article.source || '未填写来源' }}</span>
@@ -47,7 +67,9 @@
           </a-card>
 
           <a-card v-else :bordered="false">
-            <a-empty description="文章不存在或已被删除" />
+            <!-- 读失败与「真的不存在」分开念：读不到时不许说成后者 -->
+            <a-empty v-if="loadFailure" description="这一篇没读到，不代表文章已被删除" />
+            <a-empty v-else description="文章不存在或已被删除" />
           </a-card>
 
           <!-- Spec-K Q-P3 定稿 (a)：译稿在后台看得见、改得动（改造前只有 /versions 那条口读得到，界面上一个字都没有） -->
@@ -152,17 +174,21 @@
 
           <a-card title="操作" style="margin-top: 16px" :bordered="false" v-if="article">
             <a-space direction="vertical" style="width: 100%">
-              <a-button type="primary" block @click="goToEdit">
+              <a-button type="primary" block :disabled="!canWrite" @click="goToEdit">
                 <EditOutlined /> 编辑文章
               </a-button>
               <a-popconfirm
                 title="确定要删除这篇文章吗？"
+                :disabled="!canWrite"
                 @confirm="handleDelete"
               >
-                <a-button type="primary" danger block>
+                <a-button type="primary" danger block :disabled="!canWrite">
                   <DeleteOutlined /> 删除文章
                 </a-button>
               </a-popconfirm>
+              <div v-if="!canWrite" class="write-blocked-note">
+                {{ isPlatformMode ? '当前没有选定客户，编辑/删除先选一家客户' : '这一篇没读到，先别改也别删' }}
+              </div>
             </a-space>
           </a-card>
         </a-col>
@@ -187,12 +213,20 @@ import { articleManageApi } from '../../api/article'
 import { describeHttpError } from '../../api/http'
 import { formatTime } from '../../utils/format'
 import type { Article, ArticleKnowledgeSource, ArticleLocaleEdit, ArticleLocaleVersion } from '../../types/article'
+import { useAuthStore } from '../../stores/auth'
 import { marked } from 'marked'
 
 const router = useRouter()
 const route = useRoute()
+const auth = useAuthStore()
 const loading = ref(false)
 const article = ref<Article | null>(null)
+/** 读失败与「真的不存在」是两件事：前者不许念成后者，也不许给可点的写按钮 */
+const loadFailure = ref('')
+
+/** 超管没选客户＝平台档：能看、能知道归属，但写动作要落到某一家的账上 */
+const isPlatformMode = computed(() => auth.isSuperAdmin && auth.selectedTenantId === null)
+const canWrite = computed(() => !isPlatformMode.value && !loadFailure.value && article.value !== null)
 const versions = ref<ArticleLocaleVersion[]>([])
 const knowledgeSources = ref<ArticleKnowledgeSource[]>([])
 /** 读失败与「真的没有留痕」是两件事：失败了不许念成后者 */
@@ -234,9 +268,15 @@ function goBack() {
 }
 
 function goToEdit() {
-  if (article.value) {
-    router.push({ name: 'workspace-article-edit', params: { id: article.value.id } })
+  if (isPlatformMode.value) {
+    message.warning('当前没有选定客户，这一发没发出去（没有打开编辑）。请在右上角选一家客户。')
+    return
   }
+  if (!article.value || loadFailure.value) {
+    message.warning('这一篇没读到，编辑打不开；请恢复后重新打开本页。')
+    return
+  }
+  router.push({ name: 'workspace-article-edit', params: { id: article.value.id } })
 }
 
 function goToDetail(id: number) {
@@ -270,7 +310,14 @@ async function loadRelated(current: Article) {
 }
 
 async function handleDelete() {
-  if (!article.value) return
+  if (isPlatformMode.value) {
+    message.warning('当前没有选定客户，这一发没发出去（没有删除）。请在右上角选一家客户。')
+    return
+  }
+  if (!article.value || loadFailure.value) {
+    message.warning('这一篇没读到，删除没有执行；请恢复后重新打开本页。')
+    return
+  }
   try {
     await articleManageApi.delete(article.value.id)
     message.success('删除成功')
@@ -343,6 +390,7 @@ async function loadArticle() {
   }
 
   loading.value = true
+  loadFailure.value = ''
   try {
     const data = await articleManageApi.get(Number(id))
     article.value = data as Article
@@ -350,7 +398,9 @@ async function loadArticle() {
     loadVersions(Number(id))
     loadKnowledgeSources(Number(id))
   } catch (error) {
-    message.error(`加载文章详情失败：${describeHttpError(error)}`)
+    article.value = null
+    loadFailure.value = describeHttpError(error)
+    message.error(`加载文章详情失败：${loadFailure.value}`)
   } finally {
     loading.value = false
   }
@@ -364,6 +414,16 @@ onMounted(() => {
 <style scoped lang="less">
 .article-detail-page {
   width: 100%;
+
+  &__notice {
+    margin-bottom: 12px;
+  }
+
+  .write-blocked-note {
+    font-size: 12px;
+    color: #8c8c8c;
+    line-height: 1.6;
+  }
 }
 
 .locale-block {

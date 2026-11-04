@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { h } from 'vue'
 import AlertRuleManageView from '../AlertRuleManageView.vue'
 import { alertApi } from '../../../api/workspace'
+import { message } from 'ant-design-vue'
 
 /**
  * 报警规则屏的四张统计卡（M-P104）：每页只回 10 行，
@@ -86,6 +87,15 @@ const TABLE_STUB = {
   }
 }
 
+const MODAL_STUB = {
+  name: 'AModal',
+  props: {
+    open: { type: Boolean, default: false },
+    title: { type: String, default: '' }
+  },
+  template: '<div class="amodal-stub" :data-open="String(open)"><slot /></div>'
+}
+
 const ROWS = [
   { id: 1, name: '严重且启用', triggerType: 'api_error', severity: 'critical', channels: 'in_app', receivers: '', isActive: 1, createdAt: '2026-10-20T00:00:00' },
   { id: 2, name: '中危且停用', triggerType: 'exception', severity: 'medium', channels: 'in_app', receivers: '', isActive: 0, createdAt: '2026-10-20T00:00:00' },
@@ -110,10 +120,15 @@ async function mountView(records: any[], total: number) {
         'a-space': PASS_THROUGH('ASpace'),
         'a-form': PASS_THROUGH('AForm'),
         'a-form-item': PASS_THROUGH('AFormItem'),
-        'a-modal': PASS_THROUGH('AModal'),
+        'a-modal': MODAL_STUB,
         'a-popconfirm': PASS_THROUGH('APopconfirm'),
         'a-switch': PASS_THROUGH('ASwitch'),
         'a-tag': { name: 'ATag', template: '<span class="tag-stub"><slot /></span>' },
+        'a-alert': {
+          name: 'AAlert',
+          props: ['message', 'description', 'type', 'showIcon'],
+          template: '<div class="alert-stub">{{ message }} {{ description }}</div>'
+        },
         'a-select': PASS_THROUGH('ASelect'),
         'a-select-option': { name: 'ASelectOption', props: ['value'], template: '<option :value="value"><slot /></option>' },
         'a-input': FIELD_STUB('AInput'),
@@ -174,5 +189,45 @@ describe('AlertRuleManageView 的四张统计卡', () => {
       本页高危: '0',
       本页中危: '0'
     })
+  })
+})
+
+/**
+ * 平台档（超管没选客户）：这一页读得没问题，是所有客户的规则混在一起；
+ * 但「新增」没有落脚的归属，后端会拒，界面得先拦住并说清去哪儿选客户。
+ */
+describe('平台档（超管没选客户）', () => {
+  const PLATFORM_ROWS = [
+    { ...ROWS[0], tenantLabel: '演示客户甲' },
+    { ...ROWS[1], tenantLabel: '未知客户 #2' }
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('这一页照读，摆出常驻说明与每一行的归属', async () => {
+    const wrapper = await mountView(PLATFORM_ROWS, 2)
+
+    expect(wrapper.text()).toContain('当前没有选定客户')
+    expect(wrapper.text()).toContain('新增规则要先在右上角选一家客户')
+    expect(wrapper.findComponent({ name: 'ATable' }).props('columns')).toContainEqual(
+      expect.objectContaining({ title: '归属', dataIndex: 'tenantLabel' })
+    )
+  })
+
+  it('点新增先拦住：不弹窗、不发请求，并说清去哪儿选客户', async () => {
+    const wrapper = await mountView(PLATFORM_ROWS, 2)
+
+    const addButton = wrapper
+      .findAll('button')
+      .find((node: any) => node.text().replace(/\s/g, '').includes('新增规则'))
+    expect(addButton).toBeTruthy()
+    await addButton!.trigger('click')
+    await flushPromises()
+
+    expect(message.warning).toHaveBeenCalledWith('当前没有选定客户，新增规则没有归属：请先在右上角选一家客户')
+    expect(wrapper.find('.amodal-stub').attributes('data-open')).toBe('false')
+    expect(alertApi.rules.create).not.toHaveBeenCalled()
   })
 })

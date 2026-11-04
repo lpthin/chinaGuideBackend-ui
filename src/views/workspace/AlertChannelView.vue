@@ -5,6 +5,16 @@
         <h3>通知渠道配置</h3>
       </template>
 
+      <!-- 超管没选客户时这一页是所有客户混着看：读没问题，但新建没有落脚的归属 -->
+      <a-alert
+        v-if="isPlatformMode"
+        type="info"
+        show-icon
+        message="当前没有选定客户，这一页是所有客户的渠道混在一起"
+        description="新增渠道要先在右上角选一家客户；编辑、设为默认、删除按表里那一行自己的归属执行，不受影响。"
+        style="margin-bottom: 16px"
+      />
+
       <!-- 「新增渠道」原来孤零零靠左、右边空着；动作改走 FilterBar 的 #actions 槽贴右 -->
       <filter-bar>
         <template #actions>
@@ -273,8 +283,15 @@ import { useAuthStore } from '../../stores/auth'
 import type { AlertChannelConfig } from '../../types/workspace'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
+import { useTenantReadGuard } from '../../utils/latestRead'
 
 const authStore = useAuthStore()
+
+const isPlatformMode = computed(() => authStore.isSuperAdmin && authStore.selectedTenantId === null)
+
+/** 切客户时只认最后一发：旧客户那几发晚到的回包不许落到界面上 */
+const tenantScope = computed(() => (authStore.isSuperAdmin ? authStore.selectedTenantId : authStore.tenantId))
+const latestRead = useTenantReadGuard(tenantScope)
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -352,6 +369,13 @@ const formRules = {
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },
+  {
+    title: '归属',
+    dataIndex: 'tenantLabel',
+    key: 'tenantLabel',
+    width: 140,
+    customRender: ({ text }: { text: string }) => text || '-'
+  },
   { title: '渠道名称', dataIndex: 'name', key: 'name', ellipsis: true },
   { title: '渠道类型', key: 'channelType', dataIndex: 'channelType', width: 120 },
   { title: '是否默认', key: 'isDefault', dataIndex: 'isDefault', width: 100 },
@@ -373,7 +397,9 @@ const getChannelTypeColor = (type: string) => {
   return channelTypeMap[type]?.color || 'default'
 }
 
-const fetchChannels = async () => {
+/** 回 true 表示这一发的结果仍然算数（没被切客户之后的请求顶掉） */
+const fetchChannels = async (): Promise<boolean> => {
+  const ticket = latestRead.begin()
   loading.value = true
   emptyLine.value = ''
   emptyReason.value = null
@@ -389,6 +415,7 @@ const fetchChannels = async () => {
     }
 
     const result = await alertApi.channels.list(params) as any
+    if (!latestRead.isCurrent(ticket)) return false
     channelList.value = result.records || []
     pagination.total = result.total || 0
     emptyLine.value = result.emptyLine || ''
@@ -397,14 +424,19 @@ const fetchChannels = async () => {
     // 判据要 current>1，所以回到第一页那一发不可能再触发它——最多多发一发，不会来回跳。
     if (shouldJumpBackToFirstPage(emptyReason.value, pagination.current ?? 1)) {
       pagination.current = 1
-      await fetchChannels()
-      message.info(JUMP_BACK_NOTICE)
+      const jumped = await fetchChannels()
+      if (jumped) message.info(JUMP_BACK_NOTICE)
+      return jumped
     }
+    return true
   } catch (error) {
+    // 旧客户那一发晚到的失败也不许往新客户的屏上报错
+    if (!latestRead.isCurrent(ticket)) return false
     readFailed.value = describeHttpError(error)
     message.error(`获取通知渠道失败：${readFailed.value}`)
+    return true
   } finally {
-    loading.value = false
+    if (latestRead.isCurrent(ticket)) loading.value = false
   }
 }
 
@@ -420,6 +452,11 @@ const handleChannelTypeChange = () => {
 }
 
 const handleAdd = () => {
+  // 没选客户时后端会拒（新建没有落脚的归属），界面先在这儿说清楚，不让人白填一遍
+  if (isPlatformMode.value) {
+    message.warning('当前没有选定客户，新增渠道没有归属：请先在右上角选一家客户')
+    return
+  }
   isEdit.value = false
   Object.assign(formData, {
     name: '',
