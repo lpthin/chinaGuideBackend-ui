@@ -114,3 +114,41 @@ describe('超管没选客户时这一屏一口不发', () => {
     }
   })
 })
+
+describe('选了一家客户但卡片读不出来时，写按钮不给点、屏上留一句', () => {
+  it('后端拒绝（别家的卡）：常驻说明写明可能是别家或已删除，编辑/删除都是灰的', async () => {
+    setAuth({ superAdmin: true, selectedTenantId: 558 })
+    ;(knowledgeCardApi.get as any).mockRejectedValue({
+      response: { data: { message: '无权限操作该知识卡片' } },
+    })
+    const wrapper = await mountView()
+
+    expect(knowledgeCardApi.get).toHaveBeenCalledWith(5)
+    expect(knowledgeCardApi.list).not.toHaveBeenCalled()
+    const alert = wrapper.find('.alert-stub')
+    expect(alert.exists()).toBe(true)
+    expect(alert.text()).toContain('无权限操作该知识卡片')
+    expect(alert.text()).toContain('可能不属于当前选中的客户')
+    expect(alert.text()).toContain('可能已经被删除')
+
+    for (const text of ['编辑', '删除']) {
+      const buttons = buttonsByText(wrapper, text)
+      expect(buttons.length, `要有「${text}」按钮`).toBeGreaterThan(0)
+      for (const button of buttons) {
+        expect(button.attributes('disabled'), `${text}按钮要置灰`).toBeDefined()
+      }
+    }
+  })
+
+  it('卡片读出来了：没有那条说明，编辑/删除可以点', async () => {
+    setAuth({ superAdmin: true, selectedTenantId: 15 })
+    const wrapper = await mountView()
+
+    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    for (const text of ['编辑', '删除']) {
+      for (const button of buttonsByText(wrapper, text)) {
+        expect(button.attributes('disabled'), `${text}按钮不该灰`).toBeUndefined()
+      }
+    }
+  })
+})

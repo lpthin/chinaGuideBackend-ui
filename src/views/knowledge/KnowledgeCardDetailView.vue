@@ -1,6 +1,13 @@
 <template>
   <div class="knowledge-card-detail-page">
     <a-alert v-if="requestedTenantId === null" class="scope-alert" type="info" show-icon :message="scopeNotice" />
+    <a-alert
+      v-else-if="loadFailure"
+      class="scope-alert"
+      type="warning"
+      show-icon
+      :message="loadFailureNotice"
+    />
     <a-spin :spinning="loading">
       <a-page-header
         :title="card?.title"
@@ -9,7 +16,7 @@
         <template #extra>
           <a-space>
             <a-button @click="goBack">返回</a-button>
-            <a-button type="primary" :disabled="requestedTenantId === null" @click="goToEdit">编辑</a-button>
+            <a-button type="primary" :disabled="!canWrite" @click="goToEdit">编辑</a-button>
           </a-space>
         </template>
       </a-page-header>
@@ -50,10 +57,10 @@
 
           <a-card title="操作" style="margin-top: 16px" :bordered="false">
             <a-space direction="vertical" style="width: 100%">
-              <a-button block @click="goToEdit" :disabled="requestedTenantId === null">
+              <a-button block @click="goToEdit" :disabled="!canWrite">
                 <EditOutlined /> 编辑
               </a-button>
-              <a-button block danger @click="handleDelete" :disabled="requestedTenantId === null">
+              <a-button block danger @click="handleDelete" :disabled="!canWrite">
                 <DeleteOutlined /> 删除
               </a-button>
             </a-space>
@@ -102,6 +109,14 @@ const scopeNotice = computed(() => {
 const loading = ref(false)
 const card = ref<KnowledgeCard | null>(null)
 const relatedCards = ref<KnowledgeCard[]>([])
+const loadFailure = ref('')
+
+/** 读不出来就不摆可点的写按钮：编辑/删除的对象都还没取到，点了只会再被后端拒一次 */
+const canWrite = computed(() => requestedTenantId.value !== null && card.value !== null)
+const loadFailureNotice = computed(() =>
+  `这张卡片打不开：${loadFailure.value}。它可能不属于当前选中的客户，也可能已经被删除。`
+  + '请换一家客户，或回到知识卡片列表重新选择。'
+)
 
 const cardId = computed(() => Number(route.params.id))
 
@@ -154,15 +169,18 @@ async function handleDelete() {
 async function loadCard() {
   if (requestedTenantId.value === null) {
     card.value = null
+    loadFailure.value = ''
     return
   }
   loading.value = true
+  loadFailure.value = ''
   try {
     const result = await knowledgeCardApi.get(cardId.value)
     card.value = result
   } catch (error) {
     message.error(`加载卡片详情失败：${describeHttpError(error)}`)
     card.value = null
+    loadFailure.value = describeHttpError(error)
   } finally {
     loading.value = false
   }
