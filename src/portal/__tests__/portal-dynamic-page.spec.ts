@@ -225,6 +225,8 @@ describe('PortalDynamicPage 区块渲染', () => {
     expect(api.page).toHaveBeenCalledTimes(1)
     expect(wrapper.find('.review-toolbar').exists()).toBe(true)
     expect(wrapper.find('.portal-dynamic-page__notice').exists()).toBe(false)
+    // 能提工单的预览才套圈选壳（区块外那圈虚线）：它是「你可以圈它」的信号
+    expect(wrapper.find('.portal-review-target').exists()).toBe(true)
   })
 
   /**
@@ -252,6 +254,8 @@ describe('PortalDynamicPage 区块渲染', () => {
     expect(notice.exists(), '只读预览该给出那句「不能在这里提交修改意见」').toBe(true)
     expect(notice.text()).toContain('它不能在这里提交修改意见')
     expect(wrapper.find('.review-toolbar').exists()).toBe(false)
+    // 整站预览没有写口，圈选壳（区块外那圈虚线）不许出现：虚线框会让客户以为每个区块都出了问题
+    expect(wrapper.find('.portal-review-target').exists()).toBe(false)
   })
 
   /**

@@ -16,12 +16,14 @@
         本页有 {{ page.skippedBlocks.length }} 个区块当前不可显示，需要在「页面搭建」里替换掉
       </p>
       <!-- 渲染逻辑在 PortalViewportPreview 里和搭建器、AI 草稿比对视图共用：
-           分两套写的话，「搭建器里看到的」和「客户在预览链接里看到的」迟早会不一致。 -->
+           分两套写的话，「搭建器里看到的」和「客户在预览链接里看到的」迟早会不一致。
+           圈选壳（区块外那圈虚线）只在真能圈选时套：整站预览没有写口，虚线框只会让客户
+           以为每个区块都出了问题，而不表示「你可以圈它」。 -->
       <PortalViewportPreview
         :blocks="page.blocks"
         :theme="page.theme"
         :shell="shell"
-        :review="reviewActive"
+        :review="canComment"
         :page-path="page.path"
       />
       <component :is="ReviewToolbar" v-if="canComment" />
