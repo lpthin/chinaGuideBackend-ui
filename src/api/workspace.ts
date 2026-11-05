@@ -490,6 +490,14 @@ export const adminApi = {
       http.post<any>('/admin/sites', data),
     update: (id: number, data: any) =>
       http.put<any>(`/admin/sites/${id}`, data),
+    domainCheck: (id: number, domain: string) =>
+      http.get<{
+        status: 'OK' | 'NOT_MATCHED' | 'INVALID' | 'ROOT_NOT_CONFIGURED' | 'ERROR'
+        message: string
+        domainIps: string[]
+        platformIps: string[]
+        platformRoot: string
+      }>(`/admin/sites/${id}/domain-check`, { params: { domain } }),
   },
 
   // 角色管理

@@ -12,6 +12,7 @@ import { formatDateTime } from '@/utils/format'
 import type { Site } from '../../types'
 import type { Tenant } from '../../types/workspace'
 import PageTitle from '../../components/PageTitle.vue'
+import SiteDomainWizard from '../../components/SiteDomainWizard.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -374,6 +375,20 @@ async function load() {
   }
 }
 
+// 域名绑定向导（Spec「上线交付收尾三件事」§2）：指引 → 检测 → 绑定，绑定成功后刷新列表
+const wizardOpen = ref(false)
+const wizardSite = ref<Site | null>(null)
+
+function openDomainWizard(site: Site) {
+  wizardSite.value = site
+  wizardOpen.value = true
+}
+
+async function onWizardSaved() {
+  await load()
+  await siteStore.loadSites()
+}
+
 async function save() {
   if (!form.code.trim() || !form.name.trim()) {
     message.warning('请填写站点编码和名称')
@@ -568,6 +583,9 @@ onMounted(() => {
           >
             <a-button type="link" size="small">放回已停用</a-button>
           </a-popconfirm>
+          <a-button v-if="record.id" type="link" size="small" @click="openDomainWizard(record)">
+            绑定域名
+          </a-button>
           <a-button v-if="record.id" type="link" size="small" @click="resetForm(record); modalVisible = true">
             编辑
           </a-button>
@@ -579,6 +597,8 @@ onMounted(() => {
         <a-empty :description="emptyText" />
       </template>
     </a-table>
+
+    <SiteDomainWizard v-model:open="wizardOpen" :site="wizardSite" @saved="onWizardSaved" />
 
     <a-modal
       v-model:open="modalVisible"
