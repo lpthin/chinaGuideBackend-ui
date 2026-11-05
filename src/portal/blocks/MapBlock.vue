@@ -5,14 +5,10 @@
         <h2 class="pb-section-title">{{ heading }}</h2>
       </div>
       <div class="pb-map">
-        <!-- 静态示意块：门户是免鉴权公开页，这里不引任何第三方地图 SDK、不写 key、不发网络请求。
+        <!-- 门户是免鉴权公开页：这里不引任何第三方地图 SDK、不写 key、不发地图网络请求。
+             左栏摆的是租户自己的门店/公司照片，没传照片就落一张随组件打包的装饰图；
              真正的「看地图」交给点出去的那条外链（uri.amap.com 是公开 https 端点，外链规则由 linkPolicy 把关）。 -->
-        <div class="pb-map__canvas" aria-hidden="true">
-          <svg class="pb-map__pin" viewBox="0 0 24 24" width="34" height="34" focusable="false">
-            <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7zm0 9.5A2.5 2.5 0 1 0 12 6.5a2.5 2.5 0 0 0 0 5z" fill="currentColor" />
-          </svg>
-          <span class="pb-map__canvas-note">{{ canvasNote }}</span>
-        </div>
+        <img class="pb-map__visual" :src="visualSrc" :alt="visualAlt" loading="lazy" />
         <ul class="pb-map__list">
           <li v-for="(entry, index) in entries" :key="index" class="pb-map__item">
             <p v-if="entry.companyAddress" class="pb-map__kind">公司上门地址</p>
@@ -29,20 +25,21 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import mapFallbackImage from '@/portal/assets/map-fallback.jpg'
 import type { BlockContext, Item } from './types'
 import { field, flag, list, text } from './types'
 import PortalBlockLink from './PortalBlockLink.vue'
 
 /**
- * 门店区块（数据源 stores：{name,address,latitude,longitude,phone,companyAddress}）。
+ * 门店区块（数据源 stores：{name,address,latitude,longitude,phone,coverImage,companyAddress}）。
  *
- * 经纬度只是「能不能落点」的判据，不是显示内容：缺经纬度的门店照样把地址与电话摆出来，
- * 此时跳转退化成按地址搜索；名称、地址、电话全空的条目丢掉，不留空条目。
+ * 左栏是照片不是地图：租户传了门店照片就放照片，没传就落随组件打包的装饰图（2026-11-05 拍板，
+ * 假地图示意块看着像出了问题，撤掉）。经纬度只是「能不能落点」的判据，不是显示内容：
+ * 缺经纬度的门店照样把地址与电话摆出来，此时跳转退化成按地址搜索；名称、地址、电话全空的条目丢掉。
  * 电话是纯文本而不是 tel: 链接——linkPolicy 只放行 http(s)，在这里自造协议等于绕过统一出口。
  *
  * companyAddress 为真的那一条不是门店，是 store 表一行都没有时退回的公司地址（拍板 2026-09-27，
- * 判据在 PortalAggregationService.stores）。整屏都是这种点位时，示意块顶注跟着改口：
- * 页面上写着「门店」而摆的是公司联系方式，是要人白跑一趟的。
+ * 判据在 PortalAggregationService.stores），条目上会写「公司上门地址」而不是门店。
  */
 const props = defineProps<BlockContext>()
 
@@ -53,15 +50,18 @@ const entries = computed(() => list(props.blockProps, 'items')
     name: field(item, 'name'),
     address: field(item, 'address'),
     phone: field(item, 'phone'),
+    coverImage: field(item, 'coverImage'),
     companyAddress: flag(item, 'companyAddress'),
     mapUrl: mapUrlOf(item)
   }))
   .filter(entry => entry.name || entry.address || entry.phone))
 
-const canvasNote = computed(() =>
-  entries.value.length > 0 && entries.value.every(entry => entry.companyAddress)
-    ? '上门地址示意'
-    : '门店位置示意')
+const visualSrc = computed(() => entries.value.find(entry => entry.coverImage)?.coverImage || mapFallbackImage)
+
+const visualAlt = computed(() => {
+  const entry = entries.value.find(item => item.coverImage)
+  return entry ? `${entry.name || entry.address} 照片` : ''
+})
 
 /** 数值口径照后端 DTO（Double），但演示/人工录入可能给字符串，两头都认、认不出的当「没有坐标」 */
 function coordOf(item: Item, key: 'latitude' | 'longitude'): number | null {
@@ -96,22 +96,13 @@ function mapUrlOf(item: Item): string {
   gap: calc(28px * var(--portal-spacing-scale));
   align-items: start;
 
-  &__canvas {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
+  &__visual {
+    display: block;
+    width: 100%;
     min-height: 260px;
+    object-fit: cover;
     border-radius: 12px;
-    border: 1px dashed var(--portal-color-border);
     background: color-mix(in srgb, var(--portal-color-primary) 5%, var(--portal-color-bg));
-    color: var(--portal-color-primary);
-  }
-
-  &__canvas-note {
-    font-size: calc(13px * var(--portal-font-scale));
-    color: var(--portal-color-muted);
   }
 
   &__list {
@@ -172,7 +163,7 @@ function mapUrlOf(item: Item): string {
     gap: calc(20px * var(--portal-spacing-scale));
   }
 
-  .pb-map__canvas {
+  .pb-map__visual {
     min-height: 200px;
   }
 }
