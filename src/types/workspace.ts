@@ -354,7 +354,6 @@ export interface SiteSettings {
   logo?: string
   contactEmail?: string
   contactPhone?: string
-  icp?: string
   copyright?: string
 }
 

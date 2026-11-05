@@ -50,9 +50,6 @@
             <a-form-item label="联系电话" name="contactPhone">
               <a-input v-model:value="siteForm.contactPhone" placeholder="请输入联系电话" />
             </a-form-item>
-            <a-form-item label="备案号" name="icp">
-              <a-input v-model:value="siteForm.icp" placeholder="请输入ICP备案号" />
-            </a-form-item>
             <a-form-item label="版权信息" name="copyright">
               <a-input v-model:value="siteForm.copyright" placeholder="请输入版权信息" />
             </a-form-item>
@@ -261,7 +258,6 @@ const siteForm = reactive({
   logo: '',
   contactEmail: '',
   contactPhone: '',
-  icp: '',
   copyright: ''
 })
 
@@ -359,7 +355,6 @@ const fetchSettings = async () => {
     siteForm.logo = ''
     siteForm.contactEmail = ''
     siteForm.contactPhone = ''
-    siteForm.icp = ''
     siteForm.copyright = ''
     logoFileList.value = []
     aiForm.defaultModel = 'gpt-4'
@@ -395,7 +390,6 @@ const fetchSettings = async () => {
         : []
       siteForm.contactEmail = site.contactEmail || ''
       siteForm.contactPhone = site.contactPhone || ''
-      siteForm.icp = site.icp || ''
       siteForm.copyright = site.copyright || ''
     }
 
@@ -445,7 +439,6 @@ const saveSiteSettings = async () => {
       logo: siteForm.logo,
       contactEmail: siteForm.contactEmail,
       contactPhone: siteForm.contactPhone,
-      icp: siteForm.icp,
       copyright: siteForm.copyright
     }
 

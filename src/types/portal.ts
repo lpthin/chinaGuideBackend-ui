@@ -209,6 +209,7 @@ export interface CompanyInfo {
   logoUrl?: string
   faviconUrl?: string
   certificateUrls?: string
+  icpNumber?: string
   isDeleted?: number
   createTime?: string
   updateTime?: string
@@ -336,6 +337,7 @@ export interface CompanyInfoForm {
   logoUrl?: string
   faviconUrl?: string
   certificateUrls?: string
+  icpNumber?: string
 }
 
 // 分页结果

@@ -106,6 +106,11 @@
                     <a-input v-model:value="form.postalCode" placeholder="请输入邮政编码" />
                   </a-form-item>
                 </a-col>
+                <a-col :span="12">
+                  <a-form-item label="ICP备案号">
+                    <a-input v-model:value="form.icpNumber" placeholder="如 浙ICP备2026000001号" />
+                  </a-form-item>
+                </a-col>
               </a-row>
             </a-form>
           </a-card>
@@ -566,7 +571,8 @@ const defaultForm = (): CompanyInfoForm => ({
   github: '',
   logoUrl: '',
   faviconUrl: '',
-  certificateUrls: ''
+  certificateUrls: '',
+  icpNumber: ''
 })
 
 const form = reactive<CompanyInfoForm>(defaultForm())
