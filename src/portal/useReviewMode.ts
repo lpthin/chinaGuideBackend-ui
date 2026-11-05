@@ -22,6 +22,7 @@ import {
   type PortalReviewContext,
   type ReviewTicketPayload
 } from './api/portalPublic'
+import { forgetSiteCode } from './api/portalData'
 import { rememberSitePreviewToken } from './previewNavigation'
 
 /** 整站预览那条链接上的那句实话：只给后端事实支持得了的承诺 */
@@ -139,6 +140,11 @@ export function useReviewMode() {
       .then(result => {
         context.value = result ?? null
         rememberSitePreviewToken(sitePreview.value ? value : null)
+        // 站级预览激活成功就把 ?site= 的残留缓存清掉：门户公开请求每一条都会自动拼上它，
+        // 不清的话早先探查留下的旧站点代码会在令牌断掉的那一跳抢答「这是哪一站」（串台）
+        if (sitePreview.value) {
+          forgetSiteCode()
+        }
         // 整站预览走的是公开取数口，那一头的 RenderedPage 不带 reviewLabel；
         // 这一条链接叫什么名字只有令牌那一行知道，工具条上那句「正在看：xxx」靠它。
         if (context.value?.label) {

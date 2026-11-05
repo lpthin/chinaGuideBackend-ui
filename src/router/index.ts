@@ -3,7 +3,8 @@ import type { RouteComponent } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { message } from 'ant-design-vue'
 import { slugOfPath } from '../portal/portalPath'
-import { withSitePreviewToken } from '../portal/previewNavigation'
+import { isPortalPath, withSitePreviewToken } from '../portal/previewNavigation'
+import { useReviewMode } from '../portal/useReviewMode'
 
 // 🔐 主布局
 const WorkspaceView = () => import('../views/workspace/WorkspaceView.vue')
@@ -1171,6 +1172,15 @@ router.beforeEach((to) => {
     }
   }
   return true
+})
+
+// 离开门户（工作台/登录/客户选择页这些非门户路径）就整体退出预览态、把记住的令牌擦干净。
+// 这一刀不能放在页面组件的 onUnmounted 里：切页时新页先挂载、旧页后卸载（2026-11-05 现场实测），
+// 卸载钩子会把下一页刚激活的预览态连同记住的令牌一起抹掉——门户内部的去留由各页面自己看地址栏。
+router.afterEach((to) => {
+  if (!isPortalPath(to.path)) {
+    useReviewMode().deactivate()
+  }
 })
 
 export default router

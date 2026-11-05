@@ -170,6 +170,23 @@ describe('useReviewMode', () => {
     expect(withSitePreviewToken({ path: '/services', query: {} })).toBeUndefined()
   })
 
+  it('整站预览激活成功就清掉 ?site= 的残留缓存；逐页令牌不动它', async () => {
+    api.context.mockResolvedValue({ ...SITE_CONTEXT })
+    const mode = useReviewMode()
+
+    sessionStorage.setItem('portal.site', 'china-guide')
+    mode.activate('token-site')
+    await flushPromises()
+    // 残留不清理的话，公开请求每一条都会自动拼上这个旧站点代码，令牌断掉的那一跳就串台
+    expect(sessionStorage.getItem('portal.site')).toBeNull()
+
+    sessionStorage.setItem('portal.site', 'china-guide')
+    api.context.mockResolvedValue({ ...PAGE_CONTEXT })
+    mode.activate('token-page')
+    await flushPromises()
+    expect(sessionStorage.getItem('portal.site')).toBe('china-guide')
+  })
+
   it('提交只发后端白名单里的字段，绝不带 pageId', async () => {
     const mode = useReviewMode()
     vi.mocked(window).innerWidth = 1280

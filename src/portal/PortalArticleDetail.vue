@@ -6,6 +6,12 @@
       <router-link to="/">返回站点首页</router-link>
     </div>
     <article v-else-if="article" class="portal-article">
+      <!-- 与 PortalDynamicPage 同一句身份横幅：预览的人在详情页也不能失去「这是哪一套」的线索。
+           壳数据走同一条令牌，所以名字跟着内容一起变。 -->
+      <p v-if="reviewActive" class="portal-article__identity">
+        你现在看的是：{{ shell?.siteName || '（这一站没有站点名）' }}<template v-if="shell?.siteCode"> · 站码 {{ shell.siteCode }}</template>
+      </p>
+      <p v-if="reviewActive" class="portal-article__notice">{{ readonlyNotice }}</p>
       <header class="portal-article__header">
         <h1>{{ article.title }}</h1>
         <p v-if="article.summary" class="portal-article__summary">{{ article.summary }}</p>
@@ -61,6 +67,7 @@ import { fetchArticle, PortalApiError, type PortalArticleDetail } from './api/po
 import { isPreviewContext } from './blocks/types'
 import { renderMarkdown } from './portalMarkdown'
 import { formatDate } from '../utils/format'
+import { SITE_PREVIEW_NOTICE, reviewTokenOf, useReviewMode } from './useReviewMode'
 
 /**
  * 门户文章详情页。路由 /news/:idOrSlug 与 sitemap、llms.txt 里的链接同源（PortalUrls），
@@ -70,6 +77,14 @@ const route = useRoute()
 const article = ref<PortalArticleDetail | null>(null)
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
+
+// 预览态也要接：一是把地址栏里的令牌重新「记住」，路由守卫才能把后续每一跳的地址补上
+// （列表页卸载时会把记住的令牌清掉，详情页不接就是断链的第一现场）；二是横幅在详情页不缺席。
+const { activate, enabled: reviewEnabled, sitePreview } = useReviewMode()
+const reviewActive = computed(() => reviewEnabled.value && !!article.value)
+const readonlyNotice = computed(() => (sitePreview.value
+  ? SITE_PREVIEW_NOTICE
+  : '这条预览链接是只读的：页面上能翻，但修改意见不能在这里提交。'))
 
 /** 评论区要用同一个 key 去要评论：数字 id 与中文 slug 两条路后端都认（ReaderCommentService 判 \d+） */
 const idOrSlug = computed(() => String(route.params.idOrSlug || ''))
@@ -153,6 +168,11 @@ watch(() => route.params.idOrSlug, value => {
     load(String(value || ''))
   }
 })
+// 与 PortalDynamicPage 同一套口径：令牌只认地址栏，进来就激活、地址上没了就整体退出。
+// 离开门户的清场在路由层 afterEach（不能放在 onUnmounted：切页时新页先挂、旧页后卸，
+// 卸载钩子会把下一页刚激活的预览态一起抹掉——这正是断链的第一现场）。
+const reviewToken = computed(() => reviewTokenOf(route.query))
+watch(reviewToken, token => activate(token), { immediate: true })
 </script>
 
 <style scoped lang="less">
@@ -161,6 +181,27 @@ watch(() => route.params.idOrSlug, value => {
   border-radius: 8px;
   padding: 40px;
   color: #1f2937;
+
+  &__identity {
+    margin: 0 0 16px;
+    padding: 8px 16px;
+    background: rgba(22, 119, 255, 0.08);
+    border: 1px solid rgba(22, 119, 255, 0.25);
+    border-radius: 6px;
+    color: #0958d9;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  &__notice {
+    margin: 0 0 24px;
+    padding: 10px 14px;
+    border: 1px dashed #d9d9d9;
+    border-radius: 10px;
+    background: #fffef7;
+    font-size: 13px;
+    color: #4b5563;
+  }
 
   &__state {
     background: #fff;

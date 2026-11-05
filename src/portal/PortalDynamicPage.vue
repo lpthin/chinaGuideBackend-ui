@@ -36,7 +36,7 @@
 <script setup lang="ts">
 // 区块样式必须全局生效：入口收敛到 styles/portal-preview.less（原先是本文件一份无 scoped 的 @import 副本）
 import '@/styles/portal-preview.less'
-import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useHead } from '@vueuse/head'
 import {
@@ -157,9 +157,11 @@ async function load() {
   }
 }
 
-// 令牌只在地址栏活着：跳到没有令牌的地址就整体退出批注模式（授权范围是「这一页」，不跨页续期）
+// 令牌只在地址栏活着：地址上没有令牌就整体退出批注模式（授权范围是「这一页」，不跨页续期）。
+// 「离开门户」的清场不在这里做（onUnmounted）——切页时新页先挂载、旧页后卸载（2026-11-05 现场实测），
+// 卸载钩子会把下一页刚激活的预览态连同记住的令牌一起抹掉，详情页整条续链就是这么断的。
+// 清场挪到了路由层 afterEach：去了非门户路径才退出（router/index.ts）。
 watch(reviewToken, token => activate(token, page.value?.reviewLabel), { immediate: true })
-onUnmounted(() => activate(null, null))
 // 从导航在同类页面间跳转时（/about → /services 都是本组件）不会重新挂载，必须跟着 slug 或令牌变化重取
 watch([() => props.slug, reviewToken], load, { immediate: true })
 </script>
