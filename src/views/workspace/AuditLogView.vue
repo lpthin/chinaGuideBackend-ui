@@ -4,6 +4,12 @@
     <a-card :bordered="false">
       <!-- 筛选区 -->
       <a-form layout="inline" :model="filterForm" class="filter-form">
+        <a-form-item label="客户归属">
+          <a-select v-model:value="filterForm.tenantScope" style="width: 220px">
+            <a-select-option value="all">按右上角所选客户（没选则全部）</a-select-option>
+            <a-select-option value="unknown">只看归属未知</a-select-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="操作类型">
           <a-select
             v-model:value="filterForm.action"
@@ -87,6 +93,9 @@
         </a-col>
       </a-row>
 
+      <!-- 三格统计与下面这张表不一定是同一个范围，界面要说在哪一格不摆数 -->
+      <p v-if="statsRangeNotice" class="stats-note">{{ statsRangeNotice }}</p>
+
       <!-- 表格 -->
       <a-table
         :scroll="{ x: 'max-content' }"
@@ -117,6 +126,9 @@
             <a-tooltip :title="record.resource">
               {{ resourceMap[record.resource] || record.resource }}
             </a-tooltip>
+          </template>
+          <template v-if="column.key === 'tenantLabel'">
+            {{ record.tenantLabel || '-' }}
           </template>
           <template v-if="column.key === 'ipAddress'">
             <a-typography-text copyable>{{ record.ipAddress }}</a-typography-text>
@@ -164,7 +176,7 @@
         <a-descriptions-item label="错误信息">{{ currentLog.errorMessage || '-' }}</a-descriptions-item>
         <a-descriptions-item label="操作人">{{ currentLog.username }}</a-descriptions-item>
         <a-descriptions-item label="用户ID">{{ currentLog.userId }}</a-descriptions-item>
-        <a-descriptions-item label="客户编号">{{ currentLog.tenantId }}</a-descriptions-item>
+        <a-descriptions-item label="客户归属">{{ currentLog.tenantLabel || '-' }}<span v-if="currentLog.tenantId !== null && currentLog.tenantId !== undefined">（编号 {{ currentLog.tenantId }}）</span></a-descriptions-item>
         <a-descriptions-item label="IP地址">{{ currentLog.ipAddress }}</a-descriptions-item>
         <a-descriptions-item label="浏览器/设备">{{ currentLog.userAgent }}</a-descriptions-item>
         <a-descriptions-item label="操作时间">{{ formatDateTime(currentLog.createdAt) }}</a-descriptions-item>
@@ -188,7 +200,7 @@ import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
-import type { AuditLog, AuditLogStats } from '../../types/workspace'
+import type { AuditLog, AuditLogQuery, AuditLogStats } from '../../types/workspace'
 import { logError } from '../../utils/errorLog'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
@@ -208,15 +220,36 @@ const logList = ref<AuditLog[]>([])
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
 const readFailed = ref('')
+const statsReadFailed = ref('')
 
-// 三格统计是按「选中的这一家」算的；这一家读不到时它们只能是 0，所以摆「—」而不是把 0 念成结果
-const statsUnreadable = computed(() => emptyReason.value === 'NOT_VISIBLE')
+/** 「只看归属未知」那一档在后端只有一个名字：`tenantScope=unknown`。「按右上角所选客户」不发这一格。 */
+const UNKNOWN_SCOPE = 'unknown'
 
 const filterForm = reactive({
+  tenantScope: 'all' as 'all' | 'unknown',
   action: undefined as string | undefined,
   resource: undefined as string | undefined,
   username: '',
   dateRange: [] as string[]
+})
+
+// 三格统计只按右上角那一家的记录算；读不到、读失败，或筛的是「归属未知」时都摆「—」，不把 0 念成结果
+const statsUnreadable = computed(
+  () =>
+    emptyReason.value === 'NOT_VISIBLE' ||
+    filterForm.tenantScope === UNKNOWN_SCOPE ||
+    statsReadFailed.value !== ''
+)
+
+/** 这一口（/stats）认不了「归属未知」（拍板 Q-4 只点了列表口），所以这一档要说出为什么不摆数 */
+const statsRangeNotice = computed(() => {
+  if (filterForm.tenantScope === UNKNOWN_SCOPE) {
+    return '上面三格只按右上角所选的那一家算，认不了「只看归属未知」这一档，所以这里不摆数；下面这张表才是筛过的。'
+  }
+  if (statsReadFailed.value !== '') {
+    return `上面三格这一发读失败：${statsReadFailed.value}，不摆成 0。`
+  }
+  return ''
 })
 
 const stats = reactive<AuditLogStats>({
@@ -241,6 +274,8 @@ const columns = [
   { title: '请求方法', dataIndex: 'method', key: 'method', width: 100 },
   { title: '响应状态', key: 'responseStatus', dataIndex: 'responseStatus', width: 100 },
   { title: '操作人', dataIndex: 'username', key: 'username', width: 120 },
+  // 这一格念的是后端算好的那四档（点名那一家／已注销／未知客户／未挂某一家），界面不拿裸号自己猜
+  { title: '客户归属', dataIndex: 'tenantLabel', key: 'tenantLabel', width: 150 },
   { title: 'IP地址', key: 'ipAddress', dataIndex: 'ipAddress', width: 140 },
   { title: '操作时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
   { title: '操作', key: 'actions', fixed: 'right' as const, width: 100 }
@@ -275,33 +310,45 @@ const getActionName = (action: string) => {
   return actionMap[action]?.name || action
 }
 
+/**
+ * 屏幕上这一组筛选项拼成的那一份参数——列表、导出、以后的每一处都从这里取，不许两处各拼一套。
+ *
+ * 「只看归属未知」与右上角切换当前客户不搭界，所以那一档不带客户号：
+ * 后端两个条件都拼上捞出来必然是空集，界面上就成了「明明有 1311 行，筛一下就没了」。
+ */
+const buildFilterParams = (): AuditLogQuery => {
+  const params: AuditLogQuery = {}
+  if (filterForm.tenantScope === UNKNOWN_SCOPE) {
+    params.tenantScope = UNKNOWN_SCOPE
+  } else if (authStore.selectedTenantId) {
+    params.tenantId = authStore.selectedTenantId
+  }
+  if (filterForm.action) {
+    params.action = filterForm.action
+  }
+  if (filterForm.resource) {
+    params.resource = filterForm.resource
+  }
+  if (filterForm.username) {
+    params.username = filterForm.username
+  }
+  if (filterForm.dateRange && filterForm.dateRange.length === 2) {
+    params.startDate = filterForm.dateRange[0]
+    params.endDate = filterForm.dateRange[1]
+  }
+  return params
+}
+
 const fetchLogs = async () => {
   loading.value = true
   emptyLine.value = ''
   emptyReason.value = null
   readFailed.value = ''
   try {
-    const params: any = {
-      page: pagination.current,
-      size: pagination.pageSize
-    }
-
-    if (authStore.selectedTenantId) {
-      params.tenantId = authStore.selectedTenantId
-    }
-
-    if (filterForm.action) {
-      params.action = filterForm.action
-    }
-    if (filterForm.resource) {
-      params.resource = filterForm.resource
-    }
-    if (filterForm.username) {
-      params.username = filterForm.username
-    }
-    if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-      params.startDate = filterForm.dateRange[0]
-      params.endDate = filterForm.dateRange[1]
+    const params: AuditLogQuery & { page: number; size: number } = {
+      page: pagination.current ?? 1,
+      size: pagination.pageSize ?? 10,
+      ...buildFilterParams()
     }
 
     const result = await adminApi.auditLogs.list(params) as any
@@ -324,10 +371,13 @@ const fetchLogs = async () => {
 }
 
 const fetchStats = async () => {
+  statsReadFailed.value = ''
   try {
     const result = await adminApi.auditLogs.getStats(authStore.selectedTenantId || undefined) as any
     Object.assign(stats, result)
   } catch (error: any) {
+    // 读失败时这三格留着上一次的数（或开局那三个 0）都会被念成结果，所以记下这一发没读到
+    statsReadFailed.value = describeHttpError(error)
     logError('workspace/audit-log-view', '获取统计数据失败:', error)
   }
 }
@@ -338,6 +388,7 @@ const handleSearch = () => {
 }
 
 const handleReset = () => {
+  filterForm.tenantScope = 'all'
   filterForm.action = undefined
   filterForm.resource = undefined
   filterForm.username = ''
@@ -348,26 +399,8 @@ const handleReset = () => {
 
 const handleExport = () => {
   try {
-    const params: any = {}
-
-    if (authStore.selectedTenantId) {
-      params.tenantId = authStore.selectedTenantId
-    }
-    if (filterForm.action) {
-      params.action = filterForm.action
-    }
-    if (filterForm.resource) {
-      params.resource = filterForm.resource
-    }
-    if (filterForm.username) {
-      params.username = filterForm.username
-    }
-    if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-      params.startDate = filterForm.dateRange[0]
-      params.endDate = filterForm.dateRange[1]
-    }
-
-    adminApi.auditLogs.export(params)
+    // 屏幕上筛的是哪一份，导出来的就得是哪一份
+    adminApi.auditLogs.export(buildFilterParams())
     message.success('已开始下载，请留意浏览器下载列表')
   } catch (error: any) {
     message.error(error.message || '导出失败')
@@ -394,6 +427,15 @@ watch(
   }
 )
 
+// 这一档与右上角切换客户是两条独立的腿，切到「只看归属未知」也要立刻重取，不能等人手点搜索
+watch(
+  () => filterForm.tenantScope,
+  () => {
+    pagination.current = 1
+    fetchLogs()
+  }
+)
+
 onMounted(() => {
   fetchLogs()
   fetchStats()
@@ -414,6 +456,12 @@ onMounted(() => {
     padding: 16px;
     background: #fafafa;
     border-radius: 8px;
+  }
+
+  .stats-note {
+    margin: -8px 0 16px;
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 13px;
   }
 }
 

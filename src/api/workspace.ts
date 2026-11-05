@@ -22,6 +22,9 @@ import type {
   AuditLog,
   AuditLogQuery,
   AuditLogStats,
+  AccountSecurityQuery,
+  LoginLog,
+  TenantSwitchLog,
   SystemSettings,
   AlertRule,
   AlertRuleQuery,
@@ -564,6 +567,15 @@ export const adminApi = {
       })
       window.open(`/api/admin/audit-logs/export?${queryStr.toString()}`, '_blank')
     },
+  },
+
+  // 超管专用「账号安全」那一屏（M-P110 拍板 Q-1/Q-2）：两张留痕表，两口都只读。
+  // 客户范围走屏内自己那个下拉（`tenantScope`），所以这里一律不跟右上角全局切换器共用参数链。
+  accountSecurity: {
+    loginLogs: (params: AccountSecurityQuery & { status?: string }) =>
+      http.get<PageResult<LoginLog>>('/admin/account-security/login-logs', { params }),
+    tenantSwitchLogs: (params: AccountSecurityQuery) =>
+      http.get<PageResult<TenantSwitchLog>>('/admin/account-security/tenant-switch-logs', { params }),
   },
 
   // 系统设置

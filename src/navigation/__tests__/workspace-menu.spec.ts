@@ -463,7 +463,7 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     expect(domains.slice(5).every(d => d === 'platform')).toBe(true)
   })
 
-  it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) +P9-B(1) +P9-C(1) +M-P1(1) +M-P33-D(1) = 72（租户 40 + 平台 32）', () => {
+  it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) +P9-B(1) +P9-C(1) +M-P1(1) +M-P33-D(1) +M-P110(1) = 73（租户 40 + 平台 33）', () => {
     // 16 组时是 39 + 34 = 73 项（再加固定两项 = 75）。P0 归组一个页面都没动；
     // P3 往下每摘一颗都要在这里减一个数，并且 `MENU_EXCLUDED` 里要多一行理由——
     // 以后谁借着「合并栏目」把页面从菜单里摘掉却不留地址、不留理由，这条会直接问他要。
@@ -479,9 +479,12 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     // M-P33-D 在同一个组里多加一颗「建站任务总览」（拍板 ⑩ 那块全平台在跑读数）：
     // 它挂的是与向导逐字相同的 portal:build:manage + requiresSuperAdmin，多的是平台段那一颗，
     // 租户段一个入口都没多。
-    expect(grouped).toHaveLength(72)
+    // M-P110 加的是「账号安全」（拍板 Q-1：一个菜单项、页内两个标签，两张留痕表一口菜单进）。
+    // 它和 media-storage 同一族：只有 requiresSuperAdmin、没有权限码，多的是平台段那一颗，
+    // 租户段一个入口都没多——「租户侧看不到这一屏」正是上一批拍板的那一条。
+    expect(grouped).toHaveLength(73)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(40)
-    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(32)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(33)
   })
 
   it('项名 ≤6 个字：超一个字就是导航在替页面写说明书（Q4-a）', () => {
@@ -637,11 +640,14 @@ describe('Spec-H P3 / H-5：报警三件收成一颗「报警中心」', () => {
     expect(childNames).toContain('workspace-alert-center')
   })
 
-  it('系统与告警组从 11 降到 9（−2）', () => {
+  it('系统与告警组：H-5 收到 9，M-P110 加「账号安全」到 10', () => {
     const systemItems = grouped.filter(leaf => leaf.group === 'system')
-    expect(systemItems).toHaveLength(9)
+    // H-5 那一步是 11 → 9（报警三件收一颗）；M-P110 拍板 Q-1 在这组里新加一颗「账号安全」⇒ 10。
+    // 这一颗是一个菜单项带页内两个标签（照上面「报警中心」一口三项的先例），不新开第二颗。
+    expect(systemItems).toHaveLength(10)
     const labels = systemItems.map(leaf => leaf.label)
     expect(labels).toContain('报警中心')
+    expect(labels).toContain('账号安全')
     expect(labels).not.toContain('报警规则')
     expect(labels).not.toContain('报警记录')
     expect(labels).not.toContain('通知渠道')

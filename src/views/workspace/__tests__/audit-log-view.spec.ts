@@ -68,9 +68,18 @@ const TABLE_STUB = {
         rows.length === 0
           ? h('div', { class: 'empty' }, slots.emptyText ? slots.emptyText({}) : '暂无数据')
           : rows.map((record) =>
-              h('div', { class: 'row', 'data-row': record.id }, [
-                h('span', { class: 'cell-id' }, String(record.id))
-              ])
+              // 逐列走真实的 bodyCell 插槽：这一屏要看的是「显示出来的是哪一句」，不是 columns 里写了什么
+              h(
+                'div',
+                { class: 'row', 'data-row': record.id },
+                (props.columns as any[]).map((column) =>
+                  h(
+                    'span',
+                    { class: ['cell', `cell-${column.key}`] },
+                    slots.bodyCell ? slots.bodyCell({ column, record }) : String(record[column.dataIndex] ?? '')
+                  )
+                )
+              )
             )
       ])
     }
@@ -85,6 +94,8 @@ const PASS_THROUGH = (name: string) => ({
 const ROW = {
   id: 41,
   tenantId: 2,
+  // 这一格念的是后端算好的那四档，界面不许拿裸号自己猜名字
+  tenantLabel: '安鼎建设',
   userId: 1,
   username: 'admin',
   action: 'create',
@@ -96,25 +107,39 @@ const ROW = {
   createdAt: '2026-10-24T00:10:00'
 } as unknown as AuditLog
 
+/** 归属为空的行：后端念「未挂某一家」，界面照念 */
+const UNATTRIBUTED_ROW = {
+  ...ROW,
+  id: 42,
+  tenantId: null,
+  tenantLabel: '未挂某一家'
+} as unknown as AuditLog
+
 type PageShape = { records: AuditLog[]; total: number; emptyReason?: string | null; emptyLine?: string | null }
 
 async function mountView(
   rows: AuditLog[],
   pageExtras: Omit<PageShape, 'records' | 'total'> = {},
-  failWith?: Error
+  failWith?: Error,
+  selectedTenantId: number | null = null,
+  statsFail?: Error
 ) {
-  authState.selectedTenantId = null
+  authState.selectedTenantId = selectedTenantId
   const list = vi.mocked(adminApi.auditLogs.list)
   if (failWith) {
     list.mockRejectedValue(failWith)
   } else {
     list.mockResolvedValue({ records: rows, total: rows.length, ...pageExtras } as any)
   }
-  vi.mocked(adminApi.auditLogs.getStats).mockResolvedValue({
-    total: rows.length,
-    todayTotal: 0,
-    errorCount: 0
-  } as any)
+  if (statsFail) {
+    vi.mocked(adminApi.auditLogs.getStats).mockRejectedValue(statsFail)
+  } else {
+    vi.mocked(adminApi.auditLogs.getStats).mockResolvedValue({
+      total: rows.length,
+      todayTotal: 0,
+      errorCount: 0
+    } as any)
+  }
 
   const wrapper = mount(AuditLogView, {
     attachTo: document.body,
@@ -135,7 +160,12 @@ async function mountView(
         'a-form': Form,
         'a-form-item': FormItem,
         'a-button': Button,
-        'a-select': { name: 'ASelect', template: '<select class="select-stub"></select>' },
+        'a-select': {
+          name: 'ASelect',
+          props: ['value', 'placeholder'],
+          emits: ['update:value'],
+          template: '<select class="select-stub"></select>'
+        },
         'a-select-option': { name: 'ASelectOption', props: ['value'], template: '<option :value="value"><slot /></option>' },
         'a-input': { name: 'AInput', template: '<input class="input-stub" />' },
         'a-tag': { name: 'ATag', template: '<span class="tag-stub"><slot /></span>' },
@@ -222,5 +252,110 @@ describe('AuditLogView 的空态成因', () => {
     expect(wrapper.find('.empty').exists()).toBe(false)
     expect(wrapper.html()).not.toContain('一条都没有')
     expect(wrapper.findAll('.stat-stub')[0].text()).toContain('1')
+  })
+})
+
+/**
+ * 客户归属那一列与「只看归属未知」那一档（M-P110 拍板 Q-3/Q-4）。
+ *
+ * 钉五件：
+ * 1. 列上念的是后端算好的那四档原文，界面上不再出现裸的客户号，也不出现「客户编号」那一格；
+ * 2. 详情抽屉里同一格也念 label，编号只作附注；
+ * 3. 选了「只看归属未知」⇒ 那一发只带 `tenantScope=unknown`，不带右上角那个客户号
+ *    （两个条件都拼上必然是空集，界面上就成了「明明有一千多行，筛一下就没了」）；
+ * 4. 同一档下三格统计摆「—」并说一句为什么——那一口（/stats）认不了这一档；
+ * 5. 导出与屏幕同一份筛法。
+ */
+describe('AuditLogView 的客户归属', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  /** 第一颗下拉＝本批新加的「客户归属」；第二颗才是原有的「操作类型」 */
+  const scopeSelect = (wrapper: any) => wrapper.findAllComponents({ name: 'ASelect' })[0]
+
+  const buttonByText = (wrapper: any, text: string) =>
+    wrapper.findAll('button').find((node: any) => node.text().includes(text))
+
+  async function pickUnknownScope(wrapper: any) {
+    scopeSelect(wrapper).vm.$emit('update:value', 'unknown')
+    await flushPromises()
+  }
+
+  it('这一列念后端算好的那四档，界面上不摆裸客户号', async () => {
+    const wrapper = await mountView([ROW, UNATTRIBUTED_ROW], { emptyReason: null, emptyLine: null })
+
+    const cells = wrapper.findAll('.cell-tenantLabel').map((node) => node.text().trim())
+    expect(cells).toEqual(['安鼎建设', '未挂某一家'])
+    expect(wrapper.html()).not.toContain('客户编号')
+  })
+
+  it('详情抽屉里同一格也念那一句，编号只作附注', async () => {
+    const wrapper = await mountView([ROW], { emptyReason: null, emptyLine: null })
+
+    await buttonByText(wrapper, '详情')!.trigger('click')
+    await flushPromises()
+
+    const drawer = wrapper.find('.ADrawer-stub').text()
+    expect(drawer).toContain('客户归属')
+    expect(drawer).toContain('安鼎建设（编号 2）')
+  })
+
+  it('默认那一档照旧只带右上角选中的客户号', async () => {
+    const list = vi.mocked(adminApi.auditLogs.list)
+
+    await mountView([ROW], { emptyReason: null, emptyLine: null }, undefined, 558)
+
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ tenantId: 558 }))
+    expect(list.mock.calls[0][0]).not.toHaveProperty('tenantScope')
+  })
+
+  it('选了「只看归属未知」⇒ 那一发只带这一档，不再带右上角的客户号', async () => {
+    const list = vi.mocked(adminApi.auditLogs.list)
+    const wrapper = await mountView([UNATTRIBUTED_ROW], { emptyReason: null, emptyLine: null }, undefined, 558)
+
+    await pickUnknownScope(wrapper)
+
+    const sent = list.mock.calls[list.mock.calls.length - 1][0]
+    expect(sent).toMatchObject({ tenantScope: 'unknown', page: 1 })
+    expect(sent).not.toHaveProperty('tenantId')
+  })
+
+  it('选了「只看归属未知」⇒ 三格统计摆「—」并说一句为什么不摆数', async () => {
+    const wrapper = await mountView([UNATTRIBUTED_ROW], { emptyReason: null, emptyLine: null }, undefined, 558)
+
+    await pickUnknownScope(wrapper)
+
+    for (const line of wrapper.findAll('.stat-stub').map((node) => node.text())) {
+      expect(line).toContain('—')
+      expect(line).not.toContain('0')
+    }
+    expect(wrapper.find('.stats-note').text()).toContain('认不了「只看归属未知」这一档')
+  })
+
+  it('导出认屏幕上这一档，不另拼一份参数', async () => {
+    const exportAsCsv = vi.mocked(adminApi.auditLogs.export)
+    const wrapper = await mountView([UNATTRIBUTED_ROW], { emptyReason: null, emptyLine: null }, undefined, 558)
+
+    await pickUnknownScope(wrapper)
+    await buttonByText(wrapper, '导出')!.trigger('click')
+
+    expect(exportAsCsv).toHaveBeenLastCalledWith(expect.objectContaining({ tenantScope: 'unknown' }))
+    expect(exportAsCsv.mock.calls[0][0]).not.toHaveProperty('tenantId')
+  })
+
+  it('统计那一口读失败时不摆上一次的数，也不摆 0', async () => {
+    const wrapper = await mountView(
+      [ROW],
+      { emptyReason: null, emptyLine: null },
+      undefined,
+      null,
+      new Error('统计口断了')
+    )
+
+    for (const line of wrapper.findAll('.stat-stub').map((node) => node.text())) {
+      expect(line).toContain('—')
+    }
+    expect(wrapper.find('.stats-note').text()).toContain('这一发读失败：统计口断了')
   })
 })

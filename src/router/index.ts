@@ -141,6 +141,7 @@ const PermissionsPanel = () => import('../views/workspace/PermissionsPanel.vue')
 const UsersPanel = () => import('../views/workspace/UsersPanel.vue')
 const SystemSettingsView = () => import('../views/workspace/SystemSettingsView.vue')
 const AuditLogView = () => import('../views/workspace/AuditLogView.vue')
+const AccountSecurityView = () => import('../views/workspace/AccountSecurityView.vue')
 const MediaStorageView = () => import('../views/workspace/MediaStorageView.vue')
 const SitesView = () => import('../views/workspace/SitesView.vue')
 const TenantPanel = () => import('../views/workspace/TenantPanel.vue')
@@ -1064,6 +1065,15 @@ export const routes: RouteRecordRaw[] = [
         name: 'workspace-audit-log',
         component: AuditLogView,
         meta: { title: '审计日志', icon: 'audit', requiresSuperAdmin: true }
+      },
+      {
+        // M-P110：两张留痕表（谁登录过 / 超管进过哪一家）一屏两标签，一口菜单项（拍板 Q-1）。
+        // 同 media-storage 那条的规矩：不挂 requiredPermission——后端两口只认超管身份，
+        // 库里也没有「账号安全」这种权限码，编一个出来只会多一个永远授不出去的名词。
+        path: 'account-security',
+        name: 'workspace-account-security',
+        component: AccountSecurityView,
+        meta: { title: '账号安全', icon: 'safety', requiresSuperAdmin: true }
       },
       {
         path: 'media-storage',

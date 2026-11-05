@@ -226,6 +226,7 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-users': 'system',
   'workspace-settings': 'system',
   'workspace-audit-log': 'system',
+  'workspace-account-security': 'system',
   'workspace-media-storage': 'system',
   'workspace-alert-center': 'system',
   'workspace-notifications': 'system'

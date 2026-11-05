@@ -249,7 +249,10 @@ export interface PageResult<T> extends EmptyCauseFields {
 // 审计日志
 export interface AuditLog {
   id: number
-  tenantId: number
+  /** 这一发操作归属的客户；NULL = 没挂上任何一家（M-P109 起库里真有两种值） */
+  tenantId: number | null
+  /** 那个客户号怎么念（M-P110 拍板 Q-3 的四档），后端算好；界面不许自己拿号去猜名字 */
+  tenantLabel?: string | null
   userId: number
   username: string
   action: string
@@ -270,6 +273,8 @@ export interface AuditLogQuery {
   page?: number
   size?: number
   tenantId?: number
+  /** 只筛「归属未知」那一档（后端 `tenantScope=unknown` → `tenant_id IS NULL`）；这一口没有 all/known 两档 */
+  tenantScope?: 'unknown'
   action?: string
   resource?: string
   username?: string
@@ -282,6 +287,56 @@ export interface AuditLogStats {
   total: number
   todayTotal: number
   errorCount: number
+}
+
+// ===== 超管专用「账号安全」那一屏（M-P110）=====
+
+/** 屏内那个客户下拉的三档（拍板 Q-2）；`known` = 只看某一家，配合 `tenantId` 一起发 */
+export type AccountSecurityTenantScope = 'all' | 'known' | 'unknown'
+
+export interface AccountSecurityQuery {
+  page?: number
+  size?: number
+  tenantScope?: AccountSecurityTenantScope
+  tenantId?: number
+  username?: string
+  startDate?: string
+  endDate?: string
+}
+
+/** 登录留痕（`login_log`）；`status` 的词表只有 success / failed 两档，出处是后端写入口 */
+export interface LoginLog {
+  id: number
+  userId: number | null
+  username: string
+  loginIp: string
+  userAgent: string
+  loginType: string
+  status: string
+  failReason: string | null
+  createTime: string
+  tenantId: number | null
+  /** 归属怎么念（四档，后端算好）；`tenant_id` 为空那一批念「账号查不到归属」 */
+  tenantLabel?: string | null
+}
+
+/** 超管进客户视角的留痕（`tenant_switch_log`）；库里只有超管这一个账号会写这一张表 */
+export interface TenantSwitchLog {
+  id: number
+  userId: number | null
+  username: string
+  fromTenantId: number | null
+  fromTenantCode: string | null
+  toTenantId: number | null
+  toTenantCode: string | null
+  ipAddress: string
+  userAgent: string
+  createdAt: string
+  tenantId: number | null
+  /** 出发的那一家怎么念；NULL 那行念「切换前在全局视角」 */
+  fromTenantLabel?: string | null
+  /** 进的那一家怎么念；NULL 那行念「退回全局视角」 */
+  toTenantLabel?: string | null
 }
 
 // 系统设置
