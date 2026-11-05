@@ -292,7 +292,7 @@ describe('AccountSecurityView 的标签与客户档位', () => {
     expect(lastLoginParams()).not.toHaveProperty('tenantId')
   })
 
-  it('选「归属未知」⇒ 只带这一档（那 82 行与 11260 行只有这一档捞得出来）', async () => {
+  it('选「归属未知」⇒ 只带这一档（历史那批空归属记录只有这一档捞得出来）', async () => {
     const wrapper = await mountView()
 
     await pickScope(wrapper, -2)
