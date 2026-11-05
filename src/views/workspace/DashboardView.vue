@@ -1,27 +1,6 @@
 <template>
   <div class="dashboard">
     <PageTitle />
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-avatar">
-          <UserOutlined />
-        </div>
-        <div class="header-info">
-          <h2 class="greeting">
-            {{ greetingText }}，管理员
-          </h2>
-          <p class="subtitle">
-            <span class="date-text">{{ currentDate }}</span>
-          </p>
-        </div>
-      </div>
-      <div class="header-actions">
-        <a-button @click="refreshAll" class="refresh-btn" :loading="headerLoading">
-          <template #icon><ReloadOutlined /></template>
-          刷新数据
-        </a-button>
-      </div>
-    </div>
 
     <!-- Q2a：平台档不调任何租户效果口，整页引导 -->
     <div v-if="isPlatformMode" class="platform-guide">
@@ -306,8 +285,6 @@ import {
   RiseOutlined,
   InfoCircleOutlined,
   ClockCircleOutlined,
-  ReloadOutlined,
-  UserOutlined,
 } from '@ant-design/icons-vue'
 import { dashboardApi, keywordApi, publishApi } from '../../api'
 import { citationApi, type CitationLatestSummary } from '../../api/citation'
@@ -385,23 +362,6 @@ function windowDays(days: number): { from: string; to: string } {
   return { from: toDayParam(from), to: toDayParam(to) }
 }
 
-const currentDate = computed(() => {
-  const now = new Date()
-  const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-  return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`
-})
-
-const greetingText = computed(() => {
-  const hour = new Date().getHours()
-  if (hour < 6) return '凌晨好'
-  if (hour < 9) return '早上好'
-  if (hour < 12) return '上午好'
-  if (hour < 14) return '中午好'
-  if (hour < 17) return '下午好'
-  if (hour < 19) return '傍晚好'
-  return '晚上好'
-})
-
 const searchEngineHits = computed(() => {
   const slice = botCard.data?.slices?.find(s => s.botCategory === 'search-engine')
   return slice ? slice.hits : 0
@@ -427,10 +387,6 @@ function trendSum(key: 'pageviews' | 'uniqueVisitors' | 'botHits' | 'aiCrawlerHi
 const pvWindow = computed(() => trendSum('pageviews'))
 const botWindow = computed(() => trendSum('botHits'))
 const aiWindow = computed(() => trendSum('aiCrawlerHits'))
-
-const headerLoading = computed(() =>
-  !isPlatformMode.value && (citation.loading || botCard.loading || todayCard.loading || seoCard.loading || geoCard.loading)
-)
 
 const loadCitation = () => loadIfAllowed(citation, 'analytics:view', () => citationApi.summaryLatest())
 const loadBot = () => loadIfAllowed(botCard, 'analytics:view', () => analyticsApi.bot({ tenantId: currentTenantId(), ...windowDays(30) }))
@@ -602,53 +558,6 @@ onUnmounted(() => {
   width: 100%;
   min-height: 100%;
   padding: 4px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 18px;
-  padding: 8px;
-  animation: fadeInDown 0.5s ease both;
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.header-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, @blue 0%, @purple 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 19px;
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
-}
-
-.header-info .greeting {
-  margin: 0 0 4px 0;
-  font-size: 21px;
-  font-weight: 700;
-  color: @ink;
-}
-
-.header-info .subtitle {
-  margin: 0;
-  font-size: 13px;
-  color: @slate;
-}
-
-.refresh-btn {
-  height: 34px;
-  border-radius: 10px;
-  font-weight: 500;
 }
 
 .platform-guide {
@@ -1118,16 +1027,6 @@ onUnmounted(() => {
   }
 }
 
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 @keyframes livePulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
@@ -1160,12 +1059,6 @@ onUnmounted(() => {
       border-left: none;
       border-top: 1px solid #f1f5f9;
     }
-  }
-
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
   }
 }
 
