@@ -17,4 +17,33 @@
   --admin-table-header-bg: #fafafa;
 
   --admin-page-padding: var(--admin-space-3);
+
+  /**
+   * Spec-Q P0 补的四支：值不是新挑的色板，是「站点内容」这 12 页里实测出现最多的那几个
+   * （2026-11-06 逐页 grep：#8c8c8c 23 次 / #1a1a1a 10 次·7 页 / #f0f0f0 5 次 / #bfbfbf 2 次）。
+   * 补之前它们只存在于各页自己的 style 块里，所以「次要文字是什么颜色」这件事没有出处，
+   * 每页各抄一遍、抄到第四遍就开始漂（PageTitle 抄成 #111827、工作台抄成 #1a1f36）。
+   */
+  --admin-text-primary: #1a1a1a;
+  --admin-text-secondary: #8c8c8c;
+  --admin-text-muted: #bfbfbf;
+  --admin-border-soft: #f0f0f0;
+
+  /* 行悬停底与占位底同一支浅灰：多挑一支就等于多一个「为什么这屏这两块颜色不一样」要答的问题 */
+  --admin-fill-hover: var(--admin-table-header-bg);
+
+  /* 主色。语义出处仍是 styles/theme.ts 的 ADMIN_THEME_TOKEN.colorPrimary，这里只是给 less 一个能引用的别名；
+     两处必须同值——theme.spec.ts 盯的就是「全站一支蓝」，页面里再写第六支就是把它拆掉。 */
+  --admin-primary: #1890ff;
+
+  /**
+   * 中文字体栈。挂之前 body 的计算值是浏览器默认的 `sans-serif`（16px，2026-11-06 实量），
+   * 也就是每一台客户机上中文字面都不一样——这条不修，间距改得再准也还是「不像一个产品」。
+   * 拉丁走系统无衬线、中文按 macOS → Windows → Linux 各取本机那套黑体，末尾兜 sans-serif。
+   */
+  --admin-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Source Han Sans SC', 'Noto Sans CJK SC', sans-serif;
+
+  /* 数字对齐：读数行与表格里的条数、金额要能上下对齐，中文默认字面的数字是比例宽度 */
+  --admin-font-nums: tabular-nums;
 }

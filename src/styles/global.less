@@ -50,3 +50,31 @@ form.ant-form-inline > .ant-form-item.toolbar-actions {
     margin-left: auto;
   }
 }
+
+/* 6. 中文字体栈（Spec-Q P0）。挂这一条之前 body 的计算字体是浏览器默认的 sans-serif——
+      也就是同一屏在 macOS / Windows / 装了不同字体的客户机上中文字面都不一样。
+      只补 family、不动 size：antd 控件的字号由 theme.ts 的 fontSize=14 管，
+      而页面里那些裸文字的 16→14 是一次全站可见的改动，不该混在「补字体」这一批里。 */
+body {
+  font-family: var(--admin-font-family);
+}
+
+/* 6b. 标题必须显式 inherit：ant-design-vue 的静态 reset.css 里 `h1..h6` 自带一支
+      「-apple-system … Noto Sans … 表情符号」的字体栈，那是按元素命中的，比 body 的继承更具体，
+      所以只挂 body 那一条时标题行根本不换（2026-11-06 实量：body 已换成令牌那支，
+      .page-title__text 计算值还是 antd 那支）。本文件在 reset.css 之后引入（见 main.ts），
+      同特异度后者胜，这一条就够；不动 color/size，避免顺带改掉 82 个页头的观感。 */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: inherit;
+}
+
+/* 7. 数字用等宽字面：列表页的读数行与表格里的条数、金额要能上下对齐着读。
+      中文默认字面的数字是比例宽度，「1 条」和「11 条」不同宽，一眼扫不下去。 */
+.admin-nums {
+  font-variant-numeric: var(--admin-font-nums);
+}

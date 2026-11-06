@@ -62,13 +62,16 @@ const title = computed(() => {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #111827;
+    /* Spec-Q P0：原来是 #111827（偏蓝的近黑）。这一支被 82 个页面共用，
+       而「站点内容」那 12 页正文各自抄的是 #1a1a1a ⇒ 同一个产品两支近黑。
+       换成令牌是往多数那一支靠，肉眼差不到，但从此只有一个出处。 */
+    color: var(--admin-text-primary);
   }
 
   &__desc {
     margin: 4px 0 0;
     font-size: 13px;
-    color: #6b7280;
+    color: var(--admin-text-secondary);
   }
 }
 </style>

@@ -73,4 +73,27 @@ describe('后台主题单源（styles/theme.ts）', () => {
     expect(view).toMatch(/:open-keys=/)
     expect(view).toMatch(/@update:open-keys=/)
   })
+
+  it('中文字体栈：antd 与 less 两份必须同值，而且真的带中文字体（Spec-Q P0）', () => {
+    // 病灶：全站没设过字体，body 的计算值就是浏览器默认的 sans-serif；
+    // 而 antd 4 的 CSS-in-JS 按组件元素各写一条 font-family，所以只挂 `body{...}` 那一层
+    // 对表格头 / 按钮 / 表单标签根本不生效（2026-11-06 在门店页 7 个采样点实量，全部仍是 antd 那支）。
+    const less = sourceOf('src/styles/admin-tokens.less').replace(/\/\*[\s\S]*?\*\//g, '')
+    const fromLess = (less.match(/--admin-font-family:\s*([\s\S]*?);/) || [])[1] ?? ''
+    const fromToken = ADMIN_THEME_TOKEN.fontFamily
+    // 两份都得真含中文字体：只写 -apple-system / Arial 那一套，中文照样落到 sans-serif 兜底，
+    // 名字写错一档（比如少一个 'SC'）不会报错，只会静默退回默认字面。
+    for (const stack of [fromLess, fromToken]) {
+      expect(stack).toMatch(/PingFang SC/)
+      expect(stack).toMatch(/Microsoft YaHei/)
+    }
+    // 同值，不是「都在」：这两处一份喂 antd、一份喂页面自己写的裸元素，漂开就是下一个「两支蓝」
+    const names = (s: string) =>
+      s
+        .replace(/\s+/g, ' ')
+        .split(',')
+        .map(x => x.trim().replace(/^['"]|['"]$/g, ''))
+        .filter(Boolean)
+    expect(names(fromToken)).toEqual(names(fromLess))
+  })
 })

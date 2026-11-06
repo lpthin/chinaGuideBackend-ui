@@ -36,28 +36,30 @@ const shownNext = computed(() => props.next || TEXTS[props.state].next)
 
 <style scoped lang="less">
 .admin-state-block {
-  padding: 24px;
+  padding: var(--admin-space-3, 24px);
   text-align: center;
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
 
+  /* 标题比正文深一档这件事靠令牌表达，不靠再抄一支 #595959：
+     这一支原来和 82 个页面页头用的那支近黑不是同一支，同一屏里两种「深灰字」。 */
   &__title {
     font-size: 14px;
     font-weight: 600;
-    color: #595959;
+    color: var(--admin-text-primary);
   }
 
   &__detail {
-    margin-top: 8px;
+    margin-top: var(--admin-space-1, 8px);
     font-size: 12px;
   }
 
   &__next {
-    margin-top: 8px;
+    margin-top: var(--admin-space-1, 8px);
     font-size: 12px;
   }
 
   &__extra {
-    margin-top: 16px;
+    margin-top: var(--admin-space-2, 16px);
   }
 }
 </style>
