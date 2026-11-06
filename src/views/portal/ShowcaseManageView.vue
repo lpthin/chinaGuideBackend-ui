@@ -1,44 +1,52 @@
 <template>
   <div class="showcase-manage-page">
-    <PageTitle description="团队 / 历程 / 客户标志 / 经营指标 / 客户评价 / 资质荣誉 / 常见问题——门户上这些展示条目的维护口" />
-
-    <a-alert type="info" show-icon class="showcase-manage-page__notice">
-      <template #message>
-        带「示意」徽标的条目是 AI 生成的占位资料：它会在门户上占位，但不进真实统计。
-        请把每一处示意换成你们自己的资料后徽标自然消失（关掉「示意内容」开关即去掉）。
-        分类页签、中文名与归属栏目都来自平台词表，这里只是读它。
-      </template>
-    </a-alert>
-
-    <a-alert v-if="siteError" type="error" show-icon class="showcase-manage-page__notice" :message="siteError" />
-
-    <div class="content-wrapper">
-      <a-card :bordered="false">
-        <!-- 工具条原先塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
-        <filter-bar>
-          <a-select
-            v-model:value="siteId"
-            style="width: 220px"
-            placeholder="选择站点"
-            :options="siteOptions"
-            @change="loadRows"
-          />
-          <template #actions>
-            <a-space>
-              <a-button :loading="loading" @click="loadRows">刷新</a-button>
-              <a-button type="primary" :disabled="!activeKind" @click="openCreate">
-                <template #icon><PlusOutlined /></template>
-                新增条目
-              </a-button>
-            </a-space>
+    <record-list-page
+      description="团队 / 历程 / 客户标志 / 经营指标 / 客户评价 / 资质荣誉 / 常见问题——门户上这些展示条目的维护口"
+      :loading="loading"
+      :rows="rowsOf(activeKind)"
+      :columns="columns"
+      :read-failed="loadError"
+      :count-line="countLine"
+      :own-line="ownLine"
+      can-create
+      create-label="新增条目"
+      @create="openCreate"
+    >
+      <template #notice>
+        <a-alert type="info" show-icon>
+          <template #message>
+            带「示意」徽标的条目是 AI 生成的占位资料：它会在门户上占位，但不进真实统计。
+            请把每一处示意换成你们自己的资料后徽标自然消失（关掉「示意内容」开关即去掉）。
+            分类页签、中文名与归属栏目都来自平台词表，这里只是读它。
           </template>
-        </filter-bar>
+        </a-alert>
+        <!-- 站点口读失败与内容读失败是两件事：这一条只说站点，内容读失败由表格那块说 -->
+        <a-alert v-if="siteError" type="error" show-icon :message="siteError" />
+      </template>
 
-        <a-alert v-if="loadError" type="error" show-icon :message="loadError" class="showcase-manage-page__notice" />
+      <template #filters>
+        <a-select
+          v-model:value="siteId"
+          style="width: 220px"
+          placeholder="选择站点"
+          :options="siteOptions"
+          @change="loadRows"
+        />
+      </template>
 
+      <template #actions>
+        <a-space>
+          <a-button :loading="loading" @click="loadRows">刷新</a-button>
+          <a-button type="primary" :disabled="!activeKind" @click="openCreate">
+            <template #icon><PlusOutlined /></template>
+            新增条目
+          </a-button>
+        </a-space>
+      </template>
+
+      <template #above>
         <p v-if="orphanNotice" class="showcase-manage-page__orphan">{{ orphanNotice }}</p>
 
-        <!-- destroy 非活跃页签：七个 kind 的列表只留当前一份 DOM，切换就是换数据而不是叠层 -->
         <!-- 页签条本身就是真实控件（role=tab 的按钮），列表只渲染当前 kind 一份：
              切页签 = 换数据，而不是把七张表叠在同一屏上 -->
         <div v-if="kinds.length" class="kind-tabs" role="tablist">
@@ -53,64 +61,43 @@
             @click="activeKind = kind.key"
           >{{ kind.label }}</button>
         </div>
-        <template v-if="activeKindRow">
-          <p class="kind-meta">
-            共 {{ rowsOf(activeKind).length }} 条{{ activeKindRow.sectionKey ? `；随平台栏目「${activeKindRow.sectionKey}」的开关联动` : '；全站性内容，不随单个栏目下线' }}
-          </p>
-          <!-- 读失败时整张表退场：失败提示与「还没有内容」的空态绝不同时出现，二者只说一件事 -->
-          <a-spin v-if="!loadError" :spinning="loading">
-            <a-table
-              :scroll="{ x: 'max-content' }"
-              :columns="columns"
-              :data-source="rowsOf(activeKind)"
-              :pagination="false"
-              :row-key="(record: any) => record.id"
-            >
-                <template #bodyCell="{ column, record }">
-                  <template v-if="column.key === 'media'">
-                    <img v-if="mediaThumb(record.mediaId)" :src="mediaThumb(record.mediaId) as string" class="showcase-thumb" />
-                    <span v-else-if="record.mediaId && mediaUrls[record.mediaId] === FAILED" class="media-none">图读不到</span>
-                    <span v-else-if="record.mediaId" class="media-none">读取中…</span>
-                    <span v-else class="media-none">未配图</span>
-                  </template>
-                  <template v-if="column.key === 'content'">
-                    <div class="showcase-title">
-                      {{ record.title }}
-                      <!-- 本期核心动机：示意内容必须让客户看得见它是示意的 -->
-                      <a-tag v-if="record.isDemo" color="orange">示意</a-tag>
-                    </div>
-                    <div v-if="record.isDemo" class="demo-hint">请替换为真实资料</div>
-                    <div v-if="record.subtitle" class="showcase-subtitle">{{ record.subtitle }}</div>
-                    <div v-if="valueText(record)" class="showcase-subtitle">{{ valueText(record) }}</div>
-                    <div v-if="record.body" class="showcase-body">{{ record.body }}</div>
-                    <div v-if="record.url" class="showcase-subtitle">跳转到 {{ record.url }}</div>
-                  </template>
-                  <template v-if="column.key === 'industry'">{{ record.industry || '—' }}</template>
-                  <template v-if="column.key === 'sort'">{{ record.sortOrder }}</template>
-                  <template v-if="column.key === 'status'">
-                    <a-tag :color="record.enabled ? 'green' : 'default'">{{ record.enabled ? '展示中' : '已停用' }}</a-tag>
-                  </template>
-                  <template v-if="column.key === 'actions'">
-                    <a-space>
-                      <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-                      <a-button type="link" size="small" @click="toggleEnabled(record)">{{ record.enabled ? '停用' : '启用' }}</a-button>
-                      <a-popconfirm title="确定删除这条展示内容吗？" @confirm="handleDelete(record)">
-                        <a-button type="link" size="small" danger>删除</a-button>
-                      </a-popconfirm>
-                    </a-space>
-                  </template>
-                </template>
-                <template #emptyText>
-                  <!-- 空列表与「加载失败」是两件事：失败走上面那条红色 alert，这里只说「还没有内容」 -->
-                  <a-empty :description="`「${activeKindRow.label}」这一类还没有内容：点「新增条目」填第一条真实资料`">
-                    <template #image><span /></template>
-                  </a-empty>
-                </template>
-              </a-table>
-            </a-spin>
+      </template>
+
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'media'">
+          <img v-if="mediaThumb(record.mediaId)" :src="mediaThumb(record.mediaId) as string" class="showcase-thumb" />
+          <span v-else-if="record.mediaId && mediaUrls[record.mediaId] === FAILED" class="media-none">图读不到</span>
+          <span v-else-if="record.mediaId" class="media-none">读取中…</span>
+          <span v-else class="media-none">未配图</span>
         </template>
-      </a-card>
-    </div>
+        <template v-if="column.key === 'content'">
+          <div class="showcase-title">
+            {{ record.title }}
+            <!-- 本期核心动机：示意内容必须让客户看得见它是示意的 -->
+            <a-tag v-if="record.isDemo" color="orange">示意</a-tag>
+          </div>
+          <div v-if="record.isDemo" class="demo-hint">请替换为真实资料</div>
+          <div v-if="record.subtitle" class="showcase-subtitle">{{ record.subtitle }}</div>
+          <div v-if="valueText(record)" class="showcase-subtitle">{{ valueText(record) }}</div>
+          <div v-if="record.body" class="showcase-body">{{ record.body }}</div>
+          <div v-if="record.url" class="showcase-subtitle">跳转到 {{ record.url }}</div>
+        </template>
+        <template v-if="column.key === 'industry'">{{ record.industry || '—' }}</template>
+        <template v-if="column.key === 'sort'">{{ record.sortOrder }}</template>
+        <template v-if="column.key === 'status'">
+          <a-tag :color="record.enabled ? 'green' : 'default'">{{ record.enabled ? '展示中' : '已停用' }}</a-tag>
+        </template>
+        <template v-if="column.key === 'actions'">
+          <a-space>
+            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+            <a-button type="link" size="small" @click="toggleEnabled(record)">{{ record.enabled ? '停用' : '启用' }}</a-button>
+            <a-popconfirm title="确定删除这条展示内容吗？" @confirm="handleDelete(record)">
+              <a-button type="link" size="small" danger>删除</a-button>
+            </a-popconfirm>
+          </a-space>
+        </template>
+      </template>
+    </record-list-page>
 
     <a-modal
       v-model:open="formVisible"
@@ -189,7 +176,7 @@ import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import MediaImageLibraryModal from '../../components/MediaImageLibraryModal.vue'
-import FilterBar from '../../components/FilterBar.vue'
+import RecordListPage from '../../components/RecordListPage.vue'
 import { portalSitesApi } from '../../api/portalSites'
 import { useAuthStore } from '../../stores/auth'
 import {
@@ -200,7 +187,6 @@ import {
   type ShowcaseItem,
   type ShowcaseKind
 } from '../../api/portalShowcase'
-import PageTitle from '../../components/PageTitle.vue'
 
 /**
  * 租户侧「展示内容」维护页（Spec-D D2）。
@@ -252,6 +238,25 @@ const activeKindLabel = computed(() => kinds.value.find(kind => kind.key === act
 
 /** 当前页签那一类的词表行：页签条之外的文案（联动提示、空列表那句话）都读它 */
 const activeKindRow = computed(() => kinds.value.find(kind => kind.key === activeKind.value) || null)
+
+/**
+ * 读数那一行（原来这一页自己抄了一份 12px 的灰字，现在由模板定）：
+ * 词表没读到时不瞎报——`rowsOf('')` 恒空，那句「共 0 条」会被读成「这一类一条内容都没有」，
+ * 而真实情况是连「有哪几类」都没拿到。读失败同理。
+ */
+const countLine = computed(() => {
+  const kind = activeKindRow.value
+  if (!kind || loadError.value) {
+    return ''
+  }
+  return `共 ${rowsOf(kind.key).length} 条${kind.sectionKey ? `；随平台栏目「${kind.sectionKey}」的开关联动` : '；全站性内容，不随单个栏目下线'}`
+})
+
+/** 这一页的读口不分页、也不回「是哪一种空」，所以空态那句交给 ownLine：后端一答成因它自动让位 */
+const ownLine = computed(() => {
+  const kind = activeKindRow.value
+  return kind ? `「${kind.label}」这一类还没有内容：点「新增条目」填第一条真实资料` : ''
+})
 
 /**
  * 每一类在门户上不成空洞的最小槽位：这里是本页自己的一份「体验判据」，不是第二份词表——
@@ -556,19 +561,43 @@ onMounted(async () => {
 .showcase-manage-page {
   width: 100%;
 
-  &__notice {
-    margin-bottom: 16px;
-  }
-
   &__orphan {
-    color: #faad14;
-    margin-bottom: 8px;
+    color: var(--admin-warning-text);
+    margin-bottom: var(--admin-space-1);
   }
 }
 
-.kind-meta {
-  color: #8c8c8c;
-  font-size: 12px;
+/**
+ * 分类页签（Spec-Q P1 验收那一形）：这七颗原来是裸 <button>，style 块里一行样式都没写，
+ * 于是点中哪一颗只剩浏览器默认那一圈灰、字号跟着正文漂。词表来自后端，外观在这里给一份。
+ * 圆角 6px 与 theme.ts 的 borderRadius 同值：页签是控件，不是卡片（卡片走 --admin-radius-card）。
+ */
+.kind-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--admin-space-1);
+  margin-bottom: var(--admin-space-2);
+}
+
+.kind-tab {
+  padding: 4px var(--admin-space-1);
+  font-size: 13px;
+  color: var(--admin-text-secondary);
+  background: transparent;
+  border: 1px solid var(--admin-border-soft);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--admin-primary);
+  }
+
+  &--active {
+    color: var(--admin-primary);
+    font-weight: 500;
+    border-color: var(--admin-primary);
+    background: var(--admin-fill-hover);
+  }
 }
 
 .showcase-thumb {
@@ -577,17 +606,17 @@ onMounted(async () => {
   object-fit: contain;
   border: 1px solid #e8e8e8;
   border-radius: 4px;
-  background: #fafafa;
+  background: var(--admin-table-header-bg);
 }
 
 .media-none {
   font-size: 12px;
-  color: #faad14;
+  color: var(--admin-warning-text);
 }
 
 .showcase-title {
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--admin-text-primary);
   margin-bottom: 4px;
 }
 
@@ -598,12 +627,12 @@ onMounted(async () => {
 
 .showcase-subtitle {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
 }
 
 .showcase-body {
   font-size: 12px;
-  color: #595959;
+  color: var(--admin-text-primary);
   max-width: 420px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -615,29 +644,29 @@ onMounted(async () => {
 .media-slot {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--admin-space-1);
   align-items: flex-start;
 }
 
 .media-note {
   font-size: 12px;
-  color: #faad14;
+  color: var(--admin-warning-text);
   margin: 0;
 }
 
 .slot-hint {
-  color: #ff4d4f;
+  color: var(--admin-danger-text);
   font-size: 12px;
   margin: 0 0 4px;
 }
 
 .suffix-input {
-  margin-top: 8px;
+  margin-top: var(--admin-space-1);
 }
 
 .demo-explain {
-  margin-left: 8px;
+  margin-left: var(--admin-space-1);
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
 }
 </style>

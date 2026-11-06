@@ -34,6 +34,33 @@ describe('后台主题单源（styles/theme.ts）', () => {
     expect(ADMIN_THEME_TOKEN.controlHeight).toBe(32)
   })
 
+  it('语义色的令牌自己得指着 theme.ts，且站点内容那四页不再抄十六进制（Spec-Q P1）', () => {
+    const less = sourceOf('src/styles/admin-tokens.less').replace(/\/\*[\s\S]*?\*\//g, '')
+    const tokenValue = (name: string) =>
+      (less.match(new RegExp(`${name}:\\s*([^;]+);`)) || [])[1]?.trim()
+    // 令牌若指向另一支抄来的色，「单源」只是把抄写挪了个地方
+    expect(tokenValue('--admin-warning-text')).toBe(ADMIN_THEME_TOKEN.colorWarning)
+    expect(tokenValue('--admin-danger-text')).toBe(ADMIN_THEME_TOKEN.colorError)
+
+    for (const file of [
+      'src/views/portal/BannerManageView.vue',
+      'src/views/portal/JobManageView.vue',
+      'src/views/portal/StoreManageView.vue',
+      'src/views/portal/ShowcaseManageView.vue'
+    ]) {
+      const raw = sourceOf(file)
+      // P1 之后连模板里那三张统计卡的渐变底色一起没了（§4.1 收成一条读数），
+      // 所以这一条从「只看 style 块」升级成「整页都不许再抄色」——升级的另一半理由是
+      // 旧范围放过的那一批恰好就是被点名要拆掉的那三张卡。
+      const body = raw.replace(/\/\*[\s\S]*?\*\//g, '')
+      for (const banned of ['#8c8c8c', '#1a1a1a', '#595959', '#faad14', '#ff4d4f', '#1890ff', '#52c41a', '#36cfc9', '#95de64', '#bfbfbf']) {
+        expect(body, `${file} 里不该再出现 ${banned}：正文色只剩 --admin-text-*，语义色只剩 --admin-warning-text / --admin-danger-text`).not.toContain(banned)
+      }
+      expect(body, `${file} 里不该再有 linear-gradient 的装饰底：读数卡已收成一条 countLine`).not.toContain('linear-gradient')
+      expect(body, `${file} 里不该再有 stat-* 那套卡片类`).not.toMatch(/class="stat-/)
+    }
+  })
+
   it('main.ts 得真的把这份 token 挂进 ConfigProvider', () => {
     const main = sourceOf('src/main.ts')
     expect(main).toContain('ADMIN_THEME_TOKEN')

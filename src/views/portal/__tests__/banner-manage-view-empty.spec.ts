@@ -150,9 +150,11 @@ const hintText = (wrapper: any) => {
   return (node.textContent || '').trim()
 }
 
-/** 三块统计现在各摆着什么（顺序 = 总数 / 展示中 / 已停用） */
-const statValues = (wrapper: any) =>
-  wrapper.findAll('.stat-value').map((node: any) => node.text())
+/**
+ * P1 起这三块渐变统计卡收成了一条读数（Spec-Q §4.1「四页的读数卡本来就是这一句话，抄成了卡」）。
+ * 原来那三条断言钉的是「统计没读回来时不许摆 0」，这件事换了落点但没换语义，所以按 Q5 改定位与措辞、不删断言。
+ */
+const countLineText = (wrapper: any) => wrapper.find('.record-list-page__count').text()
 
 const ROW = { id: 3, tenantId: 2, title: '春季促销', imageUrl: '/a.png', sort: 1, status: 'ENABLED', createdAt: '2026-10-25T00:00:00' }
 
@@ -178,9 +180,12 @@ describe('BannerManageView 的空态与统计数', () => {
 
   it('读失败那一发说的是读失败，不是「这一档没有」', async () => {
     const wrapper = await mountView({ failWith: new Error('这个账号没有看横幅的资格') })
-    const said = hintText(wrapper)
-    expect(said).toContain('这一发读失败：这个账号没有看横幅的资格')
-    expect(said).toContain('读失败不是「这一档没有」')
+    // Spec-Q P1：这一屏的壳换成 RecordListPage，读失败由表格那块的错误块说，整张表退场
+    const block = wrapper.find('.admin-state-block[data-state="error"]')
+    expect(block.text()).toContain('读取失败')
+    expect(block.text()).toContain('这个账号没有看横幅的资格')
+    expect(block.text()).not.toContain('一条都没有')
+    expect(wrapper.find('.empty-line').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -214,36 +219,37 @@ describe('BannerManageView 的空态与统计数', () => {
     overflow.unmount()
   })
 
-  it('读不到这一家时三块统计摆「—」，不许摆 0', async () => {
+  it('读不到这一家时这条读数说明「没读回来」，不许写成 0', async () => {
     const wrapper = await mountView({
       first: page([], { emptyReason: 'NOT_VISIBLE', emptyLine: BANNER_LINES[1][1] })
     })
-    expect(statValues(wrapper)).toEqual(['—', '—', '—'])
+    expect(countLineText(wrapper)).toBe('全站横幅的总数、展示中、已停用：这三个数没读回来，不是 0')
+    expect(countLineText(wrapper)).not.toContain('0 条')
     wrapper.unmount()
   })
 
-  it('列表读失败时统计同样摆「—」，不摆 0', async () => {
+  it('列表读失败时读数同样说「没读回来」，不摆 0', async () => {
     const wrapper = await mountView({ failWith: new Error('读口断了') })
-    expect(statValues(wrapper)).toEqual(['—', '—', '—'])
+    expect(countLineText(wrapper)).toContain('这三个数没读回来')
     wrapper.unmount()
   })
 
-  it('真租户「查过了没有」时统计摆真数（0 就写 0，那是查过的结果）', async () => {
+  it('真租户「查过了没有」时读数摆真数（0 就写 0，那是查过的结果）', async () => {
     const wrapper = await mountView({
       first: page([], { emptyReason: 'NONE', emptyLine: BANNER_LINES[0][1] }),
       rest: () => page([], {}, 0)
     })
-    expect(statValues(wrapper)).toEqual(['0', '0', '0'])
+    expect(countLineText(wrapper)).toBe('全站横幅：共 0 条，展示中 0 条，已停用 0 条')
     wrapper.unmount()
   })
 
-  it('有行时不渲空态那一句，统计摆的是后端回的总条数', async () => {
+  it('有行时不渲空态那一句，读数摆的是后端回的总条数', async () => {
     const wrapper = await mountView({
       first: page([ROW], {}, 12),
       rest: () => page([ROW], {}, 12)
     })
     expect(wrapper.find('.empty-line').exists()).toBe(false)
-    expect(statValues(wrapper)).toEqual(['12', '12', '12'])
+    expect(countLineText(wrapper)).toBe('全站横幅：共 12 条，展示中 12 条，已停用 12 条')
     wrapper.unmount()
   })
 })

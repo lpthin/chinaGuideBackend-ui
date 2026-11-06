@@ -1,107 +1,94 @@
 <template>
   <div class="store-manage-page">
-    <PageTitle description="门户「联系我们」页地图上那些点位从这里录" />
-
-    <a-alert type="info" show-icon class="store-manage-page__notice">
-      <template #message>
-        门店是按<strong>公司</strong>归属的，不是按站点：同一家公司名下几个站看到的都是这一批门店。
-        地图上只摆「营业中」的点位，一次最多摆 {{ options?.portalRowLimit ?? '—' }} 个（按排序取靠前的）；
-        每一家要么填地址、要么填经纬度，两边都没有的那一家在地图上指不出位置。
+    <record-list-page
+      description="门户「联系我们」页地图上那些点位从这里录"
+      :loading="loading"
+      :rows="rows"
+      :columns="columns"
+      :count-line="countLine"
+      :read-failed="loadError"
+      own-line="还没有录过门店：点「新增门店」把第一家实体网点填进来"
+      can-create
+      create-label="新增门店"
+      @create="openCreate"
+    >
+      <template #notice>
+        <a-alert type="info" show-icon>
+          <template #message>
+            门店是按<strong>公司</strong>归属的，不是按站点：同一家公司名下几个站看到的都是这一批门店。
+            地图上只摆「营业中」的点位，一次最多摆 {{ options?.portalRowLimit ?? '—' }} 个（按排序取靠前的）；
+            每一家要么填地址、要么填经纬度，两边都没有的那一家在地图上指不出位置。
+          </template>
+        </a-alert>
+        <a-alert v-if="optionsError" type="warning" show-icon :message="optionsError" />
       </template>
-    </a-alert>
 
-    <a-alert v-if="optionsError" type="warning" show-icon class="store-manage-page__notice" :message="optionsError" />
+      <template #filters>
+        <a-input
+          v-model:value="query.keyword"
+          style="width: 200px"
+          placeholder="按名字筛（地址不参与筛选）"
+          allow-clear
+          @press-enter="loadRows"
+        />
+        <a-select
+          v-model:value="query.status"
+          style="width: 160px"
+          placeholder="全部状态"
+          allow-clear
+          :options="statusFilterOptions"
+        />
+      </template>
 
-    <div class="content-wrapper">
-      <a-card :bordered="false">
-        <a-form layout="inline" class="store-manage-page__filter">
-          <a-form-item label="门店名">
-            <a-input
-              v-model:value="query.keyword"
-              style="width: 200px"
-              placeholder="按名字筛（地址不参与筛选）"
-              allow-clear
-              @press-enter="loadRows"
-            />
-          </a-form-item>
-          <a-form-item label="状态">
-            <a-select
-              v-model:value="query.status"
-              style="width: 160px"
-              placeholder="全部状态"
-              allow-clear
-              :options="statusFilterOptions"
-            />
-          </a-form-item>
-          <a-form-item class="toolbar-actions">
-            <a-space wrap>
-              <a-button type="primary" :loading="loading" @click="loadRows">搜索</a-button>
-              <a-button @click="resetQuery">重置</a-button>
-              <a-button @click="openCreate">
-                <template #icon><PlusOutlined /></template>
-                新增门店
-              </a-button>
-            </a-space>
-          </a-form-item>
-        </a-form>
+      <template #actions>
+        <a-space wrap>
+          <a-button type="primary" :loading="loading" @click="loadRows">搜索</a-button>
+          <a-button @click="resetQuery">重置</a-button>
+          <a-button @click="openCreate">
+            <template #icon><PlusOutlined /></template>
+            新增门店
+          </a-button>
+        </a-space>
+      </template>
 
-        <a-alert v-if="loadError" type="error" show-icon :message="loadError" class="store-manage-page__notice" />
-
-        <a-spin v-if="!loadError" :spinning="loading">
-          <p class="store-manage-page__count">共 {{ total }} 家{{ onPortalNotice }}</p>
-          <a-table
-            :scroll="{ x: 'max-content' }"
-            :columns="columns"
-            :data-source="rows"
-            :pagination="false"
-            :row-key="(record: any) => record.id"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'name'">
-                <div class="store-name">{{ record.name }}</div>
-                <div v-if="record.businessHours" class="store-muted">营业时间 {{ record.businessHours }}</div>
-                <div v-if="record.phone" class="store-muted">电话 {{ record.phone }}</div>
-              </template>
-              <template v-if="column.key === 'location'">
-                <div v-if="record.address">{{ record.address }}</div>
-                <div v-if="hasCoord(record)" class="store-muted">
-                  {{ record.longitude }}, {{ record.latitude }}
-                </div>
-                <div v-if="!record.address && !hasCoord(record)" class="store-warn">
-                  既没地址也没经纬度：门户地图上指不出这一家
-                </div>
-                <div v-else-if="!hasCoord(record)" class="store-muted">没有经纬度：跳转按地址搜</div>
-              </template>
-              <template v-if="column.key === 'sort'">{{ record.sortOrder }}</template>
-              <template v-if="column.key === 'status'">
-                <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
-                <div v-if="offPortalReason(record)" class="store-warn">{{ offPortalReason(record) }}</div>
-              </template>
-              <template v-if="column.key === 'updated'">
-                <div>{{ formatDateTime(record.updatedAt) }}</div>
-                <div v-if="record.updateBy" class="store-muted">{{ record.updateBy }}</div>
-              </template>
-              <template v-if="column.key === 'actions'">
-                <a-space>
-                  <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-                  <a-popconfirm
-                    :title="`确定删除「${record.name}」吗？门户地图上这一格会一起消失`"
-                    @confirm="handleDelete(record)"
-                  >
-                    <a-button type="link" size="small" danger>删除</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-            <template #emptyText>
-              <a-empty description="还没有录过门店：点「新增门店」把第一家实体网点填进来">
-                <template #image><span /></template>
-              </a-empty>
-            </template>
-          </a-table>
-        </a-spin>
-      </a-card>
-    </div>
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'name'">
+          <div class="store-name">{{ record.name }}</div>
+          <div v-if="record.businessHours" class="store-muted">营业时间 {{ record.businessHours }}</div>
+          <div v-if="record.phone" class="store-muted">电话 {{ record.phone }}</div>
+        </template>
+        <template v-if="column.key === 'location'">
+          <div v-if="record.address">{{ record.address }}</div>
+          <div v-if="hasCoord(record)" class="store-muted">
+            {{ record.longitude }}, {{ record.latitude }}
+          </div>
+          <div v-if="!record.address && !hasCoord(record)" class="store-warn">
+            既没地址也没经纬度：门户地图上指不出这一家
+          </div>
+          <div v-else-if="!hasCoord(record)" class="store-muted">没有经纬度：跳转按地址搜</div>
+        </template>
+        <template v-if="column.key === 'sort'">{{ record.sortOrder }}</template>
+        <template v-if="column.key === 'status'">
+          <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
+          <div v-if="offPortalReason(record)" class="store-warn">{{ offPortalReason(record) }}</div>
+        </template>
+        <template v-if="column.key === 'updated'">
+          <div>{{ formatDateTime(record.updatedAt) }}</div>
+          <div v-if="record.updateBy" class="store-muted">{{ record.updateBy }}</div>
+        </template>
+        <template v-if="column.key === 'actions'">
+          <a-space>
+            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+            <a-popconfirm
+              :title="`确定删除「${record.name}」吗？门户地图上这一格会一起消失`"
+              @confirm="handleDelete(record)"
+            >
+              <a-button type="link" size="small" danger>删除</a-button>
+            </a-popconfirm>
+          </a-space>
+        </template>
+      </template>
+    </record-list-page>
 
     <a-modal
       v-model:open="formVisible"
@@ -174,13 +161,16 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { portalStoreApi, type StoreForm, type StoreOptions, type StoreRow } from '../../api/portalStores'
 import { formatDateTime } from '../../utils/format'
-import PageTitle from '../../components/PageTitle.vue'
+import RecordListPage from '../../components/RecordListPage.vue'
 
 /**
  * 租户侧「门店」录入页（Spec-D 收尾那一格：地图有渲染、没人往里写行）。
  *
  * 三条口径不在这里另立一套：状态三档的中文、「哪一档会上地图」、点位上限
  * 全来自 GET /options；后端那句中文拒绝原因原样上屏。
+ *
+ * 壳（筛选栏、表格、空态、读数那一行）走 Spec-Q 的 RecordListPage：这一家的读口不分页、
+ * 也不回「是哪一种空」，所以空态交 `own-line` 那句具体的话，等后端哪天回了成因它自动让位。
  */
 
 const loading = ref(false)
@@ -275,6 +265,17 @@ const onPortalNotice = computed(() => {
 })
 
 const statusVisibleOnPortal = computed(() => statusVisible(Number(form.status)))
+
+/**
+ * 读数那一行整句交给模板：量词「家」是这一屏的口径，模板不许替它换成「条」。
+ * 读失败时空着——那一发没读回来行数，说「共 0 家」等于把失败报成「这家没门店」。
+ */
+const countLine = computed(() => {
+  if (loadError.value) {
+    return ''
+  }
+  return `共 ${total.value} 家${onPortalNotice.value}`
+})
 
 async function loadOptions() {
   try {
@@ -389,22 +390,8 @@ onMounted(async () => {
 .store-manage-page {
   width: 100%;
 
-  &__notice {
-    margin-bottom: 16px;
-  }
-
-  &__filter {
-    margin-bottom: 16px;
-  }
-
-  &__count {
-    color: #8c8c8c;
-    font-size: 13px;
-    margin-bottom: 8px;
-  }
-
   &__hint {
-    color: #8c8c8c;
+    color: var(--admin-text-secondary);
     font-size: 12px;
     margin: 4px 0 0;
   }
@@ -412,20 +399,16 @@ onMounted(async () => {
 
 .store-name {
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--admin-text-primary);
 }
 
 .store-muted {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
 }
 
 .store-warn {
   font-size: 12px;
-  color: #faad14;
-}
-
-.toolbar-actions {
-  margin-left: auto;
+  color: var(--admin-warning-text);
 }
 </style>

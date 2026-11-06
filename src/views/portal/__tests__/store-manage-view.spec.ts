@@ -206,7 +206,7 @@ function scopeOf(node: any) {
 
 const page = (wrapper: any) => scopeOf(wrapper)
 const modal = (wrapper: any) => scopeOf(wrapper.findComponent({ name: 'AModal' }))
-const filterBar = (wrapper: any) => scopeOf(wrapper.find('.store-manage-page__filter'))
+const filterBar = (wrapper: any) => scopeOf(wrapper.find('.admin-filter-bar'))
 const row = (wrapper: any, text: string) => {
   const found = wrapper.findAll('.row').find((item: any) => item.text().includes(text))
   if (!found) {
@@ -214,6 +214,12 @@ const row = (wrapper: any, text: string) => {
   }
   return scopeOf(found)
 }
+
+/** 空态那一句：Spec-Q P1 起这一页的壳交给 RecordListPage，这一行统一是 .empty-line（EmptyListHint） */
+const emptyLine = (wrapper: any) => wrapper.find('.empty-line')
+
+/** 读失败那块：不再是这一页自己抄的红色 alert，而是 DataTable 的错误块（整张表退场） */
+const errorBlock = (wrapper: any) => wrapper.find('.admin-state-block[data-state="error"]')
 
 function alerts(wrapper: any, type: string) {
   return wrapper.findAll(`.alert-stub[data-type="${type}"]`).map((node: any) => node.text())
@@ -252,7 +258,7 @@ describe('StoreManageView 消费词表（不许界面抄一份状态语义）', 
     const wrapper = await mountView()
     expect(alerts(wrapper, 'warning').join('|')).toContain('词表接口 500')
     expect(wrapper.findAll('.row')).toHaveLength(ROWS.length)
-    expect(wrapper.find('.a-empty-stub').exists()).toBe(false)
+    expect(emptyLine(wrapper).exists()).toBe(false)
     // 没有词表就念不出中文：这一格只报后端给的码，不编一个标签冒充词表
     expect(row(wrapper, '门店 1').node.text()).toContain('状态 1')
     expect(filterBar(wrapper).statusOptionLabels()).toEqual([])
@@ -305,15 +311,17 @@ describe('StoreManageView 的空态与读失败（两句话不许互相冒充）
     vi.mocked(portalStoreApi.list).mockResolvedValue([] as any)
     vi.mocked(portalStoreApi.count).mockResolvedValue(0 as any)
     const wrapper = await mountView()
-    expect(wrapper.find('.a-empty-stub').text()).toContain('还没有录过门店')
+    expect(emptyLine(wrapper).text()).toContain('还没有录过门店')
     expect(alerts(wrapper, 'error')).toHaveLength(0)
   })
 
   it('读取失败报的是后端那句中文，且整张表退场不摆空态', async () => {
     vi.mocked(portalStoreApi.list).mockRejectedValue(new Error('门店列表读取失败：服务开小差了'))
     const wrapper = await mountView()
-    expect(alerts(wrapper, 'error').join('|')).toContain('门店列表读取失败：服务开小差了')
-    expect(wrapper.find('.a-empty-stub').exists()).toBe(false)
+    expect(errorBlock(wrapper).text()).toContain('门店列表读取失败：服务开小差了')
+    expect(emptyLine(wrapper).exists()).toBe(false)
+    // 失败时不说行数：那一发没读回来「共几家」，说「共 0 家」等于把失败报成「这家没门店」
+    expect(wrapper.text()).not.toContain('共 0 家')
   })
 })
 

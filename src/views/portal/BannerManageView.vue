@@ -1,152 +1,100 @@
 <template>
   <div class="banner-manage-page">
-    <PageTitle description="门户首页顶部那一块：横幅的图片、文字、排序、跳转与上下架" />
+    <record-list-page
+      description="门户首页顶部那一块：横幅的图片、文字、排序、跳转与上下架"
+      :loading="loading"
+      :rows="bannerList"
+      :columns="columns"
+      :read-failed="readFailed"
+      :empty-line="emptyLine"
+      :empty-reason="emptyReason"
+      :count-line="countLine"
+      can-create
+      create-label="新建横幅"
+      @create="openCreate"
+    >
+      <!-- 原来这里是三张渐变统计卡（横幅总数 / 展示中 / 已停用），各带一支写死的渐变色的图标底。
+           收成一条读数（Spec-Q §4.1：这四页的卡本来就是这一句话，抄成了卡）。
+           「全站」两个字是必要的：这一句是不带筛选的三份统计，下面分页里的「共 N 条」是**筛过之后**那一档的数，
+           两者不同值时不能让人以为界面自相矛盾。 -->
+      <template #filters>
+        <a-select
+          v-model:value="queryParams.status"
+          style="width: 140px"
+          placeholder="选择状态"
+          allowClear
+          @change="loadData"
+        >
+          <a-select-option value="ENABLED">展示中</a-select-option>
+          <a-select-option value="DISABLED">已停用</a-select-option>
+        </a-select>
+      </template>
 
-    <div class="content-wrapper">
-      <a-spin :spinning="loading">
-        <a-row :gutter="16" style="margin-bottom: 16px">
-          <a-col :span="8">
-            <a-card class="stat-card">
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)">
-                  <PictureOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statText(stats.totalBanners) }}</div>
-                  <div class="stat-title">横幅总数</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="8">
-            <a-card class="stat-card">
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                  <CheckCircleOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statText(stats.enabledCount) }}</div>
-                  <div class="stat-title">展示中（门户可见）</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="8">
-            <a-card class="stat-card">
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #8c8c8c 0%, #bfbfbf 100%)">
-                  <StopOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statText(stats.disabledCount) }}</div>
-                  <div class="stat-title">已停用</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
+      <template #actions>
+        <a-space>
+          <a-button type="primary" @click="openCreate">
+            <template #icon><PlusOutlined /></template>
+            新建横幅
+          </a-button>
+        </a-space>
+      </template>
 
-        <a-card :bordered="false">
-          <!-- 工具条原先塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
-          <filter-bar>
-            <a-select
-              v-model:value="queryParams.status"
-              style="width: 140px"
-              placeholder="选择状态"
-              allowClear
-              @change="loadData"
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'image'">
+          <img
+            v-if="record.imageUrl"
+            :src="record.imageUrl"
+            class="banner-thumbnail"
+            @error="handleImageError"
+          />
+          <span v-else class="banner-missing">未配图</span>
+        </template>
+        <template v-if="column.key === 'title'">
+          <div class="banner-title">{{ record.title }} <DemoFlag :is-demo="record.isDemo" /></div>
+          <div class="banner-subtitle" v-if="record.subtitle">{{ record.subtitle }}</div>
+          <div class="banner-subtitle" v-if="record.linkUrl">跳转到 {{ record.linkUrl }}</div>
+        </template>
+        <template v-if="column.key === 'status'">
+          <a-tag :color="getStatusColor(record.status)">
+            {{ getStatusText(record.status) }}
+          </a-tag>
+        </template>
+        <template v-if="column.key === 'createdAt'">
+          {{ formatDateTime(record.createdAt) }}
+        </template>
+        <template v-if="column.key === 'updatedAt'">
+          {{ formatDateTime(record.updatedAt) }}
+        </template>
+        <template v-if="column.key === 'actions'">
+          <a-space>
+            <a-button type="link" size="small" @click="handlePreview(record)">预览</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+            <a-button v-if="record.status !== 'ENABLED'" type="link" size="small" @click="toggleStatus(record, true)">上架</a-button>
+            <a-button v-else type="link" size="small" @click="toggleStatus(record, false)">下架</a-button>
+            <a-popconfirm
+              title="确定要删除这个横幅吗？"
+              @confirm="handleDelete(record.id)"
             >
-              <a-select-option value="ENABLED">展示中</a-select-option>
-              <a-select-option value="DISABLED">已停用</a-select-option>
-            </a-select>
-            <template #actions>
-              <a-space>
-                <a-button type="primary" @click="openCreate">
-                  <template #icon><PlusOutlined /></template>
-                  新建横幅
-                </a-button>
-              </a-space>
-            </template>
-          </filter-bar>
+              <a-button type="link" size="small" danger>删除</a-button>
+            </a-popconfirm>
+          </a-space>
+        </template>
+      </template>
 
-          <a-table
-            :scroll="{ x: 'max-content' }"
-            :columns="columns"
-            :data-source="bannerList"
-            :pagination="false"
-            :row-key="(record: any) => record.id"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'image'">
-                <img
-                  v-if="record.imageUrl"
-                  :src="record.imageUrl"
-                  class="banner-thumbnail"
-                  @error="handleImageError"
-                />
-                <span v-else class="banner-missing">未配图</span>
-              </template>
-              <template v-if="column.key === 'title'">
-                <div class="banner-title">{{ record.title }} <DemoFlag :is-demo="record.isDemo" /></div>
-                <div class="banner-subtitle" v-if="record.subtitle">{{ record.subtitle }}</div>
-                <div class="banner-subtitle" v-if="record.linkUrl">跳转到 {{ record.linkUrl }}</div>
-              </template>
-              <template v-if="column.key === 'status'">
-                <a-tag :color="getStatusColor(record.status)">
-                  {{ getStatusText(record.status) }}
-                </a-tag>
-              </template>
-              <template v-if="column.key === 'createdAt'">
-                {{ formatDateTime(record.createdAt) }}
-              </template>
-              <template v-if="column.key === 'updatedAt'">
-                {{ formatDateTime(record.updatedAt) }}
-              </template>
-              <template v-if="column.key === 'actions'">
-                <a-space>
-                  <a-button type="link" size="small" @click="handlePreview(record)">预览</a-button>
-                  <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-                  <a-button v-if="record.status !== 'ENABLED'" type="link" size="small" @click="toggleStatus(record, true)">上架</a-button>
-                  <a-button v-else type="link" size="small" @click="toggleStatus(record, false)">下架</a-button>
-                  <a-popconfirm
-                    title="确定要删除这个横幅吗？"
-                    @confirm="handleDelete(record.id)"
-                  >
-                    <a-button type="link" size="small" danger>删除</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-            <!-- 这一屏的空会被读成「这一家的横幅没了」：三种空由后端答（M-P73） -->
-            <template #emptyText>
-              <empty-list-hint
-                :loading="loading"
-                :read-failed="readFailed"
-                :empty-line="emptyLine"
-                :empty-reason="emptyReason"
-                :can-create="true"
-                create-label="新建横幅"
-                @create="openCreate"
-              />
-            </template>
-          </a-table>
-
-          <div class="pagination-wrapper">
-            <a-pagination
-              v-model:current="pagination.page"
-              v-model:page-size="pagination.size"
-              :total="pagination.total"
-              :show-size-changer="true"
-              :show-quick-jumper="true"
-              :page-size-options="['10', '20', '50']"
-              @change="loadData"
-              @showSizeChange="handleSizeChange"
-              :show-total="(total: number) => `共 ${total} 条`"
-            />
-          </div>
-        </a-card>
-      </a-spin>
-    </div>
+      <template #footer>
+        <a-pagination
+          v-model:current="pagination.page"
+          v-model:page-size="pagination.size"
+          :total="pagination.total"
+          :show-size-changer="true"
+          :show-quick-jumper="true"
+          :page-size-options="['10', '20', '50']"
+          @change="loadData"
+          @showSizeChange="handleSizeChange"
+          :show-total="(total: number) => `共 ${total} 条`"
+        />
+      </template>
+    </record-list-page>
 
     <a-modal v-model:open="previewVisible" title="预览横幅" width="800px" :footer="null">
       <div v-if="previewBanner" class="banner-preview">
@@ -201,15 +149,12 @@
 import { reactive, ref, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import {
-  PictureOutlined,
-  CheckCircleOutlined,
-  StopOutlined,
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import { bannerApi } from '../../api/portal'
 import type { Banner, BannerForm, BannerQuery } from '../../types/portal'
 import { describeHttpError } from '../../api/http'
-import EmptyListHint from '../../components/EmptyListHint.vue'
+import RecordListPage from '../../components/RecordListPage.vue'
 import { formatDateTime, formatNumber } from '../../utils/format'
 import {
   JUMP_BACK_NOTICE,
@@ -219,9 +164,7 @@ import {
 } from '../../utils/emptyPage'
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
-import FilterBar from '../../components/FilterBar.vue'
 import { logError } from '../../utils/errorLog'
-import PageTitle from '../../components/PageTitle.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -235,7 +178,11 @@ const statsFailed = ref(false)
 const statsUnreadable = computed(
   () => !!readFailed.value || statsFailed.value || emptyReason.value === 'NOT_VISIBLE'
 )
-const statText = (n: number) => (statsUnreadable.value ? '—' : formatNumber(n))
+/** 那条读数：三份统计没读回来时说明明「没读回来」，不能留三个 0 在屏上（0 是说「一条都没有」） */
+const countLine = computed(() => {
+  if (statsUnreadable.value) return '全站横幅的总数、展示中、已停用：这三个数没读回来，不是 0'
+  return `全站横幅：共 ${formatNumber(stats.totalBanners)} 条，展示中 ${formatNumber(stats.enabledCount)} 条，已停用 ${formatNumber(stats.disabledCount)} 条`
+})
 const previewVisible = ref(false)
 const previewBanner = ref<Banner | null>(null)
 const formVisible = ref(false)
@@ -434,48 +381,6 @@ onMounted(() => {
   padding: 0;
 }
 
-.stat-card {
-  transition: all 0.3s;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  color: #fff;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a1a1a;
-  line-height: 1.2;
-}
-
-.stat-title {
-  font-size: 13px;
-  color: #8c8c8c;
-  margin-top: 4px;
-}
 
 .banner-thumbnail {
   width: 110px;
@@ -487,24 +392,18 @@ onMounted(() => {
 
 .banner-title {
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--admin-text-primary);
   margin-bottom: 4px;
 }
 
 .banner-subtitle {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
 }
 
 .banner-missing {
   font-size: 12px;
-  color: #faad14;
-}
-
-.pagination-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
+  color: var(--admin-warning-text);
 }
 
 .banner-preview {

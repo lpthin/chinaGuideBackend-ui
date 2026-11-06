@@ -1,161 +1,113 @@
 <template>
   <div class="job-manage-page">
-    <PageTitle description="管理门户站点的招聘职位和简历投递" />
+    <record-list-page
+      description="管理门户站点的招聘职位和简历投递"
+      :loading="loading"
+      :rows="jobList"
+      :columns="columns"
+      :read-failed="readFailed"
+      :empty-line="emptyLine"
+      :empty-reason="emptyReason"
+      :count-line="countLine"
+      can-create
+      create-label="新建职位"
+      @create="showAddModal"
+    >
+      <!-- 原来这里也是三张渐变统计卡（招聘职位 / 招聘中 / 已关闭），图标底各写死一支渐变。
+           收成一条读数（Spec-Q §4.1）。「全站」是必要的：这一句是三份不带筛选的统计，
+           下面分页那一句是**筛过之后**那一档的数，两者不同值时不能让人以为界面自相矛盾。 -->
+      <!-- 这一屏的空会被读成「这家没在招人」，所以那一句只认后端回的成因（N-05）：
+           读失败与「没行」也是两件事，前者交 read-failed，整张表退场。 -->
+      <template #filters>
+        <a-select
+          v-model:value="queryParams.status"
+          style="width: 140px"
+          placeholder="职位状态"
+          allowClear
+          @change="loadData"
+        >
+          <a-select-option value="OPEN">招聘中</a-select-option>
+          <a-select-option value="CLOSED">已关闭</a-select-option>
+        </a-select>
+        <a-select
+          v-model:value="queryParams.jobType"
+          style="width: 150px"
+          placeholder="职位类型"
+          allowClear
+          @change="loadData"
+        >
+          <a-select-option value="full-time">全职</a-select-option>
+          <a-select-option value="part-time">兼职</a-select-option>
+          <a-select-option value="internship">实习</a-select-option>
+        </a-select>
+        <a-input-search
+          v-model:value="queryParams.keyword"
+          placeholder="搜索职位"
+          style="width: 250px"
+          enter-button
+          @search="loadData"
+        />
+      </template>
 
-    <div class="content-wrapper">
-      <a-spin :spinning="loading">
-        <a-row :gutter="16" style="margin-bottom: 16px">
-          <a-col :span="8">
-            <a-card class="stat-card">
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)">
-                  <FileTextOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ formatNumber(stats.totalJobs) }}</div>
-                  <div class="stat-title">招聘职位</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="8">
-            <a-card class="stat-card">
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                  <CheckCircleOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ formatNumber(stats.openJobs) }}</div>
-                  <div class="stat-title">招聘中（门户可见）</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="8">
-            <a-card class="stat-card">
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #8c8c8c 0%, #bfbfbf 100%)">
-                  <ClockCircleOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ formatNumber(stats.closedJobs) }}</div>
-                  <div class="stat-title">已关闭</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
+      <template #actions>
+        <a-space>
+          <a-button type="primary" @click="showAddModal">
+            <template #icon><PlusOutlined /></template>
+            新建职位
+          </a-button>
+        </a-space>
+      </template>
 
-        <a-card :bordered="false">
-          <!-- 工具条原先塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
-          <filter-bar>
-            <a-select
-              v-model:value="queryParams.status"
-              style="width: 140px"
-              placeholder="职位状态"
-              allowClear
-              @change="loadData"
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'salary'">
+          <span class="salary-text">{{ formatSalary(record) }}</span>
+        </template>
+        <template v-if="column.key === 'department'">
+          <a-tag color="blue">{{ record.department }}</a-tag>
+        </template>
+        <template v-if="column.key === 'title'">
+          {{ record.title }} <DemoFlag :is-demo="record.isDemo" />
+        </template>
+        <template v-if="column.key === 'status'">
+          <a-tag :color="record.status === 'OPEN' ? 'green' : 'default'">
+            {{ record.status === 'OPEN' ? '招聘中' : '已关闭' }}
+          </a-tag>
+        </template>
+        <template v-if="column.key === 'viewCount'">
+          {{ formatNumber(record.viewCount) }}
+        </template>
+        <template v-if="column.key === 'createdAt'">
+          {{ formatDateTime(record.createdAt) }}
+        </template>
+        <template v-if="column.key === 'actions'">
+          <a-space>
+            <a-button v-if="record.status !== 'OPEN'" type="link" size="small" @click="toggleStatus(record)">上架</a-button>
+            <a-button v-else type="link" size="small" @click="toggleStatus(record)">下架</a-button>
+            <a-button type="link" size="small" @click="editJob(record.id)">编辑</a-button>
+            <a-popconfirm
+              title="确定要删除这个职位吗？"
+              @confirm="handleDelete(record.id)"
             >
-              <a-select-option value="OPEN">招聘中</a-select-option>
-              <a-select-option value="CLOSED">已关闭</a-select-option>
-            </a-select>
-            <a-select
-              v-model:value="queryParams.jobType"
-              style="width: 150px"
-              placeholder="职位类型"
-              allowClear
-              @change="loadData"
-            >
-              <a-select-option value="full-time">全职</a-select-option>
-              <a-select-option value="part-time">兼职</a-select-option>
-              <a-select-option value="internship">实习</a-select-option>
-            </a-select>
-            <a-input-search
-              v-model:value="queryParams.keyword"
-              placeholder="搜索职位"
-              style="width: 250px"
-              enter-button
-              @search="loadData"
-            />
-            <template #actions>
-              <a-space>
-                <a-button type="primary" @click="showAddModal">
-                  <template #icon><PlusOutlined /></template>
-                  新建职位
-                </a-button>
-              </a-space>
-            </template>
-          </filter-bar>
+              <a-button type="link" size="small" danger>删除</a-button>
+            </a-popconfirm>
+          </a-space>
+        </template>
+      </template>
 
-          <a-table
-            :scroll="{ x: 'max-content' }"
-            :columns="columns"
-            :data-source="jobList"
-            :pagination="false"
-            :row-key="(record: any) => record.id"
-          >
-            <!-- 这一屏的空会被读成「这家没在招人」，所以那一句只认后端回的成因（N-05） -->
-            <template #emptyText>
-              <empty-list-hint
-                :loading="loading"
-                :read-failed="readFailed"
-                :empty-line="emptyLine"
-                :empty-reason="emptyReason"
-              />
-            </template>
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'salary'">
-                <span class="salary-text">{{ formatSalary(record) }}</span>
-              </template>
-              <template v-if="column.key === 'department'">
-                <a-tag color="blue">{{ record.department }}</a-tag>
-              </template>
-              <template v-if="column.key === 'title'">
-                {{ record.title }} <DemoFlag :is-demo="record.isDemo" />
-              </template>
-              <template v-if="column.key === 'status'">
-                <a-tag :color="record.status === 'OPEN' ? 'green' : 'default'">
-                  {{ record.status === 'OPEN' ? '招聘中' : '已关闭' }}
-                </a-tag>
-              </template>
-              <template v-if="column.key === 'viewCount'">
-                {{ formatNumber(record.viewCount) }}
-              </template>
-              <template v-if="column.key === 'createdAt'">
-                {{ formatDateTime(record.createdAt) }}
-              </template>
-              <template v-if="column.key === 'actions'">
-                <a-space>
-                  <a-button v-if="record.status !== 'OPEN'" type="link" size="small" @click="toggleStatus(record)">上架</a-button>
-                  <a-button v-else type="link" size="small" @click="toggleStatus(record)">下架</a-button>
-                  <a-button type="link" size="small" @click="editJob(record.id)">编辑</a-button>
-                  <a-popconfirm
-                    title="确定要删除这个职位吗？"
-                    @confirm="handleDelete(record.id)"
-                  >
-                    <a-button type="link" size="small" danger>删除</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
-
-          <div class="pagination-wrapper">
-            <a-pagination
-              v-model:current="pagination.page"
-              v-model:page-size="pagination.size"
-              :total="pagination.total"
-              :show-size-changer="true"
-              :show-quick-jumper="true"
-              :page-size-options="['10', '20', '50']"
-              @change="loadData"
-              @showSizeChange="handleSizeChange"
-              :show-total="(total: number) => `共 ${total} 条`"
-            />
-          </div>
-        </a-card>
-      </a-spin>
-    </div>
+      <template #footer>
+        <a-pagination
+          v-model:current="pagination.page"
+          v-model:page-size="pagination.size"
+          :total="pagination.total"
+          :show-size-changer="true"
+          :show-quick-jumper="true"
+          :page-size-options="['10', '20', '50']"
+          @change="loadData"
+          @showSizeChange="handleSizeChange"
+          :show-total="(total: number) => `共 ${total} 条`"
+        />
+      </template>
+    </record-list-page>
 
     <a-modal v-model:open="showJobModal" :title="editingJob ? '编辑职位' : '新建职位'" width="700px" @ok="handleSaveJob" :confirm-loading="saving">
       <a-form :model="jobForm" layout="vertical">
@@ -231,24 +183,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
-  FileTextOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import { jobPostApi } from '../../api/portal'
 import type { JobPost, JobPostForm, JobPostQuery } from '../../types/portal'
 import { formatDateTime, formatNumber } from '../../utils/format'
 import DemoFlag from '../../components/DemoFlag.vue'
-import FilterBar from '../../components/FilterBar.vue'
-import EmptyListHint from '../../components/EmptyListHint.vue'
+import RecordListPage from '../../components/RecordListPage.vue'
 import { describeHttpError } from '../../api/http'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
-import PageTitle from '../../components/PageTitle.vue'
 
 const loading = ref(false)
 // 空态的那一句只认后端（N-05）：读失败 / 后端答了成因 / 后端没答，三件事分开说
@@ -278,6 +225,12 @@ const stats = reactive({
   totalJobs: 0,
   openJobs: 0,
   closedJobs: 0,
+})
+/** 三份统计有没有读回来：读不回来时这条念「没读回来」，留 0 在屏上等于说「这家一个职位都没有」 */
+const statsFailed = ref(false)
+const countLine = computed(() => {
+  if (statsFailed.value || !!readFailed.value) return '全站职位的总数、在招、已关闭：这三个数没读回来，不是 0'
+  return `全站职位：共 ${formatNumber(stats.totalJobs)} 个，招聘中（门户可见）${formatNumber(stats.openJobs)} 个，已关闭 ${formatNumber(stats.closedJobs)} 个`
 })
 
 const queryParams = reactive({
@@ -454,7 +407,9 @@ async function loadStats() {
     stats.totalJobs = all.total || 0
     stats.openJobs = open.total || 0
     stats.closedJobs = closed.total || 0
+    statsFailed.value = false
   } catch (error) {
+    statsFailed.value = true
     logError('portal/job-manage-view', '加载统计数据失败:', error)
   }
 }
@@ -476,61 +431,8 @@ onMounted(() => {
   padding: 0;
 }
 
-.content-wrapper {
-}
-
-.stat-card {
-  cursor: pointer;
-  transition: all 0.3s;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  color: #fff;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a1a1a;
-  line-height: 1.2;
-}
-
-.stat-title {
-  font-size: 13px;
-  color: #8c8c8c;
-  margin-top: 4px;
-}
-
 .salary-text {
-  color: #ff4d4f;
+  color: var(--admin-danger-text);
   font-weight: 500;
-}
-
-.pagination-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
 }
 </style>

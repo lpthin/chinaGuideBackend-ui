@@ -29,6 +29,19 @@ describe('EmptyListHint 念的是后端那句原文', () => {
     expect(w.text()).toBe(line)
   })
 
+  it('后端没答、但这一屏备了自己那句（ownLine）→ 念这一句，不换成通用兜底', () => {
+    // 门店/展示内容这类不分页、后端也不回 emptyReason 的读口：换成通用那句等于把有用的话换掉
+    const line = '还没有录过门店：点「新增门店」把第一家实体网点填进来'
+    const w = mountHint({ emptyReason: null, ownLine: line })
+    expect(w.text()).toBe(line)
+  })
+
+  it('后端答了成因时 ownLine 让位：念的仍是后端那句', () => {
+    const line = '报警规则：这一档查过了，一条都没有。'
+    const w = mountHint({ emptyLine: line, emptyReason: 'NONE', ownLine: '界面自己备的那一句' })
+    expect(w.text()).toBe(line)
+  })
+
   it('后端没答（两格都空着）时念自己那句兜底，不蒙成任何一种成因', () => {
     const w = mountHint({ emptyLine: null, emptyReason: null })
     expect(w.text()).toContain('后端没回是哪一种空')

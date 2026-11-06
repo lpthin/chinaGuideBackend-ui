@@ -243,17 +243,20 @@ describe('ShowcaseManageView 的页签与列表', () => {
   it('空的一类说「还没有内容」，不冒充加载失败', async () => {
     const wrapper = await mountView()
     await clickTab(wrapper, '常见问题')
-    const empty = wrapper.find('.a-empty-stub')
+    // Spec-Q P1：这一页的壳换成 RecordListPage，空态那一句统一在 EmptyListHint 的 .empty-line 里
+    const empty = wrapper.find('.empty-line')
     expect(empty.text()).toBe('「常见问题」这一类还没有内容：点「新增条目」填第一条真实资料')
-    expect(wrapper.find('.alert-stub[data-type="error"]').exists()).toBe(false)
+    expect(wrapper.find('.admin-state-block[data-state="error"]').exists()).toBe(false)
   })
 
   it('读取失败报的是后端那句中文，且不把失败演成空列表', async () => {
     vi.mocked(portalShowcaseApi.list).mockRejectedValue(new Error('展示内容读取失败：服务开小差了'))
     const wrapper = await mountView()
-    const errors = wrapper.findAll('.alert-stub[data-type="error"]')
-    expect(errors.map(node => node.text()).join('|')).toContain('展示内容读取失败：服务开小差了')
-    expect(wrapper.find('.a-empty-stub').exists()).toBe(false)
+    const block = wrapper.find('.admin-state-block[data-state="error"]')
+    expect(block.text()).toContain('展示内容读取失败：服务开小差了')
+    expect(wrapper.find('.empty-line').exists()).toBe(false)
+    // 失败那一发没读回来行数，「共 0 条」会被读成「这一类一条都没有」
+    expect(document.body.textContent).not.toContain('共 0 条')
   })
 
   it('库里有词表没认识的 kind 时如实报数，不静默丢行', async () => {
@@ -394,9 +397,8 @@ describe('站点下拉走的是租户侧自己的口（Q-3）', () => {
   it('站点口读失败只说站点读失败，内容表格照旧渲染', async () => {
     vi.mocked(portalSitesApi.listMine).mockRejectedValue(new Error('缺少权限: portal:build:manage'))
     const wrapper = await mountView()
-    // 页首那条 info 说明与这条 error 共用同一个类名，所以按「有没有这一句」判而不是取第一条
-    const notices = wrapper.findAll('.showcase-manage-page__notice').map(node => node.text())
-    expect(notices.join(' ')).toContain('缺少权限: portal:build:manage')
+    // 站点那条失败说的是「选不到站」，与内容读失败是两件事：它只上屏一句提醒，不整页报死
+    expect(document.body.textContent).toContain('缺少权限: portal:build:manage')
     // 站点没选成时列表按「全部站点」取，行数是桩里那三条还是子集不重要——重要的是这一页没有整页报死
     expect(wrapper.findAll('.row').length).toBeGreaterThan(0)
     wrapper.unmount()
