@@ -1,95 +1,118 @@
 <template>
-  <div class="portal-workbench-page">
-    <PageTitle />
-    <a-form layout="inline" class="portal-workbench-page__filter">
-      <a-form-item class="toolbar-actions">
-        <a-space>
-          <a-button :loading="loading" @click="load">刷新</a-button>
+  <div class="portal-workbench">
+    <PageTitle description="这里只维护内容：下面的条数是访客在门户上能看到的，「完整度」说还差什么">
+      <template #extra>
+        <a-space :size="8">
+          <a-tooltip placement="left">
+            <template #title>
+              <p>缺图那一格：几条内容没配图，门户上摆图的位置就是空的。</p>
+              <p>栏目本身开不开、叫什么名字、排在第几位，由平台侧决定（拍板 N2/N5），这里改不了，要改走「联系平台」。</p>
+              <p>这一页按「最该补」排序，和访客导航里的栏目顺序不是一回事。</p>
+            </template>
+            <a-button class="portal-workbench__why"><InfoCircleOutlined /><span>口径说明</span></a-button>
+          </a-tooltip>
           <a-button @click="router.push({ name: 'workspace-portal-support' })">联系平台</a-button>
         </a-space>
-      </a-form-item>
-    </a-form>
-
-    <a-alert type="info" show-icon class="portal-workbench-page__notice">
-      <template #message>
-        一张卡对应平台为你们开通的一个栏目。这里只维护内容：卡片上的数字是访客在门户上能看到的条数，
-        「完整度」那一格说的是这些内容还差什么（比如几条没配图，门户上那一格就是空的）；
-        栏目本身开不开、叫什么名字、排在第几位，由平台侧决定（拍板 N2/N5）。
       </template>
-    </a-alert>
+    </PageTitle>
 
-    <a-alert v-if="loadError" type="error" show-icon class="portal-workbench-page__notice" :message="loadError" />
+    <a-alert v-if="loadError" type="error" show-icon class="portal-workbench__error" :message="loadError" />
 
-    <a-spin :spinning="loading">
-      <a-empty v-if="!loading && !loadError && cards.length === 0"
-               description="还没有为这个站点开通任何栏目，可在「联系平台」提工单">
-        <template #image><span /></template>
-      </a-empty>
-      <div class="portal-workbench-page__grid">
-        <a-card v-for="card in cards" :key="card.state.key" size="small" class="portal-workbench-page__card">
-          <template #title>
-            <a-space>
-              <span>{{ card.state.displayName }}</span>
-              <a-tag v-if="card.summary?.completeness" :color="completenessColor(card)">
-                {{ completenessLabel(card) }}
-              </a-tag>
-            </a-space>
-          </template>
-          <a-descriptions :column="1" size="small" class="portal-workbench-page__desc">
-            <a-descriptions-item label="门户可见内容">
-              <span class="portal-workbench-page__count">{{ countText(card) }}</span>
-              <span v-if="card.summary?.contentCount" class="portal-workbench-page__muted">条</span>
-            </a-descriptions-item>
-            <a-descriptions-item label="内容完整度">
-              <span :class="{ 'portal-workbench-page__muted': !card.summary?.completeness }">
-                {{ completenessHint(card) }}
-              </span>
-            </a-descriptions-item>
-            <a-descriptions-item label="访客地址">
-              <a :href="previewHref(card)" target="_blank" rel="noopener">{{ card.state.publicPath }}</a>
-            </a-descriptions-item>
-            <a-descriptions-item label="栏目页">
-              <span :class="{ 'portal-workbench-page__muted': !card.summary?.landingPageId }">
-                {{ landingText(card) }}
-              </span>
-            </a-descriptions-item>
-          </a-descriptions>
-          <template #actions>
-            <a @click="goMaintain(card)">
-              <a-space size="4"><EditOutlined /><span>去维护</span></a-space>
-            </a>
-          </template>
-        </a-card>
+    <!-- 首次加载摆三行骨架占位，而不是让整页空白转圈：这一页最多六行，跳一下比转圈更难看 -->
+    <div v-if="loading && rows.length === 0" class="portal-workbench__skeletons">
+      <div v-for="n in 3" :key="n" class="portal-workbench__skeleton" />
+    </div>
+
+    <template v-else-if="rows.length">
+      <div class="portal-workbench__band">
+        <div class="portal-workbench__cell">
+          <span class="portal-workbench__cell-label">内容齐了的栏目</span>
+          <b class="portal-workbench__cell-num">{{ readyText }}</b>
+          <span class="portal-workbench__cell-note">{{ readyNote }}</span>
+        </div>
+        <div class="portal-workbench__cell">
+          <span class="portal-workbench__cell-label">还差配图的条数</span>
+          <b class="portal-workbench__cell-num" :class="{ 'portal-workbench__cell-num--warn': (imageGapTotal ?? 0) > 0 }">{{ imageGapText }}</b>
+          <span class="portal-workbench__cell-note">{{ imageGapNote }}</span>
+        </div>
+        <div class="portal-workbench__cell">
+          <span class="portal-workbench__cell-label">最该先补</span>
+          <b class="portal-workbench__cell-name">{{ urgentName }}</b>
+          <span class="portal-workbench__cell-note">{{ urgentNote }}</span>
+        </div>
       </div>
-    </a-spin>
+
+      <div class="portal-workbench__rows">
+        <div
+          v-for="(row, index) in rows"
+          :key="row.state.key"
+          class="portal-workbench__row"
+          :class="{ 'portal-workbench__row--unknown': !row.summary }"
+          :style="{ '--row-color': rowColor(row), animationDelay: `${0.04 * index}s` }"
+        >
+          <div class="portal-workbench__main">
+            <p class="portal-workbench__head">
+              <span class="portal-workbench__badge"><component :is="entryIcon(row)" /></span>
+              <span class="portal-workbench__name">{{ row.state.displayName }}</span>
+              <a-tag v-if="row.summary?.completeness" :color="completenessColor(row)">{{ completenessLabel(row) }}</a-tag>
+            </p>
+            <p class="portal-workbench__meta">
+              <span>{{ row.state.publicPath }}</span>
+              <template v-if="row.state.navVisible">
+                <span class="portal-workbench__dot">·</span>
+                <span>导航第 {{ row.state.navSort }} 位</span>
+              </template>
+              <span class="portal-workbench__dot">·</span>
+              <span>{{ landingText(row) }}</span>
+            </p>
+            <p class="portal-workbench__hint">{{ hintText(row) }}</p>
+          </div>
+
+          <div class="portal-workbench__count">
+            <b>{{ countText(row) }}</b>
+            <i v-if="showUnit(row)">条</i>
+          </div>
+
+          <div class="portal-workbench__acts">
+            <a v-if="maintainRoute(row)" class="portal-workbench__maintain" @click="goMaintain(row)">去维护</a>
+            <span v-if="maintainLabel(row)" class="portal-workbench__go">→ {{ maintainLabel(row) }}</span>
+            <a :href="previewHref(row)" target="_blank" rel="noopener" class="portal-workbench__open">打开访客页</a>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- 「联系平台」只在页头摆一次：这一屏再摆一个同名按钮，等于让人确认两遍点的是不是同一个地方 -->
+    <a-empty v-else-if="!loadError" description="还没有为这个站点开通任何栏目，可在页头的「联系平台」提工单">
+      <template #image><span /></template>
+    </a-empty>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, type Component } from 'vue'
 import { useRouter } from 'vue-router'
-import { EditOutlined } from '@ant-design/icons-vue'
+import {
+  ApartmentOutlined,
+  FileTextOutlined,
+  IdcardOutlined,
+  InfoCircleOutlined,
+  PictureOutlined,
+  TeamOutlined,
+} from '@ant-design/icons-vue'
 import { portalSectionsApi, type SectionState, type SectionSummary } from '../../api/portalSections'
 import { portalPagesApi } from '../../api/portalPages'
 import { useAuthStore } from '../../stores/auth'
+import { collectMenuLeaves, findLeaf } from '../../navigation/workspaceMenu'
 import PageTitle from '../../components/PageTitle.vue'
 
 /**
- * 租户「门户内容工作台」（Spec §7.1）。
+ * 租户「门户内容工作台」（Spec §7.1，2026-11-06 整页重做，方案见 docs/内容工作台页面重构_方案.md）。
  *
- * 三件事是刻意的：
- * 1. 卡片列表完全来自 `GET /api/portal/sections`——栏目名、顺序、对外地址一个都不在这份文件里，
- *    平台改了显示名，这里下一次打开就是新字（I-1）；
- * 2. 整页没有任何开关、搭建按钮或跳转进搭建器的入口（N1/N2）。要改栏目只能提工单，
- *    右上角那个「联系平台」就是唯一的出口；
- * 3. 「栏目页」那一行报的是落地页的<strong>状态</strong>，状态中文名取自 `/portal/pages/statuses`，
- *    这样「有一页但是草稿」与「压根没有页」在界面上分得开——租户看到「0 条」时该点的是维护，
- *    看到「未发布」时该提的是工单。
- *
- * 问题十加的那一半：「内容完整度」那一行（连卡上那个标签）说的是后端 `SectionCompleteness`
- * 数出来的话——缺几条图、这一类内容压根没有图位，都由后端说，这里只按档位代码配色。
- * 页面上不写第二份中文：前端一抄，后端加一档就是「界面安静地少一句话」那种事故（I-1），
- * 而「没有图位」被前端演成「内容完整」更是 I-8 点名的假绿。
+ * 这一页只回答三件事：齐了几块、最该补哪块、点哪里补。三条纪律没变：
+ * 1. 行集合与所有中文（栏目名、档位话、状态词）都来自后端词表，前端不抄第二份（I-1）；
+ * 2. 整页没有任何开关、发布、搭建入口（N1/N2），要改栏目只能走「联系平台」；
+ * 3. 「没读到」和「没有」是两件事——统计未就绪的行不进概览带的分母、不演成 0（I-8 点名的假绿）。
  */
 
 const router = useRouter()
@@ -98,12 +121,12 @@ const authStore = useAuthStore()
 /** 读状态词表要的那一码：与这一页路由的 `portal:siteinfo:manage` 不是同一条线 */
 const STATUS_LABELS_PERMISSION = 'portal:page:manage'
 
-interface Card {
+interface Row {
   state: SectionState;
   summary: SectionSummary | null;
 }
 
-const cards = ref<Card[]>([])
+const rows = ref<Row[]>([])
 const statusLabels = ref<Record<string, string>>({})
 const loading = ref(false)
 const loadError = ref('')
@@ -116,6 +139,57 @@ const MAINTAIN_ROUTES: Record<string, string> = {
   company: 'workspace-portal-company'
 }
 
+/** 「去维护」旁边那句去向，读的是左侧菜单自己那份名字（同一字符串，不再抄第二份） */
+const menuLeaves = collectMenuLeaves(router.options.routes)
+
+/** contentEntry → 行首图标。按内容类型给形，与中文无关，后端加一档时这里只多一个陌生 key（落到默认形） */
+const ENTRY_ICONS: Record<string, Component> = {
+  article: FileTextOutlined,
+  case: PictureOutlined,
+  job: IdcardOutlined,
+  company: TeamOutlined
+}
+
+/**
+ * 档位代码 → 排序权重与配色。这里只认代码：那两句中文照后端 `SectionCompleteness` 原样渲染。
+ * 后端新加一档时这一映射落到「陌生档」那一组（排在已判完的之后、齐了的之前），
+ * 界面上仍是后端那句话，不会把新档演成我们认识的某一句（I-1）。
+ */
+const URGENCY: Record<string, number> = {
+  empty: 0,
+  missingImage: 1,
+  noCoverSlot: 2,
+  complete: 3,
+  notList: 4
+}
+const UNKNOWN_URGENCY = 2.5
+
+const COMPLETENESS_COLORS: Record<string, string> = {
+  complete: 'green',
+  missingImage: 'orange',
+  empty: 'red',
+  noCoverSlot: 'blue',
+  notList: 'default'
+}
+
+/** 行左边的色条：档位代码 → 一个色值，只用来上色，不承载文案 */
+const ROW_COLORS: Record<string, string> = {
+  empty: '#ef4444',
+  missingImage: '#f59e0b',
+  noCoverSlot: '#0ea5e9',
+  complete: '#10b981',
+  notList: '#cbd5e1'
+}
+
+function levelOf(row: Row): string {
+  return row.summary?.completeness?.level ?? ''
+}
+
+function urgencyOf(row: Row): number {
+  if (!row.summary) return UNKNOWN_URGENCY
+  return URGENCY[levelOf(row)] ?? UNKNOWN_URGENCY
+}
+
 async function load() {
   loading.value = true
   loadError.value = ''
@@ -124,22 +198,23 @@ async function load() {
     const open = states.filter(state => state.enabled)
     const summaries = await Promise.all(open.map(state =>
       portalSectionsApi.summary(state.key).catch(() => null)))
-    cards.value = open.map((state, index) => ({ state, summary: summaries[index] }))
+    rows.value = open
+      .map((state, index) => ({ state, summary: summaries[index] }))
+      .sort((a, b) => urgencyOf(a) - urgencyOf(b) || a.state.navSort - b.state.navSort)
   } catch (error: any) {
     loadError.value = error?.message || '栏目读取失败'
   } finally {
     loading.value = false
   }
   // 状态词表是另一码管的口（见 loadStatusLabels），它读不到只影响「栏目页」那一行的用词，
-  // 不许把已经加载好的整页卡片一起说成「读取失败」
+  // 不许把已经加载好的整页一起说成「读取失败」
   await loadStatusLabels()
 }
 
 /**
- * `/portal/pages/statuses` 挂 `portal:page:manage`（Q-P7-3 把这条控制器的读口从建设码拆出来那一刀），
- * 而这一页的路由只要 `portal:siteinfo:manage`——两个码不是同一条线，只有编辑码的账号（CONTENT_EDITOR）
- * 进来必吃 403。所以先按码决定发不发：不发就没有控制台那条红字，界面上「栏目页」那一行退化成露状态原码
- * （`landingText` 本来就按「词表缺项」设计），而不是整页报「缺少权限」。
+ * `/portal/pages/statuses` 挂 `portal:page:manage`，而这一页的路由只要 `portal:siteinfo:manage`——
+ * 只有编辑码的账号（CONTENT_EDITOR）打过来必吃 403。所以先按码决定发不发：不发就没有控制台那条红字，
+ * 「栏目页」那一行退化成露状态原码，而不是整页报「缺少权限」。
  */
 async function loadStatusLabels() {
   if (!authStore.hasPermission(STATUS_LABELS_PERMISSION) || Object.keys(statusLabels.value).length > 0) {
@@ -152,42 +227,85 @@ async function loadStatusLabels() {
   }
 }
 
-function countText(card: Card): string {
-  if (!card.summary) {
-    return '统计未就绪'
+/** 统计回来的行才进概览带的账 */
+const scoredRows = computed(() => rows.value.filter(row => row.summary))
+const pendingRows = computed(() => rows.value.length - scoredRows.value.length)
+
+const readyCount = computed(() =>
+  scoredRows.value.filter(row => levelOf(row) === 'complete').length
+)
+
+const readyText = computed(() =>
+  scoredRows.value.length ? `${readyCount.value} / ${scoredRows.value.length}` : '—'
+)
+
+const readyNote = computed(() => {
+  if (!rows.value.length) return ''
+  if (!scoredRows.value.length) return '统计还没回来'
+  return pendingRows.value > 0 ? `另有 ${pendingRows.value} 栏统计未就绪` : `这一站开了 ${scoredRows.value.length} 个栏目`
+})
+
+/** 只有后端真给了 `missingImageCount` 的行才求和：null 是「这一类内容没有图位」，不是 0 */
+const imageGapTotal = computed<number | null>(() => {
+  const judged = scoredRows.value.filter(row => row.summary!.completeness.missingImageCount !== null)
+  if (!judged.length) return null
+  return judged.reduce((sum, row) => sum + (row.summary!.completeness.missingImageCount || 0), 0)
+})
+
+const imageGapText = computed(() => (imageGapTotal.value === null ? '—' : String(imageGapTotal.value)))
+
+const imageGapNote = computed(() => {
+  if (imageGapTotal.value === null) return '这一站的内容里没有判缺图的栏目'
+  if (imageGapTotal.value === 0) return '没有内容缺配图'
+  return pendingRows.value > 0 ? `统计未就绪的 ${pendingRows.value} 栏没算进来` : '门户上摆图的位置还空着'
+})
+
+const urgentRow = computed(() => (scoredRows.value.length ? scoredRows.value[0] : null))
+
+const urgentName = computed(() => urgentRow.value?.state.displayName ?? '—')
+
+const urgentNote = computed(() => {
+  if (!urgentRow.value) {
+    return scoredRows.value.length ? '' : '统计还没回来，说不了该补哪块'
+  }
+  return urgentRow.value.summary!.completeness.hint || ''
+})
+
+function rowColor(row: Row): string {
+  return ROW_COLORS[levelOf(row)] || '#cbd5e1'
+}
+
+function entryIcon(row: Row) {
+  return ENTRY_ICONS[row.state.contentEntry] ?? ApartmentOutlined
+}
+
+function countText(row: Row): string {
+  if (!row.summary) {
+    return '—'
   }
   // null 是「这一栏目不是列表」（关于我们/联系我们读标量），报 0 会被读成内容丢了
-  return card.summary.contentCount === null ? '—' : String(card.summary.contentCount)
+  return row.summary.contentCount === null ? '—' : String(row.summary.contentCount)
 }
 
-/**
- * 档位代码 → 颜色。这里只认代码：那两句中文（`label` / `hint`）照后端 `SectionCompleteness`
- * 原样渲染，前端不写第二份（I-1）。「这一类内容没有图位」也不能被这映射演成绿色——
- * 后端就不给那一档发「完整」的说法。
- */
-const COMPLETENESS_COLORS: Record<string, string> = {
-  complete: 'green',
-  missingImage: 'orange',
-  empty: 'red',
-  noCoverSlot: 'blue',
-  notList: 'default'
+function showUnit(row: Row): boolean {
+  return !!row.summary && row.summary.contentCount !== null
 }
 
-function completenessColor(card: Card): string {
-  return COMPLETENESS_COLORS[card.summary?.completeness?.level ?? ''] || 'default'
+function completenessColor(row: Row): string {
+  return COMPLETENESS_COLORS[levelOf(row)] || 'default'
 }
 
-function completenessLabel(card: Card): string {
-  return card.summary?.completeness?.label ?? ''
+function completenessLabel(row: Row): string {
+  return row.summary?.completeness?.label ?? ''
 }
 
-/** 「统计没回来」与「统计说这一栏空着」是两件事，后者才有档位词 */
-function completenessHint(card: Card): string {
-  return card.summary?.completeness?.hint ?? '完整度统计未就绪'
+/** 「统计没回来」与「统计说这一栏空着」是两件事，后者才有档位话 */
+function hintText(row: Row): string {
+  return row.summary?.completeness?.hint ?? '完整度统计未就绪'
 }
 
-function landingText(card: Card): string {
-  const summary = card.summary
+function landingText(row: Row): string {
+  const summary = row.summary
   if (!summary) {
     return '状态未知'
   }
@@ -198,20 +316,31 @@ function landingText(card: Card): string {
   const label = statusLabels.value[summary.landingPageStatus]
     || `${summary.landingPageStatus}（状态原码，中文词表未取到）`
   if (summary.landingPageId) {
-    return `已发布${summary.landingPageTitle ? '：' + summary.landingPageTitle : ''}`
+    return `栏目页已发布：${summary.landingPageTitle || '未命名'}`
   }
-  return `有页面但未发布（${label}）`
+  return `栏目页有但未发布（${label}）`
 }
 
-function goMaintain(card: Card) {
-  const name = MAINTAIN_ROUTES[card.state.contentEntry]
+function maintainRoute(row: Row): string | undefined {
+  return MAINTAIN_ROUTES[row.state.contentEntry]
+}
+
+/** 那句去向用的是菜单自己那份标签：改菜单名时这里跟着变，不会两处不一致 */
+function maintainLabel(row: Row): string {
+  const name = maintainRoute(row)
+  if (!name) return ''
+  return findLeaf(name, menuLeaves)?.label ?? ''
+}
+
+function goMaintain(row: Row) {
+  const name = maintainRoute(row)
   if (name) {
     router.push({ name })
   }
 }
 
-function previewHref(card: Card): string {
-  const url = card.summary?.previewUrl || card.state.publicPath
+function previewHref(row: Row): string {
+  const url = row.summary?.previewUrl || row.state.publicPath
   return url.startsWith('http') ? url : `${window.location.origin}${url}`
 }
 
@@ -219,28 +348,304 @@ onMounted(load)
 </script>
 
 <style scoped lang="less">
-.portal-workbench-page {
-  &__filter {
-    margin-bottom: 12px;
+.portal-workbench {
+  --wb-radius: 12px;
+
+  &__why {
+    color: rgba(0, 0, 0, .45);
   }
 
-  &__notice {
-    margin-bottom: 16px;
+  &__error {
+    margin-bottom: var(--admin-space-2, 16px);
   }
 
-  &__grid {
+  &__band {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--admin-space-2, 16px);
+    margin-bottom: var(--admin-space-2, 16px);
+  }
+
+  &__cell {
+    background: #fff;
+    border: 1px solid #f0f0f0;
+    border-radius: var(--wb-radius);
+    padding: var(--admin-space-2, 16px) 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__cell-label {
+    font-size: 12px;
+    color: rgba(0, 0, 0, .45);
+  }
+
+  &__cell-num {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    color: #1a1f36;
+
+    &--warn {
+      color: #f59e0b;
+    }
+  }
+
+  &__cell-name {
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #1a1f36;
+  }
+
+  &__cell-note {
+    font-size: 12px;
+    color: rgba(0, 0, 0, .45);
+  }
+
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--admin-space-1, 8px);
+  }
+
+  &__row {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 20px;
+    background: #fff;
+    border: 1px solid #f0f0f0;
+    border-radius: var(--wb-radius);
+    padding: 14px 20px 14px 24px;
+    overflow: hidden;
+    animation: wbIn .45s ease both;
+    transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+
+    // 档位色条：整行唯一的强调，hover 时加粗
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--row-color, #e2e8f0);
+      transition: width .2s ease;
+    }
+
+    &:hover {
+      transform: translateY(-2px);
+      border-color: var(--row-color, #e2e8f0);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, .08);
+
+      &::before {
+        width: 6px;
+      }
+    }
+
+    &--unknown {
+      background: #fafbfc;
+    }
+  }
+
+  &__main {
+    min-width: 0;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+  }
+
+  &__badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 15px;
+    background: var(--row-color, #6366f1);
+  }
+
+  &__name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1f36;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: rgba(0, 0, 0, .45);
+  }
+
+  &__dot {
+    color: rgba(0, 0, 0, .25);
+  }
+
+  &__hint {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: rgba(0, 0, 0, .65);
   }
 
   &__count {
-    font-size: 20px;
-    font-weight: 600;
+    text-align: right;
+    width: 88px;
+    flex: none;
+
+    b {
+      font-size: 24px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #1a1f36;
+    }
+
+    i {
+      font-style: normal;
+      font-size: 12px;
+      font-weight: 400;
+      color: rgba(0, 0, 0, .35);
+      margin-left: 2px;
+    }
   }
 
-  &__muted {
-    color: rgba(0, 0, 0, 0.45);
+  &__acts {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex: none;
+  }
+
+  &__maintain {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 6px;
+    background: #1890ff;
+    color: #fff;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+
+    &:hover {
+      background: #40a9ff;
+      color: #fff;
+    }
+  }
+
+  &__go {
+    font-size: 12px;
+    color: rgba(0, 0, 0, .45);
+    white-space: nowrap;
+  }
+
+  &__open {
+    font-size: 13px;
+    color: #1890ff;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  &__skeletons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--admin-space-1, 8px);
+  }
+
+  &__skeleton {
+    height: 84px;
+    border-radius: var(--wb-radius);
+    background: linear-gradient(90deg, #f2f4f7 25%, #e9edf2 37%, #f2f4f7 63%);
+    background-size: 400% 100%;
+    animation: wbShimmer 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes wbIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wbShimmer {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0 50%;
+  }
+}
+
+@media (max-width: 1200px) {
+  .portal-workbench__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .portal-workbench__acts {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .portal-workbench__count {
+    grid-column: 1;
+    grid-row: 2;
+    text-align: left;
+    width: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .portal-workbench__band {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portal-workbench__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .portal-workbench__acts,
+  .portal-workbench__count {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-workbench__row,
+  .portal-workbench__skeleton {
+    animation: none;
+  }
+
+  .portal-workbench__row {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
   }
 }
 </style>

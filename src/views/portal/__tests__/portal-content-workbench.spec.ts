@@ -6,11 +6,14 @@ import { portalSectionsApi } from '../../../api/portalSections'
 import { portalPagesApi } from '../../../api/portalPages'
 
 /**
- * 租户「内容工作台」（Spec §7.1）。
+ * 租户「内容工作台」（Spec §7.1；2026-11-06 整页重做，方案 docs/内容工作台页面重构_方案.md）。
  *
- * 这一页要守的是两件事，都是以前踩过的那类：
- * 1. 卡集合与名字**只能**来自 `/api/portal/sections`——前端一旦抄一份，超管改完显示名这里还写着老字；
+ * 这一页要守的还是那两件事，都是以前踩过的那类：
+ * 1. 行集合与名字**只能**来自 `/api/portal/sections`——前端一旦抄一份，超管改完显示名这里还写着老字；
  * 2. 页面上不许长出任何开关（N1/N2）。租户能做的只有「去看这一栏的访客视角」和「去填内容」。
+ *
+ * 重做后新增的一层账：顶部那三格是**派生读数**，所以「统计没回来」的行既不进分母、
+ * 也不许被算成 0（I-8 点名的假绿），这一档由下面的概览带用例钉住。
  */
 
 const pushSpy = vi.fn()
@@ -30,9 +33,24 @@ vi.mock('../../../stores/auth', () => ({
   useAuthStore: () => authState,
 }))
 
+/**
+ * 「去维护」旁边那句去向读的是左侧菜单自己那份标签，所以桩件要给一份真路由表：
+ * 用例据此证明那句中文是从菜单来的，不是这一页又抄了一遍。
+ */
+const ROUTES_FIXTURE = [{
+  name: 'workspace',
+  path: '/workspace',
+  children: [
+    { path: 'articles', name: 'workspace-articles', meta: { title: '文章与案例' } },
+    { path: 'case', name: 'workspace-case-list', meta: { title: '客户案例' } },
+    { path: 'portal/jobs', name: 'workspace-portal-jobs', meta: { title: '招聘' } },
+    { path: 'portal/company', name: 'workspace-portal-company', meta: { title: '企业信息' } },
+  ],
+}]
+
 // PageTitle 读 route.meta.title 拿屏名，桩件不给这一口就是 TypeError
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: pushSpy }),
+  useRouter: () => ({ push: pushSpy, options: { routes: ROUTES_FIXTURE } }),
   useRoute: () => ({ params: {}, query: {}, meta: { title: '内容工作台' } })
 }))
 
@@ -45,13 +63,13 @@ vi.mock('../../../api/portalPages', () => ({
 
 const PASS_THROUGH = (name: string, extraSlots: string[] = []) => ({
   name,
-  props: ['title', 'message', 'type', 'description', 'label', 'size', 'column', 'checked', 'disabled'],
+  props: ['title', 'message', 'type', 'description', 'label', 'size', 'column', 'checked', 'disabled', 'color', 'placement'],
   template: `<div class="${name.toLowerCase()}-stub"><span>${'{{ description }}'}</span><slot name="title" />${extraSlots
     .map(slot => `<slot name="${slot}" />`)
     .join('')}<slot /></div>`
 })
 
-function state(key: string, displayName: string, contentEntry: string, enabled = true) {
+function state(key: string, displayName: string, contentEntry: string, enabled = true, navSort = 1) {
   return {
     key,
     displayName,
@@ -61,7 +79,7 @@ function state(key: string, displayName: string, contentEntry: string, enabled =
     publicPath: `/${key}`,
     enabled,
     navVisible: enabled,
-    navSort: 1,
+    navSort,
     landingPageId: null
   }
 }
@@ -99,6 +117,11 @@ function completeness(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** 一档「一条内容都没有」：重做后它必须排在整页第一行 */
+function emptyCompleteness() {
+  return completeness({ level: 'empty', label: '还没有内容', hint: '访客在这一栏目里看不到任何内容，从「去维护」里发一条就有', missingImageCount: 0 })
+}
+
 async function mountView(states: ReturnType<typeof state>[], summaries: Record<string, any> = {},
                         failedKeys: string[] = []) {
   vi.mocked(portalSectionsApi.list).mockResolvedValue(states as any)
@@ -115,20 +138,23 @@ async function mountView(states: ReturnType<typeof state>[], summaries: Record<s
       stubs: {
         'a-button': Button,
         'a-space': PASS_THROUGH('ASpace'),
-        'a-form': PASS_THROUGH('AForm'),
-        'a-form-item': PASS_THROUGH('AFormItem'),
+        'a-tooltip': PASS_THROUGH('ATooltip', ['title']),
         'a-alert': PASS_THROUGH('AAlert'),
-        'a-spin': PASS_THROUGH('ASpin'),
         'a-empty': PASS_THROUGH('AEmpty'),
-        'a-tag': PASS_THROUGH('ATag'),
-        'a-descriptions': PASS_THROUGH('ADescriptions'),
-        'a-descriptions-item': PASS_THROUGH('ADescriptionsItem'),
-        'a-card': PASS_THROUGH('ACard', ['actions'])
+        'a-tag': PASS_THROUGH('ATag')
       }
     }
   })
   await flushPromises()
   return wrapper
+}
+
+/** 行级断言用的读数：一行的文字、档位标签、左色条颜色 */
+function rowTexts(wrapper: Awaited<ReturnType<typeof mountView>>) {
+  return wrapper.findAll('.portal-workbench__row').map(row => ({
+    text: row.text(),
+    color: row.attributes('style') || ''
+  }))
 }
 
 beforeEach(() => {
@@ -138,14 +164,14 @@ beforeEach(() => {
   authState.permissions = ['portal:siteinfo:manage', 'portal:page:manage']
 })
 
-describe('栏目卡集合只来自接口', () => {
-  it('卡上的名字就是接口回的那几个字', async () => {
+describe('栏目行集合只来自接口', () => {
+  it('行上的名字就是接口回的那几个字', async () => {
     const wrapper = await mountView([state('news', '平台改过的名字', 'article')])
     expect(wrapper.text()).toContain('平台改过的名字')
-    expect(wrapper.findAll('.acard-stub')).toHaveLength(1)
+    expect(wrapper.findAll('.portal-workbench__row')).toHaveLength(1)
   })
 
-  it('关掉的栏目不出卡，也不为它发统计请求', async () => {
+  it('关掉的栏目不出行，也不为它发统计请求', async () => {
     const wrapper = await mountView([
       state('news', '资讯栏', 'article'),
       state('jobs', '招聘栏', 'job', false)
@@ -156,10 +182,15 @@ describe('栏目卡集合只来自接口', () => {
     expect(asked).toEqual(['news'])
   })
 
-  it('一个栏目都没开时说明白，而不是留一片空白', async () => {
+  it('一个栏目都没开时说明白，「联系平台」全屏只有页头那一个', async () => {
     const wrapper = await mountView([])
     expect(wrapper.find('.aempty-stub').exists()).toBe(true)
     expect(wrapper.text()).toContain('还没有为这个站点开通任何栏目')
+    const actions = [...document.querySelectorAll('a, button')].map(node => (node.textContent || '').trim())
+    // 空态块里再摆一个同名按钮，等于让人确认两遍点的是不是同一个地方
+    expect(actions.filter(text => text === '联系平台')).toHaveLength(1)
+    // 空态时概览带不摆，免得出现一片「—」看着像坏了
+    expect(wrapper.find('.portal-workbench__band').exists()).toBe(false)
   })
 })
 
@@ -170,7 +201,7 @@ describe('三个数字的口径', () => {
         contentCount: 0,
         landingPageId: null,
         landingPageStatus: null,
-        completeness: completeness({ level: 'empty', label: '还没有内容', hint: '访客在这一栏目里看不到任何内容，从「去维护」里发一条就有', missingImageCount: 0 })
+        completeness: emptyCompleteness()
       })
     })
     expect(wrapper.text()).toContain('还没有内容')
@@ -199,7 +230,7 @@ describe('三个数字的口径', () => {
 })
 
 describe('内容完整度那一格（问题十，含缺图）', () => {
-  /** 只看卡上那几个档位标签的文字：行标签是界面自己的字段名，不参与「中文谁说的」这场判断 */
+  /** 只看行上那几个档位标签的文字：行内其它字段名是界面自己的话，不参与「中文谁说的」这场判断 */
   const tagTexts = (wrapper: Awaited<ReturnType<typeof mountView>>) =>
     wrapper.findAll('.atag-stub').map(node => node.text())
 
@@ -214,7 +245,7 @@ describe('内容完整度那一格（问题十，含缺图）', () => {
     expect(wrapper.text()).toContain('8 条里 3 条没配封面图')
   })
 
-  it('卡上的档位与说明都来自接口：后端换成什么字，界面就照说什么', async () => {
+  it('行上的档位与说明都来自接口：后端换成什么字，界面就照说什么', async () => {
     const wrapper = await mountView([state('news', '资讯栏', 'article')], {
       news: summary('news', {
         completeness: completeness({ level: 'missingImage', label: '档位词表改过的字', hint: '后端说的完整度那句话' })
@@ -238,12 +269,114 @@ describe('内容完整度那一格（问题十，含缺图）', () => {
     expect(tagTexts(wrapper)).not.toContain('内容完整')
   })
 
-  it('统计没回来的那一卡不许亮出「内容完整」，也不补一个默认档', async () => {
+  it('统计没回来的那一行不许亮出「内容完整」，也不补一个默认档', async () => {
     const wrapper = await mountView([state('news', '资讯栏', 'article')], {}, ['news'])
     expect(wrapper.text()).toContain('统计未就绪')
     expect(wrapper.text()).toContain('完整度统计未就绪')
     // 档位标签整个不渲染，而不是渲染一个界面自己猜的档
     expect(wrapper.findAll('.atag-stub')).toHaveLength(0)
+  })
+
+  it('后端新加一档陌生代码时，行上仍是后端那两句原话，不被演成认识的那几种', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')], {
+      news: summary('news', {
+        completeness: completeness({ level: 'brandNewLevel', label: '后端新加的那一档', hint: '后端新加档位的说明原文', missingImageCount: null })
+      })
+    })
+    expect(wrapper.text()).toContain('后端新加的那一档')
+    expect(wrapper.text()).toContain('后端新加档位的说明原文')
+    expect(tagTexts(wrapper)).toEqual(['后端新加的那一档'])
+  })
+})
+
+describe('概览带那三格只算读回来的账', () => {
+  it('齐了几栏按读回来的行数算，统计未就绪的那行不进分母', async () => {
+    const wrapper = await mountView(
+      [state('news', '资讯栏', 'article'), state('cases', '客户案例', 'case'), state('jobs', '招聘栏', 'job')],
+      {
+        news: summary('news'),
+        cases: summary('cases', { completeness: emptyCompleteness() })
+      },
+      ['jobs']
+    )
+    const cells = wrapper.findAll('.portal-workbench__cell')
+    expect(cells[0].text()).toContain('1 / 2')
+    expect(cells[0].text()).toContain('另有 1 栏统计未就绪')
+  })
+
+  it('缺图条数只加后端给了数的那些行；全是「没有图位」时报「—」而不是 0', async () => {
+    const wrapper = await mountView(
+      [state('news', '资讯栏', 'article'), state('jobs', '招聘栏', 'job')],
+      {
+        news: summary('news', {
+          contentCount: 8,
+          completeness: completeness({ level: 'missingImage', label: '有内容缺图', hint: '3 条没配图', missingImageCount: 3 })
+        }),
+        jobs: summary('jobs', {
+          contentEntry: 'job',
+          completeness: completeness({ level: 'noCoverSlot', label: '已有内容', hint: '没有封面图位，不判缺图', missingImageCount: null })
+        })
+      }
+    )
+    expect(wrapper.findAll('.portal-workbench__cell')[1].text()).toContain('3')
+
+    const onlyNoSlot = await mountView([state('jobs', '招聘栏', 'job')], {
+      jobs: summary('jobs', {
+        contentEntry: 'job',
+        completeness: completeness({ level: 'noCoverSlot', label: '已有内容', hint: '没有封面图位，不判缺图', missingImageCount: null })
+      })
+    })
+    const gapCell = onlyNoSlot.findAll('.portal-workbench__cell')[1]
+    expect(gapCell.text()).toContain('—')
+    expect(gapCell.text()).not.toContain('0')
+  })
+
+  it('「最该先补」报的是排在第一行那一栏，句子用后端 hint 原文', async () => {
+    const wrapper = await mountView(
+      [state('news', '资讯栏', 'article'), state('cases', '客户案例', 'case')],
+      {
+        news: summary('news'),
+        cases: summary('cases', { completeness: emptyCompleteness() })
+      }
+    )
+    const urgent = wrapper.findAll('.portal-workbench__cell')[2]
+    expect(urgent.text()).toContain('客户案例')
+    expect(urgent.text()).toContain('访客在这一栏目里看不到任何内容')
+  })
+})
+
+describe('行按「最该补」排，不是按接口回来的顺序', () => {
+  it('空栏目排在齐了的前面，同档再按平台给的导航顺序', async () => {
+    const wrapper = await mountView(
+      [
+        state('news', '资讯栏', 'article', true, 5),
+        state('services', '服务栏', 'article', true, 3),
+        state('cases', '客户案例', 'case', true, 4)
+      ],
+      {
+        news: summary('news'),
+        services: summary('services', {
+          completeness: completeness({ level: 'missingImage', label: '有内容缺图', hint: '2 条没配图', missingImageCount: 2 })
+        }),
+        cases: summary('cases', { contentCount: 0, completeness: emptyCompleteness() })
+      }
+    )
+    const names = rowTexts(wrapper).map(row => row.text)
+    expect(names[0]).toContain('客户案例')
+    expect(names[1]).toContain('服务栏')
+    expect(names[2]).toContain('资讯栏')
+  })
+
+  it('统计未就绪的行落到后面，且不亮出猜出来的档位色', async () => {
+    const wrapper = await mountView(
+      [state('news', '资讯栏', 'article', true, 1), state('cases', '客户案例', 'case', true, 2)],
+      { cases: summary('cases', { contentCount: 0, completeness: emptyCompleteness() }) },
+      ['news']
+    )
+    const rows = rowTexts(wrapper)
+    expect(rows[0].text).toContain('客户案例')
+    expect(rows[1].text).toContain('资讯栏')
+    expect(rows[1].text).toContain('完整度统计未就绪')
   })
 })
 
@@ -255,6 +388,7 @@ describe('租户在这一页没有任何写口', () => {
     const actions = [...document.querySelectorAll('a, button')].map(node => (node.textContent || '').trim())
     expect(actions.filter(text => /搭建|发布|下线|新增栏目|删除/.test(text))).toEqual([])
     expect(actions).toContain('去维护')
+    expect(wrapper.text()).toContain('口径说明')
   })
 
   it('去维护跳到这一内容入口对应的模块，跳的不是栏目 key', async () => {
@@ -267,11 +401,19 @@ describe('租户在这一页没有任何写口', () => {
     expect(wrapper.text()).toContain('招聘栏')
   })
 
-  it('访客地址那一格链到的是后端给的对外地址', async () => {
-    await mountView([state('news', '资讯栏', 'article')])
-    const link = [...document.querySelectorAll('a')].find(node => (node.textContent || '').trim() === '/news')
+  it('「去维护」旁边那句去向用的是菜单自己那份标签，不是这一页抄的', async () => {
+    const wrapper = await mountView([state('jobs', '招聘栏', 'job')])
+    expect(wrapper.text()).toContain('→ 招聘')
+  })
+
+  it('访客页那条链到的是后端给的对外地址', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    const link = [...document.querySelectorAll('a')].find(node => (node.textContent || '').trim() === '打开访客页')
     expect(link).toBeTruthy()
     expect(link!.getAttribute('href')).toBe('https://acme.example/news')
+    expect(link!.getAttribute('target')).toBe('_blank')
+    // 对外路径这一行只是文字，不再是一条看不出区别的裸链接
+    expect(wrapper.text()).toContain('/news')
   })
 })
 
@@ -280,10 +422,10 @@ describe('租户档账号（只有 portal:siteinfo:manage，实测 CONTENT_EDITO
     authState.permissions = ['portal:siteinfo:manage']
   })
 
-  it('没有读页那一码就不发词表请求，栏目卡照旧出', async () => {
+  it('没有读页那一码就不发词表请求，栏目行照旧出', async () => {
     const wrapper = await mountView([state('news', '资讯栏', 'article')])
     expect(portalPagesApi.statusLabels).not.toHaveBeenCalled()
-    expect(wrapper.findAll('.acard-stub')).toHaveLength(1)
+    expect(wrapper.findAll('.portal-workbench__row')).toHaveLength(1)
     expect(wrapper.text()).toContain('资讯栏')
     expect(wrapper.text()).not.toContain('缺少权限')
   })
@@ -296,12 +438,12 @@ describe('租户档账号（只有 portal:siteinfo:manage，实测 CONTENT_EDITO
     expect(wrapper.text()).not.toContain('草稿')
   })
 
-  it('词表这一个口挂了（有码但读失败）也只影响用词，整页卡片照旧在', async () => {
+  it('词表这一个口挂了（有码但读失败）也只影响用词，整页行照旧在', async () => {
     authState.permissions = ['portal:siteinfo:manage', 'portal:page:manage']
     vi.mocked(portalPagesApi.statusLabels).mockRejectedValue(new Error('缺少权限: portal:page:manage'))
     const wrapper = await mountView([state('news', '资讯栏', 'article')])
     expect(portalPagesApi.statusLabels).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAll('.acard-stub')).toHaveLength(1)
+    expect(wrapper.findAll('.portal-workbench__row')).toHaveLength(1)
     expect(wrapper.text()).not.toContain('栏目读取失败')
     expect(wrapper.text()).not.toContain('缺少权限')
   })
