@@ -142,18 +142,25 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space v-if="canManage">
+            <!--
+              待审的行给放行，已摘除的行给放回：两个动作在后端是同一发 approve，
+              区别只在转移表的哪一条边（pending→approved 与 removed→approved）。
+              已驳回不给摘除按钮——它本来就不在前台，没有「撤下」这件事，
+              而且摘完只能放回成「已对外」，等于替租户把一条他驳回过的话放行。
+            -->
             <a-button
-              v-if="record.status === 'pending'"
+              v-if="record.status === 'pending' || record.status === 'removed'"
               id="interaction-approve"
               type="link"
               size="small"
               @click="moderate(record, 'approve')"
-            >放行</a-button>
+            >{{ record.status === 'removed' ? '放回' : '放行' }}</a-button>
             <a-button v-if="record.status === 'pending'" type="link" size="small" danger @click="moderate(record, 'reject')">
               驳回
             </a-button>
             <a-popconfirm
-              title="摘除 = 从站点上撤下、也不再出现在这个列表里，但库里的记录仍然留着。确定摘除？"
+              v-if="record.status === 'pending' || record.status === 'approved'"
+              title="摘除 = 从站点上撤下，前台不再显示；这一条会改到下面「已摘除」那一档，随时查得回来、也放得回去。确定摘除？"
               ok-text="摘除"
               cancel-text="先不"
               @confirm="moderate(record, 'remove')"
@@ -291,18 +298,25 @@ const seedTasks = ref<InteractionSeedTask[]>([])
 const seedEmptyLine = ref('')
 const seedEmptyReason = ref<EmptyReason>(null)
 
+/**
+ * 五档。「已摘除」是一档，不是一个查不回来的动作（那一条拍板）；
+ * 「全部」把已摘除也算进来，所以下面那四个数相加就是这一家现在查得到的全部评论。
+ * 一个已知口径缺口写在这儿：这次改动之前摘除的评论是软删的那一形，
+ * 四个数和这一档都看不到它们——那次以前的账不在这次范围内（Q1 拍的是「只管新的」）。
+ */
 const statusOptions = [
   { value: 'pending', label: '待审' },
   { value: 'approved', label: '已对外' },
   { value: 'rejected', label: '已驳回' },
-  { value: 'all', label: '全部（待审 + 已对外 + 已驳回）' }
+  { value: 'removed', label: '已摘除' },
+  { value: 'all', label: '全部（待审 + 已对外 + 已驳回 + 已摘除）' }
 ]
 
 /**
  * 待审队列的读数（Spec-Q §4.1 的 B 型：第一条摆「等我处理」，不是总数）。
- * 这三个数只认后端 `counts` 那一格——它不带状态条件，所以跟下面那颗下拉无关，
+ * 这四个数只认后端 `counts` 那一格——它按状态分开数，所以跟下面那颗下拉无关，
  * 也跟在界面里数当前页的行数是两件事（当前页几条写在翻页条的「共 N 条」里）。
- * 口径差别写在明处：`counts` 数的是这一家全部待审评论（读者写的 + 系统按开关补的都在内），
+ * 口径差别写在明处：`counts` 数的是这一家全部评论（读者写的 + 系统按开关补的都在内），
  * 上面总账那一格「等我处理的读者评论」只数读者写的，因此可能比这里小——
  * 同屏两个「等我处理」不写清是谁的，就会被读成其中一个坏了。
  */
@@ -311,8 +325,9 @@ const queueCountLine = computed(() => {
   const counts = queueCounts.value
   return (
     `等我处理：待审 ${formatNumber(counts.pending)} 条。` +
-    `已对外 ${formatNumber(counts.approved)} 条、已驳回 ${formatNumber(counts.rejected)} 条` +
-    '（这三个数按这一家全部评论算，读者写的和系统补的都在内，不随下面的状态筛选变；' +
+    `已对外 ${formatNumber(counts.approved)} 条、已驳回 ${formatNumber(counts.rejected)} 条、` +
+    `已摘除 ${formatNumber(counts.removed)} 条` +
+    '（这四个数按这一家全部评论分开数，读者写的和系统补的都在内，不随下面的状态筛选变；' +
     '上面总账那一格「等我处理的读者评论」只数读者写的，可能比这里少）'
   )
 })
@@ -530,7 +545,14 @@ async function moderate(record: InteractionCommentItem, action: 'approve' | 'rej
   }
   try {
     await interactionApi.moderate(record.id, action, requestedTenantId.value ?? undefined)
-    message.success(action === 'approve' ? '已放行，这条会显示在你官网上' : '已处理')
+    message.success(
+      action === 'approve'
+        ? '已放行，这条会显示在你官网上'
+        // 摘除那句要说清「这条挪去哪、还能不能回来」，只念「已处理」会让人以为它消失了
+        : action === 'remove'
+          ? '已摘除，前台不再显示；这一条在下面「已摘除」那一档，点「放回」就回去'
+          : '已处理'
+    )
     await Promise.all([loadQueue(), loadStats()])
   } catch (error: any) {
     message.error(error?.message || '操作失败')

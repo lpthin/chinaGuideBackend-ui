@@ -159,7 +159,7 @@ async function mountView(options: {
       page: 1,
       size: 20,
       pages: 1,
-      counts: { pending: 2, approved: 1, rejected: 0 },
+      counts: { pending: 2, approved: 1, rejected: 0, removed: 0 },
       emptyReason: null,
       emptyLine: null
     }) as any)
@@ -334,7 +334,7 @@ describe('待审队列', () => {
       page: 1,
       size: 20,
       pages: 0,
-      counts: { pending: 0, approved: 0, rejected: 0 },
+      counts: { pending: 0, approved: 0, rejected: 0, removed: 0 },
       emptyReason: 'NONE',
       emptyLine: QUEUE_EMPTIES[0][1],
       ...overrides
@@ -440,18 +440,18 @@ describe('待审队列的读数（B 型第一条是「等我处理」）', () =>
   }
 
   const COUNT_LINE =
-    '等我处理：待审 2 条。已对外 1 条、已驳回 0 条' +
-    '（这三个数按这一家全部评论算，读者写的和系统补的都在内，不随下面的状态筛选变；' +
+    '等我处理：待审 2 条。已对外 1 条、已驳回 0 条、已摘除 0 条' +
+    '（这四个数按这一家全部评论分开数，读者写的和系统补的都在内，不随下面的状态筛选变；' +
     '上面总账那一格「等我处理的读者评论」只数读者写的，可能比这里少）'
 
-  it('读数逐字对上后端 counts 那三个键，「等我处理」排在最前', async () => {
+  it('读数逐字对上后端 counts 那四个键，「等我处理」排在最前', async () => {
     const wrapper = await mountView()
 
     expect(countLines(wrapper)).toEqual([COUNT_LINE])
     expect(countLines(wrapper)[0].indexOf('等我处理')).toBe(0)
   })
 
-  it('三个数取的是 counts，不是当前页的行数（行 3 条、counts.pending 7 时念 7）', async () => {
+  it('四个数取的是 counts，不是当前页的行数（行 3 条、counts.pending 7 时念 7）', async () => {
     const wrapper = await mountView({
       commentsPayload: {
         items: [
@@ -463,7 +463,7 @@ describe('待审队列的读数（B 型第一条是「等我处理」）', () =>
         page: 1,
         size: 20,
         pages: 1,
-        counts: { pending: 7, approved: 8, rejected: 9 },
+        counts: { pending: 7, approved: 8, rejected: 9, removed: 10 },
         emptyReason: null,
         emptyLine: null
       }
@@ -471,7 +471,7 @@ describe('待审队列的读数（B 型第一条是「等我处理」）', () =>
 
     const said = countLines(wrapper)[0]
     expect(said).toContain('待审 7 条')
-    expect(said).toContain('已对外 8 条、已驳回 9 条')
+    expect(said).toContain('已对外 8 条、已驳回 9 条、已摘除 10 条')
     expect(said).not.toContain('待审 3 条')
   })
 
@@ -563,3 +563,112 @@ describe('总账与排产计划', () => {
     expect(said).not.toContain('一条都没有')
   })
 })
+
+/**
+ * 摘除改成一种状态（2026-11-07 拍板 Q2/Q3/Q4）。
+ *
+ * 这一节钉的是「撤下来的那条在界面上还有没有下文」：以前摘完哪一档都查不回来，
+ * 连三个数都不算它（证据 `scratch/specq-p2/remove-evidence.json`：摘除后五个档全 0、counts 全 0）。
+ * 现在必须有第五档、那一档的行必须有放回，而且不能再拿「不再出现在这个列表里」骗人。
+ */
+describe('已摘除是一档，不是一个查不回来的动作', () => {
+  function rowOf(id: number, status: string) {
+    return {
+      id,
+      articleId: 231,
+      articleTitle: '签证攻略',
+      authorName: '读者' + id,
+      content: '内容' + id,
+      status,
+      source: 'reader',
+      sourceText: '读者写的',
+      moderationNote: null,
+      createdAt: '2026-10-05T09:00:00',
+      reviewedAt: null
+    }
+  }
+
+  function queueWith(statuses: string[]) {
+    return {
+      items: statuses.map((status, i) => rowOf(i + 1, status)),
+      total: statuses.length,
+      page: 1,
+      size: 20,
+      pages: 1,
+      counts: { pending: 1, approved: 1, rejected: 1, removed: 1 },
+      emptyReason: null,
+      emptyLine: null
+    } as any
+  }
+
+  function buttonsOf(wrapper: any, index: number): string[] {
+    return wrapper.findAll('.table-stub')[0].findAll('.row')[index]
+      .findAll('button')
+      .map((b: any) => b.text().trim())
+  }
+
+  it('状态下拉有五个档，「全部」那一档把四个名字都写出来', async () => {
+    const wrapper = await mountView()
+    const select = wrapper.findAllComponents({ name: 'ASelect' })
+      .find((node: any) => node.props('options')?.some((o: any) => o.value === 'all'))
+
+    expect(select!.props('options').map((o: any) => o.value)).toEqual(
+      ['pending', 'approved', 'rejected', 'removed', 'all']
+    )
+    expect(select!.props('options').map((o: any) => o.label)).toContain('已摘除')
+    expect(select!.props('options').find((o: any) => o.value === 'all')!.label)
+      .toBe('全部（待审 + 已对外 + 已驳回 + 已摘除）')
+  })
+
+  it('待审与已对外给摘除；已驳回与已摘除不给（已驳回没有「撤下」这件事，摘完只能放回成已对外）', async () => {
+    const wrapper = await mountView({ commentsPayload: queueWith(['pending', 'approved', 'rejected', 'removed']) })
+
+    expect(buttonsOf(wrapper, 0)).toEqual(['放行', '驳回', '摘除'])
+    expect(buttonsOf(wrapper, 1)).toEqual(['摘除'])
+    expect(buttonsOf(wrapper, 2)).toEqual([])
+    expect(buttonsOf(wrapper, 3)).toEqual(['放回'])
+  })
+
+  it('已摘除那一行的「放回」传的是 approve：后端那条边是 removed → approved，不是退回待审', async () => {
+    const wrapper = await mountView({ commentsPayload: queueWith(['removed']) })
+    const restore = wrapper.findAll('.table-stub')[0].findAll('.row')[0]
+      .findAll('button').find((b: any) => b.text().trim() === '放回')
+
+    await restore!.trigger('click')
+    await flushPromises()
+
+    expect(interactionApi.moderate).toHaveBeenCalledWith(1, 'approve', undefined)
+  })
+
+  it('确认框那句中文改口：说这一条会进「已摘除」那一档、查得回来放得回去', async () => {
+    const wrapper = await mountView({ commentsPayload: queueWith(['pending', 'approved']) })
+    const popconfirm = wrapper.findAllComponents({ name: 'APopconfirm' })[0]
+
+    expect(popconfirm.props('title')).toContain('已摘除')
+    expect(popconfirm.props('title')).toContain('放得回去')
+    // 旧那句是假话：摘完之后哪一档都查不到它
+    expect(popconfirm.props('title')).not.toContain('也不再出现在这个列表里')
+  })
+
+  it('已摘除那一行的状态那一格念「已摘除」，不是把 removed 原样显示出来', async () => {
+    const wrapper = await mountView({ commentsPayload: queueWith(['pending', 'approved', 'rejected', 'removed']) })
+
+    const said = wrapper.findAll('.table-stub')[0].findAll('.row')[3].text()
+    expect(said).toContain('已摘除')
+    expect(said).not.toContain('removed')
+  })
+
+  it('摘除成功后那句话交代「去哪、怎么回来」，不许只念「已处理」', async () => {
+    const wrapper = await mountView({ commentsPayload: queueWith(['pending']) })
+    const popconfirm = wrapper.findAllComponents({ name: 'APopconfirm' })[0]
+
+    popconfirm.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(interactionApi.moderate).toHaveBeenCalledWith(1, 'remove', undefined)
+    expect(message.success).toHaveBeenCalledWith(expect.stringContaining('已摘除'))
+    expect(message.success).toHaveBeenCalledWith(expect.stringContaining('「已摘除」那一档'))
+    expect(message.success).not.toHaveBeenCalledWith('已处理')
+  })
+})
+

@@ -65,7 +65,7 @@ export interface InteractionCommentPage extends EmptyCauseFields {
   page: number
   size: number
   pages: number
-  counts: { pending: number, approved: number, rejected: number }
+  counts: { pending: number, approved: number, rejected: number, removed: number }
 }
 
 /** 这一家的总账：真实与系统补的分开数，排产计划按状态分开数 */
