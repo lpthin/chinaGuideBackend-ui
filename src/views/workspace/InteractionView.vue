@@ -98,8 +98,21 @@
       </div>
     </a-card>
 
-    <a-card title="待审评论" :bordered="false">
-      <FilterBar>
+    <!-- 待审评论这一块的壳走 Spec-Q 的 RecordListPage（B 型：第一条读数是「等我处理」）。
+         这一屏不止一张卡，所以是 `section` 形：页头由上面那份 PageTitle 摆，这里只报这一块是谁。 -->
+    <record-list-page
+      section
+      card-title="待审评论"
+      :loading="queueLoading"
+      :rows="comments"
+      :columns="commentColumns"
+      :read-failed="queueError"
+      :empty-line="queueEmptyLine"
+      :empty-reason="queueEmptyReason"
+      :not-sent="queueNotSent"
+      :count-line="queueCountLine"
+    >
+      <template #filters>
         <a-select
           id="interaction-status-filter"
           v-model:value="statusFilter"
@@ -107,132 +120,112 @@
           :options="statusOptions"
           @change="reloadQueue"
         />
-        <template #actions>
-          <a-space>
-            <a-button size="small" :loading="queueLoading" @click="reloadQueue">刷新</a-button>
-          </a-space>
-        </template>
-      </FilterBar>
-      <a-alert v-if="queueError" type="error" show-icon message="队列没读到" :description="queueError" />
-      <a-table
-        v-else
-        :columns="commentColumns"
-        :data-source="comments"
-        :loading="queueLoading"
-        :pagination="false"
-        row-key="id"
-        size="small"
-      >
-        <template #emptyText>
-          <!-- 这一屏的空会被读成「这家没人评论 / 这条链什么都没干」，所以只认后端回的那一句（N-05） -->
-          <empty-list-hint
-            :loading="queueLoading"
-            :empty-line="queueEmptyLine"
-            :empty-reason="queueEmptyReason"
-          />
-        </template>
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'status'">
-            <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
-          </template>
-          <template v-else-if="column.key === 'sourceText'">
-            {{ record.sourceText || '—' }}
-          </template>
-          <template v-else-if="column.key === 'moderationNote'">
-            <span v-if="record.moderationNote" class="note-text">{{ record.moderationNote }}</span>
-            <span v-else class="muted">—</span>
-          </template>
-          <template v-else-if="column.key === 'createdAt'">
-            {{ formatDateTime(record.createdAt, true) }}
-          </template>
-          <template v-else-if="column.key === 'actions'">
-            <a-space v-if="canManage">
-              <a-button
-                v-if="record.status === 'pending'"
-                id="interaction-approve"
-                type="link"
-                size="small"
-                @click="moderate(record, 'approve')"
-              >放行</a-button>
-              <a-button v-if="record.status === 'pending'" type="link" size="small" danger @click="moderate(record, 'reject')">
-                驳回
-              </a-button>
-              <a-popconfirm
-                title="摘除 = 从站点上撤下、也不再出现在这个列表里，但库里的记录仍然留着。确定摘除？"
-                ok-text="摘除"
-                cancel-text="先不"
-                @confirm="moderate(record, 'remove')"
-              >
-                <a-button type="link" size="small" danger>摘除</a-button>
-              </a-popconfirm>
-            </a-space>
-            <span v-else class="muted">只读</span>
-          </template>
-        </template>
-      </a-table>
-      <a-pagination
-        v-if="total > pageSize"
-        class="queue-pager"
-        :current="page"
-        :page-size="pageSize"
-        :total="total"
-        @change="(p: number) => { page = p; loadQueue() }"
-      />
-    </a-card>
-
-    <a-card title="示例评论的排产计划" :bordered="false">
-      <template #extra>
-        <a-button size="small" :loading="seedLoading" @click="loadSeedTasks">刷新</a-button>
       </template>
-      <a-alert v-if="seedError" type="error" show-icon message="排产计划没读到" :description="seedError" />
-      <a-table
-        v-else
-        :columns="seedColumns"
-        :data-source="seedTasks"
-        :loading="seedLoading"
-        :pagination="false"
-        row-key="id"
-        size="small"
-      >
-        <template #emptyText>
-          <empty-list-hint
-            :loading="seedLoading"
-            :empty-line="seedEmptyLine"
-            :empty-reason="seedEmptyReason"
-          />
+      <template #actions>
+        <a-space>
+          <a-button size="small" :loading="queueLoading" @click="reloadQueue">刷新</a-button>
+        </a-space>
+      </template>
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'status'">
+          <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
         </template>
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'fireAt'">
-            {{ formatDateTime(record.fireAt, true) }}
-          </template>
-          <template v-else-if="column.key === 'status'">
-            <a-tag :color="seedStatusColor(record.status)">{{ seedStatusLabel(record.status) }}</a-tag>
-          </template>
-          <template v-else-if="column.key === 'detail'">
-            <span v-if="record.skipReasonText" class="skip-reason">{{ record.skipReasonText }}</span>
-            <span v-if="record.note" class="note-text">{{ record.note }}</span>
-            <span v-if="!record.skipReasonText && !record.note" class="muted">—</span>
-          </template>
+        <template v-else-if="column.key === 'sourceText'">
+          {{ record.sourceText || '—' }}
         </template>
-      </a-table>
-    </a-card>
+        <template v-else-if="column.key === 'moderationNote'">
+          <span v-if="record.moderationNote" class="note-text">{{ record.moderationNote }}</span>
+          <span v-else class="muted">—</span>
+        </template>
+        <template v-else-if="column.key === 'createdAt'">
+          {{ formatDateTime(record.createdAt, true) }}
+        </template>
+        <template v-else-if="column.key === 'actions'">
+          <a-space v-if="canManage">
+            <a-button
+              v-if="record.status === 'pending'"
+              id="interaction-approve"
+              type="link"
+              size="small"
+              @click="moderate(record, 'approve')"
+            >放行</a-button>
+            <a-button v-if="record.status === 'pending'" type="link" size="small" danger @click="moderate(record, 'reject')">
+              驳回
+            </a-button>
+            <a-popconfirm
+              title="摘除 = 从站点上撤下、也不再出现在这个列表里，但库里的记录仍然留着。确定摘除？"
+              ok-text="摘除"
+              cancel-text="先不"
+              @confirm="moderate(record, 'remove')"
+            >
+              <a-button type="link" size="small" danger>摘除</a-button>
+            </a-popconfirm>
+          </a-space>
+          <span v-else class="muted">只读</span>
+        </template>
+      </template>
+
+      <template #footer>
+        <!-- 读失败 / 平台档这两种形状里 `total` 都是 0，这条翻页条自然不会摆：
+             那条「共 0 条」会把「没查过」说成「查过了、真的没有」 -->
+        <a-pagination
+          v-if="total > pageSize"
+          :current="page"
+          :page-size="pageSize"
+          :total="total"
+          :show-total="(count: number) => `共 ${count} 条`"
+          @change="(p: number) => { page = p; loadQueue() }"
+        />
+      </template>
+    </record-list-page>
+
+    <record-list-page
+      section
+      card-title="示例评论的排产计划"
+      :loading="seedLoading"
+      :rows="seedTasks"
+      :columns="seedColumns"
+      :read-failed="seedError"
+      :empty-line="seedEmptyLine"
+      :empty-reason="seedEmptyReason"
+      :not-sent="seedNotSent"
+    >
+      <template #actions>
+        <a-space>
+          <a-button size="small" :loading="seedLoading" @click="loadSeedTasks">刷新</a-button>
+        </a-space>
+      </template>
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'fireAt'">
+          {{ formatDateTime(record.fireAt, true) }}
+        </template>
+        <template v-else-if="column.key === 'status'">
+          <a-tag :color="seedStatusColor(record.status)">{{ seedStatusLabel(record.status) }}</a-tag>
+        </template>
+        <template v-else-if="column.key === 'detail'">
+          <span v-if="record.skipReasonText" class="skip-reason">{{ record.skipReasonText }}</span>
+          <span v-if="record.note" class="note-text">{{ record.note }}</span>
+          <span v-if="!record.skipReasonText && !record.note" class="muted">—</span>
+        </template>
+      </template>
+    </record-list-page>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import FilterBar from '../../components/FilterBar.vue'
-import EmptyListHint from '../../components/EmptyListHint.vue'
+import RecordListPage from '../../components/RecordListPage.vue'
 import {
   interactionApi,
   type InteractionCommentItem,
+  type InteractionCommentPage,
   type InteractionConfig,
   type InteractionSeedTask,
   type InteractionStats
 } from '../../api/interaction'
 import { useAuthStore } from '../../stores/auth'
-import { formatDateTime } from '../../utils/format'
+import { formatDateTime, formatNumber } from '../../utils/format'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import PageTitle from '../../components/PageTitle.vue'
 
@@ -244,6 +237,11 @@ import PageTitle from '../../components/PageTitle.vue'
  * 而它们的话术全部来自后端，界面不拼第二份中文。
  *
  * 另一条硬规矩跟「每日产出」那页一样：读失败就老实地说读失败，不回填默认值、不摆空表。
+ *
+ * Spec-Q P2：待审评论与排产计划两块走 `RecordListPage` 的 `section` 形（这一屏不止一张卡，
+ * 页头由上面的 PageTitle 摆一次）。跟着换掉的三件事：表不再 `size="small"`（与其余列表页同一密度）、
+ * 读失败从「卡上一条 alert + 表退场」变成模板的错误块、平台档那一发没发出去的说法从页顶那一条
+ * 扩到每一块自己都说一句（空表在平台档会被读成「这一家没人评论」）。
  */
 
 const authStore = useAuthStore()
@@ -284,6 +282,8 @@ const statusFilter = ref('pending')
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+/** 队列那一口自己带的三档计数（后端 `counts`）：读数那一行只念它，不在界面拿当前页的行数凑 */
+const queueCounts = ref<InteractionCommentPage['counts'] | null>(null)
 
 const seedLoading = ref(false)
 const seedError = ref('')
@@ -297,6 +297,42 @@ const statusOptions = [
   { value: 'rejected', label: '已驳回' },
   { value: 'all', label: '全部（待审 + 已对外 + 已驳回）' }
 ]
+
+/**
+ * 待审队列的读数（Spec-Q §4.1 的 B 型：第一条摆「等我处理」，不是总数）。
+ * 这三个数只认后端 `counts` 那一格——它不带状态条件，所以跟下面那颗下拉无关，
+ * 也跟在界面里数当前页的行数是两件事（当前页几条写在翻页条的「共 N 条」里）。
+ * 口径差别写在明处：`counts` 数的是这一家全部待审评论（读者写的 + 系统按开关补的都在内），
+ * 上面总账那一格「等我处理的读者评论」只数读者写的，因此可能比这里小——
+ * 同屏两个「等我处理」不写清是谁的，就会被读成其中一个坏了。
+ */
+const queueCountLine = computed(() => {
+  if (isPlatformMode.value || queueError.value || !queueCounts.value) return ''
+  const counts = queueCounts.value
+  return (
+    `等我处理：待审 ${formatNumber(counts.pending)} 条。` +
+    `已对外 ${formatNumber(counts.approved)} 条、已驳回 ${formatNumber(counts.rejected)} 条` +
+    '（这三个数按这一家全部评论算，读者写的和系统补的都在内，不随下面的状态筛选变；' +
+    '上面总账那一格「等我处理的读者评论」只数读者写的，可能比这里少）'
+  )
+})
+
+/**
+ * 队列与排产都按客户分开存：平台档（超管没选客户）那一发不发出去。
+ * 这种形状走模板的「这一发没发出去」那一形，说的必须是去哪儿切，
+ * 而不是留一张空表让人读成「这一家没人评论」。
+ */
+const queueNotSent = computed(() =>
+  isPlatformMode.value
+    ? '待审队列按客户分开存：平台档没有「这一家」，这一发没有发出去，所以这里不能说「没有评论」。请在右上角切到「客户」并选一家。'
+    : ''
+)
+
+const seedNotSent = computed(() =>
+  isPlatformMode.value
+    ? '排产计划按客户分开存：平台档没有「这一家」，这一发没有发出去，所以这里不能说「没有计划」。请在右上角切到「客户」并选一家。'
+    : ''
+)
 
 const commentColumns = [
   { title: '文章', dataIndex: 'articleTitle', key: 'articleTitle', width: 180, ellipsis: true },
@@ -446,6 +482,7 @@ async function loadQueue() {
   if (isPlatformMode.value) {
     comments.value = []
     total.value = 0
+    queueCounts.value = null
     queueEmptyLine.value = ''
     queueEmptyReason.value = null
     queueError.value = ''
@@ -457,6 +494,7 @@ async function loadQueue() {
     const data = await interactionApi.comments({ status: statusFilter.value, page: page.value, size: pageSize.value }, requestedTenantId.value ?? undefined)
     comments.value = data?.items ?? []
     total.value = data?.total ?? 0
+    queueCounts.value = data?.counts ?? null
     queueEmptyLine.value = data?.emptyLine ?? ''
     queueEmptyReason.value = asEmptyReason(data?.emptyReason)
     queueError.value = ''
@@ -470,6 +508,8 @@ async function loadQueue() {
   } catch (error: any) {
     comments.value = []
     total.value = 0
+    // 读失败时上一回的三档计数跟着作废：读数那一行不念，比念一个过期的数诚实
+    queueCounts.value = null
     queueEmptyLine.value = ''
     queueEmptyReason.value = null
     queueError.value = error?.message || '队列读取失败'
@@ -541,24 +581,19 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
+/* 这一屏是「页头 + 提示 + 四块」，块与块的间距只在这一处定：
+   改之前四张卡直接贴在一起，只有 lead-alert / disclosure 各自抄了一句 margin-top: 16px */
 .interaction-page {
   width: 100%;
-  padding: 8px 0;
-
-  .scope-alert {
-    margin-bottom: 16px;
-  }
+  padding: var(--admin-space-1) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-space-2);
 }
 
-.lead-alert,
-.disclosure,
-.queue-pager {
-  margin-top: 16px;
-}
-
-.lead-alert {
-  margin-bottom: 16px;
-  margin-top: 0;
+/* disclosure 那张提醒在配置卡里面，够不着上面那层 gap，只能自己留 */
+.disclosure {
+  margin-top: var(--admin-space-2);
 }
 
 .config-form {
@@ -567,7 +602,7 @@ onMounted(() => {
 
 .field-hint {
   margin-left: 12px;
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
   font-size: 13px;
 }
 
@@ -578,13 +613,13 @@ onMounted(() => {
 
 .permission-hint,
 .updated-hint {
-  margin-top: 8px;
-  color: #8c8c8c;
+  margin-top: var(--admin-space-1);
+  color: var(--admin-text-secondary);
   font-size: 13px;
 }
 
 .range-sep {
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
 }
 
 .stat-grid {
@@ -594,23 +629,26 @@ onMounted(() => {
 }
 
 .stat-cell {
-  background: #fafafa;
+  background: var(--admin-fill-hover);
   border-radius: 6px;
-  padding: 12px 16px;
+  padding: 12px var(--admin-space-2);
 
   &__value {
     font-size: 22px;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--admin-text-primary);
+    /* 十格数字上下要对得齐，中文默认字面的数字是比例宽度 */
+    font-variant-numeric: var(--admin-font-nums);
   }
 
   &__label {
     margin-top: 2px;
     font-size: 13px;
-    color: #8c8c8c;
+    color: var(--admin-text-secondary);
   }
 }
 
+/* 这一支橙是 antd 的 orange-7，比令牌里那支 colorWarning 深；换成 #faad14 在白底上对比度不够，判不动 */
 .skip-reason {
   color: #d46b08;
   font-size: 13px;
@@ -618,7 +656,7 @@ onMounted(() => {
 
 .note-text,
 .muted {
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
   font-size: 13px;
 }
 </style>

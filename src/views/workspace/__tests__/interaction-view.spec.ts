@@ -421,6 +421,79 @@ describe('待审队列', () => {
   })
 })
 
+/**
+ * Spec-Q P2 把「待审评论」这一块接进了列表页模板的 B 型：表上面多一条读数，第一条是「等我处理」。
+ *
+ * 这里盯死的不是「有没有这句话」，而是这三个数的出处。页面上同屏有两个「等我处理」：
+ * 上面总账那一格读 `stats.pendingReaderComments`（只数读者写的），
+ * 队列这条读数读 `comments.counts.pending`（读者写的 + 系统补的都在内）。
+ * 两个数天生会不一样，所以口径必须写在句子里，测试也必须能分清界面读的是哪一个键——
+ * 下面用「行数是 3、counts.pending 是 7」那份夹具把这条路钉住：抄错来源就会当场红。
+ */
+describe('待审队列的读数（B 型第一条是「等我处理」）', () => {
+  function countLines(wrapper: any): string[] {
+    return wrapper.findAll('.record-list-page__count').map((node: any) => node.text())
+  }
+
+  function emptyLines(wrapper: any): string[] {
+    return wrapper.findAll('.empty-line').map((node: any) => node.text().trim())
+  }
+
+  const COUNT_LINE =
+    '等我处理：待审 2 条。已对外 1 条、已驳回 0 条' +
+    '（这三个数按这一家全部评论算，读者写的和系统补的都在内，不随下面的状态筛选变；' +
+    '上面总账那一格「等我处理的读者评论」只数读者写的，可能比这里少）'
+
+  it('读数逐字对上后端 counts 那三个键，「等我处理」排在最前', async () => {
+    const wrapper = await mountView()
+
+    expect(countLines(wrapper)).toEqual([COUNT_LINE])
+    expect(countLines(wrapper)[0].indexOf('等我处理')).toBe(0)
+  })
+
+  it('三个数取的是 counts，不是当前页的行数（行 3 条、counts.pending 7 时念 7）', async () => {
+    const wrapper = await mountView({
+      commentsPayload: {
+        items: [
+          { id: 1, articleTitle: '签证攻略', content: '甲', status: 'pending', sourceText: '读者写的', moderationNote: null, createdAt: '2026-10-05T09:00:00' },
+          { id: 2, articleTitle: '签证攻略', content: '乙', status: 'pending', sourceText: '读者写的', moderationNote: null, createdAt: '2026-10-05T09:30:00' },
+          { id: 3, articleTitle: '开户材料', content: '丙', status: 'pending', sourceText: '系统按开关补的示例评论', moderationNote: null, createdAt: '2026-10-05T09:40:00' }
+        ],
+        total: 3,
+        page: 1,
+        size: 20,
+        pages: 1,
+        counts: { pending: 7, approved: 8, rejected: 9 },
+        emptyReason: null,
+        emptyLine: null
+      }
+    })
+
+    const said = countLines(wrapper)[0]
+    expect(said).toContain('待审 7 条')
+    expect(said).toContain('已对外 8 条、已驳回 9 条')
+    expect(said).not.toContain('待审 3 条')
+  })
+
+  it('队列读失败：读数那一行一个字都不念，上一回的数不许留在屏上', async () => {
+    const wrapper = await mountView({ queueError: '队列接口 500' })
+
+    expect(countLines(wrapper)).toEqual([])
+  })
+
+  it('平台档：两块各说「这一发没发出去」，读数那一行不出现', async () => {
+    const wrapper = await mountView({ superAdmin: true })
+
+    expect(countLines(wrapper)).toEqual([])
+    expect(emptyLines(wrapper)).toEqual([
+      '待审队列按客户分开存：平台档没有「这一家」，这一发没有发出去，所以这里不能说「没有评论」。请在右上角切到「客户」并选一家。',
+      '排产计划按客户分开存：平台档没有「这一家」，这一发没有发出去，所以这里不能说「没有计划」。请在右上角切到「客户」并选一家。'
+    ])
+    // 平台档不发这一发，队列里一个字都没有：既不能是后端的成因话，也不能是「真的没有」
+    expect(wrapper.findAll('.table-stub')[0].text()).not.toContain('读者评论：这一档查过了')
+  })
+})
+
 describe('总账与排产计划', () => {
   it('真实与系统补的分开数，各是一格', async () => {
     const wrapper = await mountView()

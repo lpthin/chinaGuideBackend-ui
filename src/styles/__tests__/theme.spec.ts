@@ -23,6 +23,18 @@ function sourceOf(relative: string): string {
   }
 }
 
+/**
+ * 「站点内容」这一组里已经收进令牌的页面不许再抄的十六进制。
+ * 这份清单不是色板：每一支都是在这些页的 style 块里真出现过、且已经有令牌对应的那几支
+ * （正文 → --admin-text-*，语义 → --admin-warning-text / --admin-danger-text，主色 → --admin-primary）。
+ */
+const BANNED_HEXES = ['#8c8c8c', '#1a1a1a', '#595959', '#faad14', '#ff4d4f', '#1890ff', '#52c41a', '#36cfc9', '#95de64', '#bfbfbf']
+
+/** 注释里出现这些字面是允许的（注释讲的正是「原来抄的是哪一支」），判的是生效的那几行 */
+function withoutComments(raw: string): string {
+  return raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '')
+}
+
 describe('后台主题单源（styles/theme.ts）', () => {
   it('info 语义必须并到主色上：两支蓝等于同一屏两个主色', () => {
     expect(ADMIN_THEME_TOKEN.colorInfo).toBe(ADMIN_THEME_TOKEN.colorPrimary)
@@ -52,13 +64,42 @@ describe('后台主题单源（styles/theme.ts）', () => {
       // P1 之后连模板里那三张统计卡的渐变底色一起没了（§4.1 收成一条读数），
       // 所以这一条从「只看 style 块」升级成「整页都不许再抄色」——升级的另一半理由是
       // 旧范围放过的那一批恰好就是被点名要拆掉的那三张卡。
-      const body = raw.replace(/\/\*[\s\S]*?\*\//g, '')
-      for (const banned of ['#8c8c8c', '#1a1a1a', '#595959', '#faad14', '#ff4d4f', '#1890ff', '#52c41a', '#36cfc9', '#95de64', '#bfbfbf']) {
+      const body = withoutComments(raw)
+      for (const banned of BANNED_HEXES) {
         expect(body, `${file} 里不该再出现 ${banned}：正文色只剩 --admin-text-*，语义色只剩 --admin-warning-text / --admin-danger-text`).not.toContain(banned)
       }
       expect(body, `${file} 里不该再有 linear-gradient 的装饰底：读数卡已收成一条 countLine`).not.toContain('linear-gradient')
       expect(body, `${file} 里不该再有 stat-* 那套卡片类`).not.toMatch(/class="stat-/)
     }
+  })
+
+  /**
+   * P2 的三页。
+   *
+   * 留言与站内信是「一页一表 / 一表为主」，P1 那三条禁令整条套用（它们原来也是三张渐变统计卡）。
+   * 读者互动只套前两条：那一屏的「互动总账」是十格读数，跟被拆掉的三张渐变卡是两件事——
+   * 它不在那条禁令的射程里，硬套等于把有用的十格换成一行字。
+   * 这一屏真正清掉的是四支抄来的色（#8c8c8c 五处 / #fafafa / #1f2937 / 无渐变）。
+   */
+  it('Spec-Q P2：留言与站内信套全套禁令，读者互动套色那一半', () => {
+    for (const file of [
+      'src/views/portal/GuestbookManageView.vue',
+      'src/views/portal/MessageManageView.vue'
+    ]) {
+      const body = withoutComments(sourceOf(file))
+      for (const banned of BANNED_HEXES) {
+        expect(body, `${file} 里不该再出现 ${banned}`).not.toContain(banned)
+      }
+      expect(body, `${file} 里不该再有 linear-gradient 的装饰底：读数卡已收成一条 countLine`).not.toContain('linear-gradient')
+      expect(body, `${file} 里不该再有 stat-* 那套卡片类`).not.toMatch(/class="stat-/)
+    }
+
+    const interaction = withoutComments(sourceOf('src/views/workspace/InteractionView.vue'))
+    for (const banned of BANNED_HEXES) {
+      expect(interaction, `读者互动那一屏不该再出现 ${banned}`).not.toContain(banned)
+    }
+    // 这一屏本来就没有渐变底，留着这一条是防「以后又加一张渐变卡」
+    expect(interaction).not.toContain('linear-gradient')
   })
 
   it('main.ts 得真的把这份 token 挂进 ConfigProvider', () => {

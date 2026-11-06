@@ -1,57 +1,15 @@
 <template>
   <div class="message-manage-page">
     <PageTitle />
-    <a-spin :spinning="loading">
-      <div class="content-wrapper">
-        <!-- 后端这一口按「当前登录用户 + 当前选中的租户」算，超管没选租户时它直接拒（`TENANT_REQUIRED`）。
-             以前这条失败只进控制台，三格照显示 0 ——等于把「没读到」说成「真的没有」。
-             读不到就露「—」并把去哪儿选写在明处。 -->
-        <a-alert v-if="statsNote" type="info" show-icon class="message-manage-page__notice">
-          <template #message>{{ statsNote }}</template>
-        </a-alert>
-        <a-row :gutter="16" style="margin-bottom: 16px">
-          <a-col :span="8">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)">
-                  <MailOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statsNote ? '—' : stats.inbox }}</div>
-                  <div class="stat-title">我的收件箱</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="8">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%)">
-                  <ClockCircleOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statsNote ? '—' : stats.unread }}</div>
-                  <div class="stat-title">未读</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="8">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                  <SendOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statsNote ? '—' : stats.outbox }}</div>
-                  <div class="stat-title">我的发件箱</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
+    <!-- 后端这一口按「当前登录用户 + 当前选中的租户」算，超管没选租户时它直接拒（`TENANT_REQUIRED`）。
+         以前这条失败只进控制台，三格照显示 0 ——等于把「没读到」说成「真的没有」。
+         读不到就把这句话摆在明处，下面那条读数一个字都不念。 -->
+    <a-alert v-if="statsNote" type="info" show-icon class="message-manage-page__notice">
+      <template #message>{{ statsNote }}</template>
+    </a-alert>
 
-        <!-- 平台档专属：上面那三格在这里天然是「—」（它们按「你在这家租户里的信」算），
+    <div class="content-wrapper">
+        <!-- 平台档专属：读数那一行在这里天然是空的（它按「你在这家租户里的信」算），
              而「我发的公告被读了多少」是跨租户的问题，只有不选租户时才有意义，所以摆在这下面。 -->
         <a-card v-if="isPlatformMode" :bordered="false" class="broadcast-summary-card">
           <template #title>
@@ -92,11 +50,20 @@
           </a-spin>
         </a-card>
 
-        <!-- 这张卡不能整块藏：「发送消息」就在它的 #actions 里，那是平台档的正活儿。
-             只收掉按「这一家」查的那几样 —— 三个筛子和下面那张表。 -->
-        <a-card :bordered="false">
-          <!-- 筛选栏原本塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
-          <filter-bar>
+        <!-- 这一块的壳（筛选靠左动作靠右、读数、三态、表格滚层）走 Spec-Q 的 RecordListPage；
+             页头由上面那份 PageTitle 摆，所以这里用 `section` 形——这一屏不止一张卡。 -->
+        <record-list-page
+          section
+          :loading="loading"
+          :rows="messageList"
+          :columns="columns"
+          :read-failed="readFailed"
+          :empty-line="emptyLine"
+          :empty-reason="emptyReason"
+          :not-sent="platformNotSent"
+          :count-line="countLine"
+        >
+          <template #filters>
             <template v-if="!isPlatformMode">
               <a-radio-group v-model:value="queryParams.type" button-style="solid" @change="handleTypeChange">
                 <a-radio-button value="inbox">收件箱</a-radio-button>
@@ -122,7 +89,8 @@
                 @search="handleSearch"
               />
             </template>
-            <template #actions>
+          </template>
+          <template #actions>
               <a-space>
                 <!-- 跨租户群发是平台职能：后端 /api/admin/tenants 每个方法第一行 checkSuperAdmin()，
                      租户档点开弹窗只会看到一个空的下拉框。入口不摆出来，比摆出来让人撞墙诚实。 -->
@@ -131,36 +99,12 @@
                   发送消息
                 </a-button>
               </a-space>
-            </template>
-          </filter-bar>
+          </template>
 
-          <!-- 平台档里这张表拿不到任何东西：后端那句查询要先有「这一家」（resolveTenantId），
+          <!-- 平台档里这张表一行都不该摆：后端那句查询要先有「这一家」（resolveTenantId），
                没租户直接回 TENANT_REQUIRED —— 现场实测。摆一张空表等于说「你没信」，
-               所以这里说的是去哪儿切，而不是留一张假空表。 -->
-          <a-alert v-if="isPlatformMode" type="info" show-icon>
-            <template #message>
-              平台档看的是上面那张跨客户的公告阅读表。要看你自己这一家的收件箱 / 发件箱，请在右上角切到「客户」并选一家。
-            </template>
-          </a-alert>
-          <a-table
-            v-else
-            :scroll="{ x: 'max-content' }"
-            :columns="columns"
-            :data-source="messageList"
-            :pagination="paginationConfig"
-            :row-key="(record: PortalMessage) => record.id"
-            @change="handleTableChange"
-          >
-            <!-- 这一屏的空会被读成「你没有信」，所以那一句只认后端回的成因（N-05） -->
-            <template #emptyText>
-              <empty-list-hint
-                :loading="loading"
-                :read-failed="readFailed"
-                :empty-line="emptyLine"
-                :empty-reason="emptyReason"
-              />
-            </template>
-            <template #bodyCell="{ column, record, text }">
+               所以这一形走模板的 `notSent`：说的是去哪儿切，而不是留一张假空表。 -->
+          <template #bodyCell="{ column, record, text }">
               <template v-if="column.key === 'title'">
                 <div class="message-title" :class="{ unread: isUnread(record) }">
                   <MailOutlined v-if="isUnread(record)" class="unread-icon" />
@@ -201,11 +145,24 @@
                   </a-popconfirm>
                 </a-space>
               </template>
-            </template>
-          </a-table>
-        </a-card>
+          </template>
+
+          <template #footer>
+            <!-- 没读到 / 平台档这两种形状里都不摆翻页条：那条「共 0 条」会把「没查过」说成「查过了」 -->
+            <a-pagination
+              v-if="showPager"
+              v-model:current="paginationConfig.current"
+              v-model:page-size="paginationConfig.pageSize"
+              :total="paginationConfig.total"
+              :show-size-changer="true"
+              :show-quick-jumper="true"
+              :page-size-options="['10', '20', '50']"
+              @change="handlePageChange"
+              :show-total="(total: number) => `共 ${total} 条`"
+            />
+          </template>
+        </record-list-page>
       </div>
-    </a-spin>
 
     <a-modal
       v-model:open="showSendModal"
@@ -264,15 +221,14 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   MailOutlined,
-  ClockCircleOutlined,
   SendOutlined,
 } from '@ant-design/icons-vue'
 import { portalMessageApi } from '../../api/portal'
 import type { PortalMessage, PortalMessageStats, PortalMessageQuery, PortalMessageBroadcast, PortalBroadcastReadRow } from '../../types/portal'
 import type { Tenant } from '../../types/workspace'
 import TenantSelect from '../../components/TenantSelect.vue'
-import FilterBar from '../../components/FilterBar.vue'
-import EmptyListHint from '../../components/EmptyListHint.vue'
+import RecordListPage from '../../components/RecordListPage.vue'
+import { formatNumber } from '../../utils/format'
 import { describeHttpError } from '../../api/http'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { formatDateTime } from '../../utils/format'
@@ -307,13 +263,12 @@ const queryParams = reactive({
   keyword: '',
 })
 
+// 翻页条挪进模板的 footer 槽以后，这里只剩「当前第几页 / 每页几条 / 一共几条」三件事，
+// 控件怎么摆（每页条数候选、跳页、共 N 条那句话）由模板那一份写死，全站同一形
 const paginationConfig = reactive({
   current: 1,
   pageSize: 10,
   total: 0,
-  showSizeChanger: true,
-  showQuickJumper: true,
-  showTotal: (total: number) => `共 ${total} 条`,
 })
 
 const messageList = ref<PortalMessage[]>([])
@@ -342,6 +297,36 @@ function canDeleteRow(record: PortalMessage): boolean {
  * 但「我发的公告被读了多少」本来就是跨租户的问题 —— 所以这一档不是空屏，而是给那张跨租户的表。
  */
 const isPlatformMode = computed(() => auth.isSuperAdmin && auth.selectedTenantId === null)
+
+/**
+ * 平台档走模板的「这一发没发出去」那一形：读口的第一道闸 `resolveTenantId` 在没有「这一家」时
+ * 根本不发（后端回 TENANT_REQUIRED），所以这里说的必须是去哪儿切，而不是「你没有信」。
+ */
+const platformNotSent = computed(() =>
+  isPlatformMode.value
+    ? '平台档看的是上面那张跨客户的公告阅读表。要看你自己这一家的收件箱 / 发件箱，请在右上角切到「客户」并选一家。'
+    : ''
+)
+
+/**
+ * 读数那一行（Spec-Q §4.1 的 B 型：第一条是「等我处理」，也就是还没读的那几封）。
+ * 原来这三件事是三张带渐变底色的卡；三个数读不到时这一行整条不发，
+ * 由页面顶上那条 `statsNote` 说全（同屏两句「没读到」是重复）。
+ */
+const countLine = computed(() => {
+  if (statsNote.value || platformNotSent.value) return ''
+  return (
+    `等我处理：未读 ${formatNumber(stats.unread)} 封。` +
+    `收件箱 ${formatNumber(stats.inbox)} 封、发件箱 ${formatNumber(stats.outbox)} 封` +
+    '（这三个数按「你在这家客户里的信」算，不随下面的收件箱/发件箱、状态、关键词筛选变）'
+  )
+})
+
+/**
+ * 平台档（没发出去）与列表读失败这两种形状里都不摆翻页条：那条「共 0 条」会把「没查过」说成「查过了」。
+ * 统计那一口读不到不在此列——列表是真读回来的，翻页当然还得能用。
+ */
+const showPager = computed(() => !platformNotSent.value && !readFailed.value)
 
 const broadcastRows = ref<(PortalBroadcastReadRow & { rowKey: string })[]>([])
 const broadcastLoading = ref(false)
@@ -544,9 +529,10 @@ function handleSearch() {
   loadMessageList()
 }
 
-function handleTableChange(pagination: any) {
-  paginationConfig.current = pagination.current
-  paginationConfig.pageSize = pagination.pageSize
+/** 翻页条从表格里挪到了模板的 footer 槽，事件形状也从「整个 pagination 对象」变成「页码 + 每页条数」 */
+function handlePageChange(page: number, size: number) {
+  paginationConfig.current = page
+  paginationConfig.pageSize = size
   loadMessageList()
 }
 
@@ -631,77 +617,41 @@ watch(actingTenantId, () => {
 <style scoped lang="less">
 .message-manage-page {
   width: 100%;
+
+  &__notice {
+    margin-bottom: var(--admin-space-2);
+  }
 }
 
 .broadcast-summary-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--admin-space-2);
 
   &__scope {
-    margin-left: 8px;
+    margin-left: var(--admin-space-1);
     font-weight: 400;
   }
 
+  /* 这半透明黑跟 --admin-text-secondary（#8c8c8c）是同一档次要文字，抄成两支就会同屏两种灰 */
   &__note {
-    margin-top: 8px;
-    color: rgba(0, 0, 0, 0.45);
+    margin-top: var(--admin-space-1);
+    color: var(--admin-text-secondary);
     font-size: 12px;
     line-height: 1.6;
   }
 }
 
 .content-wrapper {
-}
-
-.stat-card {
-  cursor: pointer;
-  transition: all 0.3s;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-}
-
-.stat-content {
   display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  color: #fff;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a1a1a;
-  line-height: 1.2;
-}
-
-.stat-title {
-  font-size: 13px;
-  color: #8c8c8c;
-  margin-top: 4px;
+  flex-direction: column;
+  gap: var(--admin-space-2);
 }
 
 .message-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--admin-space-1);
   font-size: 14px;
-  color: #1a1a1a;
+  color: var(--admin-text-primary);
 
   &.unread {
     font-weight: 600;
@@ -709,13 +659,13 @@ watch(actingTenantId, () => {
 }
 
 .unread-icon {
-  color: #1890ff;
+  color: var(--admin-primary);
   font-size: 12px;
 }
 
 .message-summary {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
   margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;

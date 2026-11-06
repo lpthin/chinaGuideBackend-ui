@@ -4,13 +4,13 @@ import { useSlots } from 'vue'
 import RecordListPage from '../RecordListPage.vue'
 
 /**
- * 列表页模板 `RecordListPage` 自己那五件事（Spec-Q §4.1 A/B 型，P1 第一次落地）。
+ * 列表页模板 `RecordListPage` 自己那五件事（Spec-Q §4.1 A/B 型，P1 第一次落地，P2 补 section 形）。
  *
- * 这一档不测四页的数据，只钉模板这一层的契约——因为四页共用它，契约一旦破了是四屏一起坏，
+ * 这一档不测页面自己的数据，只钉模板这一层的契约——因为 P1+P2 那七页共用它，契约一旦破了是七屏一起坏，
  * 而页面自己的用例看不出来（它们各自只念自己那一句）：
  *
  * 1. 页面交给表格的插槽（`bodyCell` 这类）必须原样透传到 `a-table`，模板不能把它吃掉；
- *    反过来，模板消费掉的六个名字不许当成表格插槽往下传，否则筛选栏那一坨会被塞进表格里。
+ *    反过来，模板消费掉的五个名字不许当成表格插槽往下传，否则筛选栏那一坨会被塞进表格里。
  * 2. 读失败时整张表退场，只说失败：不能同屏出现「读取失败」和「这一档没有」。
  * 3. 读数那一行（`countLine`）由页面拼好原样念，模板不加工、不加量词。
  * 4. 分页不由模板摆：不传 `footer` 就没有分页，页面自己摆的才摆。
@@ -56,13 +56,20 @@ const PASS_THROUGH = (name: string, extraSlots: string[] = []) => ({
   }<slot /></div>`
 })
 
+/** 卡头那句话在模板里是 `:title=` 这个 prop（不是 `#title` 槽），桩要按 prop 渲才量得到 */
+const CARD_STUB = {
+  name: 'ACard',
+  props: ['title', 'bordered'],
+  template: '<div class="a-card-stub"><span class="a-card-stub__title">{{ title }}</span><slot /></div>'
+}
+
 const mountPage = (props: Record<string, unknown> = {}, slots: Record<string, unknown> = {}) =>
   mount(RecordListPage, {
     props,
     slots,
     global: {
       stubs: {
-        'a-card': PASS_THROUGH('a-card'),
+        'a-card': CARD_STUB,
         'a-table': TABLE_STUB,
         'a-button': BUTTON,
         'a-space': PASS_THROUGH('a-space'),
@@ -96,7 +103,7 @@ describe('RecordListPage 的插槽分账', () => {
     expect(w.find('.table-stub').attributes('data-slots')).toBe('bodyCell,emptyText')
   })
 
-  it('模板消费掉的六个名字不往下传给表格，各回各的位置', () => {
+  it('模板消费掉的五个名字不往下传给表格，各回各的位置', () => {
     const w = mountPage(
       { description: '这一页是干什么的', columns: COLUMNS, rows: [{ id: 1 }] },
       {
@@ -113,8 +120,68 @@ describe('RecordListPage 的插槽分账', () => {
     expect(w.find('.in-above').exists()).toBe(true)
     expect(w.find('.in-notice').exists()).toBe(true)
     expect(w.find('.record-list-page__footer .in-footer').exists()).toBe(true)
-    // 这一条才是「分账」本身：表格只收到 emptyText，模板消费的六个名字一个都没漏下去
+    // 这一条才是「分账」本身：表格只收到 emptyText，模板消费的五个名字一个都没漏下去
     expect(w.find('.table-stub').attributes('data-slots')).toBe('emptyText')
+  })
+
+  /**
+   * P1 之后 `extra` 挂了四批、0 个消费者（六页的主按钮全在 `#actions`）。
+   * 留着它等于留一条「页头右侧还能摆东西」的假路：下一位照它写，就会长出第二种「主按钮摆哪儿」。
+   * 这一条钉的是这条路真的走不通：传进来不会渲在页头上（名字落到表格那一层，表格也没有叫 extra 的格子）。
+   */
+  it('extra 槽已经摘掉：传进来不渲在页头上', () => {
+    const w = mountPage(
+      { description: '这一页是干什么的', columns: COLUMNS, rows: [{ id: 1 }] },
+      { extra: '<span class="in-extra">页头右侧那颗</span>' }
+    )
+    expect(w.find('.page-title__extra').exists()).toBe(false)
+    expect(w.find('.in-extra').exists()).toBe(false)
+  })
+})
+
+/**
+ * P2 补的两格（读者互动那一屏四块、站内信那张公告表之外还有一块）。
+ *
+ * 立 `section` 的理由是实测：这两屏上面已经各有一个页头，模板再摆一个就是同一屏两个同名大标题。
+ * 但「不再摆页头」只能解释少一块，不能顺手解释别的——读数、筛选靠左动作靠右、三态在 section 形里
+ * 一格都不许变，所以下面三条是照着这个写的。
+ */
+describe('RecordListPage 的 section 形（一屏不止一张卡）', () => {
+  it('section：模板不摆页头，卡头念的是这一块的名字', () => {
+    const w = mountPage(
+      { description: '这一页是干什么的', section: true, cardTitle: '待审评论', columns: COLUMNS, rows: [{ id: 1 }] },
+      { actions: '<span class="in-actions">刷新</span>' }
+    )
+    expect(w.find('.page-title').exists()).toBe(false)
+    expect(w.find('.a-card-stub__title').text()).toBe('待审评论')
+    // 壳没因为「这次是卡里的一块」就少一件事：动作还在筛选栏右侧那一头
+    expect(w.find('.in-actions').exists()).toBe(true)
+  })
+
+  it('不传 section（默认）：页头照摆，且卡头不自己造一个名字', () => {
+    const w = mountPage({ description: '这一页是干什么的', columns: COLUMNS, rows: [{ id: 1 }] })
+    expect(w.find('.page-title').exists()).toBe(true)
+    expect(w.find('.page-title__desc').text()).toBe('这一页是干什么的')
+    // cardTitle 交空串时 a-card 收到的是 undefined：留一个空字符串等于摆一条没人要的分割线
+    expect(w.find('.a-card-stub__title').text()).toBe('')
+  })
+
+  it('section 形里读数、空态、错误块三件事一件不少', () => {
+    const w = mountPage({
+      section: true,
+      cardTitle: '示例评论的排产计划',
+      countLine: '等我处理：待审 2 条。',
+      emptyLine: '示例评论的排产计划：这一档查过了，一条都没有。',
+      emptyReason: 'NONE',
+      columns: COLUMNS,
+      rows: []
+    })
+    expect(w.find('.record-list-page__count').text()).toBe('等我处理：待审 2 条。')
+    expect(w.find('.empty-line').text()).toBe('示例评论的排产计划：这一档查过了，一条都没有。')
+
+    const broken = mountPage({ section: true, readFailed: '读口断了', columns: COLUMNS, rows: [] })
+    expect(broken.find('.admin-state-block').attributes('data-state')).toBe('error')
+    expect(broken.find('.table-stub').exists()).toBe(false)
   })
 })
 

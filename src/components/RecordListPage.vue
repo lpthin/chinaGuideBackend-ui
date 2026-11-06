@@ -16,6 +16,11 @@
  *    把翻页方式写死进模板会替后端决定它没决定的事。
  * 6. `#bodyCell` 这类表格插槽原样透传给页面，页面不必为了套模板重写列渲染。
  *
+ * P2 补的两格（读者互动、站内信这两屏不是「一页一表」）：
+ * - `section` = 这一张表只是页面里的一块，页头由页面自己摆，模板不再重复摆一个；
+ * - `cardTitle` = 卡头那句话（读者互动那一屏四块，每块得有名字）。
+ *   这两个开关不改变壳的其余部分：读数那一行、筛选靠左动作靠右、三态、表格滚层，一形都不许因为「这次是卡」就绕开。
+ *
  * 不做的：模板不猜「共多少条」该怎么算——那句中文由页面按后端口径拼好交进来（`countLine`），
  * 免得这里长出第二套「条 / 家 / 个」的量词。
  */
@@ -45,6 +50,10 @@ withDefaults(
     notSent?: string
     canCreate?: boolean
     createLabel?: string
+    /** 这一张表只是页面里的一块（读者互动、站内信）：页头由页面自己摆，模板不再摆第二个 */
+    section?: boolean
+    /** 卡头那句话。只在 `section` 这一形里有用——一屏几块卡时，每块得报自己是谁 */
+    cardTitle?: string
   }>(),
   {
     description: '',
@@ -59,6 +68,8 @@ withDefaults(
     notSent: '',
     canCreate: false,
     createLabel: '新建',
+    section: false,
+    cardTitle: '',
   }
 )
 
@@ -66,7 +77,7 @@ const emit = defineEmits<{ create: [] }>()
 
 const slots = useSlots()
 /** 模板自己消费掉的插槽名，剩下的才是表格的（bodyCell、expandedRowRender 这一类），原样往下传 */
-const TEMPLATE_SLOTS = ['extra', 'notice', 'above', 'filters', 'actions', 'footer'] as const
+const TEMPLATE_SLOTS = ['notice', 'above', 'filters', 'actions', 'footer'] as const
 const tableSlotNames = computed(() =>
   Object.keys(slots).filter(name => !(TEMPLATE_SLOTS as readonly string[]).includes(name))
 )
@@ -74,17 +85,13 @@ const tableSlotNames = computed(() =>
 
 <template>
   <div class="record-list-page">
-    <PageTitle :description="description">
-      <template v-if="$slots.extra" #extra>
-        <slot name="extra" />
-      </template>
-    </PageTitle>
+    <PageTitle v-if="!section" :description="description" />
 
     <div v-if="$slots.notice" class="record-list-page__notice">
       <slot name="notice" />
     </div>
 
-    <a-card :bordered="false">
+    <a-card :bordered="false" :title="cardTitle || undefined">
       <div v-if="$slots.above" class="record-list-page__above">
         <slot name="above" />
       </div>

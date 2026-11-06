@@ -129,6 +129,7 @@ async function mountView() {
         'a-select-option': { name: 'ASelectOption', template: '<option><slot /></option>' },
         'a-input-search': PASS_THROUGH('AInputSearch'),
         'a-popconfirm': PASS_THROUGH('APopconfirm'),
+        'a-pagination': PASS_THROUGH('APagination'),
         'a-table': TABLE_STUB,
         'a-alert': ALERT_STUB,
         'a-modal': PASS_THROUGH('AModal'),
@@ -140,8 +141,23 @@ async function mountView() {
   return wrapper
 }
 
-function cardValues(wrapper: Awaited<ReturnType<typeof mountView>>): string[] {
-  return wrapper.findAll('.stat-value').map(node => node.text())
+/**
+ * Spec-Q P2：那一排四张统计卡收成了表格上面一条读数，所以这里量的不再是四个格子，
+ * 而是「读数那一行念了什么、按什么顺序念」。原来钉的是「第 1~4 格各是多少」，
+ * 现在钉的是「等我处理排在第一个，四个数逐字对得上」——语义（数字必须是后端那几个键、不许摆 0 假话）没放宽。
+ */
+function countLineText(wrapper: Awaited<ReturnType<typeof mountView>>): string {
+  return wrapper.find('.record-list-page__count').text()
+}
+
+function pagerNodes(): number {
+  return document.querySelectorAll('.APagination-stub').length
+}
+
+/** 读失败时整张表退场，换成错误块（RecordListPage 的规矩：不许「读取失败」和「这一档没有」同屏） */
+function errorBlockText(): string {
+  const node = document.querySelector('.admin-state-block[data-state="error"]')
+  return (node?.textContent || '').replace(/\s+/g, ' ')
 }
 
 function alertTexts(wrapper: Awaited<ReturnType<typeof mountView>>): string {
@@ -264,7 +280,14 @@ describe('这一屏的数属于谁（M-P100）', () => {
     expect(guestbookApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
     expect(guestbookApi.stats).toHaveBeenCalledWith(15)
     expect(alertTexts(wrapper)).toContain('客户「demo」（编号 #15）')
-    expect(cardValues(wrapper)).toEqual(['4', '1', '2', '3'])
+    // B 型的第一条读数是「等我处理」，不是总数（Spec-Q §4.1）
+    const line = countLineText(wrapper)
+    expect(line.indexOf('等我处理')).toBeGreaterThanOrEqual(0)
+    expect(line.indexOf('等我处理')).toBeLessThan(line.indexOf('全部留言'))
+    expect(line).toContain('待回复 2 条')
+    expect(line).toContain('全部留言 4 条')
+    expect(line).toContain('已回复 1 条')
+    expect(line).toContain('今日新增 3 条')
     wrapper.unmount()
   })
 
@@ -282,7 +305,7 @@ describe('这一屏的数属于谁（M-P100）', () => {
     wrapper.unmount()
   })
 
-  it('超管还没选定客户：一口都不发，卡摆「—」，表格说「这一发没发出去」', async () => {
+  it('超管还没选定客户：一口都不发，读数那一行一个字都不念，表格说「这一发没发出去」', async () => {
     authMock.selectedTenantId = null
     authMock.selectedTenantCode = null
 
@@ -291,10 +314,12 @@ describe('这一屏的数属于谁（M-P100）', () => {
     expect(guestbookApi.list).not.toHaveBeenCalled()
     expect(guestbookApi.stats).not.toHaveBeenCalled()
     expect(alertTexts(wrapper)).toContain('没有选定客户')
-    expect(cardValues(wrapper)).toEqual(['—', '—', '—', '—'])
+    // 改前这四格摆「—」；收成一条读数后，「没读到」这一形就是「这条一行都不发」——
+    // 钉的内容没变（不许把没查过念成数字），只是位置从四格挪到了一行
+    expect(wrapper.find('.record-list-page__count').exists()).toBe(false)
     expect(document.querySelector('.empty-line')?.textContent).toContain('这一发没发出去')
     // 「这一发没发出去」不该再配一条「共 0 条」的翻页条——那是把没查过说成查过了
-    expect(document.querySelector('.pagination-wrapper')).toBeNull()
+    expect(pagerNodes()).toBe(0)
     wrapper.unmount()
   })
 })
@@ -310,7 +335,7 @@ describe('四个数改叫后端那一口（M-P100）', () => {
     wrapper.unmount()
   })
 
-  it('卡上的四个数就是后端那四个键，逐字对上', async () => {
+  it('读数那一行的四个数就是后端那四个键，逐字对上', async () => {
     vi.mocked(guestbookApi.stats).mockResolvedValue({
       totalMessages: 1221,
       repliedCount: 40,
@@ -319,13 +344,19 @@ describe('四个数改叫后端那一口（M-P100）', () => {
     })
     const wrapper = await mountView()
 
-    expect(cardValues(wrapper)).toEqual(['1,221', '40', '7', '0'])
+    const line = countLineText(wrapper)
+    expect(line).toContain('待回复 7 条')
+    expect(line).toContain('全部留言 1,221 条')
+    expect(line).toContain('已回复 40 条')
+    expect(line).toContain('今日新增 0 条')
     wrapper.unmount()
   })
 
   it('口径写在屏上：四个数数的是这一家全部留言，不跟着筛选走', async () => {
     const wrapper = await mountView()
-    expect(document.querySelector('.stats-scope-line')?.textContent).toContain('不随下面的状态、类型、关键词筛选变')
+    // 原来这句口径是卡上面单独一行字（.stats-scope-line），现在并进读数那一行的括号里；
+    // 钉的还是同一件事：屏上必须写明这四个数不随筛选变
+    expect(countLineText(wrapper)).toContain('不随下面的状态、类型、关键词筛选变')
 
     // 筛一次类型：只有列表重取，那四个数一次都不该再问
     vi.mocked(guestbookApi.list).mockClear()
@@ -342,26 +373,32 @@ describe('四个数改叫后端那一口（M-P100）', () => {
 })
 
 describe('读不到 / 读失败不摆 0（M-P100）', () => {
-  it('统计那口读失败：卡摆「—」并原样念后端那句，列表照旧是真行', async () => {
+  it('统计那口读失败：读数那一行一个字都不念，错误条原样念后端那句，列表照旧是真行', async () => {
     vi.mocked(guestbookApi.stats).mockRejectedValue(
       new Error('租户不存在或这一家读不到：#999999')
     )
     const wrapper = await mountView()
 
-    expect(cardValues(wrapper)).toEqual(['—', '—', '—', '—'])
-    expect(alertTexts(wrapper)).toContain('那四个数没读上来：租户不存在或这一家读不到：#999999')
+    // 改前钉四格摆「—」；收成一条读数后同一件事由两处负责：
+    // 读数那一行整条不发（不拿 0 顶），错误条把原因说全
+    expect(wrapper.find('.record-list-page__count').exists()).toBe(false)
+    expect(alertTexts(wrapper)).toContain('这四个数没读回来，不是 0')
+    expect(alertTexts(wrapper)).toContain('原因：租户不存在或这一家读不到：#999999')
+    expect(alertTexts(wrapper)).toContain('读不到不是「这一家没有留言」')
     expect(document.querySelectorAll('.row').length).toBe(4)
     wrapper.unmount()
   })
 
-  it('列表那口读失败：统计照旧发、四个数照旧摆，不把两边一起抹成 0', async () => {
+  it('列表那口读失败：统计照旧发、读数照旧摆，不把两边一起抹成 0', async () => {
     vi.mocked(guestbookApi.list).mockRejectedValue(new Error('后端服务不可用（网关 502），请确认服务已启动'))
     const wrapper = await mountView()
 
     expect(guestbookApi.stats).toHaveBeenCalledTimes(1)
-    expect(cardValues(wrapper)).toEqual(['4', '1', '2', '3'])
-    expect(document.querySelector('.empty-line')?.textContent).toContain('这一发读失败')
-    expect(document.querySelector('.empty-line')?.textContent).not.toContain('这一家没有留言')
+    expect(countLineText(wrapper)).toContain('待回复 2 条')
+    // 改前钉的是空态块里那句「这一发读失败」；现在读失败走整张表退场的错误块，
+    // 空态块不再出现——「读失败」与「这一档没有」同屏这件事由模板挡掉（RecordListPage 第 2 条）
+    expect(errorBlockText()).toContain('后端服务不可用（网关 502），请确认服务已启动')
+    expect(document.querySelector('.empty-line')).toBeNull()
     wrapper.unmount()
   })
 

@@ -50,11 +50,15 @@ const ALERT_STUB = {
 /**
  * 表格必须自己渲染 #bodyCell，否则「删除摆不摆」这一条在测试里根本看不见。
  * rowSelection 也一并接成 prop：4a 拍板摘掉勾选列，这里就能断言它真的没传进来。
+ *
+ * P2 补 `#emptyText` 那一格（与留言、读者互动两份桩同一个形状）：这一页的空态话现在由模板给，
+ * 「平台档那一发没发出去」那句话挂在空表位上，桩不画这一格就永远量不到它。
  */
 const TABLE_STUB = {
   name: 'ATableStub',
   props: ['columns', 'dataSource', 'rowKey', 'rowSelection', 'pagination', 'scroll'],
   template: `<div class="a-table-stub">
+    <div v-if="!dataSource.length" class="empty-slot"><slot name="emptyText" /></div>
     <template v-for="record in dataSource" :key="record[rowKey] ?? record.id">
       <template v-for="column in columns" :key="column.key">
         <slot name="bodyCell" :column="column" :record="record" :text="record[column.dataIndex]" />
@@ -202,7 +206,8 @@ async function mountAs(roles: string[], permissions: string[], options: AsOption
         'a-row': PASS_THROUGH('a-row'),
         'a-col': PASS_THROUGH('a-col'),
         'a-tabs': PASS_THROUGH('a-tabs'),
-        'a-tab-pane': PASS_THROUGH('a-tab-pane')
+        'a-tab-pane': PASS_THROUGH('a-tab-pane'),
+        'a-pagination': PASS_THROUGH('a-pagination')
       }
     }
   })
@@ -214,8 +219,25 @@ function buttonTexts() {
   return [...document.querySelectorAll('button')].map(node => (node.textContent || '').trim())
 }
 
-function statValues() {
-  return [...document.querySelectorAll('.stat-value')].map(node => (node.textContent || '').trim())
+/**
+ * Spec-Q P2：那三格带渐变底色的统计卡收成了表格上面一条读数，所以这里量的不再是 `.stat-value` 三格，
+ * 而是「读数那一行念了什么」。原来钉的是「三格各是多少、标签叫什么」，
+ * 现在钉的是「等我处理排在第一个、三个数逐字对得上、读不到时这一行一个字都不念」——
+ * 语义（数必须是后端那三个键、不许把读不到摆成 0）没放宽。
+ */
+function countLineText(): string {
+  const node = document.querySelector('.record-list-page__count')
+  return (node?.textContent || '').replace(/\s+/g, ' ').trim()
+}
+
+function pagerNodes(): number {
+  return document.querySelectorAll('.a-pagination-stub').length
+}
+
+function emptyLineText(): string {
+  // 限定在模板那一块里：平台档同屏还有一张跨客户的公告表，不圈范围就会量到别人家的空态
+  const node = document.querySelector('.record-list-page .empty-line')
+  return (node?.textContent || '').replace(/\s+/g, ' ').trim()
 }
 
 function alertTexts() {
@@ -267,25 +289,27 @@ describe('站内信入口按职能收', () => {
  * 现在三个键各按「我」算，卡片的名字就得是「我的收件箱 / 我的发件箱」，不能再叫「消息总数 / 已读」。
  */
 describe('站内信统计：按我算、读不到时不谎报成 0', () => {
-  function statTitles() {
-    return [...document.querySelectorAll('.stat-title')].map(node => (node.textContent || '').trim())
-  }
+  const COUNT_LINE =
+    '等我处理：未读 2 封。收件箱 7 封、发件箱 3 封' +
+    '（这三个数按「你在这家客户里的信」算，不随下面的收件箱/发件箱、状态、关键词筛选变）'
 
-  it('三个数照后端原样落到卡上，标签认得出那是「我的」', async () => {
+  it('三个数照后端原样落到读数那一行，「等我处理」排在最前', async () => {
     const wrapper = await mountAs(['CONTENT_EDITOR'], ['portal:siteinfo:manage'])
     expect(alertTexts()).toHaveLength(0)
-    expect(statValues()).toEqual(['7', '2', '3'])
-    expect(statTitles()).toEqual(['我的收件箱', '未读', '我的发件箱'])
+    expect(countLineText()).toBe(COUNT_LINE)
+    expect(countLineText().indexOf('等我处理')).toBe(0)
     // 「已读 = 总数 − 未读」那一格的前提是总数与未读同一个集合，按人算之后这个前提没了
-    expect(statTitles().join(' ')).not.toContain('已读')
+    expect(countLineText()).not.toContain('已读')
     wrapper.unmount()
   })
 
-  it('后端说「请先选择客户」：卡片露「—」并把去哪儿选写在明处', async () => {
+  it('后端说「请先选择客户」：这一行一个字都不念，并把去哪儿选写在明处', async () => {
     vi.mocked(portalMessageApi.stats).mockRejectedValue(new Error('请先选择客户'))
     const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'])
     expect(alertTexts().join(' ')).toContain('请先在右上角切到「客户」')
-    expect(statValues()).toEqual(['—', '—', '—'])
+    // 原来这三格露「—」；P2 换成一行读数以后，「没读到」的画法是不念这一行（同屏两句「没读到」是重复），
+    // 「不许把没读到说成 0」这一条语义由「这一行不在」+ 上面那条 alert 说全 一起钉住
+    expect(countLineText()).toBe('')
     expect(document.body.textContent).not.toContain('统计数据读取失败')
     // 平台档这一枪根本不该发出去（必败的请求每次都在控制台留一条 error）
     expect(portalMessageApi.stats).not.toHaveBeenCalled()
@@ -296,7 +320,7 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
     vi.mocked(portalMessageApi.stats).mockRejectedValue(new Error('数据库连接超时'))
     const wrapper = await mountAs(['CONTENT_EDITOR'], ['portal:siteinfo:manage'])
     expect(alertTexts().join(' ')).toContain('统计数据读取失败：数据库连接超时')
-    expect(statValues()).toEqual(['—', '—', '—'])
+    expect(countLineText()).toBe('')
     wrapper.unmount()
   })
 
@@ -308,7 +332,9 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
     expect(portalMessageApi.stats).toHaveBeenCalledTimes(1)
     expect(alertTexts().join(' ')).toContain('请先在右上角切到「客户」')
     expect(document.body.textContent).not.toContain('统计数据读取失败')
-    expect(statValues()).toEqual(['—', '—', '—'])
+    expect(countLineText()).toBe('')
+    // 统计读不到不牵连列表：那一发是真读回来的，翻页照旧在
+    expect(pagerNodes()).toBe(1)
     wrapper.unmount()
   })
 
@@ -316,7 +342,10 @@ describe('站内信统计：按我算、读不到时不谎报成 0', () => {
     vi.mocked(portalMessageApi.stats).mockResolvedValue({ inbox: 4, unread: 1, outbox: 9 } as any)
     // 得站在一家租户里：平台档现在根本不发这一枪（见上面那条「not.toHaveBeenCalled」）
     const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'], { selectedTenantId: 15 })
-    expect(statValues()).toEqual(['4', '1', '9'])
+    expect(countLineText()).toBe(
+      '等我处理：未读 1 封。收件箱 4 封、发件箱 9 封' +
+      '（这三个数按「你在这家客户里的信」算，不随下面的收件箱/发件箱、状态、关键词筛选变）'
+    )
     wrapper.unmount()
   })
 })
@@ -385,7 +414,15 @@ describe('删除入口：自己那一格本人删，别人那一格要这一家�
     // 后端 resolveTenantId 没租户就回 TENANT_REQUIRED（现场实测），发出去只换来一句红 toast
     expect(portalMessageApi.list).not.toHaveBeenCalled()
     expect(hasDeleteButton()).toBe(false)
-    expect(alertTexts().join(' ')).toContain('请在右上角切到「客户」')
+    // 原来这句钉的是卡上面那条 `a-alert`（「平台档看的是上面那张…请在右上角切到「客户」…」）；
+    // P2 接了模板，同一句话改走「这一发没发出去」那一形，摆在表格里那一格的位置上，
+    // 钉的字面没改（还是那句去哪儿切），只是量的节点从 alert 换成了 empty-line
+    expect(emptyLineText()).toBe(
+      '平台档看的是上面那张跨客户的公告阅读表。要看你自己这一家的收件箱 / 发件箱，请在右上角切到「客户」并选一家。'
+    )
+    // 这一档既没读统计也没读列表：读数那一行与翻页条都不该出现（「共 0 条」会把没查过说成查过了）
+    expect(countLineText()).toBe('')
+    expect(pagerNodes()).toBe(0)
     // 但「发送消息」不能跟着一起消失 —— 平台档的正活儿就是群发，那颗按钮在同一张卡的 #actions 里
     expect(buttonTexts().some(text => text.includes('发送消息'))).toBe(true)
     wrapper.unmount()

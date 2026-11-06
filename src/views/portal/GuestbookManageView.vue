@@ -1,85 +1,30 @@
 <template>
   <div class="guestbook-manage-page">
-    <PageTitle description="管理门户站点的用户留言和回复" />
+    <record-list-page
+      description="管理门户站点的用户留言和回复"
+      :loading="loading"
+      :rows="messageList"
+      :columns="columns"
+      :read-failed="readFailed"
+      :empty-line="emptyLine"
+      :empty-reason="emptyReason"
+      :not-sent="notSentLine"
+      :count-line="countLine"
+    >
+      <template #notice>
+        <!-- 这一屏属于哪一家：改前超管没选客户时，界面拿 auth.tenantId 兜底偷偷去问 1 号（M-P100 现测 (b)） -->
+        <a-alert v-if="scopeNotice" class="scope-alert" type="info" show-icon :message="scopeNotice" />
+        <a-alert
+          v-if="statsState === 'failed'"
+          class="scope-alert"
+          type="error"
+          show-icon
+          :message="statsFailNotice"
+        />
+      </template>
 
-    <div class="content-wrapper">
-      <!-- 这一屏属于哪一家：改前超管没选客户时，界面拿 auth.tenantId 兜底偷偷去问 1 号（M-P100 现测 (b)） -->
-      <a-alert v-if="scopeNotice" class="scope-alert" type="info" show-icon :message="scopeNotice" />
-      <a-alert
-        v-if="statsState === 'failed'"
-        class="scope-alert"
-        type="error"
-        show-icon
-        :message="`那四个数没读上来：${statsError}（读不到不是「这一家没有留言」）`"
-      />
-      <a-spin :spinning="loading">
-        <a-row :gutter="16" style="margin-bottom: 4px">
-          <a-col :span="24">
-            <!-- 四张卡的口径写死在屏上：它们数的是这一家全部留言，不跟着下面的筛选走 -->
-            <span class="stats-scope-line">
-              下面四个数数的是这一家<strong>全部留言</strong>（不随下面的状态、类型、关键词筛选变）。
-            </span>
-          </a-col>
-        </a-row>
-        <a-row :gutter="16" style="margin-bottom: 16px">
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)">
-                  <MessageOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statText(stats?.totalMessages) }}</div>
-                  <div class="stat-title">留言总数</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #52c41a 0%, #95de64 100%)">
-                  <CheckCircleOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statText(stats?.repliedCount) }}</div>
-                  <div class="stat-title">已回复</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #faad14 0%, #ffc53d 100%)">
-                  <ClockCircleOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statText(stats?.pendingCount) }}</div>
-                  <div class="stat-title">待回复</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-          <a-col :span="6">
-            <a-card class="stat-card" hoverable>
-              <div class="stat-content">
-                <div class="stat-icon" style="background: linear-gradient(135deg, #eb2f96 0%, #ff85c0 100%)">
-                  <UserOutlined />
-                </div>
-                <div class="stat-info">
-                  <div class="stat-value">{{ statText(stats?.todayCount) }}</div>
-                  <div class="stat-title">今日新增</div>
-                </div>
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
-
-        <a-card :bordered="false">
-          <!-- 筛选栏原本塞在卡片 #title 槽：那是 overflow:hidden 的卡头，窄时会被裁切；改用 FilterBar -->
-          <filter-bar>
-            <a-select
+      <template #filters>
+        <a-select
               v-model:value="queryParams.status"
               style="width: 120px"
               placeholder="状态筛选"
@@ -109,26 +54,9 @@
               enter-button
               @search="loadData"
             />
-          </filter-bar>
+      </template>
 
-          <a-table
-            :scroll="{ x: 'max-content' }"
-            :columns="columns"
-            :data-source="messageList"
-            :pagination="false"
-            :row-key="(record: any) => record.id"
-          >
-            <!-- 这一屏的空会被销售读成「这家没有线索」，所以那一句只认后端回的成因（N-05） -->
-            <template #emptyText>
-              <empty-list-hint
-                :loading="loading"
-                :not-sent="notSentLine"
-                :read-failed="readFailed"
-                :empty-line="emptyLine"
-                :empty-reason="emptyReason"
-              />
-            </template>
-            <template #bodyCell="{ column, record }">
+      <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'content'">
                 <div class="message-content">{{ record.content }}</div>
                 <div v-if="record.replyContent" class="reply-content">
@@ -168,25 +96,24 @@
                   </a-popconfirm>
                 </a-space>
               </template>
-            </template>
-          </a-table>
+      </template>
 
-          <div v-if="!notSentLine" class="pagination-wrapper">
-            <a-pagination
-              v-model:current="pagination.page"
-              v-model:page-size="pagination.size"
-              :total="pagination.total"
-              :show-size-changer="true"
-              :show-quick-jumper="true"
-              :page-size-options="['10', '20', '50']"
-              @change="loadData"
-              @showSizeChange="handleSizeChange"
-              :show-total="(total: number) => countLabel(total)"
-            />
-          </div>
-        </a-card>
-      </a-spin>
-    </div>
+      <template #footer>
+        <!-- 没发出去 / 读失败时连翻页条一起收掉：那条「共 0 条」会把「没查过」说成「查过了」 -->
+        <a-pagination
+          v-if="showPager"
+          v-model:current="pagination.page"
+          v-model:page-size="pagination.size"
+          :total="pagination.total"
+          :show-size-changer="true"
+          :show-quick-jumper="true"
+          :page-size-options="['10', '20', '50']"
+          @change="loadData"
+          @showSizeChange="handleSizeChange"
+          :show-total="(total: number) => `共 ${total} 条`"
+        />
+      </template>
+    </record-list-page>
 
     <a-modal
       v-model:open="replyModalVisible"
@@ -245,22 +172,14 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import {
-  MessageOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  UserOutlined,
-} from '@ant-design/icons-vue'
 import { guestbookApi } from '../../api/portal'
 import type { Guestbook, GuestbookQuery, GuestbookStats } from '../../types/portal'
-import { formatDateTime } from '../../utils/format'
-import FilterBar from '../../components/FilterBar.vue'
-import EmptyListHint from '../../components/EmptyListHint.vue'
+import { formatDateTime, formatNumber } from '../../utils/format'
+import RecordListPage from '../../components/RecordListPage.vue'
 import { describeHttpError } from '../../api/http'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
-import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -299,22 +218,34 @@ const scopeNotice = computed(() => {
 
 type StatsState = 'idle' | 'loading' | 'ok' | 'failed'
 
-/** 后端 `GET /guestbook/stats` 一口回四个数；null 表示「没读到」，界面就摆 `—`，不摆 0 */
+/** 后端 `GET /guestbook/stats` 一口回四个数；null 表示「这一口没读回来」，此时读数那一行一个字都不念 */
 const stats = ref<GuestbookStats | null>(null)
 const statsState = ref<StatsState>('idle')
 const statsError = ref('')
 
-/** 读不到就摆 `—`：把「没读到」画成 0 是这一屏原来最主要的假话 */
-function statText(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '—'
-  return value.toLocaleString()
-}
+/**
+ * 读数那一行（Spec-Q §4.1 的 B 型：第一条是「等我处理」，不是总数）。
+ * 原来这四件事是四张带渐变底色的卡，同一句话抄成了卡；口径那半句也从卡上面那行字挪了进来。
+ * 读不到时这一行整条不发——上面那条带后端原文的错误条已经把话说全了，同屏两句「没读到」是重复。
+ */
+const countLine = computed(() => {
+  if (statsState.value !== 'ok' || !stats.value) return ''
+  return (
+    `等我处理：待回复 ${formatNumber(stats.value.pendingCount)} 条。` +
+    `这一家全部留言 ${formatNumber(stats.value.totalMessages)} 条、已回复 ${formatNumber(stats.value.repliedCount)} 条、` +
+    `今日新增 ${formatNumber(stats.value.todayCount)} 条` +
+    '（这四个数数的是这一家全部留言，不随下面的状态、类型、关键词筛选变）'
+  )
+})
 
-/** 「共 N 条」只在真读回来的时候念数字；没发出去或读失败时它是「没读到」，不是 0 */
-function countLabel(total: number): string {
-  if (notSentLine.value || readFailed.value) return '条数没读到'
-  return `共 ${total} 条`
-}
+/** 统计那一口读不到时的那句话：成因用后端原文，「不是 0」与「这一家没有留言」这两件界面上分开 */
+const statsFailNotice = computed(
+  () =>
+    `等我处理、全部留言、已回复、今日新增：这四个数没读回来，不是 0。原因：${statsError.value}（读不到不是「这一家没有留言」）`
+)
+
+/** 没发出去、读失败这两种形状里都不摆翻页条：那条「共 0 条」会把「没查过」说成「查过了」 */
+const showPager = computed(() => !notSentLine.value && !readFailed.value)
 
 const queryParams = reactive({
   status: undefined as string | undefined,
@@ -540,67 +471,14 @@ onMounted(() => {
   padding: 0;
 }
 
-.content-wrapper {
-}
-
 .scope-alert {
-  margin-bottom: 12px;
-}
-
-.stats-scope-line {
-  display: inline-block;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.stat-card {
-  cursor: pointer;
-  transition: all 0.3s;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  color: #fff;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a1a1a;
-  line-height: 1.2;
-}
-
-.stat-title {
-  font-size: 13px;
-  color: #8c8c8c;
-  margin-top: 4px;
+  margin-bottom: var(--admin-space-1);
 }
 
 .message-content {
   font-size: 14px;
-  color: #1a1a1a;
-  margin-bottom: 8px;
+  color: var(--admin-text-primary);
+  margin-bottom: var(--admin-space-1);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -611,21 +489,15 @@ onMounted(() => {
 
 .reply-content {
   font-size: 12px;
-  color: #8c8c8c;
-  padding: 8px 12px;
+  color: var(--admin-text-secondary);
+  padding: var(--admin-space-1) 12px;
   background: #f5f5f5;
   border-radius: 4px;
-  border-left: 3px solid #1890ff;
+  border-left: 3px solid var(--admin-primary);
 
   .reply-label {
-    color: #1890ff;
+    color: var(--admin-primary);
     font-weight: 500;
   }
-}
-
-.pagination-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
 }
 </style>
