@@ -13,7 +13,10 @@ import { useAuthStore } from '../../../stores/auth'
  */
 
 vi.mock('../../../api/portal', () => ({
-  companyInfoApi: { get: vi.fn(), update: vi.fn(), uploadImage: vi.fn() },
+  // provinces 是 Spec-Q P3 新加的读口（省份清单唯一出处＝后端 GET /company/provinces）。
+  // 这里不补这一支，视图会在 `companyInfoApi.provinces is not a function` 上被 catch 吞掉，
+  // 于是「省份下拉取不到」这一档在这条测试里永远是绿的。
+  companyInfoApi: { get: vi.fn(), update: vi.fn(), uploadImage: vi.fn(), provinces: vi.fn() },
 }))
 
 vi.mock('../../../api/siteBriefs', () => ({
@@ -76,6 +79,7 @@ function buttonByText(wrapper: ReturnType<typeof mount>, text: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   ;(companyInfoApi.get as any).mockResolvedValue(null)
+  ;(companyInfoApi.provinces as any).mockResolvedValue(['北京市', '河南省', '广东省'])
   ;(vocabularyApi.portalVocabulary as any).mockResolvedValue(null)
 })
 
@@ -95,6 +99,8 @@ describe('超管没选客户时这一屏一口不发', () => {
     const wrapper = await mountView()
 
     expect(companyInfoApi.get).toHaveBeenCalledWith(15)
+    // 省份清单走后端那一发读口（不选客户时这一发照发：词表不含租户数据）
+    expect(companyInfoApi.provinces).toHaveBeenCalled()
     expect(wrapper.find('.alert-stub').exists()).toBe(false)
     expect(buttonByText(wrapper, '保存修改').attributes('disabled')).toBeUndefined()
   })

@@ -101,6 +101,52 @@ describe('形态：AI 先填好、租户只在不同意时改，robots 是勾选
   });
 });
 
+describe('Spec-Q P3：这一页换成 C 型模板，两类读失败都在屏上有落点', () => {
+  /**
+   * 改之前这一屏有两发请求，失败都只弹 toast：页面照样摆一份空表，
+   * 而逐格「保存」是把空值写回去（Q3 拍的「三态各说各的」拦的就是这个）。
+   * 这里不放宽任何旧断言，只把「失败必须在屏上说得出」钉住。
+   */
+  it('页头读数念的是「AI 已填」，不是让人以为是自己没填', () => {
+    expect(view).toMatch(/<SettingsPage/);
+    expect(view).toMatch(/progress-word="AI 已填"/);
+  })
+
+  it('两组：字段那一组 + 逐页 SEO 那一组，组名与卡片都由模板按 groups 摆', () => {
+    expect(view).toMatch(/const groups = computed<SettingsGroup\[\]>\(\(\) => \[/);
+    expect(view).toMatch(/key: 'siteFields'/);
+    expect(view).toMatch(/key: 'pageSeo'/);
+    // 页面不再自己写 a-card / a-empty：卡与三态块归模板，否则下一屏又是各抄一份
+    expect(view).not.toMatch(/<a-card/);
+    expect(view).not.toMatch(/<a-empty/);
+  })
+
+  it('站点信息那一发读失败：原话进 readFailed，整组卡由模板撤下', () => {
+    expect(view).toMatch(/readFailed\.value = `站点信息没读回来：\$\{reason\}`/);
+    expect(view).toMatch(/:read-failed="readFailed"/);
+    // 旧的那一条 toast 仍在（提示与屏上落点是两件事，撤掉它等于把失败说得更少）
+    expect(view).toMatch(/加载站点信息失败/);
+  })
+
+  it('逐页 SEO 那一发失败单独摆一条，且能只重读这一发', () => {
+    expect(view).toMatch(/pagesFailed\.value = `逐页 SEO 没读回来：\$\{reason\}`/);
+    expect(view).toMatch(/v-if="pagesFailed"/);
+    expect(view).toMatch(/state="error"/);
+    expect(view).toMatch(/重新读取这一发/);
+  })
+
+  it('后端答了但里面没有站点信息：说「未取到」，不等于「什么都没填」', () => {
+    expect(view).toMatch(/const notReadNotice = computed/);
+    expect(view).toMatch(/里面没有站点信息/);
+    expect(view).toMatch(/:not-read="notReadNotice"/);
+  })
+
+  it('站点状态那句中文仍只来自后端词表（换模板时这颗角标差点掉进卡头写死）', () => {
+    expect(view).toMatch(/siteStatusText\(view\.value\.siteStatus\)/);
+    expect(view).toMatch(/note:/);
+  })
+})
+
 describe('Q-P4c：覆写原文的缺口提示要在屏上，不能只留在库里（缺陷 E）', () => {
   it('提示清单只认后端 structured.warnings，前端不自己列该点名的爬虫', () => {
     expect(adapter).toMatch(/warnings:\s*string\[\]/);

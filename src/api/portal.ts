@@ -162,6 +162,12 @@ export const companyInfoApi = {
   update: (data: CompanyInfoForm, tenantId?: number | null) =>
     http.put<CompanyInfo>('/company/info', data, { params: tenantId ? { tenantId } : {} }),
 
+  /**
+   * 省份清单（Spec-Q P3）：唯一出处是后端 `CompanyProvinceOptions`，界面一格省名都不抄。
+   * 与 `get` 不同，这一发不分租户——它是代码资产，不是哪家企业的 data。
+   */
+  provinces: () => http.get<string[]>('/company/provinces'),
+
   // 品牌标识图片上传，返回 { url }
   uploadImage: (kind: 'logo' | 'favicon' | 'certificate', file: File, tenantId?: number | null) => {
     const formData = new FormData()

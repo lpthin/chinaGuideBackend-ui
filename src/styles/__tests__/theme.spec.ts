@@ -28,7 +28,7 @@ function sourceOf(relative: string): string {
  * 这份清单不是色板：每一支都是在这些页的 style 块里真出现过、且已经有令牌对应的那几支
  * （正文 → --admin-text-*，语义 → --admin-warning-text / --admin-danger-text，主色 → --admin-primary）。
  */
-const BANNED_HEXES = ['#8c8c8c', '#1a1a1a', '#595959', '#faad14', '#ff4d4f', '#1890ff', '#52c41a', '#36cfc9', '#95de64', '#bfbfbf']
+const BANNED_HEXES = ['#8c8c8c', '#1a1a1a', '#595959', '#faad14', '#ff4d4f', '#1890ff', '#52c41a', '#36cfc9', '#95de64', '#bfbfbf', '#fafafa', '#f0f0f0']
 
 /** 注释里出现这些字面是允许的（注释讲的正是「原来抄的是哪一支」），判的是生效的那几行 */
 function withoutComments(raw: string): string {
@@ -100,6 +100,26 @@ describe('后台主题单源（styles/theme.ts）', () => {
     }
     // 这一屏本来就没有渐变底，留着这一条是防「以后又加一张渐变卡」
     expect(interaction).not.toContain('linear-gradient')
+  })
+
+  /**
+   * P3 的两页（企业信息、站点设置）。
+   *
+   * 这两页原来是「抄色最凶」的两页：企业信息那一屏的说明字各抄各的灰，站点设置那一屏的
+   * 只读文本块抄的是 #fafafa 底 + #f0f0f0 框（这两支正是 --admin-table-header-bg / --admin-border-soft 的出处）。
+   * 换模板不等于换色，所以这一条把整套禁令原样套上去，并把这两支补进 BANNED_HEXES 防回头再抄。
+   */
+  it('Spec-Q P3：企业信息与站点设置两页不再抄十六进制', () => {
+    for (const file of [
+      'src/views/portal/CompanyInfoView.vue',
+      'src/views/portal/PortalSiteInfoView.vue'
+    ]) {
+      const body = withoutComments(sourceOf(file))
+      for (const banned of BANNED_HEXES) {
+        expect(body, `${file} 里不该再出现 ${banned}：正文色只剩 --admin-text-*，底色只剩 --admin-table-header-bg / --admin-border-soft`).not.toContain(banned)
+      }
+      expect(body, `${file} 里不该再有 linear-gradient 的装饰底`).not.toContain('linear-gradient')
+    }
   })
 
   it('main.ts 得真的把这份 token 挂进 ConfigProvider', () => {
