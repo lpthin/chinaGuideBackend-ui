@@ -488,7 +488,10 @@ export const routes: RouteRecordRaw[] = [
         path: 'portal/launch',
         name: 'workspace-portal-launch',
         component: PortalLaunchView,
-        meta: { title: '门户上线', icon: 'rocket' }
+        // Spec-Q Q7：这一屏收成超管专用。租户那一半真正要的「还差什么才能上线」已经并进
+        // 内容工作台的完成度带（§4.4），而这一屏剩下的动作（灌演示包、转正式内容）后端本来就是
+        // checkSuperAdmin（AdminTenantController），租户账号看得见点进去只拿到一串 403。
+        meta: { title: '门户上线', icon: 'rocket', requiresSuperAdmin: true }
       },
       // 「模板管理」这一项随 portal_template 整条删除：挑了模板也不会改变访客看到的样子，
       // 换样式由「样式沉淀」（portal/presets，皮肤 + 平台模板）承担。

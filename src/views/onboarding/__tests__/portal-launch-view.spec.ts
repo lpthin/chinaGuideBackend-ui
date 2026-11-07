@@ -4,6 +4,7 @@ import PortalLaunchView from '../PortalLaunchView.vue'
 import { companyInfoApi } from '../../../api'
 import { portalSitesApi } from '../../../api/portalSites'
 import { demoSiteApi, portalVisibilityApi } from '../../../api/onboarding'
+import { checklistAnchorId } from '../../../components/checklistPageModel'
 
 /**
  * 「门户上线」检查表第 1 格（站点）的三条说法（Q-3）。
@@ -71,7 +72,9 @@ function stubs() {
     'a-col': PASS_THROUGH('ACol'),
     'a-statistic': PASS_THROUGH('AStatistic'),
     'a-tooltip': PASS_THROUGH('ATooltip'),
-    RouterLink: { name: 'RouterLink', props: ['to'], template: '<a class="router-link-stub"><slot /></a>' },
+    // 键写成模板里那个标签名：写 'RouterLink' 覆盖不到 tests/setup.ts 里那条 `'router-link': true`，
+    // 而自动桩件会把插槽内容整段丢掉，这一屏那几个「去哪儿补」的链接文字就永远读不到
+    'router-link': { name: 'RouterLink', props: ['to'], template: '<a class="router-link-stub" :data-route="to && to.name"><slot /></a>' },
   }
 }
 
@@ -286,5 +289,49 @@ describe('第 3 格 · 演示内容结果行', () => {
     expect(line).toContain('新增 9 条（分类 4、文章 5）')
     expect(line).toContain('更新 1 条（首页横幅 1）')
     expect(line).toContain('跳过 0 条')
+  })
+})
+
+/**
+ * 每一步那一个「去哪儿补」（Spec-Q §4.1 D 型最后一条）。
+ *
+ * 检查表只说「还差什么」是不够的：客户看完这一屏要知道点哪里去补。这一组钉的是链接文字
+ * 真渲染出来了（改前的桩件键写成 `RouterLink`，覆盖不到 setup.ts 那条自动桩，插槽内容被丢掉，
+ * 于是这几句在测试里根本读不到——测试全绿，界面上却没人保证过它有），以及去向是路由名而不是拼出来的地址。
+ */
+describe('每一步的「去哪儿补」', () => {
+  function linkLabels(wrapper: Awaited<ReturnType<typeof mountView>>, key: string): { text: string; route: string }[] {
+    const card = wrapper.find(`#${checklistAnchorId(key)}`)
+    if (!card.exists()) {
+      throw new Error(`找不到第「${key}」步那张卡（锚点 id 是 checklistAnchorId 给的，不是界面拼的）`)
+    }
+    return card.findAll('.router-link-stub').map(node => ({
+      text: node.text(),
+      route: node.attributes('data-route') ?? ''
+    }))
+  }
+
+  it('企业信息没填全：那一格给出去填写的路由，而不是只说一句缺', async () => {
+    vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 9, code: 'c', name: '站', domain: 'x.com' }] as any)
+    vi.mocked(companyInfoApi.get).mockResolvedValue({ companyName: '牙科诊所' } as any)
+    const wrapper = await mountView()
+    expect(linkLabels(wrapper, 'company')).toEqual([{ text: '去填写企业信息', route: 'workspace-portal-company' }])
+  })
+
+  it('访客能看到的内容那一格：文章与案例各给一个去向', async () => {
+    vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 9, code: 'c', name: '站', domain: 'x.com' }] as any)
+    vi.mocked(portalVisibilityApi.publishedArticles).mockResolvedValue({ total: 0 } as any)
+    const wrapper = await mountView()
+    expect(linkLabels(wrapper, 'readers').map(item => item.route))
+      .toEqual(['workspace-articles', 'workspace-case-list'])
+  })
+
+  it('读挂了的那一格把「怎么重新读取」放在补之前：这一屏页头确实有那颗「刷新」', async () => {
+    vi.mocked(companyInfoApi.get).mockRejectedValue(new Error('企业信息读取失败'))
+    vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 9, code: 'c', name: '站', domain: 'x.com' }] as any)
+    const wrapper = await mountView()
+    const head = wrapper.text()
+    expect(head).toContain('刷新')
+    expect(head).toContain('点页头的「刷新」重来一次')
   })
 })

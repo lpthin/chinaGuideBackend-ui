@@ -1,182 +1,120 @@
 <template>
-  <div class="portal-launch-page">
-    <PageTitle />
-    <a-alert type="info" show-icon class="scope-note">
-      <template #message>
-        这一页只做一件事：把「客户开通」到「访客能在门户上读到内容、爬虫能抓到」之间还缺的步骤摊开。
-        数字全部来自接口真实返回，取不到就显示「未取到」而不是 0；
-        <b>发布仍然要在文章里走审核 → 发布</b>，这里不代替那一步。
-      </template>
-    </a-alert>
-
-    <a-form layout="inline" class="filter-bar">
-      <a-form-item v-if="missingTenant" class="toolbar-fill">
-        <a-tag color="orange">超级管理员请先在右上角选择客户：本页没有跨客户的全局视图</a-tag>
-      </a-form-item>
-      <a-form-item v-else class="toolbar-fill" />
-      <a-form-item class="toolbar-actions">
+  <ChecklistPage :steps="steps" :loading="loading" description="把「客户开通」到「访客能在门户上读到内容、爬虫能抓到」之间还缺的步骤摊开：数字全部来自接口真实返回，取不到就显示「未取到」而不是 0；发布仍然要在文章里走审核 → 发布，这里不代替那一步。">
+    <template #actions>
+      <a-space :size="8">
+        <a-tag v-if="missingTenant" color="orange">超级管理员请先在右上角选择客户：本页没有跨客户的全局视图</a-tag>
         <a-button type="primary" :loading="loading" @click="loadAll">刷新</a-button>
-      </a-form-item>
-    </a-form>
+      </a-space>
+    </template>
 
-    <a-spin :spinning="loading">
-      <a-card :bordered="false" class="step-card">
-        <template #title><span class="step-index">1</span> 站点与访问域名</template>
-        <template #extra><a-tag :color="siteState.color">{{ siteState.text }}</a-tag></template>
-        <a-descriptions :column="1" size="small" bordered>
-          <a-descriptions-item label="站点">{{ siteText }}</a-descriptions-item>
-          <a-descriptions-item label="站点编码（?site= 用的就是它）">{{ siteField(site?.code, '—') }}</a-descriptions-item>
-          <a-descriptions-item label="访问域名">{{ siteField(site?.domain, '未绑定') }}</a-descriptions-item>
-        </a-descriptions>
-        <p class="hint">
-          域名由平台管理员在「平台管理 → 站点与客户 → 站点清单」绑定。没绑域名时门户仍然可以按站点编码预览，
-          但 <b>sitemap.xml 不会输出任何 URL</b>（绝对地址只能来自已配置域名，系统不会拿访问者的请求域名凑一个）。
-        </p>
-        <p v-if="errors.site" class="error-line">{{ errors.site }}</p>
-      </a-card>
+    <template #site>
+      <a-descriptions :column="1" size="small" bordered>
+        <a-descriptions-item label="站点">{{ siteName }}</a-descriptions-item>
+        <a-descriptions-item label="站点编码（?site= 用的就是它）">{{ siteFieldValue(readings, site?.code, '—') }}</a-descriptions-item>
+        <a-descriptions-item label="访问域名">{{ siteFieldValue(readings, site?.domain, '未绑定') }}</a-descriptions-item>
+      </a-descriptions>
+      <p class="hint">
+        没绑域名时门户仍然可以按站点编码预览，但 <b>sitemap.xml 不会输出任何 URL</b>
+        （绝对地址只能来自已配置域名，系统不会拿访问者的请求域名凑一个）。
+      </p>
+      <p v-if="errors.site" class="error-line">{{ errors.site }}</p>
+    </template>
 
-      <a-card :bordered="false" class="step-card">
-        <template #title><span class="step-index">2</span> 企业信息</template>
-        <template #extra><a-tag :color="companyState.color">{{ companyState.text }}</a-tag></template>
-        <a-descriptions :column="1" size="small" bordered>
-          <a-descriptions-item label="企业名称">{{ company?.companyName || '未填写' }}</a-descriptions-item>
-          <a-descriptions-item label="简介">{{ company?.introduction || '未填写' }}</a-descriptions-item>
-          <a-descriptions-item label="联系方式">
-            {{ contactText }}
-          </a-descriptions-item>
-        </a-descriptions>
-        <p class="hint">
-          门户的站名、页脚与 llms.txt 的站点摘要都读这张表（<code>portal_company_info</code>），
-          改完门户即时生效。演示内容包里<b>故意不含企业信息</b>：那是事实数据，编一个比空着更糟。
-        </p>
-        <p class="hint">
-          <router-link :to="{ name: 'workspace-portal-company' }">去填写企业信息</router-link>
-        </p>
-        <p v-if="errors.company" class="error-line">{{ errors.company }}</p>
-      </a-card>
+    <template #company>
+      <a-descriptions :column="1" size="small" bordered>
+        <a-descriptions-item label="企业名称">{{ company?.companyName || (readings.tenantNotSelected ? '—' : readings.companyError ? '未取到' : '未填写') }}</a-descriptions-item>
+        <a-descriptions-item label="简介">{{ company?.introduction || '未填写' }}</a-descriptions-item>
+        <a-descriptions-item label="联系方式">{{ contactText(company) }}</a-descriptions-item>
+      </a-descriptions>
+      <p class="hint">
+        门户的站名、页脚与 llms.txt 的站点摘要都读这张表（<code>portal_company_info</code>），
+        改完门户即时生效。演示内容包里<b>故意不含企业信息</b>：那是事实数据，编一个比空着更糟。
+      </p>
+      <p v-if="errors.company" class="error-line">{{ errors.company }}</p>
+    </template>
 
-      <a-card :bordered="false" class="step-card">
-        <template #title><span class="step-index">3</span> 演示内容</template>
-        <template #extra><a-tag :color="demoState.color">{{ demoState.text }}</a-tag></template>
-
-        <template v-if="authStore.isSuperAdmin">
-          <a-descriptions v-if="demo" :column="2" size="small" bordered>
-            <a-descriptions-item label="分类">{{ demo.demo.categories }}</a-descriptions-item>
-            <a-descriptions-item label="文章">{{ demo.demo.articles }}</a-descriptions-item>
-            <a-descriptions-item label="案例">{{ demo.demo.cases }}</a-descriptions-item>
-            <a-descriptions-item label="首页横幅">{{ demo.demo.banners }}</a-descriptions-item>
-            <a-descriptions-item label="岗位">{{ demo.demo.jobs }}</a-descriptions-item>
-            <a-descriptions-item label="标记">is_demo = 1</a-descriptions-item>
-          </a-descriptions>
-          <a-space class="actions">
-            <a-select v-model:value="bootstrapMode" style="width: 210px" :options="MODE_OPTIONS" />
-            <a-button :loading="acting === 'bootstrap'" @click="runBootstrap">
-              {{ demo && hasDemoContent ? '补齐演示内容' : '生成演示门户内容' }}
-            </a-button>
-            <a-popconfirm
-              title="去掉演示标记后，这些内容会当成门户上的正式页面，并进 sitemap 与访问统计，确定继续？"
-              ok-text="确定"
-              cancel-text="取消"
-              :disabled="!hasDemoContent"
-              @confirm="runPublishDemo"
-            >
-              <a-button danger :disabled="!hasDemoContent" :loading="acting === 'publish'">
-                转为正式内容
-              </a-button>
-            </a-popconfirm>
-          </a-space>
-          <a-alert v-if="actionResult" type="success" show-icon class="result" :message="actionResult" />
-          <p class="hint">
-            两种模式都只碰演示行，客户已有的真实内容不会被覆盖；标识撞车时该行会被跳过，
-            并在返回的 conflicts 里说明。转正式内容<b>只去掉 is_demo 标记</b>，文章状态仍是原状态，
-            要访客可见还得走审核 → 发布。
-          </p>
-          <ul v-if="demoConflicts.length" class="conflict-list">
-            <li v-for="item in demoConflicts" :key="item">{{ item }}</li>
-          </ul>
-        </template>
-        <p v-else class="hint">
-          演示内容包由平台管理员在开通客户时生成（超级管理员功能）。需要一套演示门户，请联系平台管理员。
-        </p>
-        <p v-if="errors.demo" class="error-line">{{ errors.demo }}</p>
-      </a-card>
-
-      <a-card :bordered="false" class="step-card">
-        <template #title><span class="step-index">4</span> 访客实际能看到的内容</template>
-        <template #extra><a-tag :color="visibilityState.color">{{ visibilityState.text }}</a-tag></template>
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-statistic title="门户文章列表返回的文章数" :value="visibility.articles ?? '未取到'" />
-          </a-col>
-          <a-col :span="12">
-            <a-statistic title="门户案例列表返回的案例数" :value="visibility.cases ?? '未取到'" />
-          </a-col>
-        </a-row>
-        <p class="hint">
-          这两个数直接调用门户的公开接口，和访客打开列表页看到的是同一份结果（已发布 + 非演示），
-          所以它比后台的文章总数更能说明「上线了没有」。
-        </p>
-        <p class="hint">
-          <router-link :to="{ name: 'workspace-articles' }">去文章列表</router-link>
-          ·
-          <router-link :to="{ name: 'workspace-case-list' }">去内容案例</router-link>
-        </p>
-        <p v-if="errors.visibility" class="error-line">{{ errors.visibility }}</p>
-      </a-card>
-
-      <a-card :bordered="false" class="step-card">
-        <template #title><span class="step-index">5</span> 门户预览与 SEO / GEO 出口</template>
-        <template #extra>
-          <a-button v-if="portalPreviewUrl" type="link" :href="portalPreviewUrl" target="_blank">
-            打开门户预览
+    <template #demo>
+      <a-descriptions v-if="demo" :column="2" size="small" bordered>
+        <a-descriptions-item label="分类">{{ demo.demo.categories }}</a-descriptions-item>
+        <a-descriptions-item label="文章">{{ demo.demo.articles }}</a-descriptions-item>
+        <a-descriptions-item label="案例">{{ demo.demo.cases }}</a-descriptions-item>
+        <a-descriptions-item label="首页横幅">{{ demo.demo.banners }}</a-descriptions-item>
+        <a-descriptions-item label="岗位">{{ demo.demo.jobs }}</a-descriptions-item>
+        <a-descriptions-item label="标记">is_demo = 1</a-descriptions-item>
+      </a-descriptions>
+      <a-space class="actions">
+        <a-select v-model:value="bootstrapMode" style="width: 210px" :options="MODE_OPTIONS" />
+        <a-button :loading="acting === 'bootstrap'" @click="runBootstrap">
+          {{ demo && hasDemoContent ? '补齐演示内容' : '生成演示门户内容' }}
+        </a-button>
+        <a-popconfirm
+          title="去掉演示标记后，这些内容会当成门户上的正式页面，并进 sitemap 与访问统计，确定继续？"
+          ok-text="确定"
+          cancel-text="取消"
+          :disabled="!hasDemoContent"
+          @confirm="runPublishDemo"
+        >
+          <a-button danger :disabled="!hasDemoContent" :loading="acting === 'publish'">
+            转为正式内容
           </a-button>
-          <a-tag v-else color="default">没有站点编码，无法预览</a-tag>
-        </template>
-        <ul class="file-list">
-          <li v-for="file in SEO_FILES" :key="file.path">
-            <span class="file-name">{{ file.name }}</span>
-            <a v-if="fileUrl(file.path)" :href="fileUrl(file.path)" target="_blank">{{ file.path }}</a>
-            <code v-else>{{ file.path }}</code>
-            <span class="file-note">{{ file.note }}</span>
-          </li>
-        </ul>
-        <p class="hint">
-          这些文件由后端直接返回，不走前端路由。本地开发时前端与后端不同端口，
-          需要在 <code>.env</code> 里配置 <code>VITE_BACKEND_ORIGIN</code> 才能给出可点击链接，
-          否则只显示路径——给一个点开是 SPA 首页的假链接没有意义。
-        </p>
-        <p class="hint">
-          <router-link :to="{ name: 'workspace-portal-analytics' }">访问统计</router-link>
-          ：人工浏览来自门户埋点，抓取量由服务端按 User-Agent 识别，两者口径不同不可相加。
-        </p>
-      </a-card>
-    </a-spin>
-  </div>
+        </a-popconfirm>
+      </a-space>
+      <a-alert v-if="actionResult" type="success" show-icon class="result" :message="actionResult" />
+      <p class="hint">
+        两种模式都只碰演示行，客户已有的真实内容不会被覆盖；标识撞车时该行会被跳过，
+        并在返回的 conflicts 里说明。转正式内容<b>只去掉 is_demo 标记</b>，文章状态仍是原状态，
+        要访客可见还得走审核 → 发布。
+      </p>
+      <ul v-if="demoConflicts.length" class="conflict-list">
+        <li v-for="item in demoConflicts" :key="item">{{ item }}</li>
+      </ul>
+      <p v-if="errors.demo" class="error-line">{{ errors.demo }}</p>
+    </template>
+
+    <template #readers>
+      <a-row :gutter="16">
+        <a-col :span="12">
+          <a-statistic title="门户文章列表返回的文章数" :value="visibility.articles ?? '未取到'" />
+        </a-col>
+        <a-col :span="12">
+          <a-statistic title="门户案例列表返回的案例数" :value="visibility.cases ?? '未取到'" />
+        </a-col>
+      </a-row>
+      <p class="hint">
+        这两个数直接调用门户的公开接口，和访客打开列表页看到的是同一份结果（已发布 + 非演示），
+        所以它比后台的文章总数更能说明「上线了没有」。
+      </p>
+    </template>
+
+    <template #seo>
+      <ul class="file-list">
+        <li v-for="file in SEO_FILES" :key="file.path">
+          <span class="file-name">{{ file.name }}</span>
+          <a v-if="fileUrl(file.path)" :href="fileUrl(file.path)" target="_blank">{{ file.path }}</a>
+          <code v-else>{{ file.path }}</code>
+          <span class="file-note">{{ file.note }}</span>
+        </li>
+      </ul>
+      <p class="hint">
+        这些文件由后端直接返回，不走前端路由。本地开发时前端与后端不同端口，
+        需要在 <code>.env</code> 里配置 <code>VITE_BACKEND_ORIGIN</code> 才能给出可点击链接，
+        否则只显示路径——给一个点开是 SPA 首页的假链接没有意义。
+      </p>
+      <p class="hint">
+        人工浏览来自门户埋点，抓取量由服务端按 User-Agent 识别，两者口径不同不可相加。
+      </p>
+    </template>
+  </ChecklistPage>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
-import { useAuthStore } from '../../stores/auth'
-import { companyInfoApi } from '../../api'
-import { portalSitesApi } from '../../api/portalSites'
-import { backendFileUrl, demoSiteApi, portalVisibilityApi } from '../../api/onboarding'
-import type { DemoMode, DemoStatusResult, DemoTypeCounts } from '../../api/onboarding'
-import type { CompanyInfo } from '../../types'
-import type { MySite } from '../../api/portalSites'
-import PageTitle from '../../components/PageTitle.vue'
-
-interface SiteBrief {
-  id?: number
-  code: string
-  name: string
-  domain: string
-}
-
-interface StateTag {
-  color: 'green' | 'orange' | 'red' | 'blue' | 'default'
-  text: string
-}
+import type { DemoMode, DemoTypeCounts } from '../../api/onboarding'
+import { backendFileUrl, demoSiteApi } from '../../api/onboarding'
+import ChecklistPage from '../../components/ChecklistPage.vue'
+import { contactText, siteFieldValue } from './launchChecklist'
+import { useLaunchReadings } from './useLaunchReadings'
 
 const SEO_FILES = [
   { name: '爬虫协议', path: '/robots.txt', note: 'AI 爬虫白名单 + sitemap 地址' },
@@ -212,84 +150,29 @@ function demoCountsText(counts: DemoTypeCounts | undefined): string {
   return total ? `${total} 条${detail ? `（${detail}）` : ''}` : '0 条'
 }
 
-const authStore = useAuthStore()
+// 五步的读数与三态全部走 useLaunchReadings：内容工作台那一屏的完成度带用的是同一个来源，
+// 两处不许各写一套「读不到算什么」
+const {
+  authStore,
+  loading,
+  tenantNotSelected: missingTenant,
+  readings,
+  steps,
+  site,
+  siteName,
+  company,
+  demo,
+  visibility,
+  errors,
+  reload: loadAll,
+  loadDemo,
+  describeError
+} = useLaunchReadings()
 
-const loading = ref(false)
 const acting = ref<'bootstrap' | 'publish' | null>(null)
 const bootstrapMode = ref<DemoMode>('skip')
 const actionResult = ref('')
-
-const site = ref<SiteBrief | null>(null)
-/** 站点这一格为什么没数：denied = 这个账号本来就读不到，failed = 读了但失败。两种都不是「没有站点」 */
-const siteIssue = ref<'denied' | 'failed' | null>(null)
-const company = ref<CompanyInfo | null>(null)
-const demo = ref<DemoStatusResult | null>(null)
 const demoConflicts = ref<string[]>([])
-const visibility = ref<{ articles: number | null, cases: number | null }>({ articles: null, cases: null })
-const errors = ref<Record<string, string>>({})
-
-const missingTenant = computed(() => authStore.isSuperAdmin && authStore.selectedTenantId === null)
-
-const siteText = computed(() => {
-  if (missingTenant.value) {
-    // 还没选租户，这一格根本没去问过——写「该租户还没有站点」就是凭空报一个缺
-    return '未选客户，未取数'
-  }
-  if (siteIssue.value === 'denied') {
-    return '没有站点信息的查看权限，这一项请平台侧确认'
-  }
-  if (!site.value) {
-    return siteIssue.value ? '未取到' : '该客户还没有站点'
-  }
-  return `${site.value.name}${site.value.id ? `（ID ${site.value.id}）` : ''}`
-})
-
-const siteState = computed<StateTag>(() => {
-  if (missingTenant.value) {
-    return { color: 'default', text: '未取数' }
-  }
-  if (siteIssue.value === 'denied') {
-    return { color: 'default', text: '无查看权限' }
-  }
-  if (siteIssue.value === 'failed') {
-    return { color: 'red', text: '读取失败' }
-  }
-  if (!site.value) {
-    return { color: 'red', text: '缺少站点' }
-  }
-  return site.value.domain ? { color: 'green', text: '已绑定域名' } : { color: 'orange', text: '未绑定域名' }
-})
-
-/** 没读到就是没读到，不许把「读不到」演成「未绑定」——那会让租户去找一个根本不存在的域名问题 */
-function siteField(value: string | null | undefined, blankText: string): string {
-  if (value) {
-    return value
-  }
-  if (missingTenant.value) {
-    return '—'
-  }
-  return siteIssue.value ? '未取到' : blankText
-}
-
-const contactText = computed(() => {
-  const values = [company.value?.phone, company.value?.email, company.value?.serviceHotline]
-    .filter((value): value is string => !!value)
-  return values.length ? values.join(' / ') : '未填写'
-})
-
-const companyState = computed<StateTag>(() => {
-  if (errors.value.company) {
-    return { color: 'red', text: '读取失败' }
-  }
-  const info = company.value
-  if (!info?.companyName) {
-    return { color: 'red', text: '未填写' }
-  }
-  if (!info.introduction || !(info.phone || info.email)) {
-    return { color: 'orange', text: '信息不完整' }
-  }
-  return { color: 'green', text: '已填写' }
-})
 
 const hasDemoContent = computed(() => {
   const counts = demo.value?.demo
@@ -299,133 +182,16 @@ const hasDemoContent = computed(() => {
   return counts.categories + counts.articles + counts.cases + counts.banners + counts.jobs > 0
 })
 
-const demoState = computed<StateTag>(() => {
-  if (!authStore.isSuperAdmin) {
-    return { color: 'default', text: '超级管理员功能' }
-  }
-  if (errors.value.demo) {
-    return { color: 'red', text: '读取失败' }
-  }
-  if (!demo.value) {
-    return { color: 'default', text: '未读取' }
-  }
-  return hasDemoContent.value ? { color: 'blue', text: '已有演示内容' } : { color: 'orange', text: '尚无演示内容' }
-})
-
-const visibilityState = computed<StateTag>(() => {
-  if (errors.value.visibility) {
-    return { color: 'red', text: '读取失败' }
-  }
-  if (visibility.value.articles === null) {
-    return { color: 'default', text: '未取到' }
-  }
-  return visibility.value.articles > 0 ? { color: 'green', text: '门户已有可读内容' } : { color: 'orange', text: '门户上还没有已发布内容' }
-})
-
-const portalPreviewUrl = computed(() => {
-  if (!site.value?.code) {
-    return ''
-  }
-  // 门户是 SPA，本地按站点编码定位租户；线上由域名决定，这个链接只用于开发/验收
-  return `${window.location.origin}/?site=${encodeURIComponent(site.value.code)}`
-})
-
 function fileUrl(path: string): string | undefined {
   return backendFileUrl(path, site.value?.code || null) ?? undefined
 }
 
-function reset(): void {
-  errors.value = {}
-  actionResult.value = ''
-  siteIssue.value = null
-}
-
-async function loadOwnSite(): Promise<void> {
-  siteIssue.value = null
-  if (!authStore.hasPermission('portal:siteinfo:manage')) {
-    // 不发这个请求：403 会在控制台留一条红字，而这一格要说的是「这个账号读不到」，不是「读取失败」
-    site.value = null
-    siteIssue.value = 'denied'
-    return
+function requireSelectedTenantId(): number {
+  const id = authStore.selectedTenantId
+  if (id === null) {
+    throw new Error('请先在右上角选择客户')
   }
-  try {
-    const rows = await portalSitesApi.listMine()
-    const first = Array.isArray(rows) ? rows[0] : undefined
-    site.value = first ? toBrief(first) : null
-  } catch (error) {
-    site.value = null
-    siteIssue.value = 'failed'
-    errors.value.site = describe(error)
-  }
-}
-
-function toBrief(row: MySite): SiteBrief {
-  return { id: row.id, code: row.code, name: row.name, domain: row.domain || '' }
-}
-
-async function loadAll(): Promise<void> {
-  reset()
-  visibility.value = { articles: null, cases: null }
-  if (missingTenant.value) {
-    site.value = null
-    company.value = null
-    demo.value = null
-    return
-  }
-  loading.value = true
-  try {
-    // 站点这一格两种身份都读 /api/portal/sites：超管带的 X-Tenant-Id 就是右上角选中的那个租户。
-    // 以前超管走 demo-status 里的 siteCode，而那个字段在「一个租户多套站点」（Spec-C 交付后必然如此）
-    // 时恒为 null——现场同一份返回里 siteCount=16，界面却报「该租户还没有站点」。
-    const tasks: Promise<void>[] = [loadCompany(), loadOwnSite()]
-    if (authStore.isSuperAdmin) {
-      tasks.push(loadDemoStatus())
-    }
-    // 每个 load* 自己收尾（站点这一格就写「未取到」），一个口失败不许把整页钉在转圈上
-    await Promise.all(tasks)
-    if (site.value?.code) {
-      await loadVisibility(site.value.code)
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadCompany(): Promise<void> {
-  try {
-    company.value = await companyInfoApi.get(authStore.selectedTenantId ?? undefined)
-  } catch (error) {
-    company.value = null
-    errors.value.company = describe(error)
-  }
-}
-
-async function loadDemoStatus(): Promise<void> {
-  try {
-    demo.value = await demoSiteApi.status(requireSelectedTenantId())
-    // 这里不再拼站点那一格：siteId/siteCode 是「演示包挂在哪套站上」的那一个指针，
-    // 一个租户多套站点时它是 null，而 null 不等于「没有站点」（见 loadAll 那段）
-  } catch (error) {
-    demo.value = null
-    errors.value.demo = describe(error)
-  }
-}
-
-async function loadVisibility(siteCode: string): Promise<void> {
-  const [articles, cases] = await Promise.all([
-    portalVisibilityApi.publishedArticles(siteCode).catch((error) => {
-      errors.value.visibility = describe(error)
-      return null
-    }),
-    portalVisibilityApi.publishedCases(siteCode).catch((error) => {
-      errors.value.visibility = describe(error)
-      return null
-    }),
-  ])
-  visibility.value = {
-    articles: articles ? Number(articles.total) : null,
-    cases: cases ? Number(cases.total) : null,
-  }
+  return id
 }
 
 async function runBootstrap(): Promise<void> {
@@ -445,9 +211,9 @@ async function runBootstrap(): Promise<void> {
     } else {
       message.info('演示内容已经在，这一趟没有新增')
     }
-    await loadDemoStatus()
+    await loadDemo()
   } catch (error) {
-    message.error(describe(error))
+    message.error(describeError(error))
   } finally {
     acting.value = null
   }
@@ -463,77 +229,44 @@ async function runPublishDemo(): Promise<void> {
     message.success('演示标记已去掉，仍需按正常流程发布内容')
     await loadAll()
   } catch (error) {
-    message.error(describe(error))
+    message.error(describeError(error))
   } finally {
     acting.value = null
   }
-}
-
-function requireSelectedTenantId(): number {
-  const id = authStore.selectedTenantId
-  if (id === null) {
-    throw new Error('请先在右上角选择客户')
-  }
-  return id
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : '请求未成功'
 }
 
 onMounted(loadAll)
 </script>
 
 <style scoped>
-.portal-launch-page {
-  padding-bottom: 24px;
-}
-
 .scope-note {
-  margin-bottom: 16px;
-}
-
-.step-card {
-  margin-bottom: 16px;
-}
-
-.step-index {
-  display: inline-block;
-  width: 22px;
-  height: 22px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: #1677ff;
-  color: #fff;
-  text-align: center;
-  line-height: 22px;
-  font-size: 12px;
+  margin-bottom: var(--admin-space-2);
 }
 
 .actions {
-  margin-top: 12px;
+  margin-top: var(--admin-space-1);
 }
 
 .result {
-  margin-top: 12px;
+  margin-top: var(--admin-space-1);
 }
 
 .hint {
-  margin: 8px 0 0;
-  color: rgba(0, 0, 0, 0.55);
+  margin: var(--admin-space-1) 0 0;
+  color: var(--admin-text-secondary);
   font-size: 13px;
 }
 
 .error-line {
-  margin: 8px 0 0;
-  color: #cf1322;
+  margin: var(--admin-space-1) 0 0;
+  color: var(--admin-danger-text);
   font-size: 13px;
 }
 
 .conflict-list {
-  margin: 8px 0 0;
+  margin: var(--admin-space-1) 0 0;
   padding-left: 20px;
-  color: #d46b08;
+  color: var(--admin-warning-text);
   font-size: 13px;
 }
 
@@ -554,7 +287,7 @@ onMounted(loadAll)
 }
 
 .file-note {
-  margin-left: 8px;
-  color: rgba(0, 0, 0, 0.45);
+  margin-left: var(--admin-space-1);
+  color: var(--admin-text-muted);
 }
 </style>

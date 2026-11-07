@@ -336,3 +336,89 @@ describe('页面搭建：「全部站点」那一档得说清每一行属于哪�
     wrapper.unmount()
   })
 })
+
+/**
+ * P4 那一刀（Spec-Q §6 的 P4 行 + Q4 剩下的最后一处裸筛选行）。
+ *
+ * 这一组钉的是形状，不是像素：像素在这台内置浏览器的后台标签页量不出来（ResizeObserver 不回调，
+ * §1.4 那一节记过），所以定列那一条在这里只钉「名称 / 编号 / 动作各占一格、名称那一格说的是后端词表」，
+ * 「39～52px 不再漂移」由独立 chromium 窗口的现场读数收（证据在 scratch/specq-p4/）。
+ */
+describe('页面搭建：筛选行、分区跳转与区块行定列（P4）', () => {
+  const scrolled: Element[] = []
+
+  async function mountAttached(permissions = ['portal:page:manage', 'portal:build:manage']) {
+    authState.permissions = permissions
+    document.body.innerHTML = ''
+    const wrapper = mount(PageBuilderView, { attachTo: document.body, global: { stubs } })
+    await flushPromises()
+    return wrapper
+  }
+
+  async function selectFirstPage(wrapper: Awaited<ReturnType<typeof mountAttached>>) {
+    const row = wrapper.findAll('.a-list-item-stub')[0]
+    if (!row) throw new Error('页面列表那一行没渲出来')
+    await row.trigger('click')
+    await flushPromises()
+    return wrapper
+  }
+
+  beforeEach(() => {
+    scrolled.length = 0
+    Element.prototype.scrollIntoView = function record(this: Element) {
+      scrolled.push(this)
+    }
+    vi.mocked(portalPagesApi.blocks).mockResolvedValue([
+      { blockKey: 'faq-grid', name: '常见问题', category: 'content' }
+    ] as never)
+  })
+
+  it('筛选与动作走共享组件那一条，不再自己拼一行 a-form', async () => {
+    const wrapper = await mountAttached()
+    const bar = wrapper.find('.admin-filter-bar')
+    expect(bar.exists(), '筛选行没套 FilterBar：这一组里页面搭建是最后一处裸行').toBe(true)
+    // 字段靠左、动作靠右是 FilterBar 自己那两个格子，位置不由这一页再写一遍
+    expect(bar.findAll('.admin-filter-bar__fields .a-select-stub')).toHaveLength(2)
+    const actions = bar.find('.admin-filter-bar__actions')
+    // antd 给两字中文按钮自动插一个空格（「刷 新」），比对前先抹掉空白，同 buttonMap 那一处
+    expect(actions.text().replace(/\s+/g, '')).toBe('刷新新建页面')
+    wrapper.unmount()
+  })
+
+  it('跳转排那四条与四栏读同一份 id：改一栏的 id，跳转排跟着改，不会指到空气', async () => {
+    const wrapper = await mountAttached()
+    const columns = ['builder-section-pages', 'builder-section-blocks', 'builder-section-content', 'builder-section-preview']
+    for (const id of columns) {
+      expect(wrapper.find(`#${id}`).exists(), `栏上找不到锚点 ${id}`).toBe(true)
+    }
+    expect(wrapper.findAll('[data-builder-anchor]').map(node => (node.attributes('href') || '').slice(1)))
+      .toEqual(columns)
+    wrapper.unmount()
+  })
+
+  it('点「区块序列」真的滚到那一栏', async () => {
+    const wrapper = await mountAttached()
+    await wrapper.findAll('[data-builder-anchor]')[1].trigger('click')
+    expect(scrolled).toHaveLength(1)
+    expect(scrolled[0].id).toBe('builder-section-blocks')
+    wrapper.unmount()
+  })
+
+  it('没有页面时跳转排不摆：那一屏四栏根本没渲，跳到哪儿都没定义', async () => {
+    vi.mocked(portalPagesApi.list).mockResolvedValue(pagedResult([]))
+    const wrapper = await mountAttached()
+    expect(wrapper.find('[data-builder-anchors]').exists()).toBe(false)
+    expect(wrapper.find('#builder-section-blocks').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('区块行三段各占一格：名称说后端词表那句，编号与动作不再跟着名称长短左右跳', async () => {
+    const wrapper = await selectFirstPage(await mountAttached())
+    const row = wrapper.find('.page-builder__block')
+    expect(row.exists(), '选中页面后区块行没渲出来').toBe(true)
+    expect(row.find('.page-builder__block-name').text()).toBe('常见问题')
+    expect(row.find('.page-builder__block-id').text()).toBe('faq-1')
+    expect(row.find('.page-builder__block-ops').text().replace(/\s+/g, '')).toBe('↑↓删')
+    wrapper.unmount()
+  })
+})

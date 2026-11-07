@@ -18,6 +18,45 @@
 
     <a-alert v-if="loadError" type="error" show-icon class="portal-workbench__error" :message="loadError" />
 
+    <!--
+      上线完成度带（Spec-Q §4.4 / Q7）：租户原来要进「门户上线」才能看到「还差什么才能上线」，
+      而那一屏对租户只剩读、且后端那几个口是超管专用（进去只拿到一串 403）。
+      这一条带用的判定与门户上线那一屏是同一份（useLaunchReadings + launchChecklist），
+      两处不许各写一套「读不到算什么」。
+    -->
+    <div class="portal-workbench__launch" data-launch-band>
+      <p class="portal-workbench__launch-head">
+        <span class="portal-workbench__launch-label">上线自检</span>
+        <b class="portal-workbench__launch-num" data-launch-progress>{{ launchProgressText }}</b>
+        <span v-if="launchPendingText" class="portal-workbench__launch-gap" data-launch-pending>{{ launchPendingText }}</span>
+        <span v-if="launchUnknownText" class="portal-workbench__launch-unknown" data-launch-unknown>{{ launchUnknownText }}</span>
+        <a-button
+          class="portal-workbench__launch-refresh"
+          size="small"
+          :loading="launchLoading"
+          data-launch-refresh
+          @click="reloadLaunch"
+        >重新读取</a-button>
+      </p>
+      <ul class="portal-workbench__launch-steps">
+        <li
+          v-for="(step, index) in launchSteps"
+          :key="step.key"
+          class="portal-workbench__launch-step"
+          :data-launch-step="step.key"
+        >
+          <span class="portal-workbench__launch-index">{{ index + 1 }}</span>
+          <span class="portal-workbench__launch-title">{{ step.title }}</span>
+          <a-tag :color="launchLevelColor(step.level)" class="portal-workbench__launch-state">{{ step.stateText }}</a-tag>
+          <template v-for="link in step.links" :key="link.label">
+            <router-link v-if="link.to" :to="link.to" class="portal-workbench__launch-link">{{ link.label }}</router-link>
+            <a v-else-if="link.href" :href="link.href" target="_blank" rel="noopener" class="portal-workbench__launch-link">{{ link.label }}</a>
+            <span v-else class="portal-workbench__launch-link-plain">{{ link.label }}</span>
+          </template>
+        </li>
+      </ul>
+    </div>
+
     <!-- 首次加载摆三行骨架占位，而不是让整页空白转圈：这一页最多六行，跳一下比转圈更难看 -->
     <div v-if="loading && rows.length === 0" class="portal-workbench__skeletons">
       <div v-for="n in 3" :key="n" class="portal-workbench__skeleton" />
@@ -105,6 +144,15 @@ import { portalPagesApi } from '../../api/portalPages'
 import { useAuthStore } from '../../stores/auth'
 import { collectMenuLeaves, findLeaf } from '../../navigation/workspaceMenu'
 import PageTitle from '../../components/PageTitle.vue'
+import {
+  CHECKLIST_LEVEL_COLOR,
+  checklistNotMeasuredText,
+  checklistPendingText,
+  checklistProgress,
+  checklistProgressText,
+  type ChecklistLevel
+} from '../../components/checklistPageModel'
+import { useLaunchReadings } from '../onboarding/useLaunchReadings'
 
 /**
  * 租户「门户内容工作台」（Spec §7.1，2026-11-06 整页重做，方案见 docs/内容工作台页面重构_方案.md）。
@@ -130,6 +178,28 @@ const rows = ref<Row[]>([])
 const statusLabels = ref<Record<string, string>>({})
 const loading = ref(false)
 const loadError = ref('')
+
+/**
+ * 上线自检那一条带（Spec-Q §4.4 / Q7）。
+ *
+ * 判定与取数全在 useLaunchReadings / launchChecklist 那一处，这一页只负责摆成一条带；
+ * 传进去的那句「怎么重新读取」是这一页自己的按钮，因为这一屏页头没有「刷新」那颗——
+ * 指一个这一页没有的按钮，比不指更容易把人带偏。
+ */
+const {
+  loading: launchLoading,
+  steps: launchSteps,
+  reload: reloadLaunch
+} = useLaunchReadings('点这一条右边的「重新读取」')
+
+const launchProgress = computed(() => checklistProgress(launchSteps.value))
+const launchProgressText = computed(() => checklistProgressText(launchProgress.value))
+const launchPendingText = computed(() => checklistPendingText(launchProgress.value))
+const launchUnknownText = computed(() => checklistNotMeasuredText(launchProgress.value))
+
+function launchLevelColor(level: ChecklistLevel): string {
+  return CHECKLIST_LEVEL_COLOR[level]
+}
 
 /** contentEntry → 维护这一栏目内容的页面。值是后端词表给的，不是我们自己数栏目 */
 const MAINTAIN_ROUTES: Record<string, string> = {
@@ -344,7 +414,11 @@ function previewHref(row: Row): string {
   return url.startsWith('http') ? url : `${window.location.origin}${url}`
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  // 两组读数各读各的口：上线自检那几发挂了不影响栏目行，栏目读失败也不影响这一条带
+  reloadLaunch()
+})
 </script>
 
 <style scoped lang="less">
@@ -357,6 +431,100 @@ onMounted(load)
 
   &__error {
     margin-bottom: var(--admin-space-2, 16px);
+  }
+
+  /**
+   * 上线自检那一条带：一条读数 + 每步一小段（步骤名 · 后端那句话 · 去哪儿补）。
+   * 这里不复用门户上线那一屏的 ChecklistPage——那一屏是一步一张卡的整页形状，
+   * 这一页只需要一行读数带；两份共用的是 checklistPageModel 那几个算读数的函数与同一份步骤清单。
+   */
+  &__launch {
+    background: #fff;
+    border: 1px solid var(--admin-border-soft, #f0f0f0);
+    border-radius: var(--wb-radius);
+    padding: var(--admin-space-2, 16px) 20px;
+    margin-bottom: var(--admin-space-2, 16px);
+  }
+
+  &__launch-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--admin-space-1, 8px);
+    margin: 0;
+  }
+
+  &__launch-label {
+    font-size: 12px;
+    color: var(--admin-text-secondary, #8c8c8c);
+  }
+
+  &__launch-num {
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: var(--admin-font-nums, tabular-nums);
+    color: var(--admin-text-primary, #1a1a1a);
+  }
+
+  &__launch-gap {
+    font-size: 13px;
+    color: var(--admin-text-primary, #1a1a1a);
+  }
+
+  &__launch-unknown {
+    font-size: 13px;
+    color: var(--admin-warning-text, #faad14);
+  }
+
+  &__launch-refresh {
+    margin-left: auto;
+  }
+
+  &__launch-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px var(--admin-space-2, 16px);
+    margin: var(--admin-space-1, 8px) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__launch-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--admin-text-primary, #1a1a1a);
+  }
+
+  &__launch-index {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--admin-fill-hover, #fafafa);
+    color: var(--admin-text-secondary, #8c8c8c);
+    font-size: 11px;
+    font-variant-numeric: var(--admin-font-nums, tabular-nums);
+  }
+
+  &__launch-title {
+    white-space: nowrap;
+  }
+
+  &__launch-state {
+    margin-inline-end: 0;
+  }
+
+  &__launch-link {
+    font-size: 12px;
+  }
+
+  &__launch-link-plain {
+    font-size: 12px;
+    color: var(--admin-text-secondary, #8c8c8c);
   }
 
   &__band {

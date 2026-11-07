@@ -4,6 +4,14 @@ import { Button } from 'ant-design-vue'
 import PortalContentWorkbenchView from '../PortalContentWorkbenchView.vue'
 import { portalSectionsApi } from '../../../api/portalSections'
 import { portalPagesApi } from '../../../api/portalPages'
+import { companyInfoApi } from '../../../api'
+import { portalSitesApi } from '../../../api/portalSites'
+import { demoSiteApi, portalVisibilityApi } from '../../../api/onboarding'
+import {
+  checklistNotMeasuredText,
+  checklistPendingText,
+  checklistProgress
+} from '../../../components/checklistPageModel'
 
 /**
  * 租户「内容工作台」（Spec §7.1；2026-11-06 整页重做，方案 docs/内容工作台页面重构_方案.md）。
@@ -59,6 +67,19 @@ vi.mock('../../../api/portalSections', () => ({
 }))
 vi.mock('../../../api/portalPages', () => ({
   portalPagesApi: { statusLabels: vi.fn(), list: vi.fn() }
+}))
+
+// 上线自检那一条带的三个口（Q7：租户在这一屏读「还差什么才能上线」，不再进门户上线那一屏）
+vi.mock('../../../api', () => ({
+  companyInfoApi: { get: vi.fn() }
+}))
+vi.mock('../../../api/portalSites', () => ({
+  portalSitesApi: { listMine: vi.fn() }
+}))
+vi.mock('../../../api/onboarding', () => ({
+  backendFileUrl: (path: string) => `https://backend.example${path}`,
+  demoSiteApi: { status: vi.fn(), bootstrap: vi.fn(), publish: vi.fn() },
+  portalVisibilityApi: { publishedArticles: vi.fn(), publishedCases: vi.fn() }
 }))
 
 const PASS_THROUGH = (name: string, extraSlots: string[] = []) => ({
@@ -123,8 +144,13 @@ function emptyCompleteness() {
 }
 
 async function mountView(states: ReturnType<typeof state>[], summaries: Record<string, any> = {},
-                        failedKeys: string[] = []) {
-  vi.mocked(portalSectionsApi.list).mockResolvedValue(states as any)
+                        failedKeys: string[] = [], sectionsListError?: string) {
+  // 传了 sectionsListError 就让那一发真挂：不能在调用方先 mockRejectedValue，这里会把桩覆盖掉
+  if (sectionsListError) {
+    vi.mocked(portalSectionsApi.list).mockRejectedValue(new Error(sectionsListError))
+  } else {
+    vi.mocked(portalSectionsApi.list).mockResolvedValue(states as any)
+  }
   vi.mocked(portalSectionsApi.summary).mockImplementation(async (key: string) => {
     if (failedKeys.includes(key)) {
       throw new Error('统计接口挂了')
@@ -141,7 +167,13 @@ async function mountView(states: ReturnType<typeof state>[], summaries: Record<s
         'a-tooltip': PASS_THROUGH('ATooltip', ['title']),
         'a-alert': PASS_THROUGH('AAlert'),
         'a-empty': PASS_THROUGH('AEmpty'),
-        'a-tag': PASS_THROUGH('ATag')
+        'a-tag': PASS_THROUGH('ATag'),
+        // 键写成模板里那个标签名，写 'RouterLink' 覆盖不到 setup.ts 里那条 `'router-link': true`
+        'router-link': {
+          name: 'RouterLink',
+          props: ['to'],
+          template: '<a class="rl-stub" :data-route="to && to.name"><slot /></a>'
+        }
       }
     }
   })
@@ -160,8 +192,24 @@ function rowTexts(wrapper: Awaited<ReturnType<typeof mountView>>) {
 beforeEach(() => {
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  // 身份每次重置：上一档用例把 authState 改成超管，下一档不重置就会带着「没选客户、未取数」跑
+  authState.isSuperAdmin = false
+  authState.selectedTenantId = null
   // 默认按「平台侧账号」测：它两个码都有，词表读得到。租户档那一档在下面单独摆
   authState.permissions = ['portal:siteinfo:manage', 'portal:page:manage']
+  // 上线自检那条带的默认读数：站点已绑域名、企业信息齐了、门户公开口读得到内容
+  vi.mocked(portalSitesApi.listMine).mockResolvedValue([
+    { id: 611, code: 'acme-dental', name: '安米口腔', domain: 'acme.example' }
+  ] as any)
+  vi.mocked(companyInfoApi.get).mockResolvedValue({
+    companyName: '安米口腔', introduction: '一家诊所', phone: '0571-8'
+  } as any)
+  vi.mocked(portalVisibilityApi.publishedArticles).mockResolvedValue({ total: 3 } as any)
+  vi.mocked(portalVisibilityApi.publishedCases).mockResolvedValue({ total: 1 } as any)
+  vi.mocked(demoSiteApi.status).mockResolvedValue({
+    tenantId: 15, siteCount: 1, siteId: 611, siteCode: 'acme-dental', siteName: '安米口腔', domain: 'acme.example',
+    demo: { categories: 12, articles: 60, cases: 18, banners: 3, jobs: 3 }, published: { articles: 3, cases: 1 }
+  } as any)
 })
 
 describe('栏目行集合只来自接口', () => {
@@ -230,9 +278,15 @@ describe('三个数字的口径', () => {
 })
 
 describe('内容完整度那一格（问题十，含缺图）', () => {
-  /** 只看行上那几个档位标签的文字：行内其它字段名是界面自己的话，不参与「中文谁说的」这场判断 */
+  /**
+   * 只看**栏目行**那几个档位标签的文字：行内其它字段名是界面自己的话，不参与「中文谁说的」这场判断。
+   *
+   * P4 往这一页加了上线自检那条带，带里也有 `a-tag`（那几句是后端 demo-status / 公开口的话，
+   * 不是这一栏目完整度词表），所以定位收到 `.portal-workbench__row` 里面——
+   * 判断的东西没变，只是不再把别处的标签算进来（Spec-Q Q5 允许改定位方式）。
+   */
   const tagTexts = (wrapper: Awaited<ReturnType<typeof mountView>>) =>
-    wrapper.findAll('.atag-stub').map(node => node.text())
+    wrapper.findAll('.portal-workbench__row .atag-stub').map(node => node.text())
 
   it('缺几条图照后端那句话原样说，界面自己不再数一遍', async () => {
     const wrapper = await mountView([state('news', '资讯栏', 'article')], {
@@ -273,8 +327,8 @@ describe('内容完整度那一格（问题十，含缺图）', () => {
     const wrapper = await mountView([state('news', '资讯栏', 'article')], {}, ['news'])
     expect(wrapper.text()).toContain('统计未就绪')
     expect(wrapper.text()).toContain('完整度统计未就绪')
-    // 档位标签整个不渲染，而不是渲染一个界面自己猜的档
-    expect(wrapper.findAll('.atag-stub')).toHaveLength(0)
+    // 档位标签整个不渲染，而不是渲染一个界面自己猜的档（只看栏目行，自检带里那几个标签不算）
+    expect(tagTexts(wrapper)).toHaveLength(0)
   })
 
   it('后端新加一档陌生代码时，行上仍是后端那两句原话，不被演成认识的那几种', async () => {
@@ -446,5 +500,136 @@ describe('租户档账号（只有 portal:siteinfo:manage，实测 CONTENT_EDITO
     expect(wrapper.findAll('.portal-workbench__row')).toHaveLength(1)
     expect(wrapper.text()).not.toContain('栏目读取失败')
     expect(wrapper.text()).not.toContain('缺少权限')
+  })
+})
+
+/**
+ * 上线自检那条带（Spec-Q §4.4 / Q7，P4）。
+ *
+ * Q7 拍的是「租户不该进门户上线那一屏，但他真正要的『还差什么才能上线』得留在他自己那一侧」，
+ * 读数因此搬进这一页。四件事要钉：
+ *
+ * 1. 那句「5 步里齐了几步」用的是门户上线那一屏同一份算法与同一份步骤清单——两处各写一个数，
+ *    迟早一个说齐了、另一个说还差。
+ * 2. 「还差」（取到了确实缺）和「还不知道」（没取到数）是两句话，不并成一格。
+ * 3. 演示内容那一格对租户不发请求：后端那一口是 checkSuperAdmin，发一次就在控制台留一条红字，
+ *    而这一格要说的是「这一屏没有这个动作」。
+ * 4. 这一带自己的口挂了不许拖累栏目行（栏目那一发挂了也不拖累这一带）；
+ *    「怎么重新读取」说的是这一条右边的按钮——这一页页头没有「刷新」那颗，指过去就是指一个不存在的东西。
+ */
+describe('上线自检那条带（Q7 并进内容工作台）', () => {
+  function band(wrapper: Awaited<ReturnType<typeof mountView>>) {
+    const node = wrapper.find('[data-launch-band]')
+    if (!node.exists()) {
+      throw new Error('内容工作台没摆出上线自检那条带')
+    }
+    return node
+  }
+
+  function stepText(wrapper: Awaited<ReturnType<typeof mountView>>, key: string): string {
+    const node = wrapper.find(`[data-launch-step="${key}"]`)
+    if (!node.exists()) {
+      throw new Error(`带里找不到第「${key}」步`)
+    }
+    return node.text()
+  }
+
+  it('五步都在带里，读数那句和门户上线那一屏出自同一个函数', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(band(wrapper).findAll('[data-launch-step]')).toHaveLength(5)
+    // 默认那一份读数：站点齐、企业齐、演示对租户读不到、门户有内容、出口齐
+    expect(band(wrapper).find('[data-launch-progress]').text()).toBe('5 步里齐了 4 步')
+    expect(band(wrapper).find('[data-launch-unknown]').text())
+      .toContain(checklistNotMeasuredText(checklistProgress(
+        [{ key: 'demo', title: '演示内容', level: 'unknown', stateText: '超级管理员功能' }]
+      )))
+    // 一步都不缺时不摆「还差：（空）」那种句子
+    expect(band(wrapper).find('[data-launch-pending]').exists()).toBe(false)
+  })
+
+  it('还差哪一格，那一步就给一条跳到该去那页的链：说的是菜单里那一条路由', async () => {
+    vi.mocked(companyInfoApi.get).mockResolvedValue({ companyName: '安米口腔' } as any)
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(band(wrapper).find('[data-launch-progress]').text()).toBe('5 步里齐了 3 步')
+    expect(band(wrapper).find('[data-launch-pending]').text())
+      .toBe(checklistPendingText(checklistProgress(
+        [{ key: 'company', title: '企业信息', level: 'todo', stateText: '信息不完整' }]
+      )))
+    expect(stepText(wrapper, 'company')).toContain('去填写企业信息')
+    const routes = wrapper.findAll('.rl-stub').map(node => node.attributes('data-route'))
+    expect(routes).toContain('workspace-portal-company')
+    // 「还差」只说真缺的那一步，演示内容那一格是没取到数，不许混进来
+    expect(band(wrapper).find('[data-launch-pending]').text()).not.toContain('演示内容')
+  })
+
+  it('租户这一侧不发演示包那一发：带里说的是「超级管理员功能」，不是「还没灌」', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(demoSiteApi.status).not.toHaveBeenCalled()
+    expect(stepText(wrapper, 'demo')).toContain('超级管理员功能')
+    expect(stepText(wrapper, 'demo')).toContain('演示内容找平台')
+    expect(wrapper.findAll('.rl-stub').map(node => node.attributes('data-route'))).toContain('workspace-portal-support')
+    // 这一格对租户不是「还没做」，「还差」那句里不许出现它
+    expect(band(wrapper).text()).not.toContain('还差：演示内容')
+  })
+
+  it('超管选了客户才读演示包，读到了就念「已有演示内容」', async () => {
+    authState.isSuperAdmin = true
+    authState.selectedTenantId = 15
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(demoSiteApi.status).toHaveBeenCalledTimes(1)
+    expect(demoSiteApi.status).toHaveBeenCalledWith(15)
+    expect(stepText(wrapper, 'demo')).toContain('已有演示内容')
+    expect(band(wrapper).find('[data-launch-progress]').text()).toBe('5 步里齐了 5 步')
+  })
+
+  it('超管没选客户时五个口一个都不发，带里说「未取数」而不是凭空报一个缺', async () => {
+    authState.isSuperAdmin = true
+    authState.selectedTenantId = null
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(portalSitesApi.listMine).not.toHaveBeenCalled()
+    expect(companyInfoApi.get).not.toHaveBeenCalled()
+    expect(demoSiteApi.status).not.toHaveBeenCalled()
+    expect(band(wrapper).find('[data-launch-unknown]').text()).toContain('还不知道')
+    expect(band(wrapper).text()).not.toContain('该客户还没有站点')
+  })
+
+  it('没有站点那一码时不发那一发，带里那一行只说「无查看权限」并给出找平台那一个链接', async () => {
+    authState.permissions = ['portal:page:manage']
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(portalSitesApi.listMine).not.toHaveBeenCalled()
+    expect(stepText(wrapper, 'site')).toContain('无查看权限')
+    expect(stepText(wrapper, 'site')).toContain('找平台确认')
+    // 这一行没读到数，只进「还不知道」那句，不许混进「还差」（那是「取到了、确实缺」那一类）
+    expect(band(wrapper).find('[data-launch-pending]').exists()).toBe(false)
+    expect(band(wrapper).find('[data-launch-unknown]').text()).toContain('站点与访问域名')
+  })
+
+  it('带里的口挂了：栏目行照旧，那一步说读取失败并指这一条右边的「重新读取」', async () => {
+    vi.mocked(portalSitesApi.listMine).mockRejectedValue(new Error('缺少权限: portal:build:manage'))
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(wrapper.findAll('.portal-workbench__row')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('栏目读取失败')
+    expect(stepText(wrapper, 'site')).toContain('读取失败')
+    expect(stepText(wrapper, 'site')).toContain('点这一条右边的「重新读取」')
+    // 整页没有「刷新」那颗按钮，这一句不许指它
+    expect(stepText(wrapper, 'site')).not.toContain('页头')
+  })
+
+  it('「重新读取」点一次，带里那几个口各再来一次', async () => {
+    const wrapper = await mountView([state('news', '资讯栏', 'article')])
+    expect(portalSitesApi.listMine).toHaveBeenCalledTimes(1)
+    await band(wrapper).find('[data-launch-refresh]').trigger('click')
+    await flushPromises()
+    expect(portalSitesApi.listMine).toHaveBeenCalledTimes(2)
+    expect(companyInfoApi.get).toHaveBeenCalledTimes(2)
+    expect(portalVisibilityApi.publishedArticles).toHaveBeenCalledTimes(2)
+  })
+
+  it('栏目那一发挂了也不影响这一条带收尾（三态各说各的）', async () => {
+    const wrapper = await mountView([], {}, [], '栏目接口挂了')
+    // 那句失败走的是 a-alert 的 message 属性，这一页的桩件不把 message 渲进文本，只能按属性读
+    const alerts = wrapper.findAllComponents({ name: 'AAlert' }).map(node => String(node.props('message')))
+    expect(alerts.join(' ')).toContain('栏目接口挂了')
+    expect(band(wrapper).find('[data-launch-progress]').text()).toBe('5 步里齐了 4 步')
   })
 })

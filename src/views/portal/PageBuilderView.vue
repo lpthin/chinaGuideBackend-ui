@@ -1,34 +1,43 @@
 <template>
   <div class="page-builder">
     <PageTitle />
-    <a-form layout="inline" class="page-builder__filter">
-      <a-form-item label="站点">
-        <a-select
-          v-model:value="siteId"
-          style="width: 200px"
-          allow-clear
-          placeholder="全部站点"
-          :options="siteOptions"
-          @change="loadPages"
-        />
-      </a-form-item>
-      <a-form-item label="状态">
-        <a-select
-          v-model:value="statusFilter"
-          style="width: 140px"
-          allow-clear
-          placeholder="全部状态"
-          :options="statusOptions"
-          @change="loadPages"
-        />
-      </a-form-item>
-      <a-form-item class="toolbar-actions">
-        <a-space>
+    <filter-bar>
+      <a-select
+        v-model:value="siteId"
+        style="width: 200px"
+        allow-clear
+        placeholder="全部站点"
+        :options="siteOptions"
+        @change="loadPages"
+      />
+      <a-select
+        v-model:value="statusFilter"
+        style="width: 160px"
+        allow-clear
+        placeholder="全部状态"
+        :options="statusOptions"
+        @change="loadPages"
+      />
+      <template #actions>
+        <a-space :size="8">
           <a-button @click="loadPages">刷新</a-button>
           <a-button v-if="canBuild" type="primary" @click="openCreatePage">新建页面</a-button>
         </a-space>
-      </a-form-item>
-    </a-form>
+      </template>
+    </filter-bar>
+
+    <!-- 这一页是组里最长的一页（实测整页 6113px），窄屏四栏折成一列后，
+         光靠滚要找「区块序列」得先滚过一整屏页面列表；顶部这一排跳过去 -->
+    <nav v-if="pages.length" class="page-builder__anchors" aria-label="分区跳转" data-builder-anchors>
+      <a
+        v-for="section in SECTIONS"
+        :key="section.id"
+        class="page-builder__anchor"
+        :href="`#${section.id}`"
+        :data-builder-anchor="section.id"
+        @click.prevent="jumpTo(section.id)"
+      >{{ section.label }}</a>
+    </nav>
 
     <a-alert
       v-if="!canBuild"
@@ -54,7 +63,7 @@
         @create="openCreatePage"
       />
       <a-row v-else :gutter="12">
-        <a-col :xs="24" :lg="6">
+        <a-col :id="SECTION_IDS.pages" :xs="24" :lg="6">
           <a-card size="small" title="页面" :body-style="{ padding: '8px' }">
             <a-list :data-source="pages" size="small">
               <template #renderItem="{ item }">
@@ -80,7 +89,7 @@
           </a-card>
         </a-col>
 
-        <a-col :xs="24" :lg="6">
+        <a-col :id="SECTION_IDS.blocks" :xs="24" :lg="6">
           <a-card size="small" title="区块序列" :body-style="{ padding: '8px' }">
             <template #extra>
               <a-dropdown v-if="canBuild" :trigger="['click']">
@@ -116,7 +125,7 @@
               @click="activeIndex = index"
             >
               <span class="page-builder__block-name">{{ nameOf(block.blockKey) }}</span>
-              <span class="page-builder__muted">{{ block.instanceId }}</span>
+              <span class="page-builder__block-id">{{ block.instanceId }}</span>
               <a-space v-if="canBuild" size="2" class="page-builder__block-ops">
                 <a-button size="small" type="text" :disabled="index === 0" @click.stop="move(index, -1)">↑</a-button>
                 <a-button
@@ -137,7 +146,7 @@
           </a-card>
         </a-col>
 
-        <a-col :xs="24" :lg="6">
+        <a-col :id="SECTION_IDS.content" :xs="24" :lg="6">
           <a-card size="small" :title="activeBlock ? `内容：${nameOf(activeBlock.blockKey)}` : '内容'">
             <template #extra>
               <a-button size="small" type="link" @click="openMeta">页面信息</a-button>
@@ -174,7 +183,7 @@
           <SiteThemePanel v-if="canBuild" class="page-builder__site-theme" :site-id="siteId" :fields="tokenFields" @updated="loadPreview" />
         </a-col>
 
-        <a-col :xs="24" :lg="6">
+        <a-col :id="SECTION_IDS.preview" :xs="24" :lg="6">
           <a-card size="small" title="预览">
             <template #extra>
               <a-space size="4">
@@ -321,6 +330,7 @@ import SiteThemePanel from './builder/SiteThemePanel.vue'
 import BlockPropsForm from './builder/BlockPropsForm.vue'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import PageTitle from '../../components/PageTitle.vue'
 
@@ -345,6 +355,30 @@ interface LayoutBlock {
   instanceId: string
   blockKey: string
   props?: Record<string, unknown>
+}
+
+/**
+ * 四个分区的锚点。这一页折到窄屏是四栏竖着排（实测整页 6113px，组里最长），
+ * 顶部这一排跳板与那四栏读同一份 id——写两份就会有一边改了另一边不知道。
+ */
+const SECTION_IDS = {
+  pages: 'builder-section-pages',
+  blocks: 'builder-section-blocks',
+  content: 'builder-section-content',
+  preview: 'builder-section-preview'
+} as const
+
+const SECTIONS: Array<{ id: string; label: string }> = [
+  { id: SECTION_IDS.pages, label: '页面' },
+  { id: SECTION_IDS.blocks, label: '区块序列' },
+  { id: SECTION_IDS.content, label: '内容与主题' },
+  { id: SECTION_IDS.preview, label: '预览' }
+]
+
+function jumpTo(id: string): void {
+  const target = document.getElementById(id)
+  if (!target || typeof target.scrollIntoView !== 'function') return
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 const auth = useAuthStore()
@@ -776,10 +810,22 @@ onMounted(async () => {
 
 <style scoped lang="less">
 .page-builder {
+  /* 区块行正文相对卡片外沿的左内缩，实测 18px（526 与 375 两个窄屏都是这个数）：
+     卡片边框 1 + 卡体 padding 8 + 行自己的边框 1 + 行左 padding 8。
+     下面动作条要与之对齐，只认这一支，不写第二个数。 */
+  --pb-row-left: 18px;
+
   padding: 16px;
 
-  &__filter {
-    margin-bottom: 12px;
+  &__anchors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--admin-space-1) var(--admin-space-2);
+    margin-bottom: var(--admin-space-2);
+  }
+
+  &__anchor {
+    font-size: 13px;
   }
 
   &__notice {
@@ -796,7 +842,10 @@ onMounted(async () => {
   }
 
   &__block {
-    display: flex;
+    // 定列而不是靠内容撑：改之前这一行是 flex，名称几个字列就几个字宽（实测 39～52px 漂移），
+    // 后面那串编号与三个动作跟着左右跳，一屏区块看不出是同一列
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 8px;
     padding: 6px 8px;
@@ -813,10 +862,21 @@ onMounted(async () => {
 
   &__block-name {
     font-size: 13px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__block-id {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.45);
+    font-variant-numeric: var(--admin-font-nums);
   }
 
   &__block-ops {
-    margin-left: auto;
+    // 栅格最后一列自己贴右，不再需要 margin-left:auto
+    justify-self: end;
   }
 
   &__site-theme {
@@ -828,13 +888,26 @@ onMounted(async () => {
   }
 
   &__footer {
+    // 这一页折到窄屏是 6113px 长：动作条跟着走到底再滚回来，等于每存一次先爬一遍页面
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-top: 12px;
-    padding: 12px 0;
+    flex-wrap: wrap;
+    gap: var(--admin-space-1) var(--admin-space-2);
+    margin-top: var(--admin-space-2);
+    padding: var(--admin-space-1) 0 var(--admin-space-1) var(--pb-row-left);
+    background: #fff;
     border-top: 1px solid #f0f0f0;
+
+    /* 窄屏（实测 375 这一档动作条容器只有 239px）五个按钮加版本号一行放不下：
+       a-space 内部默认不折行，整条会被顶出容器变成横向滚动，这里让它自己折。 */
+    :deep(.ant-space) {
+      flex-wrap: wrap;
+      row-gap: var(--admin-space-1);
+    }
   }
 
   &__diff {
