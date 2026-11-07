@@ -121,12 +121,13 @@ describe('菜单从路由单源生成', () => {
     const childNames = (workspace?.children ?? []).map(child => child.name)
     expect(childNames).not.toContain('workspace-geoseo-config')
     expect(childNames).not.toContain('workspace-geoseo-company')
-    // 替代它的那一页在，且落在「站点内容」组（Spec-H §4.3：原 site-info 组并进 site-content），
+    // 替代它的那一页在，且落在「搭建与设置」组（Spec-Q §4.3 拆组：企业信息与站点设置属于
+    // 「站点是怎么搭起来的、参数定在哪里」，不属于「访客看得见的摆出去的东西」），
     // 租户读得到（portal:siteinfo:manage 在租户码名单里）
     const siteInfo = grouped.find(leaf => leaf.routeName === 'workspace-portal-site-info')
     expect(siteInfo, '「站点设置」没进菜单，做完的页面没人进得去').toBeTruthy()
     expect(siteInfo?.label).toBe('站点设置')
-    expect(siteInfo?.group).toBe('site-content')
+    expect(siteInfo?.group).toBe('site-setup')
     expect(siteInfo?.permission).toBe('portal:siteinfo:manage')
     expect(leafVisible(siteInfo!, TENANT)).toBe(true)
     // 「企业信息」这一个词在菜单里只指 portal/company 一处，geoseo 那份重名异物已经没了
@@ -173,16 +174,16 @@ describe('平台段与租户段分家', () => {
   /**
    * Q-P7-3 那一刀的菜单侧形状：一条路由、两档能力。
    *
-   * 页面搭建的闸是 portal:page:manage（读页/改信息/发布/下线），组是租户可见的「站点内容」；
+   * 页面搭建的闸是 portal:page:manage（读页/改信息/发布/下线），组是「搭建与设置」（Spec-Q §4.3 拆组）；
    * 建站那半（新建页、区块装配、检查结构、保存布局、回滚）由视图按 portal:build:manage 守卫。
    * 这里钉的是「租户进得来这一页」，同时「只有建设码、没有读页码」的账号不能从菜单进——
    * 那条组合在库里不存在，但它正是「菜单与后端两档各挂一头」会长出假入口的地方。
    */
-  it('页面搭建挂在读页码上，归租户可见的「站点内容」组', () => {
+  it('页面搭建挂在读页码上，租户进得来，组在「搭建与设置」', () => {
     const pages = grouped.find(leaf => leaf.routeName === 'workspace-portal-pages')
     expect(pages, '「页面搭建」必须还在菜单里').toBeTruthy()
     expect(pages?.permission).toBe('portal:page:manage')
-    expect(pages?.group).toBe('site-content')
+    expect(pages?.group).toBe('site-setup')
     expect(leafVisible(pages!, TENANT)).toBe(true)
     const buildOnly = { isSuperAdmin: false, hasPermission: (code: string) => code === 'portal:build:manage', openContentEntries: ALL_OPEN }
     expect(leafVisible(pages!, buildOnly)).toBe(false)
@@ -453,14 +454,14 @@ describe('选中态与面包屑', () => {
 describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () => {
   const itemsOf = (key: string) => grouped.filter(leaf => leaf.group === key)
 
-  it('组数 = 11：租户 5 组 + 平台 6 组（16 → 11，靠归组治「栏目太多」，不靠删页面）', () => {
-    expect(MENU_GROUPS).toHaveLength(11)
-    expect(MENU_GROUPS.filter(g => g.domain === 'tenant')).toHaveLength(5)
+  it('组数 = 13：租户 7 组 + 平台 6 组（Spec-Q §4.3 把「站点内容」12 项拆成 5/3/4 三组，一项页面都没删）', () => {
+    expect(MENU_GROUPS).toHaveLength(13)
+    expect(MENU_GROUPS.filter(g => g.domain === 'tenant')).toHaveLength(7)
     expect(MENU_GROUPS.filter(g => g.domain === 'platform')).toHaveLength(6)
     // 顺序 = 界面上的上下顺序：租户段整体在前，平台段整体在后（两段分家这条不许被插队打破）
     const domains = MENU_GROUPS.map(g => g.domain)
-    expect(domains.slice(0, 5).every(d => d === 'tenant')).toBe(true)
-    expect(domains.slice(5).every(d => d === 'platform')).toBe(true)
+    expect(domains.slice(0, 7).every(d => d === 'tenant')).toBe(true)
+    expect(domains.slice(7).every(d => d === 'platform')).toBe(true)
   })
 
   it('项数账：73 项 −H-6(1) −H-5(2) −H-4(2) +P9-B(1) +P9-C(1) +M-P1(1) +M-P33-D(1) +M-P110(1) = 73（租户 40 + 平台 33）', () => {
@@ -485,6 +486,27 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     expect(grouped).toHaveLength(73)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(40)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(33)
+  })
+
+  /**
+   * Spec-Q §4.3（Q1 拆 3 组 + Q8 归组）钉这一刀的形状：12 项分成 5 / 3 / 4，一项没删、一项没并页。
+   *
+   * 判据用「这一组里正好是哪几颗」而不是数量：数量相同但装错了桶（比如把站内信留在站点内容里）
+   * 正是当初要拆组要治的病。
+   */
+  it('站点内容那 12 项拆成 5 / 3 / 4：摆出去的、进来的、搭起来改参数的各一组', () => {
+    const labelsOf = (key: string) => itemsOf(key).map(leaf => leaf.label)
+    // 组内上下顺序跟着路由表声明顺序（buildMenuSections 不另排序），这里念的是界面上真读到的顺序
+    expect(labelsOf('site-content')).toEqual(['内容工作台', '横幅', '展示内容', '门店', '招聘管理'])
+    expect(labelsOf('visitor-interaction')).toEqual(['站内信', '留言管理', '读者互动'])
+    expect(labelsOf('site-setup')).toEqual(['门户上线', '企业信息', '站点设置', '页面搭建'])
+    // 拆组不许改域名归属：三组都还在租户段，租户视角才谈得上「看不到门户上线」这一说
+    const tenantKeys = MENU_GROUPS.filter(g => g.domain === 'tenant').map(g => g.key)
+    expect(['site-content', 'visitor-interaction', 'site-setup'].every(k => tenantKeys.includes(k))).toBe(true)
+    // 「门户上线」这一颗在租户视角确实不出现在组里（Q7：那一屏的写口是后端 checkSuperAdmin）
+    const launch = grouped.find(leaf => leaf.routeName === 'workspace-portal-launch')
+    expect(launch?.group).toBe('site-setup')
+    expect(leafVisible(launch!, TENANT)).toBe(false)
   })
 
   it('项名 ≤6 个字：超一个字就是导航在替页面写说明书（Q4-a）', () => {

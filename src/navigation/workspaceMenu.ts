@@ -91,11 +91,17 @@ export interface MenuGroupDef {
  * 每一次摘都在**这里**留一行理由、并在 `MENU_EXCLUDED` 留一条——地址不断，菜单不再重复。
  */
 export const MENU_GROUPS: MenuGroupDef[] = [
-  // ===== 客户日常（5 组 39 项）=====
+  // ===== 客户日常（7 组 39 项）=====
   { key: 'content', label: 'AI 写稿', domain: 'tenant', icon: 'funnel', hint: '从热词到发布的一条流水线' },
   { key: 'article', label: '文章与案例', domain: 'tenant', icon: 'file-text', hint: '文章、分类、模板、素材库与案例' },
   { key: 'knowledge', label: '知识库', domain: 'tenant', icon: 'book', hint: 'AI 写作与答疑的资料来源' },
-  { key: 'site-content', label: '站点内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看到的东西，含企业信息与站点设置' },
+  // Spec-Q Q1/Q8（§4.3）：原来 12 项全塞在「站点内容」一组里，「外面进来的东西要处理」
+  // 与「我站点上摆出去的东西」与「把站点搭起来改设置」三件事共用一个名字，翻到第三屏才找到招聘。
+  // 组名按 Spec-H §4.2 规则 1 不许超 5 个字（`workspace-menu.spec.ts:497` 钉着），
+  // 所以 §4.3 表里那句「站点搭建与设置」在这里是「搭建与设置」。
+  { key: 'site-content', label: '站点内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看得见的东西：横幅、展示内容、门店、招聘' },
+  { key: 'visitor-interaction', label: '访客互动', domain: 'tenant', icon: 'message', hint: '访客写进来的话：留言与线索、文章底下的评论点赞、站内信' },
+  { key: 'site-setup', label: '搭建与设置', domain: 'tenant', icon: 'template', hint: '页面搭建、企业信息、站点设置；门户上线只有平台侧进得来' },
   { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', hint: '流量、引用、GEO 体检与客户经营' },
   // ===== 平台管理（6 组 32 项）=====
   // 「站点与客户」排在「建站」前面是**真实依赖**：建站点之前必须先有客户（后端
@@ -137,11 +143,9 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-knowledge-tags': 'knowledge',
   'workspace-knowledge-graph': 'knowledge',
   'workspace-knowledge-search': 'knowledge',
-  // 站点内容（原「网站内容维护」8 项 + 原「网站信息」2 项；C-2 那个「组名=项名」在这里消掉）
+  // ===== 站点内容组拆成三组（Spec-Q Q1 拆 3 组 + Q8 归组，§4.3）=====
+  // 这一组回答的是「我站点上摆出去的东西」：租户自己填、访客在门户上读。
   'workspace-portal-content': 'site-content',
-  // 「门户上线」是一页检查清单：超管在这一格灌演示包，租户在这一格看还差什么（视图里两条分支都有），
-  // 所以它留在租户可见的一组，不因为「名字像建站」就挪进平台段——那会让租户丢掉唯一一个上线自检入口。
-  'workspace-portal-launch': 'site-content',
   'workspace-portal-banners': 'site-content',
   // Spec-D D2：展示内容（团队/历程/标志/指标/评价/资质/FAQ）是租户填的，进内容维护组，
   // 绝不进任何 build-* 组（Spec-C §2.1 记过建站项与租户内容混排的老病）。
@@ -150,20 +154,24 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // 而且它归租户——平台侧不需要一家家替客户录实体网点。
   'workspace-portal-stores': 'site-content',
   'workspace-portal-jobs': 'site-content',
-  'workspace-portal-guestbook': 'site-content',
-  // P9-C（G-08）：文章底下的读者评论与点赞。跟「留言管理」进同一组，因为这一组回答的是
-  // 「访客写进来的话在哪里处理」；评论的录入方是访客本人，租户这一侧只有队列与开关。
-  'workspace-interaction': 'site-content',
-  'workspace-portal-messages': 'site-content',
+  // 这一组回答的是「访客写进来的话在哪里处理」：录入方都是外面的人，租户这一侧只有队列与回复。
+  'workspace-portal-guestbook': 'visitor-interaction',
+  // P9-C（G-08）：文章底下的读者评论与点赞。以前靠注释解释「它和留言管理同组」，
+  // 现在两组名字立得住，这条不用再自证。
+  'workspace-interaction': 'visitor-interaction',
+  'workspace-portal-messages': 'visitor-interaction',
+  // 这一组回答的是「站点是怎么搭起来的、参数定在哪里」。
+  // 「门户上线」在这里而不是在平台段：视图两条分支都在（超管灌演示包、租户看还差什么），
+  // 但按 Q7 那一屏的写口是超管专用（后端 checkSuperAdmin），租户侧的「还差什么」走内容工作台的完成度带。
+  'workspace-portal-launch': 'site-setup',
   // 企业信息一处、站点级 SEO/GEO 与 robots 一处（P5 合并后）；项名「站点设置」，组名不再与它同名
-  'workspace-portal-company': 'site-content',
-  'workspace-portal-site-info': 'site-content',
-  // Q-P7-3：页面搭建挪进租户可见的「站点内容」组。后端把这条控制器拆成两档之后，
-  // 这一页对 SITE_ADMIN 是「读自己的页、改页面信息、发布/下线」——那是站点内容，不是建站；
-  // 建站那半（新建页、区块装配、检查结构、回滚）在视图里按 `portal:build:manage` 守卫。
+  'workspace-portal-company': 'site-setup',
+  'workspace-portal-site-info': 'site-setup',
+  // Q-P7-3：页面搭建对 SITE_ADMIN 是「读自己的页、改页面信息、发布/下线」，建站那半
+  // （新建页、区块装配、检查结构、回滚）在视图里按 `portal:build:manage` 守卫。
   // 同一视图两种分支的先例是上面的「门户上线」：一项入口按谁能用它归组，不按名字像不像建站归组
   // （Spec-C §2.1 记过「建站项与租户内容混排」的老病，把它留在 build 组才是复发）。
-  'workspace-portal-pages': 'site-content',
+  'workspace-portal-pages': 'site-setup',
   // 效果与经营（原「效果与引用」7 项 + 原「运营管理」4 项：都是看结果、跟客户）
   'workspace-portal-analytics': 'site-effect',
   'workspace-portal-citations': 'site-effect',
