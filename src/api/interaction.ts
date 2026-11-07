@@ -48,6 +48,8 @@ export interface InteractionCommentItem {
   id: number
   articleId: number | null
   articleTitle: string | null
+  /** 访客页上这一篇的地址（后端 PortalUrls + SiteResolver 产出）；null = 文章或站点不在了，不摆链接 */
+  articleUrl: string | null
   authorName: string | null
   content: string
   status: string
@@ -57,6 +59,10 @@ export interface InteractionCommentItem {
   moderationNote: string | null
   createdAt: string | null
   reviewedAt: string | null
+  /** 处理这一条的人（库里只存 userId）；null = 还没人处理过 */
+  reviewedBy: number | null
+  /** 后端查回来的名字（昵称优先、退回登录名）；界面不自己拼「管理员」这种猜测 */
+  reviewedByName: string | null
 }
 
 export interface InteractionCommentPage extends EmptyCauseFields {

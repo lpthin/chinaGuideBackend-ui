@@ -1,111 +1,43 @@
 <template>
   <div class="interaction-page">
-    <PageTitle />
+    <PageTitle description="访客在你官网文章下面写的评论与点的赞，都在这一屏处理。">
+      <template #extra>
+        <a-space wrap>
+          <a-button id="interaction-open-config" @click="configOpen = true">互动设置</a-button>
+          <a-button id="interaction-open-stats" @click="statsOpen = true">互动总账</a-button>
+          <a-button id="interaction-open-seed" @click="seedOpen = true">排产计划</a-button>
+        </a-space>
+      </template>
+    </PageTitle>
+
     <!-- 互动配置、总账、待审队列与排产计划都按客户分开：平台档（超管没选客户）不发请求、写口全灰 -->
     <a-alert v-if="isPlatformMode" class="scope-alert" type="info" show-icon>
       <template #message>
         互动设置、互动总账、待审评论与排产计划都按客户分开：请先在右上角切到「客户」并选一家，再读、再改。平台档这里不发业务请求。
       </template>
     </a-alert>
-    <a-alert
-      class="lead-alert"
-      type="info"
-      show-icon
-      message="访客在你官网文章下面写的评论与点的赞，都在这一个页面里处理。"
-      description="两个开关默认都是关的：开着「示例评论」表示系统会替你在新发的稿子里补写评论，而前台不会标出哪几条是补的。"
-    />
 
-    <a-card title="读者互动设置" :bordered="false" :loading="configLoading">
-      <a-alert v-if="configError" type="error" show-icon message="这一家的配置没读到" :description="configError" />
-      <a-form v-else :model="form" layout="vertical" class="config-form">
-        <a-form-item label="AI 示例评论">
-          <a-switch
-            id="interaction-ai-comment"
-            :checked="form.aiCommentEnabled === 1"
-            :disabled="!canManage || isPlatformMode"
-            @update:checked="(v: boolean) => (form.aiCommentEnabled = v ? 1 : 0)"
-          />
-          <span class="field-hint">开了之后，新发布的稿子会在发布后一个月内挑随机时刻补写评论。</span>
-        </a-form-item>
+    <!-- 十格总账收进抽屉之后，首屏至少留这一格：它是「等我处理」里只数读者写的那一个数。
+         旁边那句「只数读者写的」必须写出来——下面队列那一行数的是全部评论，两个数天生不一样。 -->
+    <div class="interaction-head">
+      <span class="interaction-head__value">{{ pendingReaderValue }}</span>
+      <span class="interaction-head__label">等我处理的读者评论</span>
+      <span class="interaction-head__note">只数读者写的，不含系统补的；十格全账在「互动总账」里</span>
+    </div>
 
-        <a-form-item label="虚拟点赞">
-          <a-switch
-            id="interaction-virtual-like"
-            :checked="form.virtualLikeEnabled === 1"
-            :disabled="!canManage || isPlatformMode"
-            @update:checked="(v: boolean) => (form.virtualLikeEnabled = v ? 1 : 0)"
-          />
-          <span class="field-hint">开了之后，发布那一刻就按下面的区间写一个点赞数；关掉只显真人点的。</span>
-        </a-form-item>
-
-        <a-form-item label="读者评论怎么处理">
-          <a-radio-group id="interaction-moderation-mode" v-model:value="form.moderationMode" :disabled="!canManage || isPlatformMode">
-            <a-radio-button value="review">先进待审队列，我点放行才对外</a-radio-button>
-            <a-radio-button value="auto">安全闸判过就直接显示</a-radio-button>
-          </a-radio-group>
-          <div class="field-hint block-hint">
-            选了「判过就直接显示」，机器判不过的那一条也不会被丢掉，它会退回上面那个待审队列里等人。
-          </div>
-        </a-form-item>
-
-        <a-form-item label="每篇最多补几条示例评论">
-          <a-input-number
-            id="interaction-seed-per-article"
-            v-model:value="form.aiCommentMaxPerArticle"
-            :min="1"
-            :max="10"
-            :disabled="!canManage || isPlatformMode"
-          />
-          <span class="field-hint">1~10 条。一篇稿子底下十几条「好评」看起来就不像真实读者了。</span>
-        </a-form-item>
-
-        <a-form-item label="补写的点赞数区间">
-          <a-space>
-            <a-input-number id="interaction-like-min" v-model:value="form.likeSeedMin" :min="0" :max="999" :disabled="!canManage || isPlatformMode" />
-            <span class="range-sep">~</span>
-            <a-input-number id="interaction-like-max" v-model:value="form.likeSeedMax" :min="0" :max="999" :disabled="!canManage || isPlatformMode" />
-          </a-space>
-          <span class="field-hint">发布时在这段里随机取一个数。上界小于下界会存不下。</span>
-        </a-form-item>
-
-        <a-form-item>
-          <a-space>
-            <a-button :disabled="configLoading" @click="loadConfig">重新读取</a-button>
-            <a-button id="interaction-save-config" type="primary" :loading="saving" :disabled="!canManage || isPlatformMode" @click="saveConfig">
-              保存设置
-            </a-button>
-          </a-space>
-          <div v-if="!canManage" class="permission-hint">
-            改这几项要「读者互动」的管理权限（interaction:manage）——客户管理员默认有这一码，也可以在角色页分给别的角色。
-          </div>
-          <div v-else-if="lastEditedAt" class="updated-hint">上次修改：{{ formatDateTime(lastEditedAt, true) }}</div>
-        </a-form-item>
-      </a-form>
-
-      <a-alert v-if="disclosure" class="disclosure" type="warning" show-icon message="系统替你补了多少" :description="disclosure" />
-    </a-card>
-
-    <a-card title="这一家的互动总账" :bordered="false" :loading="statsLoading">
-      <template #extra>
-        <a-button size="small" :loading="statsLoading" @click="loadStats">刷新</a-button>
-      </template>
-      <a-alert v-if="statsError" type="error" show-icon message="总账没读到" :description="statsError" />
-      <div v-else class="stat-grid">
-        <div v-for="cell in statCells" :key="cell.label" class="stat-cell">
-          <div class="stat-cell__value">{{ cell.value }}</div>
-          <div class="stat-cell__label">{{ cell.label }}</div>
-        </div>
-      </div>
-    </a-card>
+    <!-- 这句实话是后端发的（`disclosure`）：开关开着系统会替你补评论、前台又不标 AI，
+         所以它必须留在首屏，不能只藏在设置抽屉里。界面不拼第二份中文。 -->
+    <a-alert v-if="disclosure" class="interaction-disclosure" type="warning" show-icon :message="disclosure" />
 
     <!-- 待审评论这一块的壳走 Spec-Q 的 RecordListPage（B 型：第一条读数是「等我处理」）。
-         这一屏不止一张卡，所以是 `section` 形：页头由上面那份 PageTitle 摆，这里只报这一块是谁。 -->
+         这一屏不止一块，所以是 `section` 形：页头由上面那份 PageTitle 摆，这里只报这一块是谁。 -->
     <record-list-page
       section
       card-title="待审评论"
       :loading="queueLoading"
       :rows="comments"
       :columns="commentColumns"
+      :scroll="{ x: 940 }"
       :read-failed="queueError"
       :empty-line="queueEmptyLine"
       :empty-reason="queueEmptyReason"
@@ -127,26 +59,23 @@
         </a-space>
       </template>
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'status'">
+        <template v-if="column.key === 'content'">
+          <div class="comment-excerpt">{{ record.content }}</div>
+          <a-button type="link" size="small" class="comment-excerpt__more" @click="openDetail(record)">看全文</a-button>
+        </template>
+        <template v-else-if="column.key === 'status'">
           <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
         </template>
-        <template v-else-if="column.key === 'sourceText'">
-          {{ record.sourceText || '—' }}
-        </template>
-        <template v-else-if="column.key === 'moderationNote'">
-          <span v-if="record.moderationNote" class="note-text">{{ record.moderationNote }}</span>
-          <span v-else class="muted">—</span>
-        </template>
-        <template v-else-if="column.key === 'createdAt'">
-          {{ formatDateTime(record.createdAt, true) }}
+        <template v-else-if="column.key === 'source'">
+          <div>{{ record.sourceText || '—' }}</div>
+          <div v-if="record.authorName" class="muted">{{ record.authorName }}</div>
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space v-if="canManage">
             <!--
               待审的行给放行，已摘除的行给放回：两个动作在后端是同一发 approve，
               区别只在转移表的哪一条边（pending→approved 与 removed→approved）。
-              已驳回不给摘除按钮——它本来就不在前台，没有「撤下」这件事，
-              而且摘完只能放回成「已对外」，等于替租户把一条他驳回过的话放行。
+              带后果的两个（驳回 / 摘除）收进「更多」：多一次点击，但少一次误点。
             -->
             <a-button
               v-if="record.status === 'pending' || record.status === 'removed'"
@@ -155,18 +84,18 @@
               size="small"
               @click="moderate(record, 'approve')"
             >{{ record.status === 'removed' ? '放回' : '放行' }}</a-button>
-            <a-button v-if="record.status === 'pending'" type="link" size="small" danger @click="moderate(record, 'reject')">
-              驳回
-            </a-button>
-            <a-popconfirm
-              v-if="record.status === 'pending' || record.status === 'approved'"
-              title="摘除 = 从站点上撤下，前台不再显示；这一条会改到下面「已摘除」那一档，随时查得回来、也放得回去。确定摘除？"
-              ok-text="摘除"
-              cancel-text="先不"
-              @confirm="moderate(record, 'remove')"
-            >
-              <a-button type="link" size="small" danger>摘除</a-button>
-            </a-popconfirm>
+            <a-dropdown v-if="record.status === 'pending' || record.status === 'approved'" :trigger="['click']">
+              <a-button type="link" size="small">更多</a-button>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="full" @click="openDetail(record)">看全文</a-menu-item>
+                  <a-menu-item v-if="record.status === 'pending'" key="reject" @click="moderate(record, 'reject')">
+                    驳回
+                  </a-menu-item>
+                  <a-menu-item key="remove" @click="askRemove(record)">摘除</a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
           </a-space>
           <span v-else class="muted">只读</span>
         </template>
@@ -186,69 +115,96 @@
       </template>
     </record-list-page>
 
-    <record-list-page
-      section
-      card-title="示例评论的排产计划"
+    <interaction-comment-drawer
+      v-model:open="detailOpen"
+      :comment="detailComment"
+      :can-manage="canManage"
+      :platform-mode="isPlatformMode"
+      :remove-confirm-title="REMOVE_CONFIRM_TITLE"
+      @moderate="(action: 'approve' | 'reject' | 'remove') => detailComment && moderate(detailComment, action)"
+    />
+
+    <!-- 「更多」里的摘除也要二次确认。下拉菜单一点就收起来，气泡确认挂不住，
+         所以这一处用确认框；那句中文与详情抽屉里那颗共用同一份（下面那个常量）。 -->
+    <a-modal
+      v-model:open="removeConfirmOpen"
+      title="确定摘除这一条？"
+      :ok-text="'摘除'"
+      :cancel-text="'先不'"
+      @ok="confirmRemove"
+    >
+      <p>{{ REMOVE_CONFIRM_TITLE }}</p>
+    </a-modal>
+
+    <interaction-config-drawer
+      v-model:open="configOpen"
+      :loading="configLoading"
+      :saving="saving"
+      :error="configError"
+      :disclosure="disclosure"
+      :last-edited-at="lastEditedAt"
+      :can-manage="canManage"
+      :platform-mode="isPlatformMode"
+      :config="config"
+      @reload="loadConfig"
+      @save="saveConfig"
+    />
+    <interaction-stats-drawer
+      v-model:open="statsOpen"
+      :loading="statsLoading"
+      :error="statsError"
+      :platform-mode="isPlatformMode"
+      :stats="stats"
+      @reload="loadStats"
+    />
+    <interaction-seed-plan-drawer
+      v-model:open="seedOpen"
       :loading="seedLoading"
       :rows="seedTasks"
-      :columns="seedColumns"
-      :read-failed="seedError"
+      :error="seedError"
       :empty-line="seedEmptyLine"
       :empty-reason="seedEmptyReason"
       :not-sent="seedNotSent"
-    >
-      <template #actions>
-        <a-space>
-          <a-button size="small" :loading="seedLoading" @click="loadSeedTasks">刷新</a-button>
-        </a-space>
-      </template>
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'fireAt'">
-          {{ formatDateTime(record.fireAt, true) }}
-        </template>
-        <template v-else-if="column.key === 'status'">
-          <a-tag :color="seedStatusColor(record.status)">{{ seedStatusLabel(record.status) }}</a-tag>
-        </template>
-        <template v-else-if="column.key === 'detail'">
-          <span v-if="record.skipReasonText" class="skip-reason">{{ record.skipReasonText }}</span>
-          <span v-if="record.note" class="note-text">{{ record.note }}</span>
-          <span v-if="!record.skipReasonText && !record.note" class="muted">—</span>
-        </template>
-      </template>
-    </record-list-page>
+      @reload="loadSeedTasks"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import RecordListPage from '../../components/RecordListPage.vue'
+import InteractionConfigDrawer from './interaction/InteractionConfigDrawer.vue'
+import InteractionStatsDrawer from './interaction/InteractionStatsDrawer.vue'
+import InteractionSeedPlanDrawer from './interaction/InteractionSeedPlanDrawer.vue'
+import InteractionCommentDrawer from './interaction/InteractionCommentDrawer.vue'
 import {
   interactionApi,
   type InteractionCommentItem,
   type InteractionCommentPage,
   type InteractionConfig,
+  type InteractionConfigForm,
   type InteractionSeedTask,
   type InteractionStats
 } from '../../api/interaction'
 import { useAuthStore } from '../../stores/auth'
-import { formatDateTime, formatNumber } from '../../utils/format'
+import { formatNumber } from '../../utils/format'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import PageTitle from '../../components/PageTitle.vue'
 
 /**
- * 后台「读者互动」（P9-C，G-08）。
+ * 后台「读者互动」（P9-C，G-08；Spec-R R1 重排）。
  *
  * 这一页最坏的形状是「开关开着，但补了多少、什么时候补、哪几条已经对外，租户一个都看不到」——
- * 那就是谎报。所以配置卡下面那句 `disclosure`、总账、排产计划三块都是必须存在的，
+ * 那就是谎报。所以 `disclosure` 那句实话留在首屏，总账与排产计划收进页头按钮开的抽屉，
  * 而它们的话术全部来自后端，界面不拼第二份中文。
  *
- * 另一条硬规矩跟「每日产出」那页一样：读失败就老实地说读失败，不回填默认值、不摆空表。
+ * Spec-R 之前这一屏是「说明 + 设置卡 + 总账卡 + 队列 + 排产卡」五块叠着：现场量到 1440 那一档
+ * 第一行评论在 1478px 处，首屏一行都看不见（证据 scratch/spec-r-interaction/out/measure.json）。
+ * 现在队列是第一块，三块低频内容各由页头一颗按钮开抽屉；读写仍留在这一页，
+ * 所以开关抽屉不会动到队列的筛选、页码与滚动位置。
  *
- * Spec-Q P2：待审评论与排产计划两块走 `RecordListPage` 的 `section` 形（这一屏不止一张卡，
- * 页头由上面的 PageTitle 摆一次）。跟着换掉的三件事：表不再 `size="small"`（与其余列表页同一密度）、
- * 读失败从「卡上一条 alert + 表退场」变成模板的错误块、平台档那一发没发出去的说法从页顶那一条
- * 扩到每一块自己都说一句（空表在平台档会被读成「这一家没人评论」）。
+ * 另一条硬规矩跟「每日产出」那页一样：读失败就老实地说读失败，不回填默认值、不摆空表。
  */
 
 const authStore = useAuthStore()
@@ -261,20 +217,16 @@ const requestedTenantId = computed(() => (authStore.isSuperAdmin ? authStore.sel
 /** 平台档 = 超管没选客户：互动都按客户存，这一档不发请求、写口全灰 */
 const isPlatformMode = computed(() => requestedTenantId.value === null)
 
+const configOpen = ref(false)
+const statsOpen = ref(false)
+const seedOpen = ref(false)
+
 const configLoading = ref(false)
 const saving = ref(false)
 const configError = ref('')
-const disclosure = ref('')
-const lastEditedAt = ref<string | null>(null)
-
-const form = reactive({
-  aiCommentEnabled: 0,
-  virtualLikeEnabled: 0,
-  moderationMode: 'review',
-  aiCommentMaxPerArticle: 3,
-  likeSeedMin: 6,
-  likeSeedMax: 28
-})
+const config = ref<InteractionConfig | null>(null)
+const disclosure = computed(() => config.value?.disclosure ?? '')
+const lastEditedAt = computed(() => config.value?.updatedAt ?? null)
 
 const statsLoading = ref(false)
 const statsError = ref('')
@@ -312,13 +264,17 @@ const statusOptions = [
   { value: 'all', label: '全部（待审 + 已对外 + 已驳回 + 已摘除）' }
 ]
 
+/** 页头留的那一格：后端 `stats.pendingReaderComments`，只数读者写的。平台档摆 —，与「读回来是 0」分开 */
+const pendingReaderValue = computed(() => {
+  if (isPlatformMode.value) return '—'
+  return formatNumber(stats.value?.pendingReaderComments ?? 0)
+})
+
 /**
  * 待审队列的读数（Spec-Q §4.1 的 B 型：第一条摆「等我处理」，不是总数）。
  * 这四个数只认后端 `counts` 那一格——它按状态分开数，所以跟下面那颗下拉无关，
  * 也跟在界面里数当前页的行数是两件事（当前页几条写在翻页条的「共 N 条」里）。
- * 口径差别写在明处：`counts` 数的是这一家全部评论（读者写的 + 系统按开关补的都在内），
- * 上面总账那一格「等我处理的读者评论」只数读者写的，因此可能比这里小——
- * 同屏两个「等我处理」不写清是谁的，就会被读成其中一个坏了。
+ * 与页头那一格的口径差别由版式解决：页头那一格自己写着「只数读者写的」，这里写清「全部评论」。
  */
 const queueCountLine = computed(() => {
   if (isPlatformMode.value || queueError.value || !queueCounts.value) return ''
@@ -327,8 +283,7 @@ const queueCountLine = computed(() => {
     `等我处理：待审 ${formatNumber(counts.pending)} 条。` +
     `已对外 ${formatNumber(counts.approved)} 条、已驳回 ${formatNumber(counts.rejected)} 条、` +
     `已摘除 ${formatNumber(counts.removed)} 条` +
-    '（这四个数按这一家全部评论分开数，读者写的和系统补的都在内，不随下面的状态筛选变；' +
-    '上面总账那一格「等我处理的读者评论」只数读者写的，可能比这里少）'
+    '（这四个数按这一家全部评论分开数，读者写的和系统补的都在内，不随下面的状态筛选变）'
   )
 })
 
@@ -350,42 +305,40 @@ const seedNotSent = computed(() =>
 )
 
 const commentColumns = [
-  { title: '文章', dataIndex: 'articleTitle', key: 'articleTitle', width: 180, ellipsis: true },
-  { title: '谁写的', key: 'sourceText', width: 150 },
-  { title: '作者', dataIndex: 'authorName', key: 'authorName', width: 110 },
-  { title: '内容', dataIndex: 'content', key: 'content' },
+  // 正文给上限宽度：不给的那一版被一条 1000 字的评论撑到 15445px，放行那颗按钮离手 14 屏。
+  // 五列之和 940 就是上面 scroll.x 的那个数：固定列宽 + 省略号，宽屏不再横向滚；
+  // 现场量过 max-content 那一形（长标题把「文章」列撑到 523px、表 1599px），数字 x 才走固定列宽
+  { title: '评论', key: 'content', width: 380 },
+  { title: '文章', dataIndex: 'articleTitle', key: 'articleTitle', width: 160, ellipsis: true },
+  { title: '来源', key: 'source', width: 160 },
   { title: '状态', key: 'status', width: 90 },
-  { title: '机器判语', key: 'moderationNote', width: 200 },
-  { title: '时间', key: 'createdAt', width: 160 },
-  { title: '操作', key: 'actions', width: 170 }
+  { title: '操作', key: 'actions', width: 150 }
 ]
 
-const seedColumns = [
-  { title: '文章 id', dataIndex: 'articleId', key: 'articleId', width: 100 },
-  { title: '第几条', dataIndex: 'seq', key: 'seq', width: 90 },
-  { title: '计划时刻', key: 'fireAt', width: 170 },
-  { title: '状态', key: 'status', width: 100 },
-  { title: '说明', key: 'detail' }
-]
+/** 摘除那句确认词只此一份：行内「更多」的确认框与详情抽屉里那颗共用 */
+const REMOVE_CONFIRM_TITLE =
+  '摘除 = 从站点上撤下，前台不再显示；这一条会改到下面「已摘除」那一档，随时查得回来、也放得回去。确定摘除？'
 
-const STAT_CELLS: Array<{ key: keyof InteractionStats, label: string }> = [
-  { key: 'pendingReaderComments', label: '等我处理的读者评论' },
-  { key: 'approvedReaderComments', label: '已对外的读者评论' },
-  { key: 'readerComments', label: '读者评论总数' },
-  { key: 'seededComments', label: '系统补写的评论' },
-  { key: 'readerLikes', label: '真人点的赞' },
-  { key: 'virtualLikes', label: '系统补写的赞' },
-  { key: 'seedPending', label: '还在等时刻的补写计划' },
-  { key: 'seedDone', label: '已补写完成' },
-  { key: 'seedSkipped', label: '到点没补（已说明原因）' },
-  { key: 'seedFailed', label: '补写失败' }
-]
+const detailOpen = ref(false)
+const detailComment = ref<InteractionCommentItem | null>(null)
+const removeConfirmOpen = ref(false)
+const removeTarget = ref<InteractionCommentItem | null>(null)
 
-// 平台档没有「这一家」：十格一起摆 `—`，与「读回来是 0」分开
-const statCells = computed(() => STAT_CELLS.map(cell => ({
-  label: cell.label,
-  value: isPlatformMode.value ? '—' : (stats.value ? Number(stats.value[cell.key] ?? 0) : 0)
-})))
+function openDetail(record: InteractionCommentItem) {
+  detailComment.value = record
+  detailOpen.value = true
+}
+
+function askRemove(record: InteractionCommentItem) {
+  removeTarget.value = record
+  removeConfirmOpen.value = true
+}
+
+function confirmRemove() {
+  removeConfirmOpen.value = false
+  if (removeTarget.value) moderate(removeTarget.value, 'remove')
+  removeTarget.value = null
+}
 
 /** 状态码的中文只在这一处映射，没见过的码原样显示它自己（与每日产出那页同一纪律） */
 const STATUS_LABELS: Record<string, string> = {
@@ -393,13 +346,6 @@ const STATUS_LABELS: Record<string, string> = {
   approved: '已对外',
   rejected: '已驳回',
   removed: '已摘除'
-}
-
-const SEED_STATUS_LABELS: Record<string, string> = {
-  PENDING: '等待时刻',
-  DONE: '已补写',
-  SKIPPED: '跳过',
-  FAILED: '失败'
 }
 
 function statusLabel(status: string) {
@@ -413,28 +359,6 @@ function statusColor(status: string) {
   return 'default'
 }
 
-function seedStatusLabel(status: string) {
-  return SEED_STATUS_LABELS[status] ?? status
-}
-
-function seedStatusColor(status: string) {
-  if (status === 'DONE') return 'green'
-  if (status === 'FAILED') return 'red'
-  if (status === 'SKIPPED') return 'orange'
-  return 'blue'
-}
-
-function applyConfig(cfg: InteractionConfig) {
-  form.aiCommentEnabled = cfg.aiCommentEnabled ?? 0
-  form.virtualLikeEnabled = cfg.virtualLikeEnabled ?? 0
-  form.moderationMode = cfg.moderationMode ?? 'review'
-  form.aiCommentMaxPerArticle = cfg.aiCommentMaxPerArticle ?? 3
-  form.likeSeedMin = cfg.likeSeedMin ?? 6
-  form.likeSeedMax = cfg.likeSeedMax ?? 28
-  disclosure.value = cfg.disclosure ?? ''
-  lastEditedAt.value = cfg.updatedAt ?? null
-}
-
 async function loadConfig() {
   // 配置按客户分开存：平台档没有「这一家」，这一发不发（开关与保存口由 isPlatformMode 全灰）
   if (isPlatformMode.value) {
@@ -444,25 +368,26 @@ async function loadConfig() {
   }
   configLoading.value = true
   try {
-    const cfg = await interactionApi.config(requestedTenantId.value ?? undefined)
-    if (cfg) applyConfig(cfg)
+    config.value = await interactionApi.config(requestedTenantId.value ?? undefined)
     configError.value = ''
   } catch (error: any) {
+    // 读失败不回填一套看着像存过的默认值：抽屉里只摆那句错，表单整块退场
+    config.value = null
     configError.value = error?.message || '配置读取失败'
   } finally {
     configLoading.value = false
   }
 }
 
-async function saveConfig() {
+async function saveConfig(form: InteractionConfigForm) {
   if (isPlatformMode.value) {
     message.warning('请先在右上角选择客户')
     return
   }
   saving.value = true
   try {
-    const saved = await interactionApi.saveConfig({ ...form }, requestedTenantId.value ?? undefined)
-    if (saved) applyConfig(saved)
+    // 保存后不关抽屉，并且把后端回的那份值回显进去——否则用户不知道存没存上
+    config.value = await interactionApi.saveConfig(form, requestedTenantId.value ?? undefined)
     message.success('设置已保存')
   } catch (error: any) {
     // 区间与取值的判据在后端一处，这里原样念那句中文
@@ -473,7 +398,7 @@ async function saveConfig() {
 }
 
 async function loadStats() {
-  // 总账按客户算：平台档没有「这一家」，这一发不发（十格由 statCells 摆 `—`）
+  // 总账按客户算：平台档没有「这一家」，这一发不发（十格由抽屉摆 `—`）
   if (isPlatformMode.value) {
     stats.value = null
     statsError.value = ''
@@ -554,6 +479,8 @@ async function moderate(record: InteractionCommentItem, action: 'approve' | 'rej
           : '已处理'
     )
     await Promise.all([loadQueue(), loadStats()])
+    // 动作做完就关详情抽屉：队列重取之后那一行可能已经不在这一档里，留着会显示一份过期的状态
+    detailOpen.value = false
   } catch (error: any) {
     message.error(error?.message || '操作失败')
   }
@@ -603,8 +530,7 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
-/* 这一屏是「页头 + 提示 + 四块」，块与块的间距只在这一处定：
-   改之前四张卡直接贴在一起，只有 lead-alert / disclosure 各自抄了一句 margin-top: 16px */
+/* 这一屏是「页头 + 一格数 + 一句实话 + 队列」，块与块的间距只在这一处定 */
 .interaction-page {
   width: 100%;
   padding: var(--admin-space-1) 0;
@@ -613,72 +539,49 @@ onMounted(() => {
   gap: var(--admin-space-2);
 }
 
-/* disclosure 那张提醒在配置卡里面，够不着上面那层 gap，只能自己留 */
-.disclosure {
-  margin-top: var(--admin-space-2);
-}
-
-.config-form {
-  max-width: 720px;
-}
-
-.field-hint {
-  margin-left: 12px;
-  color: var(--admin-text-secondary);
-  font-size: 13px;
-}
-
-.block-hint {
-  margin-left: 0;
-  margin-top: 4px;
-}
-
-.permission-hint,
-.updated-hint {
-  margin-top: var(--admin-space-1);
-  color: var(--admin-text-secondary);
-  font-size: 13px;
-}
-
-.range-sep {
-  color: var(--admin-text-secondary);
-}
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.stat-cell {
-  background: var(--admin-fill-hover);
-  border-radius: 6px;
-  padding: 12px var(--admin-space-2);
+/* 页头留的那一格：只占一行，不做成一张卡（十格全账在抽屉里） */
+.interaction-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--admin-space-1);
 
   &__value {
     font-size: 22px;
     font-weight: 600;
     color: var(--admin-text-primary);
-    /* 十格数字上下要对得齐，中文默认字面的数字是比例宽度 */
     font-variant-numeric: var(--admin-font-nums);
   }
 
   &__label {
-    margin-top: 2px;
+    font-size: 14px;
+    color: var(--admin-text-primary);
+  }
+
+  &__note {
     font-size: 13px;
     color: var(--admin-text-secondary);
   }
 }
 
-/* 这一支橙是 antd 的 orange-7，比令牌里那支 colorWarning 深；换成 #faad14 在白底上对比度不够，判不动 */
-.skip-reason {
-  color: #d46b08;
-  font-size: 13px;
-}
-
-.note-text,
 .muted {
   color: var(--admin-text-secondary);
   font-size: 13px;
+}
+
+/* 正文两行封顶（隔壁留言管理那一屏同一形）：要读全文点「看全文」进详情抽屉，
+   不用 hover 气泡——键盘与触屏拿不到 hover（WCAG 1.4.13） */
+.comment-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  line-height: 1.6;
+
+  &__more {
+    padding-left: 0;
+    height: auto;
+  }
 }
 </style>

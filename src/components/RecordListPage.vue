@@ -54,6 +54,9 @@ withDefaults(
     section?: boolean
     /** 卡头那句话。只在 `section` 这一形里有用——一屏几块卡时，每块得报自己是谁 */
     cardTitle?: string
+    /** 列宽给齐时把 x 设成列宽之和：表走固定列宽，长内容省略号，不再被一条长文撑出去。
+     *  不传就落回 DataTable 的 `max-content` 兜底（窄屏容器横向滚那一形）。 */
+    scroll?: Record<string, unknown>
   }>(),
   {
     description: '',
@@ -110,6 +113,7 @@ const tableSlotNames = computed(() =>
         :loading="loading"
         :error="readFailed"
         :pagination="false"
+        :scroll="scroll"
         v-bind="{ columns }"
       >
         <template v-for="name in tableSlotNames" #[name]="slotData">

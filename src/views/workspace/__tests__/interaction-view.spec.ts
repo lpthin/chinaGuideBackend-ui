@@ -76,6 +76,36 @@ const TABLE_STUB = {
     </div>`
 }
 
+/**
+ * Spec-R R1：设置 / 总账 / 排产三块搬进了右侧抽屉。真抽屉会把内容 teleport 到 body 并且关着时不渲染，
+ * 这里换成「摆出来但记下 open」的替身：既能继续钉三块自己的三态与话术，也能钉开关有没有真接上。
+ */
+const DRAWER_STUB = {
+  name: 'ADrawer',
+  props: ['open', 'title', 'width', 'placement'],
+  emits: ['update:open'],
+  template: '<div class="drawer-stub"><span class="drawer-title">{{ title }}</span><slot name="extra" /><slot /><div class="drawer-footer"><slot name="footer" /></div></div>'
+}
+
+/** 「更多」下拉：把 overlay 摆出来，菜单项换成真按钮，点它就走它自己那条 @click */
+const DROPDOWN_STUB = {
+  name: 'ADropdown',
+  template: '<div class="dropdown-stub"><slot /><div class="dropdown-overlay"><slot name="overlay" /></div></div>'
+}
+const MENU_STUB = { name: 'AMenu', template: '<div class="menu-stub"><slot /></div>' }
+const MENU_ITEM_STUB = {
+  name: 'AMenuItem',
+  inheritAttrs: false,
+  emits: ['click'],
+  template: '<button class="menu-item-stub" @click="$emit(\'click\', $event)"><slot /></button>'
+}
+const MODAL_STUB = {
+  name: 'AModal',
+  props: ['open', 'title', 'okText', 'cancelText'],
+  emits: ['ok', 'update:open'],
+  template: '<div class="modal-stub"><span>{{ title }}</span><slot /><button class="modal-ok" @click="$emit(\'ok\')">{{ okText }}</button></div>'
+}
+
 const VIEW = 'interaction:view'
 const MANAGE = 'interaction:manage'
 
@@ -122,6 +152,8 @@ async function mountView(options: {
   commentsPayload?: any
   /** 覆盖排产那一口的回包（换壳后是 records 那一形） */
   seedPayload?: any
+  /** 覆盖总账那一口的回包（页头那一格读的是这里的 pendingReaderComments） */
+  statsPayload?: any
   /** 平台档：超管且没选客户 */
   superAdmin?: boolean
 } = {}) {
@@ -183,10 +215,10 @@ async function mountView(options: {
   if (options.statsError) {
     vi.mocked(interactionApi.stats).mockRejectedValue(new Error(options.statsError))
   } else {
-    vi.mocked(interactionApi.stats).mockResolvedValue({
+    vi.mocked(interactionApi.stats).mockResolvedValue((options.statsPayload ?? {
       readerComments: 9, approvedReaderComments: 5, pendingReaderComments: 2, seededComments: 4,
       virtualLikes: 61, readerLikes: 12, seedPending: 6, seedDone: 4, seedSkipped: 1, seedFailed: 0
-    } as any)
+    }) as any)
   }
   vi.mocked(interactionApi.saveConfig).mockResolvedValue(config() as any)
   vi.mocked(interactionApi.moderate).mockResolvedValue({ id: 1, status: 'approved' } as any)
@@ -209,6 +241,15 @@ async function mountView(options: {
           template: '<div class="pager-stub" @click="$emit(\'change\', 4)" />'
         },
         'a-popconfirm': PASS_THROUGH('APopconfirm'),
+        'a-drawer': DRAWER_STUB,
+        'a-dropdown': DROPDOWN_STUB,
+        'a-menu': MENU_STUB,
+        'a-menu-item': MENU_ITEM_STUB,
+        'a-modal': MODAL_STUB,
+        'a-descriptions': PASS_THROUGH('ADescriptions'),
+        'a-descriptions-item': PASS_THROUGH('ADescriptionsItem'),
+        'a-empty': PASS_THROUGH('AEmpty'),
+        'a-spin': PASS_THROUGH('ASpin'),
         FilterBar: PASS_THROUGH('FilterBar'),
         'a-button': Button,
         'a-input-number': InputNumber,
@@ -225,6 +266,33 @@ async function mountView(options: {
 
 function byId(wrapper: any, selector: string): HTMLInputElement {
   return wrapper.find(selector).element as HTMLInputElement
+}
+
+/** 详情抽屉（Spec-R R2）：正文那一格两行封顶之后，「看全文」是读完整一条的唯一入口 */
+function detailDrawer(wrapper: any) {
+  return wrapper.findAllComponents({ name: 'ADrawer' }).find((d: any) => d.props('title') === '这一条评论')!
+}
+
+async function openDetailOf(wrapper: any, rowIndex: number) {
+  const row = wrapper.findAll('.table-stub')[0].findAll('.row')[rowIndex]
+  const link = row.findAll('button').find((b: any) =>
+    b.text().trim() === '看全文' && !b.classes().includes('menu-item-stub'))
+  await link!.trigger('click')
+  await flushPromises()
+}
+
+/** 行内看得到的那几颗；「更多」下拉里的另算（moreOf），两者不许混成一句读数 */
+function inlineButtonsOf(wrapper: any, index: number): string[] {
+  return wrapper.findAll('.table-stub')[0].findAll('.row')[index]
+    .findAll('button')
+    .filter((b: any) => !b.classes().includes('menu-item-stub'))
+    .map((b: any) => b.text().trim())
+}
+
+function moreItemsOf(wrapper: any, index: number): string[] {
+  return wrapper.findAll('.table-stub')[0].findAll('.row')[index]
+    .findAll('button.menu-item-stub')
+    .map((b: any) => b.text().trim())
 }
 
 beforeEach(() => {
@@ -348,9 +416,17 @@ describe('待审队列', () => {
     await flushPromises()
     expect(interactionApi.moderate).toHaveBeenCalledWith(1, 'approve', undefined)
 
-    await rows[0].findAll('button').find(b => b.text() === '驳回')!.trigger('click')
+    await rows[0].findAll('button').find(b => b.text().trim() === '驳回')!.trigger('click')
     await flushPromises()
     expect(interactionApi.moderate).toHaveBeenCalledWith(1, 'reject', undefined)
+
+    // 摘除在「更多」里，点它先出确认框，确认框那颗才真发请求
+    await rows[0].findAll('button.menu-item-stub').find(b => b.text().trim() === '摘除')!.trigger('click')
+    await flushPromises()
+    expect(interactionApi.moderate).toHaveBeenCalledTimes(2)
+    await wrapper.find('.modal-ok').trigger('click')
+    await flushPromises()
+    expect(interactionApi.moderate).toHaveBeenCalledWith(1, 'remove', undefined)
   })
 
   it('来源位只在后台念：系统补的那条写着「系统按开关补的示例评论」', async () => {
@@ -363,14 +439,16 @@ describe('待审队列', () => {
     expect(rows[2].text()).not.toContain('ai_seed')
   })
 
-  it('安全闸那句判语原样摆出来，它是「为什么这条还在等人」的唯一线索', async () => {
+  it('安全闸那句判语原样摆在详情抽屉里，它是「为什么这条还在等人」的唯一线索', async () => {
     const wrapper = await mountView()
-    const rows = wrapper.findAll('.row')
+    await openDetailOf(wrapper, 1)
+    const drawer = detailDrawer(wrapper)
 
-    expect(rows[1].text()).toContain('这条在推销别的网站，先给人看一眼。')
+    expect(drawer.text()).toContain('这条在推销别的网站，先给人看一眼。')
     // 判语为 null 说的是「没被机器判过」，界面摆一个破折号，不猜一句「判定通过」
-    expect(rows[0].text()).toContain('—')
-    expect(rows[0].text()).not.toContain('通过')
+    await openDetailOf(wrapper, 0)
+    expect(drawer.text()).toContain('机器没判过这一条')
+    expect(drawer.text()).not.toContain('判定通过')
   })
 
   it('队列读失败不渲成一张空表', async () => {
@@ -425,9 +503,10 @@ describe('待审队列', () => {
  * Spec-Q P2 把「待审评论」这一块接进了列表页模板的 B 型：表上面多一条读数，第一条是「等我处理」。
  *
  * 这里盯死的不是「有没有这句话」，而是这三个数的出处。页面上同屏有两个「等我处理」：
- * 上面总账那一格读 `stats.pendingReaderComments`（只数读者写的），
+ * 页头那一格读 `stats.pendingReaderComments`（只数读者写的），
  * 队列这条读数读 `comments.counts.pending`（读者写的 + 系统补的都在内）。
- * 两个数天生会不一样，所以口径必须写在句子里，测试也必须能分清界面读的是哪一个键——
+ * 两个数天生会不一样，所以两处都得写清是谁的：页头那一格自己写着「只数读者写的」，
+ * 队列这一行写着「全部评论」。测试也必须能分清界面读的是哪一个键——
  * 下面用「行数是 3、counts.pending 是 7」那份夹具把这条路钉住：抄错来源就会当场红。
  */
 describe('待审队列的读数（B 型第一条是「等我处理」）', () => {
@@ -441,8 +520,7 @@ describe('待审队列的读数（B 型第一条是「等我处理」）', () =>
 
   const COUNT_LINE =
     '等我处理：待审 2 条。已对外 1 条、已驳回 0 条、已摘除 0 条' +
-    '（这四个数按这一家全部评论分开数，读者写的和系统补的都在内，不随下面的状态筛选变；' +
-    '上面总账那一格「等我处理的读者评论」只数读者写的，可能比这里少）'
+    '（这四个数按这一家全部评论分开数，读者写的和系统补的都在内，不随下面的状态筛选变）'
 
   it('读数逐字对上后端 counts 那四个键，「等我处理」排在最前', async () => {
     const wrapper = await mountView()
@@ -601,12 +679,6 @@ describe('已摘除是一档，不是一个查不回来的动作', () => {
     } as any
   }
 
-  function buttonsOf(wrapper: any, index: number): string[] {
-    return wrapper.findAll('.table-stub')[0].findAll('.row')[index]
-      .findAll('button')
-      .map((b: any) => b.text().trim())
-  }
-
   it('状态下拉有五个档，「全部」那一档把四个名字都写出来', async () => {
     const wrapper = await mountView()
     const select = wrapper.findAllComponents({ name: 'ASelect' })
@@ -623,10 +695,15 @@ describe('已摘除是一档，不是一个查不回来的动作', () => {
   it('待审与已对外给摘除；已驳回与已摘除不给（已驳回没有「撤下」这件事，摘完只能放回成已对外）', async () => {
     const wrapper = await mountView({ commentsPayload: queueWith(['pending', 'approved', 'rejected', 'removed']) })
 
-    expect(buttonsOf(wrapper, 0)).toEqual(['放行', '驳回', '摘除'])
-    expect(buttonsOf(wrapper, 1)).toEqual(['摘除'])
-    expect(buttonsOf(wrapper, 2)).toEqual([])
-    expect(buttonsOf(wrapper, 3)).toEqual(['放回'])
+    // 行内只留「放行 / 放回」与一颗「更多」；带后果的驳回与摘除在下拉里（Q3 拍的那一条）
+    expect(inlineButtonsOf(wrapper, 0)).toEqual(['看全文', '放行', '更多'])
+    expect(moreItemsOf(wrapper, 0)).toEqual(['看全文', '驳回', '摘除'])
+    expect(inlineButtonsOf(wrapper, 1)).toEqual(['看全文', '更多'])
+    expect(moreItemsOf(wrapper, 1)).toEqual(['看全文', '摘除'])
+    expect(inlineButtonsOf(wrapper, 2)).toEqual(['看全文'])
+    expect(moreItemsOf(wrapper, 2)).toEqual([])
+    expect(inlineButtonsOf(wrapper, 3)).toEqual(['看全文', '放回'])
+    expect(moreItemsOf(wrapper, 3)).toEqual([])
   })
 
   it('已摘除那一行的「放回」传的是 approve：后端那条边是 removed → approved，不是退回待审', async () => {
@@ -642,12 +719,15 @@ describe('已摘除是一档，不是一个查不回来的动作', () => {
 
   it('确认框那句中文改口：说这一条会进「已摘除」那一档、查得回来放得回去', async () => {
     const wrapper = await mountView({ commentsPayload: queueWith(['pending', 'approved']) })
+    await openDetailOf(wrapper, 0)
     const popconfirm = wrapper.findAllComponents({ name: 'APopconfirm' })[0]
 
     expect(popconfirm.props('title')).toContain('已摘除')
     expect(popconfirm.props('title')).toContain('放得回去')
     // 旧那句是假话：摘完之后哪一档都查不到它
     expect(popconfirm.props('title')).not.toContain('也不再出现在这个列表里')
+    // 行内「更多」那条路用的是同一句：两处各写一份早晚分家
+    expect(wrapper.find('.modal-stub').text()).toContain(popconfirm.props('title'))
   })
 
   it('已摘除那一行的状态那一格念「已摘除」，不是把 removed 原样显示出来', async () => {
@@ -660,6 +740,7 @@ describe('已摘除是一档，不是一个查不回来的动作', () => {
 
   it('摘除成功后那句话交代「去哪、怎么回来」，不许只念「已处理」', async () => {
     const wrapper = await mountView({ commentsPayload: queueWith(['pending']) })
+    await openDetailOf(wrapper, 0)
     const popconfirm = wrapper.findAllComponents({ name: 'APopconfirm' })[0]
 
     popconfirm.vm.$emit('confirm')
@@ -669,6 +750,276 @@ describe('已摘除是一档，不是一个查不回来的动作', () => {
     expect(message.success).toHaveBeenCalledWith(expect.stringContaining('已摘除'))
     expect(message.success).toHaveBeenCalledWith(expect.stringContaining('「已摘除」那一档'))
     expect(message.success).not.toHaveBeenCalledWith('已处理')
+    // 队列重取之后那一行可能已经不在这一档里，抽屉留着会显示一份过期的状态
+    expect(detailDrawer(wrapper).props('open')).toBe(false)
   })
 })
+
+/**
+ * Spec-R R1：这一屏原来五块叠着，现场量到 1440 那一档第一行评论在 1478px 处（首屏 0 行）。
+ * 现在队列是第一块，设置 / 总账 / 排产各由页头一颗按钮开抽屉。
+ *
+ * 这一节钉三件事：①三块真在抽屉里、按钮真接上了开关；②页头留的那一格读的是后端哪一个键；
+ * ③开关抽屉不许动到队列（不多发请求、筛选与页码不变）——那正是「抽屉」相对「跳一页」的好处。
+ */
+describe('Spec-R R1：三块低频内容进抽屉，队列排第一', () => {
+  function drawers(wrapper: any) {
+    return wrapper.findAllComponents({ name: 'ADrawer' })
+  }
+
+  function drawerByTitle(wrapper: any, title: string) {
+    return drawers(wrapper).find((d: any) => d.props('title') === title)!
+  }
+
+  it('页头三颗按钮各开一个抽屉，标题与摆放宽度对得上方案', async () => {
+    const wrapper = await mountView()
+    const lowFrequency = () => drawers(wrapper).filter((d: any) => d.props('title') !== '这一条评论')
+
+    expect(lowFrequency().map((d: any) => d.props('title'))).toEqual([
+      '读者互动设置', '这一家的互动总账', '示例评论的排产计划'
+    ])
+    expect(lowFrequency().map((d: any) => d.props('width'))).toEqual([560, 560, 720])
+    expect(lowFrequency().every((d: any) => d.props('placement') === 'right')).toBe(true)
+    expect(lowFrequency().every((d: any) => d.props('open') === false)).toBe(true)
+
+    await wrapper.find('#interaction-open-config').trigger('click')
+    expect(lowFrequency().map((d: any) => d.props('open'))).toEqual([true, false, false])
+
+    await wrapper.find('#interaction-open-stats').trigger('click')
+    expect(lowFrequency().map((d: any) => d.props('open'))).toEqual([true, true, false])
+
+    await wrapper.find('#interaction-open-seed').trigger('click')
+    expect(lowFrequency().map((d: any) => d.props('open'))).toEqual([true, true, true])
+  })
+
+  it('设置表单、十格总账、排产表都在抽屉里，不在页面流里', async () => {
+    const wrapper = await mountView()
+
+    expect(wrapper.find('#interaction-ai-comment').element.closest('.drawer-stub')).not.toBeNull()
+    expect(wrapper.find('.stat-grid').element.closest('.drawer-stub')).not.toBeNull()
+    expect(wrapper.findAll('.table-stub')[1].element.closest('.drawer-stub')).not.toBeNull()
+  })
+
+  it('队列排在三个抽屉前面：打开这一屏第一块就是待审评论', async () => {
+    const wrapper = await mountView()
+    const blocks = Array.from((wrapper.element as HTMLElement).querySelectorAll('.record-list-page, .drawer-stub'))
+
+    expect(blocks[0].classList.contains('record-list-page')).toBe(true)
+    expect(blocks[0].textContent).toContain('待审评论')
+  })
+
+  it('页头留的那一格读 stats.pendingReaderComments，并写清「只数读者写的」', async () => {
+    // 队列 counts.pending 是 2，总账 pendingReaderComments 给 4：抄错来源就会当场红
+    const wrapper = await mountView({
+      statsPayload: {
+        readerComments: 9, approvedReaderComments: 5, pendingReaderComments: 4, seededComments: 4,
+        virtualLikes: 61, readerLikes: 12, seedPending: 6, seedDone: 4, seedSkipped: 1, seedFailed: 0
+      }
+    })
+    const head = wrapper.find('.interaction-head')
+
+    expect(head.find('.interaction-head__value').text()).toBe('4')
+    expect(head.text()).toContain('等我处理的读者评论')
+    expect(head.text()).toContain('只数读者写的')
+  })
+
+  it('平台档：页头那一格摆 —，不是 0', async () => {
+    const wrapper = await mountView({ superAdmin: true })
+
+    expect(wrapper.find('.interaction-head__value').text()).toBe('—')
+  })
+
+  it('后端那句 disclosure 留在首屏，不只藏在设置抽屉里', async () => {
+    const wrapper = await mountView()
+    const alert = wrapper.find('.interaction-disclosure')
+
+    expect(alert.exists()).toBe(true)
+    expect(alert.text()).toContain(DISCLOSURE_TEXT)
+    expect(alert.element.closest('.drawer-stub')).toBeNull()
+  })
+
+  it('开关抽屉不动队列：不多发一发请求，筛选与页码一个字不变', async () => {
+    const wrapper = await mountView()
+    const before = vi.mocked(interactionApi.comments).mock.calls.length
+    const selectBefore = wrapper.findAllComponents({ name: 'ASelect' })
+      .find((n: any) => n.props('options')?.some((o: any) => o.value === 'all'))!.props('value')
+
+    await wrapper.find('#interaction-open-config').trigger('click')
+    await wrapper.find('#interaction-open-stats').trigger('click')
+    await wrapper.find('#interaction-open-seed').trigger('click')
+    await flushPromises()
+    drawerByTitle(wrapper, '读者互动设置').vm.$emit('update:open', false)
+    await flushPromises()
+
+    expect(vi.mocked(interactionApi.comments).mock.calls.length).toBe(before)
+    const selectAfter = wrapper.findAllComponents({ name: 'ASelect' })
+      .find((n: any) => n.props('options')?.some((o: any) => o.value === 'all'))!
+    expect(selectAfter.props('value')).toBe(selectBefore)
+    expect(drawerByTitle(wrapper, '读者互动设置').props('open')).toBe(false)
+  })
+
+  it('保存设置之后抽屉不关，后端回的那份值回显进表单', async () => {
+    const wrapper = await mountView()
+    vi.mocked(interactionApi.saveConfig).mockResolvedValue(config({ aiCommentMaxPerArticle: 7 }) as any)
+
+    await wrapper.find('#interaction-open-config').trigger('click')
+    await wrapper.find('#interaction-save-config').trigger('click')
+    await flushPromises()
+
+    expect(message.success).toHaveBeenCalledWith('设置已保存')
+    expect(drawerByTitle(wrapper, '读者互动设置').props('open')).toBe(true)
+    expect(byId(wrapper, '#interaction-seed-per-article').value).toBe('7')
+  })
+})
+
+/**
+ * Spec-R R2：行内与详情（Q2/Q3/Q7/Q9 拍的那四条）。
+ *
+ * 这一节最坏的那件事是 1000 字的长评论：上一版正文列没有上限宽度，
+ * 现场量到整张表被撑到 15445px、放行那颗按钮离手 14 屏（scratch/spec-r-interaction/out/measure.json）。
+ * 所以列的定义本身进判据：五列、每列有写死的上限宽度、加起来不许超 1000。
+ */
+describe('Spec-R R2：行内两行封顶 + 详情抽屉', () => {
+  it('五列、每列都带上限宽度，正文那列 380；「谁写的 / 作者」合成了「来源」一列', async () => {
+    const wrapper = await mountView()
+    const table = wrapper.findAllComponents({ name: 'ATable' })[0]
+    const columns = table.props('columns').map((c: any) => ({ ...c }))
+
+    expect(columns.map((c: any) => c.key)).toEqual(['content', 'articleTitle', 'source', 'status', 'actions'])
+    expect(columns.every((c: any) => typeof c.width === 'number')).toBe(true)
+    expect(columns.find((c: any) => c.key === 'content')!.width).toBe(380)
+    // 上一版被撑到 15445px 的那条缺陷：列宽总和是硬闸，谁加列谁就得改这个数
+    expect(columns.reduce((sum: number, c: any) => sum + c.width, 0)).toBeLessThanOrEqual(1000)
+    // 现场量过 max-content 那一形（长标题把表撑到 1599px）：x 给数字才走固定列宽
+    expect(wrapper.findComponent({ name: 'RecordListPage' }).props('scroll')).toEqual({ x: 940 })
+  })
+
+  it('长评论行内只摆两行封顶的那块 + 看全文；详情抽屉里全文一字不截断', async () => {
+    const long = '这一段读者写的评论故意拉得长一些好用来看内容列不截断时行会被撑到多高。'.repeat(20)
+    const wrapper = await mountView({
+      commentsPayload: {
+        items: [
+          {
+            id: 1, articleId: 231, articleTitle: '签证攻略', articleUrl: null, authorName: '读者甲',
+            content: long, status: 'pending', source: 'reader', sourceText: '读者写的',
+            moderationNote: null, createdAt: '2026-10-05T09:00:00', reviewedAt: null, reviewedBy: null, reviewedByName: null
+          }
+        ],
+        total: 1, page: 1, size: 20, pages: 1,
+        counts: { pending: 1, approved: 0, rejected: 0, removed: 0 },
+        emptyReason: null, emptyLine: null
+      }
+    })
+
+    const row = wrapper.findAll('.row')[0]
+    expect(row.find('.comment-excerpt').exists()).toBe(true)
+    // 行内这块摆的是同一段话（两行封顶是 CSS 的事），截没截由详情抽屉那一格分清
+    expect(row.find('.comment-excerpt').text()).toBe(long)
+
+    await openDetailOf(wrapper, 0)
+    const full = detailDrawer(wrapper).find('#interaction-comment-full-text')
+    expect(full.text()).toBe(long)
+    expect(detailDrawer(wrapper).text()).toContain('全文（一字不截断）')
+  })
+
+  it('来源那一格上下两行：来源话术在后端那份，作者名跟在同一格', async () => {
+    const wrapper = await mountView()
+    const row = wrapper.findAll('.row')[0]
+
+    expect(row.text()).toContain('读者写的')
+    expect(row.text()).toContain('读者甲')
+  })
+
+  it('「到站点上看这一条」只在新标签开：当前页跳走会把队列的筛选与页码丢干净', async () => {
+    const wrapper = await mountView({
+      commentsPayload: {
+        items: [
+          {
+            id: 1, articleId: 94, articleTitle: '签证攻略', articleUrl: '/news/qian-zheng?site=lanshan',
+            authorName: '读者甲', content: '讲得很清楚', status: 'pending', source: 'reader',
+            sourceText: '读者写的', moderationNote: null, createdAt: '2026-10-05T09:00:00',
+            reviewedAt: null, reviewedBy: null, reviewedByName: null
+          }
+        ],
+        total: 1, page: 1, size: 20, pages: 1,
+        counts: { pending: 1, approved: 0, rejected: 0, removed: 0 },
+        emptyReason: null, emptyLine: null
+      }
+    })
+    await openDetailOf(wrapper, 0)
+    const link = detailDrawer(wrapper).find('#interaction-open-article')
+
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toContain('noopener')
+    // 相对路径按当前 origin 补前缀，开出来就是能点开的完整地址
+    expect(link.attributes('href')).toBe(window.location.origin + '/news/qian-zheng?site=lanshan')
+  })
+
+  it('后端没给文章地址就不摆链接：不摆一条点了 404 的地址', async () => {
+    const wrapper = await mountView()
+    await openDetailOf(wrapper, 0)
+
+    expect(detailDrawer(wrapper).find('#interaction-open-article').exists()).toBe(false)
+  })
+
+  it('谁处理的念后端查回来的名字；没处理过的念「还没人处理过」，不猜一个「管理员」', async () => {
+    const wrapper = await mountView({
+      commentsPayload: {
+        items: [
+          {
+            id: 1, articleId: 231, articleTitle: '签证攻略', articleUrl: null, authorName: '读者甲',
+            content: '讲得很清楚', status: 'approved', source: 'reader', sourceText: '读者写的',
+            moderationNote: null, createdAt: '2026-10-05T09:00:00', reviewedAt: '2026-10-05T10:00:00',
+            reviewedBy: 88, reviewedByName: '澜山运营'
+          },
+          {
+            id: 2, articleId: 231, articleTitle: '签证攻略', articleUrl: null, authorName: '读者乙',
+            content: '看着像广告', status: 'pending', source: 'reader', sourceText: '读者写的',
+            moderationNote: null, createdAt: '2026-10-05T09:30:00', reviewedAt: null,
+            reviewedBy: null, reviewedByName: null
+          }
+        ],
+        total: 2, page: 1, size: 20, pages: 1,
+        counts: { pending: 1, approved: 1, rejected: 0, removed: 0 },
+        emptyReason: null, emptyLine: null
+      }
+    })
+
+    await openDetailOf(wrapper, 0)
+    expect(detailDrawer(wrapper).text()).toContain('澜山运营')
+    expect(detailDrawer(wrapper).text()).not.toContain('管理员')
+
+    await openDetailOf(wrapper, 1)
+    expect(detailDrawer(wrapper).text()).toContain('还没人处理过')
+  })
+
+  it('已驳回的那条在抽屉里没有动作，只有那句话；已摘除的那条给放回', async () => {
+    const wrapper = await mountView({ commentsPayload: queueWithFixture(['rejected', 'removed']) })
+    // antd 的按钮会给「放回」两个字中间插一个空格：按去空格后的文字比对
+    const buttonsIn = () => detailDrawer(wrapper).findAll('button').map((b: any) => b.text().replace(/\s+/g, ''))
+
+    await openDetailOf(wrapper, 0)
+    expect(detailDrawer(wrapper).text()).toContain('已驳回的评论不能再改状态。')
+    expect(buttonsIn().filter((t: string) => ['放行', '放回', '驳回', '摘除'].includes(t))).toEqual([])
+
+    await openDetailOf(wrapper, 1)
+    expect(buttonsIn().filter((t: string) => ['放行', '放回', '驳回', '摘除'].includes(t))).toEqual(['放回'])
+  })
+})
+
+/** 上面这一节用的四档夹具，跟「已摘除是一档」那一节同一个形状 */
+function queueWithFixture(statuses: string[]) {
+  return {
+    items: statuses.map((status, i) => ({
+      id: i + 1, articleId: 231, articleTitle: '签证攻略', articleUrl: null,
+      authorName: '读者' + (i + 1), content: '内容' + (i + 1), status,
+      source: 'reader', sourceText: '读者写的', moderationNote: null,
+      createdAt: '2026-10-05T09:00:00', reviewedAt: null, reviewedBy: null, reviewedByName: null
+    })),
+    total: statuses.length, page: 1, size: 20, pages: 1,
+    counts: { pending: 1, approved: 1, rejected: 1, removed: 1 },
+    emptyReason: null, emptyLine: null
+  } as any
+}
 
