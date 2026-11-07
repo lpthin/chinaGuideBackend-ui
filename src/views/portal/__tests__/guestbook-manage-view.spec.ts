@@ -112,6 +112,24 @@ function row(id: number, type: string | null) {
   }
 }
 
+/**
+ * Spec-R Q10：回复那一块从弹窗换成右侧抽屉。替身照「摆出来但记下 open」那一形，
+ * 页脚那颗提交按钮放在 #footer 槽里，与真抽屉同一处。
+ */
+const DRAWER_STUB = {
+  name: 'ADrawer',
+  props: ['open', 'title', 'width', 'placement'],
+  emits: ['update:open'],
+  template: '<div class="drawer-stub"><span class="drawer-title">{{ title }}</span><slot /><div class="drawer-footer"><slot name="footer" /></div></div>'
+}
+
+const TEXTAREA_STUB = {
+  name: 'ATextarea',
+  props: ['value'],
+  emits: ['update:value'],
+  template: '<textarea class="textarea-stub" :value="value" @input="$emit(\'update:value\', $event.target.value)" />'
+}
+
 async function mountView() {
   const wrapper = mount(GuestbookManageView, {
     attachTo: document.body,
@@ -132,8 +150,13 @@ async function mountView() {
         'a-pagination': PASS_THROUGH('APagination'),
         'a-table': TABLE_STUB,
         'a-alert': ALERT_STUB,
-        'a-modal': PASS_THROUGH('AModal'),
-        'a-textarea': PASS_THROUGH('ATextarea')
+        'a-drawer': DRAWER_STUB,
+        'a-textarea': TEXTAREA_STUB,
+        'a-divider': PASS_THROUGH('ADivider'),
+        'a-form': PASS_THROUGH('AForm'),
+        'a-form-item': PASS_THROUGH('AFormItem'),
+        'a-descriptions': PASS_THROUGH('ADescriptions'),
+        'a-descriptions-item': PASS_THROUGH('ADescriptionsItem')
       }
     }
   })
@@ -451,6 +474,90 @@ describe('动作失败与动作之后（M-P100）', () => {
 
     expect(guestbookApi.list).toHaveBeenCalledTimes(1)
     expect(guestbookApi.stats).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+})
+
+/**
+ * Spec-R Q10：留言的回复从弹窗换成右侧抽屉（这一屏只换壳，读写口与软删语义一个字不动）。
+ */
+describe('Spec-R R4：回复留言在右侧抽屉里', () => {
+  function replyButton(wrapper: Awaited<ReturnType<typeof mountView>>, index: number) {
+    // antd 两个汉字的按钮中间会插空格：按归一后的文字找；回过的那条那颗叫「查看回复」
+    return wrapper.findAll('.row')[index].findAll('button')
+      .find((node: any) => ['回复', '查看回复'].includes(node.text().replace(/\s+/g, '')))!
+  }
+
+  async function openReply(wrapper: Awaited<ReturnType<typeof mountView>>, index = 0) {
+    await replyButton(wrapper, index).trigger('click')
+    await flushPromises()
+  }
+
+  function replyDrawer(wrapper: Awaited<ReturnType<typeof mountView>>) {
+    return wrapper.findAllComponents({ name: 'ADrawer' })[0]
+  }
+
+  it('点「回复」开的是右侧抽屉（560），不是弹窗；标题与摆放都对得上', async () => {
+    const wrapper = await mountView()
+    expect(replyDrawer(wrapper).props('open')).toBe(false)
+
+    await openReply(wrapper)
+
+    expect(replyDrawer(wrapper).props('title')).toBe('回复留言')
+    expect(replyDrawer(wrapper).props('width')).toBe(560)
+    expect(replyDrawer(wrapper).props('placement')).toBe('right')
+    expect(replyDrawer(wrapper).props('open')).toBe(true)
+    expect(document.querySelector('.AModal-stub')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('在抽屉里填了回复点提交：reply 口收到那一条与那段话，回完两头重取、抽屉关上', async () => {
+    vi.mocked(guestbookApi.reply).mockResolvedValue({} as any)
+    const wrapper = await mountView()
+    await openReply(wrapper)
+    vi.mocked(guestbookApi.list).mockClear()
+    vi.mocked(guestbookApi.stats).mockClear()
+
+    await wrapper.find('.textarea-stub').setValue('谢谢留言，我们稍后电话联系您')
+    await wrapper.find('#guestbook-reply-submit').trigger('click')
+    await flushPromises()
+
+    expect(guestbookApi.reply).toHaveBeenCalledWith(1, '谢谢留言，我们稍后电话联系您')
+    expect(message.success).toHaveBeenCalledWith('回复成功')
+    expect(guestbookApi.list).toHaveBeenCalledTimes(1)
+    expect(guestbookApi.stats).toHaveBeenCalledTimes(1)
+    expect(replyDrawer(wrapper).props('open')).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('回复空着就提交：当场说「请输入回复内容」，一发都不打出去', async () => {
+    const wrapper = await mountView()
+    await openReply(wrapper)
+
+    await wrapper.find('#guestbook-reply-submit').trigger('click')
+    await flushPromises()
+
+    expect(guestbookApi.reply).not.toHaveBeenCalled()
+    expect(message.error).toHaveBeenCalledWith('请输入回复内容')
+    wrapper.unmount()
+  })
+
+  it('已经回过的那条：抽屉里只给看，不摆提交按钮', async () => {
+    vi.mocked(guestbookApi.list).mockResolvedValue({
+      records: [{
+        ...row(9, 'inquiry'),
+        status: 'replied',
+        replyContent: '已经回过了',
+        replyTime: '2026-09-26T10:00:00'
+      }],
+      total: 1
+    } as any)
+    const wrapper = await mountView()
+    await openReply(wrapper)
+
+    expect(replyDrawer(wrapper).props('title')).toBe('查看回复')
+    expect(replyDrawer(wrapper).text()).toContain('已经回过了')
+    expect(wrapper.find('#guestbook-reply-submit').exists()).toBe(false)
     wrapper.unmount()
   })
 })

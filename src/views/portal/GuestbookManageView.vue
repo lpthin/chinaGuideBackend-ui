@@ -115,13 +115,13 @@
       </template>
     </record-list-page>
 
-    <a-modal
+    <!-- Spec-R Q10：这一屏原来用弹窗回留言，与「读者互动」那三个抽屉不一个形状；
+         换成右侧抽屉只为统一壳——读写口、软删语义、正文两行封顶一个字都没动 -->
+    <a-drawer
       v-model:open="replyModalVisible"
       :title="currentRecord?.replyContent ? '查看回复' : '回复留言'"
-      @ok="handleReplyOk"
-      :confirmLoading="saving"
-      width="600px"
-      :footer="currentRecord?.replyContent ? null : undefined"
+      :width="560"
+      placement="right"
     >
       <a-descriptions bordered :column="1" size="small">
         <a-descriptions-item label="留言用户">
@@ -165,7 +165,16 @@
           </a-form-item>
         </a-form>
       </template>
-    </a-modal>
+
+      <template v-if="!currentRecord?.replyContent" #footer>
+        <a-button
+          id="guestbook-reply-submit"
+          type="primary"
+          :loading="saving"
+          @click="handleReplyOk"
+        >提交回复</a-button>
+      </template>
+    </a-drawer>
   </div>
 </template>
 
