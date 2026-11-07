@@ -113,6 +113,22 @@ export interface InteractionSeedTaskPage extends EmptyCauseFields {
   pages: number
 }
 
+/** 批量口（Spec-R Q6/Q6-1/Q6-2）逐行回的那一行：没动的行带后端那句原因 */
+export interface InteractionBatchResult {
+  id: number
+  ok: boolean
+  status?: string
+  reason?: string
+}
+
+export interface InteractionBatchOutcome {
+  action: 'approve' | 'reject'
+  total: number
+  success: number
+  failed: number
+  results: InteractionBatchResult[]
+}
+
 export const interactionApi = {
   config: (tenantId?: number) =>
     http.get<InteractionConfig>('/workspace/interaction/config', { params: { tenantId } }),
@@ -127,6 +143,10 @@ export const interactionApi = {
 
   moderate: (id: number, action: 'approve' | 'reject' | 'remove', tenantId?: number) =>
     http.post<{ id: number, status: string }>(`/workspace/interaction/comments/${id}/moderate`, { action }, { params: { tenantId } }),
+
+  /** 批量只做放行/驳回（摘除请一条一条来）：一次上限 50 条、不跨页，超了后端用中文拒 */
+  moderateBatch: (ids: number[], action: 'approve' | 'reject', tenantId?: number) =>
+    http.post<InteractionBatchOutcome>('/workspace/interaction/comments/moderate-batch', { ids, action }, { params: { tenantId } }),
 
   stats: (tenantId?: number) =>
     http.get<InteractionStats>('/workspace/interaction/stats', { params: { tenantId } }),

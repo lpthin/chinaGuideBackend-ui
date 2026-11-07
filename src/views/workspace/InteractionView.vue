@@ -37,7 +37,7 @@
       :loading="queueLoading"
       :rows="comments"
       :columns="commentColumns"
-      :scroll="{ x: 940 }"
+      :scroll="{ x: 990 }"
       :read-failed="queueError"
       :empty-line="queueEmptyLine"
       :empty-reason="queueEmptyReason"
@@ -45,21 +45,53 @@
       :count-line="queueCountLine"
     >
       <template #filters>
-        <a-select
-          id="interaction-status-filter"
-          v-model:value="statusFilter"
-          style="width: 180px"
-          :options="statusOptions"
-          @change="reloadQueue"
-        />
+        <!-- Q8 拍的「一排带计数的选项」：五个档平铺，数只认后端 counts 那一格（不随当前档变）。
+             读不到 counts 时只摆档名不摆数，不编一个 0 顶上。 -->
+        <div id="interaction-status-filter" class="status-chips" role="tablist">
+          <button
+            v-for="chip in statusChips"
+            :key="chip.value"
+            type="button"
+            class="status-chip"
+            :class="{ 'status-chip--active': statusFilter === chip.value }"
+            @click="pickStatus(chip.value)"
+          >{{ chip.label }}<span v-if="chip.count" class="status-chip__count">{{ chip.count }}</span></button>
+        </div>
       </template>
       <template #actions>
-        <a-space>
+        <a-space wrap>
           <a-button size="small" :loading="queueLoading" @click="reloadQueue">刷新</a-button>
+          <template v-if="canManage">
+            <span v-if="selectedIds.length" class="muted">已选 {{ selectedIds.length }} 条</span>
+            <a-button size="small" type="link" @click="selectAllOnPage">全选本页</a-button>
+            <a-button
+              v-if="selectedIds.length"
+              id="interaction-batch-approve"
+              size="small"
+              type="primary"
+              :loading="batchLoading"
+              @click="runBatch('approve')"
+            >批量放行</a-button>
+            <a-button
+              v-if="selectedIds.length"
+              id="interaction-batch-reject"
+              size="small"
+              danger
+              :loading="batchLoading"
+              @click="runBatch('reject')"
+            >批量驳回</a-button>
+          </template>
         </a-space>
       </template>
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'content'">
+        <template v-if="column.key === 'select'">
+          <a-checkbox
+            :checked="selectedIds.includes(record.id)"
+            :aria-label="'勾选第 ' + record.id + ' 条'"
+            @change="(e: any) => toggleSelect(record.id, e.target.checked)"
+          />
+        </template>
+        <template v-else-if="column.key === 'content'">
           <div class="comment-excerpt">{{ record.content }}</div>
           <a-button type="link" size="small" class="comment-excerpt__more" @click="openDetail(record)">看全文</a-button>
         </template>
@@ -110,7 +142,7 @@
           :page-size="pageSize"
           :total="total"
           :show-total="(count: number) => `共 ${count} 条`"
-          @change="(p: number) => { page = p; loadQueue() }"
+          @change="(p: number) => { page = p; selectedIds = []; loadQueue() }"
         />
       </template>
     </record-list-page>
@@ -244,6 +276,10 @@ const total = ref(0)
 /** 队列那一口自己带的三档计数（后端 `counts`）：读数那一行只念它，不在界面拿当前页的行数凑 */
 const queueCounts = ref<InteractionCommentPage['counts'] | null>(null)
 
+/** 批量勾选（Q6）：只存 id，翻页/换档/切客户就清——一次上限 50 条、不跨页 */
+const selectedIds = ref<number[]>([])
+const batchLoading = ref(false)
+
 const seedLoading = ref(false)
 const seedError = ref('')
 const seedTasks = ref<InteractionSeedTask[]>([])
@@ -251,18 +287,37 @@ const seedEmptyLine = ref('')
 const seedEmptyReason = ref<EmptyReason>(null)
 
 /**
- * 五档。「已摘除」是一档，不是一个查不回来的动作（那一条拍板）；
- * 「全部」把已摘除也算进来，所以下面那四个数相加就是这一家现在查得到的全部评论。
+ * 五档筛选（Q8 拍的「一排带计数的选项」）。「已摘除」是一档，不是一个查不回来的动作（那一条拍板）；
+ * 「全部」把已摘除也算进来，所以四个数相加就是这一家现在查得到的全部评论。
+ * 计数只认后端 `counts` 那一格：平台档 / 读失败时没有数，chip 只摆档名，不编一个 0。
  * 一个已知口径缺口写在这儿：这次改动之前摘除的评论是软删的那一形，
  * 四个数和这一档都看不到它们——那次以前的账不在这次范围内（Q1 拍的是「只管新的」）。
  */
-const statusOptions = [
+const STATUS_CHIPS = [
   { value: 'pending', label: '待审' },
   { value: 'approved', label: '已对外' },
   { value: 'rejected', label: '已驳回' },
   { value: 'removed', label: '已摘除' },
-  { value: 'all', label: '全部（待审 + 已对外 + 已驳回 + 已摘除）' }
+  { value: 'all', label: '全部' }
 ]
+
+const statusChips = computed(() => {
+  const counts = queueCounts.value
+  const countOf = (value: string) => {
+    if (isPlatformMode.value || !counts) return ''
+    if (value === 'all') {
+      return formatNumber(counts.pending + counts.approved + counts.rejected + counts.removed)
+    }
+    return formatNumber(counts[value as keyof typeof counts] ?? 0)
+  }
+  return STATUS_CHIPS.map(chip => ({ ...chip, count: countOf(chip.value) }))
+})
+
+function pickStatus(value: string) {
+  if (statusFilter.value === value) return
+  statusFilter.value = value
+  reloadQueue()
+}
 
 /** 页头留的那一格：后端 `stats.pendingReaderComments`，只数读者写的。平台档摆 —，与「读回来是 0」分开 */
 const pendingReaderValue = computed(() => {
@@ -304,16 +359,18 @@ const seedNotSent = computed(() =>
     : ''
 )
 
-const commentColumns = [
+const commentColumns = computed(() => [
+  // 勾选列只在有管理权限时摆：没有批量动作的读口不占 50px
+  ...(canManage.value ? [{ title: '', key: 'select', width: 50 }] : []),
   // 正文给上限宽度：不给的那一版被一条 1000 字的评论撑到 15445px，放行那颗按钮离手 14 屏。
-  // 五列之和 940 就是上面 scroll.x 的那个数：固定列宽 + 省略号，宽屏不再横向滚；
+  // 列宽之和就是上面 scroll.x 的那个数（990）：固定列宽 + 省略号，宽屏不再横向滚；
   // 现场量过 max-content 那一形（长标题把「文章」列撑到 523px、表 1599px），数字 x 才走固定列宽
   { title: '评论', key: 'content', width: 380 },
   { title: '文章', dataIndex: 'articleTitle', key: 'articleTitle', width: 160, ellipsis: true },
   { title: '来源', key: 'source', width: 160 },
   { title: '状态', key: 'status', width: 90 },
   { title: '操作', key: 'actions', width: 150 }
-]
+])
 
 /** 摘除那句确认词只此一份：行内「更多」的确认框与详情抽屉里那颗共用 */
 const REMOVE_CONFIRM_TITLE =
@@ -460,7 +517,64 @@ async function loadQueue() {
 
 function reloadQueue() {
   page.value = 1
+  // 换档/刷新都清勾选：勾的是「这一页这几条」，换一个档还留着就是替人处理没看过的行
+  selectedIds.value = []
   loadQueue()
+}
+
+/** 勾选上限与后端同数（50）：超了当场说，不让人勾完一整页点下去才被后端拒 */
+const BATCH_MAX = 50
+
+function toggleSelect(id: number, checked: boolean) {
+  if (checked) {
+    if (selectedIds.value.length >= BATCH_MAX) {
+      message.warning(`一次最多批量处理 ${BATCH_MAX} 条；这一条先不勾，翻页会清空勾选`)
+      return
+    }
+    if (!selectedIds.value.includes(id)) selectedIds.value = [...selectedIds.value, id]
+  } else {
+    selectedIds.value = selectedIds.value.filter(existing => existing !== id)
+  }
+}
+
+function selectAllOnPage() {
+  const ids = comments.value.map(row => row.id).filter(id => !selectedIds.value.includes(id))
+  const room = BATCH_MAX - selectedIds.value.length
+  if (ids.length > room) {
+    message.warning(`一次最多批量处理 ${BATCH_MAX} 条：这一页只勾到上限为止`)
+    selectedIds.value = [...selectedIds.value, ...ids.slice(0, room)]
+    return
+  }
+  selectedIds.value = [...selectedIds.value, ...ids]
+}
+
+/** 批量放行/驳回：后端逐行回 {id, ok, reason}，「M 条没动」要把每一行的原因念出来 */
+async function runBatch(action: 'approve' | 'reject') {
+  if (isPlatformMode.value) {
+    message.warning('请先在右上角选择客户')
+    return
+  }
+  batchLoading.value = true
+  try {
+    const outcome = await interactionApi.moderateBatch(selectedIds.value, action, requestedTenantId.value ?? undefined)
+    const verb = action === 'approve' ? '放行' : '驳回'
+    const failedRows = outcome?.results?.filter(row => !row.ok) ?? []
+    if (!failedRows.length) {
+      message.success(`批量${verb}完成：成功 ${formatNumber(outcome?.success ?? 0)} 条`)
+    } else {
+      message.warning(
+        `批量${verb}完成：成功 ${formatNumber(outcome?.success ?? 0)} 条，` +
+        `${formatNumber(failedRows.length)} 条没动（${failedRows.map(row => `#${row.id}：${row.reason}`).join('；')}）`
+      )
+    }
+    selectedIds.value = []
+    await Promise.all([loadQueue(), loadStats()])
+  } catch (error: any) {
+    // 上限 50 / 没勾行 / 动作不认，都被后端用中文拒：原样念
+    message.error(error?.message || '批量处理失败')
+  } finally {
+    batchLoading.value = false
+  }
 }
 
 async function moderate(record: InteractionCommentItem, action: 'approve' | 'reject' | 'remove') {
@@ -567,6 +681,35 @@ onMounted(() => {
 .muted {
   color: var(--admin-text-secondary);
   font-size: 13px;
+}
+
+/* Q8：五个档平铺成一排，计数跟在档名后面；选中的那颗反白 */
+.status-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--admin-space-1);
+}
+
+.status-chip {
+  border: 1px solid var(--admin-border-color, #d9d9d9);
+  background: transparent;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 13px;
+  color: var(--admin-text-secondary);
+  cursor: pointer;
+
+  &--active {
+    background: var(--admin-primary);
+    border-color: var(--admin-primary);
+    color: #fff;
+  }
+
+  &__count {
+    margin-left: 4px;
+    font-variant-numeric: var(--admin-font-nums);
+  }
 }
 
 /* 正文两行封顶（隔壁留言管理那一屏同一形）：要读全文点「看全文」进详情抽屉，

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { reactive } from 'vue'
-import { Button, InputNumber, RadioGroup, Switch, message } from 'ant-design-vue'
+import { Button, Checkbox, InputNumber, RadioGroup, Switch, message } from 'ant-design-vue'
 import InteractionView from '../InteractionView.vue'
 import { interactionApi, type InteractionConfig, type InteractionSeedTask } from '../../../api/interaction'
 import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
@@ -33,6 +33,7 @@ vi.mock('../../../api/interaction', () => ({
     saveConfig: vi.fn(),
     comments: vi.fn(),
     moderate: vi.fn(),
+    moderateBatch: vi.fn(),
     stats: vi.fn(),
     seedTasks: vi.fn()
   }
@@ -254,6 +255,7 @@ async function mountView(options: {
         'a-button': Button,
         'a-input-number': InputNumber,
         'a-switch': Switch,
+        'a-checkbox': Checkbox,
         'a-radio-group': RadioGroup,
         'a-radio-button': { name: 'ARadioButton', props: ['value'], template: '<label class="radio-stub"><input type="radio" :value="value" /><slot /></label>' },
         'a-table': TABLE_STUB
@@ -278,6 +280,13 @@ async function openDetailOf(wrapper: any, rowIndex: number) {
   const link = row.findAll('button').find((b: any) =>
     b.text().trim() === '看全文' && !b.classes().includes('menu-item-stub'))
   await link!.trigger('click')
+  await flushPromises()
+}
+
+/** 勾上某一行的复选框（antd Checkbox 渲染成 input[type=checkbox]） */
+async function checkRow(wrapper: any, rowIndex: number) {
+  const box = wrapper.findAll('.table-stub')[0].findAll('.row')[rowIndex].find('input[type="checkbox"]')
+  await box.setChecked(true)
   await flushPromises()
 }
 
@@ -679,17 +688,29 @@ describe('已摘除是一档，不是一个查不回来的动作', () => {
     } as any
   }
 
-  it('状态下拉有五个档，「全部」那一档把四个名字都写出来', async () => {
+  it('五个档平铺成一排、各带后端 counts 的数；「全部」是四个数之和', async () => {
     const wrapper = await mountView()
-    const select = wrapper.findAllComponents({ name: 'ASelect' })
-      .find((node: any) => node.props('options')?.some((o: any) => o.value === 'all'))
+    const chips = wrapper.findAll('#interaction-status-filter .status-chip')
 
-    expect(select!.props('options').map((o: any) => o.value)).toEqual(
-      ['pending', 'approved', 'rejected', 'removed', 'all']
-    )
-    expect(select!.props('options').map((o: any) => o.label)).toContain('已摘除')
-    expect(select!.props('options').find((o: any) => o.value === 'all')!.label)
-      .toBe('全部（待审 + 已对外 + 已驳回 + 已摘除）')
+    expect(chips.map((c: any) => c.text().replace(/\s+/g, ''))).toEqual([
+      '待审2', '已对外1', '已驳回0', '已摘除0', '全部3'
+    ])
+    // 默认档是待审：那颗反白
+    expect(chips[0].classes()).toContain('status-chip--active')
+    expect(chips[4].classes()).not.toContain('status-chip--active')
+  })
+
+  it('点别的档就按那个档重取，换档清勾选', async () => {
+    const wrapper = await mountView()
+    await checkRow(wrapper, 0)
+    expect(wrapper.find('.interaction-page').text()).toContain('已选 1 条')
+
+    await wrapper.findAll('#interaction-status-filter .status-chip')[3].trigger('click')
+    await flushPromises()
+
+    expect(interactionApi.comments).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'removed' }), undefined)
+    expect(wrapper.find('.interaction-page').text()).not.toContain('已选')
   })
 
   it('待审与已对外给摘除；已驳回与已摘除不给（已驳回没有「撤下」这件事，摘完只能放回成已对外）', async () => {
@@ -841,8 +862,7 @@ describe('Spec-R R1：三块低频内容进抽屉，队列排第一', () => {
   it('开关抽屉不动队列：不多发一发请求，筛选与页码一个字不变', async () => {
     const wrapper = await mountView()
     const before = vi.mocked(interactionApi.comments).mock.calls.length
-    const selectBefore = wrapper.findAllComponents({ name: 'ASelect' })
-      .find((n: any) => n.props('options')?.some((o: any) => o.value === 'all'))!.props('value')
+    const activeChip = () => wrapper.find('#interaction-status-filter .status-chip--active').text().replace(/\s+/g, '')
 
     await wrapper.find('#interaction-open-config').trigger('click')
     await wrapper.find('#interaction-open-stats').trigger('click')
@@ -852,9 +872,7 @@ describe('Spec-R R1：三块低频内容进抽屉，队列排第一', () => {
     await flushPromises()
 
     expect(vi.mocked(interactionApi.comments).mock.calls.length).toBe(before)
-    const selectAfter = wrapper.findAllComponents({ name: 'ASelect' })
-      .find((n: any) => n.props('options')?.some((o: any) => o.value === 'all'))!
-    expect(selectAfter.props('value')).toBe(selectBefore)
+    expect(activeChip()).toBe('待审2')
     expect(drawerByTitle(wrapper, '读者互动设置').props('open')).toBe(false)
   })
 
@@ -880,18 +898,27 @@ describe('Spec-R R1：三块低频内容进抽屉，队列排第一', () => {
  * 所以列的定义本身进判据：五列、每列有写死的上限宽度、加起来不许超 1000。
  */
 describe('Spec-R R2：行内两行封顶 + 详情抽屉', () => {
-  it('五列、每列都带上限宽度，正文那列 380；「谁写的 / 作者」合成了「来源」一列', async () => {
+  it('六列（勾选列打头）、每列都带上限宽度，正文那列 380；「谁写的 / 作者」合成了「来源」一列', async () => {
     const wrapper = await mountView()
     const table = wrapper.findAllComponents({ name: 'ATable' })[0]
     const columns = table.props('columns').map((c: any) => ({ ...c }))
 
-    expect(columns.map((c: any) => c.key)).toEqual(['content', 'articleTitle', 'source', 'status', 'actions'])
+    expect(columns.map((c: any) => c.key)).toEqual(['select', 'content', 'articleTitle', 'source', 'status', 'actions'])
     expect(columns.every((c: any) => typeof c.width === 'number')).toBe(true)
     expect(columns.find((c: any) => c.key === 'content')!.width).toBe(380)
+    expect(columns.find((c: any) => c.key === 'select')!.width).toBe(50)
     // 上一版被撑到 15445px 的那条缺陷：列宽总和是硬闸，谁加列谁就得改这个数
     expect(columns.reduce((sum: number, c: any) => sum + c.width, 0)).toBeLessThanOrEqual(1000)
     // 现场量过 max-content 那一形（长标题把表撑到 1599px）：x 给数字才走固定列宽
-    expect(wrapper.findComponent({ name: 'RecordListPage' }).props('scroll')).toEqual({ x: 940 })
+    expect(wrapper.findComponent({ name: 'RecordListPage' }).props('scroll')).toEqual({ x: 990 })
+  })
+
+  it('没有管理权限时没有勾选列，五列照旧', async () => {
+    const wrapper = await mountView({ permissions: [VIEW] })
+    const columns = wrapper.findAllComponents({ name: 'ATable' })[0].props('columns').map((c: any) => c.key)
+
+    expect(columns).toEqual(['content', 'articleTitle', 'source', 'status', 'actions'])
+    expect(wrapper.findAll('.table-stub')[0].findAll('input[type="checkbox"]').length).toBe(0)
   })
 
   it('长评论行内只摆两行封顶的那块 + 看全文；详情抽屉里全文一字不截断', async () => {
@@ -1023,3 +1050,122 @@ function queueWithFixture(statuses: string[]) {
   } as any
 }
 
+
+/**
+ * Spec-R R3：勾选批量（Q6/Q6-1/Q6-2）。
+ *
+ * 后端那口已经钉过：只收 approve/reject、一次最多 50、逐行过转移表。界面这一节钉的是勾选那半：
+ * 勾的是「这一页这几条」，翻页/换档/切客户都得清；批量回包里「M 条没动」要把原因念出来。
+ */
+describe('Spec-R R3：勾选与批量放行/驳回', () => {
+  function selectableRows(wrapper: any) {
+    return wrapper.findAll('.table-stub')[0].findAll('.row')
+  }
+
+  it('勾两行摆「已选 2 条」，批量两颗按钮跟着出现；全选本页把三行都勾上', async () => {
+    const wrapper = await mountView()
+
+    expect(wrapper.text()).not.toContain('批量放行')
+
+    await checkRow(wrapper, 0)
+    await checkRow(wrapper, 1)
+    expect(wrapper.find('.interaction-page').text()).toContain('已选 2 条')
+    expect(wrapper.find('#interaction-batch-approve').exists()).toBe(true)
+    expect(wrapper.find('#interaction-batch-reject').exists()).toBe(true)
+
+    await wrapper.findAll('button').find((b: any) => b.text().trim() === '全选本页')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.interaction-page').text()).toContain('已选 3 条')
+  })
+
+  it('批量放行把勾的 id 原样交给后端，成功后清勾选并重取队列与总账', async () => {
+    const wrapper = await mountView()
+    await checkRow(wrapper, 0)
+    await checkRow(wrapper, 1)
+    const queueCallsBefore = vi.mocked(interactionApi.comments).mock.calls.length
+    const statsCallsBefore = vi.mocked(interactionApi.stats).mock.calls.length
+
+    vi.mocked(interactionApi.moderateBatch).mockResolvedValue({
+      action: 'approve', total: 2, success: 2, failed: 0,
+      results: [{ id: 1, ok: true, status: 'approved' }, { id: 2, ok: true, status: 'approved' }]
+    } as any)
+    await wrapper.find('#interaction-batch-approve').trigger('click')
+    await flushPromises()
+
+    expect(interactionApi.moderateBatch).toHaveBeenCalledWith([1, 2], 'approve', undefined)
+    expect(message.success).toHaveBeenCalledWith(expect.stringContaining('批量放行完成：成功 2 条'))
+    expect(wrapper.find('.interaction-page').text()).not.toContain('已选')
+    expect(vi.mocked(interactionApi.comments).mock.calls.length).toBeGreaterThan(queueCallsBefore)
+    expect(vi.mocked(interactionApi.stats).mock.calls.length).toBeGreaterThan(statsCallsBefore)
+  })
+
+  it('「M 条没动」把每一行的原因原样念出来，不替后端改写', async () => {
+    const wrapper = await mountView()
+    await checkRow(wrapper, 0)
+    await checkRow(wrapper, 1)
+    vi.mocked(interactionApi.moderateBatch).mockResolvedValue({
+      action: 'approve', total: 2, success: 1, failed: 1,
+      results: [{ id: 1, ok: true, status: 'approved' }, { id: 2, ok: false, reason: '评论不能从 rejected 变成 approved：已经对外显示的话要收回，请用摘除' }]
+    } as any)
+
+    await wrapper.find('#interaction-batch-approve').trigger('click')
+    await flushPromises()
+
+    expect(message.warning).toHaveBeenCalledWith(expect.stringContaining('成功 1 条'))
+    expect(message.warning).toHaveBeenCalledWith(expect.stringContaining('#2：评论不能从 rejected 变成 approved'))
+  })
+
+  it('勾选上限与后端同数：第 51 条勾不进去，当场说一句', async () => {
+    const rows = Array.from({ length: 51 }, (_, i) => ({
+      id: i + 1, articleId: 231, articleTitle: '签证攻略', articleUrl: null, authorName: '读者' + (i + 1),
+      content: '内容' + (i + 1), status: 'pending', source: 'reader', sourceText: '读者写的',
+      moderationNote: null, createdAt: '2026-10-05T09:00:00', reviewedAt: null, reviewedBy: null, reviewedByName: null
+    }))
+    const wrapper = await mountView({
+      commentsPayload: {
+        items: rows, total: 51, page: 1, size: 100, pages: 1,
+        counts: { pending: 51, approved: 0, rejected: 0, removed: 0 }, emptyReason: null, emptyLine: null
+      }
+    })
+
+    for (let i = 0; i < 51; i++) await checkRow(wrapper, i)
+
+    expect(wrapper.find('.interaction-page').text()).toContain('已选 50 条')
+    expect(message.warning).toHaveBeenCalledWith(expect.stringContaining('一次最多批量处理 50 条'))
+    expect(wrapper.find('#interaction-batch-approve').exists()).toBe(true)
+    // 那一发根本不该发出去：上限在勾的时候就拦下了
+    expect(interactionApi.moderateBatch).not.toHaveBeenCalled()
+  })
+
+  it('翻页清勾选；切客户那一发也清（watch 那条路）', async () => {
+    const wrapper = await mountView({ commentsPayload: { ...queueWithFixture(['pending', 'pending']), total: 41, pages: 3 } })
+    await checkRow(wrapper, 0)
+    expect(wrapper.find('.interaction-page').text()).toContain('已选 1 条')
+
+    await wrapper.find('.pager-stub').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.interaction-page').text()).not.toContain('已选')
+
+    authState.isSuperAdmin = true
+    authState.selectedTenantId = 558
+    await flushPromises()
+    await checkRow(wrapper, 0)
+    expect(wrapper.find('.interaction-page').text()).toContain('已选 1 条')
+    authState.selectedTenantId = 42
+    await flushPromises()
+    expect(wrapper.find('.interaction-page').text()).not.toContain('已选')
+  }, 15000)
+
+  it('批量口被后端拒时原样念那句中文（50 上限那道门是双保险）', async () => {
+    const wrapper = await mountView()
+    await checkRow(wrapper, 0)
+    vi.mocked(interactionApi.moderateBatch).mockRejectedValue(new Error('一次最多批量处理 50 条，这次收到 51 条；勾选不跨页，翻页会清空'))
+
+    await wrapper.find('#interaction-batch-approve').trigger('click')
+    await flushPromises()
+
+    expect(message.error).toHaveBeenCalledWith(expect.stringContaining('一次最多批量处理 50 条'))
+    // 拒了不许清勾选：人还得留着这份勾选重试
+    expect(wrapper.find('.interaction-page').text()).toContain('已选 1 条')
+  }, 15000)
+})
