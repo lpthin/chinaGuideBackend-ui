@@ -8,3 +8,12 @@ dist/
 
 .worktrees/
 *.tsbuildinfo
+
+# 取证与临时脚本：工作区 scratch 的仓内残留，一律不入库（Spec-W 工作空间整理 Q4）
+scratch/
+
+# 跑测日志：本机产物，跟源码无关
+*.log
+
+# 本地代码图工具的工作区配置（42 字节，跟产品无关）
+.gortex.yaml
