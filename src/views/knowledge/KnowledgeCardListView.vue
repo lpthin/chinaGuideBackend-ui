@@ -159,8 +159,7 @@
           </a-row>
         </div>
 
-        <a-table
-          :scroll="{ x: 'max-content' }"
+        <DataTable
           v-else
           :columns="columns"
           :data-source="cardList"
@@ -213,7 +212,7 @@
               </a-space>
             </template>
           </template>
-        </a-table>
+        </DataTable>
 
         <div class="pagination-wrapper">
           <a-pagination
@@ -310,6 +309,7 @@ import { formatDateTime } from '../../utils/format'
 import type { KnowledgeCard, KnowledgeCategory, KnowledgeTag } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   JUMP_BACK_NOTICE,

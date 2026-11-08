@@ -128,7 +128,7 @@
                 <span><HistoryOutlined /> 登录日志</span>
               </template>
               <div class="tab-content">
-                <a-table
+                <DataTable
               :scroll="{ x: 'max-content' }"
                   :columns="logColumns"
                   :data-source="loginLogs"
@@ -173,6 +173,7 @@ import {
   SaveOutlined,
 } from '@ant-design/icons-vue'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
 
 const auth = useAuthStore()
 

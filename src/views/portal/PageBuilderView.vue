@@ -273,7 +273,7 @@
     </a-drawer>
 
     <a-drawer v-model:open="versionsOpen" title="版本历史" width="880">
-      <a-table
+      <DataTable
         :data-source="versions"
         :columns="versionColumns"
         :pagination="false"
@@ -303,7 +303,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
       <a-divider>字段级差异</a-divider>
       <pre class="page-builder__diff">{{ diffText }}</pre>
     </a-drawer>
@@ -331,6 +331,7 @@ import BlockPropsForm from './builder/BlockPropsForm.vue'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import PageTitle from '../../components/PageTitle.vue'
 

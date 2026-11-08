@@ -23,8 +23,7 @@
           </template>
         </filter-bar>
 
-        <a-table
-          :scroll="{ x: 'max-content' }"
+        <DataTable
           :columns="columns"
           :data-source="pagedList"
           :pagination="paginationConfig"
@@ -71,7 +70,7 @@
               </a-space>
             </template>
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </a-spin>
 
@@ -120,6 +119,7 @@ import { useAuthStore } from '../../stores/auth'
 import { asEmptyReason, offersCreateOnEmpty, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import PageTitle from '../../components/PageTitle.vue'
 

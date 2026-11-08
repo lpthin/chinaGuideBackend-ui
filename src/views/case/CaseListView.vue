@@ -130,7 +130,7 @@
           </template>
         </filter-bar>
 
-        <a-table
+        <DataTable
           :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="caseList"
@@ -246,7 +246,7 @@
               </a-space>
             </template>
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </a-spin>
 
@@ -279,6 +279,7 @@ import { CaseStatus, CasePriority, CaseType } from '../../types/case'
 import type { Case, CaseCategory, CaseForm } from '../../types/case'
 import CaseDetailDrawer from './CaseDetailDrawer.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { caseApi, caseCategoryApi } from '../../api/case'
 import { describeHttpError } from '../../api/http'

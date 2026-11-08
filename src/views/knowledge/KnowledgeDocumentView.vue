@@ -217,7 +217,7 @@
         </a-row>
 
         <!-- 列表视图 -->
-        <a-table
+        <DataTable
           :scroll="{ x: 'max-content' }"
           v-else
           :columns="mediaColumns"
@@ -305,7 +305,7 @@
               </a-space>
             </template>
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </template>
 
@@ -633,6 +633,7 @@ import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import DataTable from '../../components/DataTable.vue'
 import {
   JUMP_BACK_NOTICE,
   asEmptyReason,

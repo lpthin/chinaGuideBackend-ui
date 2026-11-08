@@ -31,7 +31,7 @@
       <template #message>{{ staticOptionsNote }}</template>
     </a-alert>
 
-    <a-table
+    <DataTable
       :data-source="tasks"
       :columns="columns"
       :loading="loading"
@@ -69,7 +69,7 @@
       <template #emptyText>
         <a-empty description="还没有参考站摄取任务：新建一个任务，填参考站网址或者直接上传截图" />
       </template>
-    </a-table>
+    </DataTable>
 
     <!-- ---------------- 新建任务 ---------------- -->
     <a-modal
@@ -128,6 +128,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { LoadingOutlined } from '@ant-design/icons-vue'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
 import ReferenceTaskDrawer from './ReferenceTaskDrawer.vue'
 import {
   portalReferenceApi,

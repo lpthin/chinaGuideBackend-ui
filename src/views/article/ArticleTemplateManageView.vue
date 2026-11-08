@@ -123,7 +123,7 @@
         </filter-bar>
 
         <div v-show="viewMode === 'list'">
-          <a-table
+          <DataTable
             :scroll="{ x: 'max-content' }"
             :columns="columns"
             :data-source="templateList"
@@ -182,7 +182,7 @@
                 </a-space>
               </template>
             </template>
-          </a-table>
+          </DataTable>
         </div>
 
         <div v-show="viewMode === 'card'" class="card-view">
@@ -434,6 +434,7 @@ import { formatDateTime } from '@/utils/format'
 import { describeHttpError } from '@/api/http'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   JUMP_BACK_NOTICE,

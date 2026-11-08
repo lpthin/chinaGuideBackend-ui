@@ -51,15 +51,13 @@
       <a-tabs v-model:activeKey="activeTab" @change="handleTabChange">
         <!-- ===================== 发布候选 ===================== -->
         <a-tab-pane key="candidates" tab="发布候选">
-          <a-form layout="inline" class="toolbar">
-            <a-form-item>
-              <a-alert
-                message="仅「审核通过」的文章可发布；定时发布写入队列后由调度器每分钟扫描执行"
-                type="info"
-                show-icon
-              />
-            </a-form-item>
-            <a-form-item class="toolbar-actions">
+          <FilterBar class="toolbar">
+            <a-alert
+              message="仅「审核通过」的文章可发布；定时发布写入队列后由调度器每分钟扫描执行"
+              type="info"
+              show-icon
+            />
+            <template #actions>
               <a-space>
                 <a-button :disabled="!selectedArticleIds.length || isPlatformMode" @click="openScheduleModal(selectedArticleIds)">
                   <template #icon><ClockCircleOutlined /></template>
@@ -76,10 +74,10 @@
                   </a-button>
                 </a-popconfirm>
               </a-space>
-            </a-form-item>
-          </a-form>
+            </template>
+          </FilterBar>
 
-          <a-table
+          <DataTable
             :scroll="{ x: 'max-content' }"
             row-key="id"
             :columns="candidateColumns"
@@ -125,12 +123,12 @@
                 @create="goReview"
               />
             </template>
-          </a-table>
+          </DataTable>
         </a-tab-pane>
 
         <!-- ===================== 待发布队列 ===================== -->
         <a-tab-pane key="queue" tab="待发布队列">
-          <a-form layout="inline" class="toolbar">
+          <FilterBar class="toolbar">
             <a-form-item label="状态">
               <a-select
                 v-model:value="queueQuery.status"
@@ -150,7 +148,7 @@
                 @press-enter="searchQueue"
               />
             </a-form-item>
-            <a-form-item>
+            <template #actions>
               <a-space>
                 <a-button @click="searchQueue">
                   <template #icon><SearchOutlined /></template>
@@ -160,19 +158,15 @@
                   <template #icon><ReloadOutlined /></template>
                   重置
                 </a-button>
-              </a-space>
-            </a-form-item>
-            <a-form-item class="toolbar-actions">
-              <a-space>
                 <a-button @click="refreshAll">
                   <template #icon><SyncOutlined /></template>
                   刷新
                 </a-button>
               </a-space>
-            </a-form-item>
-          </a-form>
+            </template>
+          </FilterBar>
 
-          <a-table
+          <DataTable
             :scroll="{ x: 'max-content' }"
             row-key="id"
             :columns="queueColumns"
@@ -262,12 +256,12 @@
                 :empty-reason="queueEmptyReason"
               />
             </template>
-          </a-table>
+          </DataTable>
         </a-tab-pane>
 
         <!-- ===================== 发布记录 ===================== -->
         <a-tab-pane key="records" tab="发布记录">
-          <a-form layout="inline" class="toolbar">
+          <FilterBar class="toolbar">
             <a-form-item label="结果">
               <a-select
                 v-model:value="recordQuery.status"
@@ -278,25 +272,21 @@
                 @change="loadRecords"
               />
             </a-form-item>
-            <a-form-item>
+            <template #actions>
               <a-space>
                 <a-button @click="resetRecordQuery">
                   <template #icon><ReloadOutlined /></template>
                   重置
                 </a-button>
-              </a-space>
-            </a-form-item>
-            <a-form-item class="toolbar-actions">
-              <a-space>
                 <a-button @click="refreshAll">
                   <template #icon><SyncOutlined /></template>
                   刷新
                 </a-button>
               </a-space>
-            </a-form-item>
-          </a-form>
+            </template>
+          </FilterBar>
 
-          <a-table
+          <DataTable
             :scroll="{ x: 'max-content' }"
             row-key="id"
             :columns="recordColumns"
@@ -346,7 +336,7 @@
                 :empty-reason="recordEmptyReason"
               />
             </template>
-          </a-table>
+          </DataTable>
         </a-tab-pane>
       </a-tabs>
     </a-card>
@@ -411,6 +401,8 @@ import { useRouter } from 'vue-router'
 import { articleApi, publishApi, publishQueueApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import {
   JUMP_BACK_NOTICE,
   asEmptyReason,

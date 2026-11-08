@@ -25,8 +25,8 @@
         </template>
       </filter-bar>
 
-      <a-table
-        :scroll="{ x: 'max-content' }"
+      <!-- 权限是树形：children 行随父行展开，客户端分页会把父子行切开，所以这张表保留 pagination=false -->
+      <DataTable
         :columns="columns"
         :data-source="permissions"
         :pagination="false"
@@ -66,7 +66,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <!-- 权限编辑弹窗 -->
@@ -110,6 +110,7 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'

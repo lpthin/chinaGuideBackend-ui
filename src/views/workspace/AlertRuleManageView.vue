@@ -56,7 +56,7 @@
       </a-row>
 
       <!-- 筛选区 -->
-      <a-form layout="inline" :model="filterForm" class="filter-form">
+      <FilterBar class="filter-form">
         <a-form-item label="规则名称">
           <a-input
             v-model:value="filterForm.name"
@@ -102,7 +102,7 @@
             <a-select-option :value="0">禁用</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item class="toolbar-actions">
+        <template #actions>
           <a-space>
             <a-button type="primary" :loading="loading" @click="handleSearch">
               <template #icon><SearchOutlined /></template>
@@ -117,11 +117,11 @@
               新增规则
             </a-button>
           </a-space>
-        </a-form-item>
-      </a-form>
+        </template>
+      </FilterBar>
 
       <!-- 表格 -->
-      <a-table
+      <DataTable
         :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="ruleList"
@@ -190,7 +190,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <!-- 新增/编辑弹窗 -->
@@ -288,6 +288,8 @@ import { useAuthStore } from '../../stores/auth'
 import type { AlertRule, AlertRuleForm } from '../../types/workspace'
 import { formatDateTime } from '../../utils/format'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { useTenantReadGuard } from '../../utils/latestRead'
 

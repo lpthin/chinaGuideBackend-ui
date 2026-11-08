@@ -97,8 +97,7 @@
           </template>
         </filter-bar>
 
-        <a-table
-          :scroll="{ x: 'max-content' }"
+        <DataTable
           :columns="columns"
           :data-source="orderListData"
           :pagination="paginationConfig"
@@ -137,7 +136,7 @@
           <template #emptyText>
             <empty-list-hint :loading="tableLoading" :not-sent="notSentLine" />
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </a-spin>
 
@@ -192,6 +191,7 @@ import { describeHttpError } from '../../api/http'
 import { ORDER_STATUS_ORDER, orderStatusColor, orderStatusLabel, countByStatus, foldOrderStatus } from '../../utils/orderStatus'
 import { paymentMethodLabel } from '../../utils/paymentMethod'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import PageTitle from '../../components/PageTitle.vue'
 

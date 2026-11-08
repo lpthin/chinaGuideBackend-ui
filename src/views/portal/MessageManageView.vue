@@ -20,14 +20,15 @@
             <template #message>{{ broadcastNote }}</template>
           </a-alert>
           <a-spin :spinning="broadcastLoading">
-            <a-table
+            <DataTable
               :columns="broadcastColumns"
               :data-source="broadcastRows"
               :pagination="false"
               row-key="rowKey"
               size="small"
-              :locale="{ emptyText: '你还没有以发送人身份发出去过消息' }"
             >
+              <!-- 规则 7：:locale.emptyText 会被 DataTable 自带空态拦掉，原文案一字不改挪进 slot -->
+              <template #emptyText>你还没有以发送人身份发出去过消息</template>
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'title'">{{ record.title }}</template>
                 <template v-else-if="column.key === 'type'">
@@ -41,7 +42,7 @@
                 </template>
                 <template v-else-if="column.key === 'removed'">{{ record.removedCount }}</template>
               </template>
-            </a-table>
+            </DataTable>
             <!-- 口径写在明处，别让人把「送达副本」当成「收到人数」：群发是按收件人一行一行摊的 -->
             <div class="broadcast-summary-card__note">
               一行 = 一个收件人收到的那一份；同一批摊到几家、读了几家看得见，谁把它删了也单独一列。
@@ -228,6 +229,7 @@ import type { PortalMessage, PortalMessageStats, PortalMessageQuery, PortalMessa
 import type { Tenant } from '../../types/workspace'
 import TenantSelect from '../../components/TenantSelect.vue'
 import RecordListPage from '../../components/RecordListPage.vue'
+import DataTable from '../../components/DataTable.vue'
 import { formatNumber } from '../../utils/format'
 import { describeHttpError } from '../../api/http'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'

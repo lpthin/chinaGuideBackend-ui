@@ -1,15 +1,15 @@
 <template>
   <div class="theme-preset-page">
     <PageTitle />
-    <a-form layout="inline" class="theme-preset-page__filter">
-      <a-form-item class="toolbar-actions">
+    <FilterBar class="theme-preset-page__filter">
+      <template #actions>
         <a-space>
           <a-button :loading="loading" @click="load">刷新</a-button>
           <a-button v-if="canPreset" @click="openSaveSkin">把页面样式沉淀为皮肤</a-button>
           <a-button v-if="canPromote" type="primary" @click="openPromote">沉淀为平台模板</a-button>
         </a-space>
-      </a-form-item>
-    </a-form>
+      </template>
+    </FilterBar>
 
     <a-alert type="info" show-icon class="theme-preset-page__notice">
       <template #message>
@@ -22,7 +22,7 @@
       <template #message>{{ pagesNote }}</template>
     </a-alert>
 
-    <a-table
+    <DataTable
       :data-source="presets"
       :columns="columns"
       :loading="loading"
@@ -122,7 +122,7 @@
           <template #image><span /></template>
         </a-empty>
       </template>
-    </a-table>
+    </DataTable>
 
     <a-modal v-model:open="saveSkinOpen" title="把页面样式沉淀为皮肤" :confirm-loading="saving" @ok="submitSaveSkin">
       <a-form layout="vertical">
@@ -240,6 +240,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { themePresetsApi, type ThemePreset } from '../../api/themePresets'
 import { portalPagesApi, type PortalPage } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'

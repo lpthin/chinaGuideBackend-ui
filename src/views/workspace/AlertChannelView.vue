@@ -28,7 +28,7 @@
       </filter-bar>
 
       <!-- 表格 -->
-      <a-table
+      <DataTable
         :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="channelList"
@@ -89,7 +89,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <!-- 新增/编辑弹窗 -->
@@ -275,6 +275,7 @@ import {
   PlusOutlined
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import { alertApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'

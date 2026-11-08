@@ -37,6 +37,19 @@ describe('DataTable', () => {
     expect(pagination.total).toBe(1234)
   })
 
+  it('页面传 pageSize 10 时，档位补进当前这一档', () => {
+    const w = mountTable({ pagination: { pageSize: 10 } })
+    const pagination = w.findComponent(TableStub).props('pagination') as Record<string, unknown>
+    expect(pagination.pageSize).toBe(10)
+    expect(pagination.pageSizeOptions).toEqual(['10', '20', '50', '100'])
+  })
+
+  it('页面自己列的档位优先，不被默认档位顶掉', () => {
+    const w = mountTable({ pagination: { pageSize: 8, pageSizeOptions: ['8', '16', '32'] } })
+    const pagination = w.findComponent(TableStub).props('pagination') as Record<string, unknown>
+    expect(pagination.pageSizeOptions).toEqual(['8', '16', '32'])
+  })
+
   it('pagination=false 原样关闭（详情页内嵌小表）', () => {
     const w = mountTable({ pagination: false })
     expect(w.findComponent(TableStub).props('pagination')).toBe(false)

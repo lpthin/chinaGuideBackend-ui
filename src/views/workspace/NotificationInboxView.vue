@@ -10,28 +10,23 @@
       </template>
     </a-alert>
 
-    <a-form layout="inline" class="notification-inbox__toolbar">
-      <a-form-item label="状态">
-        <a-select v-model:value="status" style="width: 140px" :options="statusOptions" @change="reload" />
-      </a-form-item>
-      <a-form-item label="类型码">
-        <a-input v-model:value="typeFilter" style="width: 200px" placeholder="照后端写入时那个类型码填"
-                 allow-clear @press-enter="reload" />
-      </a-form-item>
-      <a-form-item class="toolbar-actions">
-        <a-space>
-          <a-button @click="reload">刷新</a-button>
-          <a-button type="primary"
-                    :disabled="loading || unread === null || unread === 0 || status === READ"
-                    :title="status === READ
-                      ? '列表现在看的是已读，这一屏没有可标为未读的行；要标请把状态切回「未读」或「全部」'
-                      : `只动${scopeWhat}的未读行`"
-                    :loading="readingAll" @click="readAll">全部标为已读</a-button>
-        </a-space>
-      </a-form-item>
-    </a-form>
+    <!-- 筛选靠左、动作靠右由 FilterBar 一处定（Spec-UI-2 规则 3）：不再手写 a-form inline + toolbar-actions -->
+    <FilterBar class="notification-inbox__toolbar">
+      <a-select v-model:value="status" style="width: 140px" :options="statusOptions" @change="reload" />
+      <a-input v-model:value="typeFilter" style="width: 200px" placeholder="照后端写入时那个类型码填"
+               allow-clear @press-enter="reload" />
+      <template #actions>
+        <a-button @click="reload">刷新</a-button>
+        <a-button type="primary"
+                  :disabled="loading || unread === null || unread === 0 || status === READ"
+                  :title="status === READ
+                    ? '列表现在看的是已读，这一屏没有可标为未读的行；要标请把状态切回「未读」或「全部」'
+                    : `只动${scopeWhat}的未读行`"
+                  :loading="readingAll" @click="readAll">全部标为已读</a-button>
+      </template>
+    </FilterBar>
 
-    <a-table :data-source="records" :columns="columns" :loading="loading" row-key="id"
+    <DataTable :data-source="records" :columns="columns" :loading="loading" row-key="id"
              :pagination="pagination" @change="onTableChange">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'type'">
@@ -66,7 +61,7 @@
           :empty-reason="emptyReason"
         />
       </template>
-    </a-table>
+    </DataTable>
 
     <p class="notification-inbox__count">
       未读 {{ unread === null ? '没取到' : unread }} 条，{{ scopeText }}（未读数与列表分开取，任一失败都只说自己的那段）。
@@ -81,6 +76,8 @@ import { message } from 'ant-design-vue'
 import { describeHttpError } from '../../api/http'
 import { notificationsApi, type NotificationRecord } from '../../api/notifications'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import {
   asEmptyReason,
   shouldJumpBackToFirstPage,
@@ -237,7 +234,8 @@ onMounted(() => reload())
 
 <style scoped lang="less">
 .notification-inbox {
-  padding: 16px;
+  /* 留白归外壳（.workspace-area 一处 32，Spec-UI-1）：页面不再自写 padding */
+  padding: 0;
 
   &__notice {
     margin-bottom: 12px;

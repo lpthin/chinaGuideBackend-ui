@@ -90,7 +90,7 @@
           </template>
         </filter-bar>
 
-        <a-table
+        <DataTable
           :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="invoiceListData"
@@ -141,7 +141,7 @@
               :empty-reason="emptyReason"
             />
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </a-spin>
 
@@ -243,6 +243,7 @@ import { logError } from '../../utils/errorLog'
 import { asEmptyReason, shouldJumpBackToFirstPage, JUMP_BACK_NOTICE, type EmptyReason } from '../../utils/emptyPage'
 import { PH_DASH } from '../../utils/display'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { foldInvoiceStatus, invoiceStatusLabel, invoiceStatusColor } from '../../utils/invoiceStatus'
 import { InvoiceType, invoiceTypeLabel, invoiceTypeColor, invoiceTypeNeedsTaxNo } from '../../utils/invoiceType'

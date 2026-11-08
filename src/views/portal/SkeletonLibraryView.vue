@@ -20,18 +20,18 @@
       <template #message>{{ buildMetaNote }}</template>
     </a-alert>
 
-    <a-form layout="inline" class="skeleton-library__toolbar">
+    <FilterBar class="skeleton-library__toolbar">
       <a-form-item label="关键字">
         <a-input v-model:value="keyword" allow-clear placeholder="按骨架名称或 key 过滤" style="width: 220px" />
       </a-form-item>
-      <a-form-item class="toolbar-actions">
+      <template #actions>
         <a-space>
           <a-button :loading="loading" @click="load">刷新</a-button>
         </a-space>
-      </a-form-item>
-    </a-form>
+      </template>
+    </FilterBar>
 
-    <a-table
+    <DataTable
       :data-source="visibleSkeletons"
       :columns="columns"
       :loading="loading"
@@ -57,7 +57,7 @@
           </a-button>
         </template>
       </template>
-    </a-table>
+    </DataTable>
 
     <a-spin :spinning="pagesLoadingKey !== ''">
       <section v-if="previewSkeleton" class="skeleton-library__preview">
@@ -102,7 +102,7 @@
                message="这个账号没有 portal:build:manage，能看骨架但不能补页面"
                description="按骨架建页会真的写 portal_page，属于建设域动作，找有权限的同事或在超级管理员工作台执行。" />
       <template v-else>
-        <a-form layout="inline">
+        <FilterBar>
           <a-form-item label="站点">
             <a-select v-model:value="siteId" style="width: 220px" :options="siteOptions"
                       placeholder="选一个要建站的站点" />
@@ -111,7 +111,7 @@
             <a-select v-model:value="applyKey" style="width: 260px" :options="applyOptions"
                       placeholder="选一套有页可建的骨架" />
           </a-form-item>
-          <a-form-item class="toolbar-actions">
+          <template #actions>
             <a-space>
               <a-button :loading="planning" :disabled="!siteId || !applyKey" @click="planApply">
                 先看新增计划（不写库）
@@ -120,8 +120,8 @@
                 确认执行
               </a-button>
             </a-space>
-          </a-form-item>
-        </a-form>
+          </template>
+        </FilterBar>
 
         <a-alert v-if="applyError" type="error" show-icon class="skeleton-library__notice" :message="applyError" />
 
@@ -134,7 +134,7 @@
             站点「{{ siteNameOf(planSiteId) }}」按骨架「{{ planSkeletonName }}」v{{ planSkeletonVersion }}
             补页，共 {{ plan.items.length }} 页，其中会新建 {{ willCreateCount }} 页。
           </p>
-          <a-table
+          <DataTable
             :data-source="plan.items"
             :columns="planColumns"
             row-key="pageKey"
@@ -152,7 +152,7 @@
                 {{ record.reason || '后端没给原因' }}
               </template>
             </template>
-          </a-table>
+          </DataTable>
           <a-space class="skeleton-library__confirm-row">
             <a-button type="primary" :loading="executing" :disabled="!canExecute" @click="executeApply">
               确认执行（新建 {{ willCreateCount }} 页）
@@ -171,7 +171,7 @@
                message="这个账号没有 portal:build:preset，沉淀与审核都做不了"
                description="沉淀会往平台骨架库里加一套新骨架，读口与写口挂的是同一个码；找有权限的同事在超级管理员工作台执行。" />
       <template v-else>
-        <a-form layout="inline">
+        <FilterBar>
           <a-form-item label="参考站任务 ID">
             <a-input v-model:value="distillTaskIdInput" style="width: 140px" placeholder="任务 ID" />
           </a-form-item>
@@ -184,14 +184,14 @@
           <a-form-item label="说明">
             <a-input v-model:value="distillDescription" style="width: 220px" placeholder="可空" />
           </a-form-item>
-          <a-form-item class="toolbar-actions">
+          <template #actions>
             <a-space>
               <a-button :loading="distilling" :disabled="referenceTaskId === null" @click="runDistill">
                 洗成待审骨架
               </a-button>
             </a-space>
-          </a-form-item>
-        </a-form>
+          </template>
+        </FilterBar>
 
         <a-alert v-if="distillError" type="error" show-icon class="skeleton-library__notice" :message="distillError"
                  description="原因来自后端那一发请求（任务没摄到位、key 撞了、一页都带不进来），这里不替它换一种说法。任务 ID 在「参考站摄取」那页的列表里。" />
@@ -278,6 +278,8 @@ import '@/styles/portal-preview.less'
 import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { portalPagesApi, type PortalBlockMeta } from '../../api/portalPages'
 import {
   portalSkeletonsApi,

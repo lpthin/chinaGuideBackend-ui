@@ -57,7 +57,7 @@
       </a-row>
 
       <!-- 筛选区 -->
-      <a-form layout="inline" :model="filterForm" class="filter-form">
+      <FilterBar class="filter-form">
         <a-form-item label="严重级别">
           <a-select
             v-model:value="filterForm.severity"
@@ -98,7 +98,7 @@
             value-format="YYYY-MM-DD"
           />
         </a-form-item>
-        <a-form-item class="toolbar-actions">
+        <template #actions>
           <a-space>
             <a-button type="primary" :loading="loading" @click="handleSearch">
               <template #icon><SearchOutlined /></template>
@@ -109,11 +109,11 @@
               重置
             </a-button>
           </a-space>
-        </a-form-item>
-      </a-form>
+        </template>
+      </FilterBar>
 
       <!-- 表格 -->
-      <a-table
+      <DataTable
         :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="recordList"
@@ -170,7 +170,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <!-- 详情抽屉 -->
@@ -270,6 +270,8 @@ import { alertApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import type { AlertRecord } from '../../types/workspace'

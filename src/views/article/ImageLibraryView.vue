@@ -196,7 +196,7 @@
 
         <!-- 列表视图 -->
         <div v-else class="list-view">
-          <a-table
+          <DataTable
             :scroll="{ x: 'max-content' }"
             :data-source="imageList"
             :columns="listColumns"
@@ -259,7 +259,7 @@
                 </a-space>
               </template>
             </template>
-          </a-table>
+          </DataTable>
         </div>
 
         <div class="pagination-wrapper">
@@ -375,6 +375,7 @@ import type { ImageLibrary } from '../../types/article'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   asEmptyReason,

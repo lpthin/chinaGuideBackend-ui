@@ -100,7 +100,7 @@
                  message="这个账号只有查看案例的权限（operation:case:view）"
                  description="新建、编辑、删除和 AI 起草要 operation:case:manage，找有权限的同事或在角色页把这个码发给这个账号。" />
 
-        <a-table
+        <DataTable
           :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="caseList"
@@ -158,7 +158,7 @@
               </a-space>
             </template>
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </a-spin>
 
@@ -342,6 +342,7 @@ import EmptyListHint from '../../components/EmptyListHint.vue'
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'

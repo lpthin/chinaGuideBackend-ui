@@ -247,7 +247,7 @@
           <PlusOutlined /> 添加连接
         </a-button>
       </div>
-      <a-table
+      <DataTable
         :scroll="{ x: 'max-content' }"
         :columns="connColumns"
         :data-source="connections"
@@ -281,7 +281,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-modal>
 
     <a-modal
@@ -382,6 +382,7 @@ import {
 import { embeddingConfigApi, vectorDbApi, modelConfigApi, aiGenerateApi } from '../../api/ai-model'
 import type { ModelConfig, VectorDatabaseConfig, EmbeddingConfigForm } from '../../types/ai-model'
 import { logError } from '../../utils/errorLog'
+import DataTable from '../../components/DataTable.vue'
 import PageTitle from '../../components/PageTitle.vue'
 
 // M-P102（2026-11-01 拍板）：向量化配置并成平台一份，这一屏不再问「在看哪一家客户」。

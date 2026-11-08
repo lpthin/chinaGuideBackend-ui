@@ -42,6 +42,8 @@ import { previewLinkStateColor, previewLinkStateHint, previewLinkStateOf, previe
 import { siteSpecApi, type SpecDocumentView } from '@/api/siteSpec'
 import BriefIntakeForm from '@/views/portal/BriefIntakeForm.vue'
 import FoldedText from '@/components/FoldedText.vue'
+import DataTable from '@/components/DataTable.vue'
+import FilterBar from '@/components/FilterBar.vue'
 import WizardSteps from '@/components/WizardSteps.vue'
 import { createWizardState, type WizardState, type WizardStepDef } from '@/components/wizardModel'
 import { createProposalProgressFollower } from '@/utils/proposalProgressFollow'
@@ -603,7 +605,7 @@ onUnmounted(stopFollowingProgress)
         <a-alert v-if="briefsError" type="error" show-icon>
           <template #message>需求单列表没取到：{{ briefsError }}（不是「一单都没有」，是这一发失败了）</template>
         </a-alert>
-        <a-form layout="inline" class="site-wizard__row">
+        <FilterBar class="site-wizard__row">
           <a-form-item label="选一张需求单">
             <a-select
               :value="briefId"
@@ -618,7 +620,7 @@ onUnmounted(stopFollowingProgress)
               {{ currentBrief ? `状态：${statusText(currentBrief)}；这一单要出几套：${currentBrief.candidateCount ?? '-'}（意图，不是已经建出来的套数）` : stepNotice.intake }}
             </span>
           </a-form-item>
-        </a-form>
+        </FilterBar>
         <a-space class="site-wizard__row">
           <a-button @click="startNewBrief">录一份新需求单</a-button>
           <a-button :disabled="!briefId" @click="goBriefDetail">看这一单的详情（喂模型的那句话在这里）</a-button>
@@ -727,7 +729,7 @@ onUnmounted(stopFollowingProgress)
         <div v-if="progress.length" class="site-wizard__row">
           <p class="site-wizard__sub-title">每一套跑到哪一步了</p>
           <p class="site-wizard__hint">{{ progressSourceLine }}</p>
-          <a-table
+          <DataTable
             :data-source="progress"
             :columns="[
               { title: '第几套', dataIndex: 'candidateNo', key: 'candidateNo', width: 80 },
@@ -774,7 +776,7 @@ onUnmounted(stopFollowingProgress)
               </template>
               <template v-else>{{ record[column.dataIndex as string] ?? '-' }}</template>
             </template>
-          </a-table>
+          </DataTable>
           <p class="site-wizard__hint">{{ roundActualLine }}</p>
           <p class="site-wizard__hint">
             同一轮里哪一套失败只影响那一套：其它套照跑，系统不会在这一轮里替失败那一套重试。
@@ -799,7 +801,7 @@ onUnmounted(stopFollowingProgress)
 
       <template #step-candidates>
         <p class="site-wizard__reading">{{ stepNotice.candidates }}</p>
-        <a-table
+        <DataTable
           v-if="deliveredCandidates.length"
           :data-source="deliveredCandidates"
           :columns="[
@@ -840,7 +842,7 @@ onUnmounted(stopFollowingProgress)
             </template>
             <template v-else>{{ record[column.dataIndex as string] ?? '-' }}</template>
           </template>
-        </a-table>
+        </DataTable>
 
         <!-- 每一套的账摆在明面上：藏在「点开这一行」里的读数和没读一样，他拍板的就是这一条 -->
         <div v-if="deliveredCandidates.length" class="site-wizard__row">

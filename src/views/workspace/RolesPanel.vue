@@ -21,8 +21,7 @@
         </template>
       </filter-bar>
 
-      <a-table
-        :scroll="{ x: 'max-content' }"
+      <DataTable
         :columns="columns"
         :data-source="roles"
         :pagination="pagination"
@@ -78,7 +77,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <!-- 角色编辑弹窗 -->
@@ -151,6 +150,7 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'

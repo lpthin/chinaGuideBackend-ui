@@ -26,12 +26,11 @@
           </template>
         </filter-bar>
 
-        <a-table
-          :scroll="{ x: 'max-content' }"
+        <!-- scroll 不手抄：DataTable 不传时自动补 max-content（Spec-UI-2 规则 5） -->
+        <DataTable
           :columns="columns"
           :data-source="tickets"
           :loading="loading"
-          :pagination="false"
           :row-key="(r: SupportTicket) => r.id"
         >
           <template #bodyCell="{ column, record }">
@@ -69,7 +68,7 @@
               @create="openSubmit"
             />
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </div>
 
@@ -132,6 +131,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { supportTicketsApi, type SupportTicket } from '../../api/supportTickets'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import DataTable from '../../components/DataTable.vue'
 import FilterBar from '../../components/FilterBar.vue'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'

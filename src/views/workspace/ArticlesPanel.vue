@@ -309,7 +309,7 @@
 
             <!-- 列表视图 -->
             <div v-if="viewMode === 'list'" class="view-content">
-              <a-table
+              <DataTable
                 :scroll="{ x: 'max-content' }"
                 :data-source="filteredArticles"
                 :columns="tableColumns"
@@ -413,7 +413,7 @@
                     </a-space>
                   </template>
                 </template>
-              </a-table>
+              </DataTable>
             </div>
 
             <!-- 卡片视图 -->
@@ -740,6 +740,7 @@ import {
 } from '@ant-design/icons-vue'
 import { adminApi, articleManageApi, categoryApi, dashboardApi } from '../../api'
 import { formatTime, formatDate } from '../../utils/format'
+import DataTable from '../../components/DataTable.vue'
 import DemoFlag from '../../components/DemoFlag.vue'
 import FilterBar from '../../components/FilterBar.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'

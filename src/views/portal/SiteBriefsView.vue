@@ -6,6 +6,8 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import { briefStatusLabel, siteBriefsApi, vocabularyApi, type SiteBrief, type SiteBriefVocabulary } from '@/api/siteBriefs'
 import { tenantApi } from '@/api/workspace'
 import EmptyListHint from '@/components/EmptyListHint.vue'
+import DataTable from '@/components/DataTable.vue'
+import FilterBar from '@/components/FilterBar.vue'
 import { asEmptyReason, type EmptyReason } from '@/utils/emptyPage'
 import type { Tenant } from '@/types/workspace'
 import PageTitle from '../../components/PageTitle.vue'
@@ -186,46 +188,41 @@ onMounted(() => {
       </div>
     </PageTitle>
 
-    <a-form layout="inline" class="site-briefs__toolbar">
-      <a-form-item label="客户">
-        <a-select
-          :value="filterTenantId"
-          :options="tenantFilterOptions"
-          :placeholder="tenantsFailed ? '客户没取到，刷新重试' : '全部客户'"
-          allow-clear
-          show-search
-          option-filter-prop="label"
-          style="width: 200px"
-          @update:value="onTenantFilterChange"
-        />
-      </a-form-item>
-      <a-form-item label="状态">
-        <!-- 这一格原来是文本框（placeholder 写着「按状态代码过滤，如 draft / ready」）：
-             列表每一行的状态都是中文，筛的时候却要人背英文码，同一件事两种说法。换成后端词表
-             statusLabels 那一份中文下拉，一个码都不抄；词表没取到时不换成前端自己编的中文清单，
-             宁可筛不动也把「没取到」摆在明面上（I-1）。 -->
-        <a-select
-          :value="filterStatus || undefined"
-          :options="statusFilterOptions"
-          :placeholder="statusFilterOptions.length ? '全部状态' : '状态中文还没取到，点刷新重试'"
-          allow-clear
-          style="width: 200px"
-          @update:value="onStatusFilterChange"
-        />
-      </a-form-item>
-      <a-form-item class="toolbar-actions">
-        <a-space>
-          <a-button @click="load">查询</a-button>
-          <a-button :loading="loading" @click="load">刷新</a-button>
-          <a-button type="primary" @click="createBrief">
-            <template #icon><PlusOutlined /></template>
-            新建需求单
-          </a-button>
-        </a-space>
-      </a-form-item>
-    </a-form>
+    <!-- 筛选靠左、动作靠右由 FilterBar 一处定（Spec-UI-2 规则 3） -->
+    <FilterBar class="site-briefs__toolbar">
+      <a-select
+        :value="filterTenantId"
+        :options="tenantFilterOptions"
+        :placeholder="tenantsFailed ? '客户没取到，刷新重试' : '全部客户'"
+        allow-clear
+        show-search
+        option-filter-prop="label"
+        style="width: 200px"
+        @update:value="onTenantFilterChange"
+      />
+      <!-- 这一格原来是文本框（placeholder 写着「按状态代码过滤，如 draft / ready」）：
+           列表每一行的状态都是中文，筛的时候却要人背英文码，同一件事两种说法。换成后端词表
+           statusLabels 那一份中文下拉，一个码都不抄；词表没取到时不换成前端自己编的中文清单，
+           宁可筛不动也把「没取到」摆在明面上（I-1）。 -->
+      <a-select
+        :value="filterStatus || undefined"
+        :options="statusFilterOptions"
+        :placeholder="statusFilterOptions.length ? '全部状态' : '状态中文还没取到，点刷新重试'"
+        allow-clear
+        style="width: 200px"
+        @update:value="onStatusFilterChange"
+      />
+      <template #actions>
+        <a-button @click="load">查询</a-button>
+        <a-button :loading="loading" @click="load">刷新</a-button>
+        <a-button type="primary" @click="createBrief">
+          <template #icon><PlusOutlined /></template>
+          新建需求单
+        </a-button>
+      </template>
+    </FilterBar>
 
-    <a-table
+    <DataTable
       :data-source="briefs"
       :columns="columns"
       :loading="loading"
@@ -275,7 +272,7 @@ onMounted(() => {
           出方案、预览这些要等生成链路接通后才有，那时它们有自己的入口；今天这里不摆点了没反应的按钮。
         </p>
       </template>
-    </a-table>
+    </DataTable>
   </div>
 </template>
 

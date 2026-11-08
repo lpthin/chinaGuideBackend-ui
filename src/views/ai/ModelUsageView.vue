@@ -480,7 +480,7 @@
             <!-- 表里「Token」那一列取的是每行的字数尺估算（token_estimate），同样不是网关实报 -->
             <TokenBasisNote :text="logsTokenBasis" />
 
-            <a-table
+            <DataTable
               :scroll="{ x: 'max-content' }"
               :columns="logColumns"
               :data-source="paginatedLogs"
@@ -521,7 +521,7 @@
                   {{ record.duration }}ms
                 </template>
               </template>
-            </a-table>
+            </DataTable>
 
             <div class="pagination-wrapper">
               <a-pagination
@@ -558,6 +558,7 @@ import {
 } from '@ant-design/icons-vue'
 import { aiModelApi } from '../../api/ai-model'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import { statsApi } from '../../api/billing'
 import { geoQuotaApi, type GeoQuotaStatus } from '../../api/geoQuota'
 import StateBlock from '../../components/StateBlock.vue'

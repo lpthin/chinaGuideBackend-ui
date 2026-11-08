@@ -31,7 +31,7 @@
         </template>
       </filter-bar>
 
-      <a-table
+      <DataTable
         :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="users"
@@ -102,7 +102,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <!-- 用户编辑弹窗 -->
@@ -230,6 +230,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import TenantSelect from '../../components/TenantSelect.vue'
 import { adminApi } from '../../api/workspace'

@@ -12,7 +12,7 @@
 
     <!-- ---------------- 第 1 步：建任务（不花钱） ---------------- -->
     <a-card size="small" title="1 建一个组装任务（只存快照，不调模型）" class="assemble-job-page__panel">
-      <a-form layout="inline" class="assemble-job-page__create">
+      <FilterBar class="assemble-job-page__create">
         <a-form-item label="站点">
           <a-select
             v-model:value="siteId"
@@ -39,15 +39,15 @@
             placeholder="不用参考站"
           />
         </a-form-item>
-        <a-form-item class="toolbar-actions">
+        <template #actions>
           <a-space wrap>
             <a-button :loading="loadingBase" @click="loadBaseData">刷新站点与骨架</a-button>
             <a-button type="primary" :disabled="!canCreate" :loading="creating" @click="submitCreate">
               新建组装任务
             </a-button>
           </a-space>
-        </a-form-item>
-      </a-form>
+        </template>
+      </FilterBar>
       <p v-if="referencesError" class="assemble-job-page__muted">{{ referencesError }}</p>
       <p v-if="preselectedSiteNotice" class="assemble-job-page__muted">{{ preselectedSiteNotice }}</p>
       <p class="assemble-job-page__muted">
@@ -67,7 +67,7 @@
     <!-- ---------------- 第 2 步：这个站点的任务历史 ---------------- -->
     <a-card size="small" title="2 本站的组装任务" class="assemble-job-page__panel">
       <a-alert v-if="jobsError" type="error" show-icon class="assemble-job-page__notice" :message="jobsError" />
-      <a-table
+      <DataTable
         :data-source="jobs"
         :columns="jobColumns"
         :loading="loadingJobs"
@@ -103,7 +103,7 @@
           <!-- 读失败时不说「还没有任务」：那是把一次 403 说成「这站干净」，是骗人的空状态 -->
           <a-empty v-if="!jobsError" description="这个站点还没有组装任务：上面第 1 步建一个（建任务不花钱）" />
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <!-- ---------------- 第 3 步：出价 → 确认 → 逐页草稿 ---------------- -->
@@ -192,7 +192,7 @@
           可应用 {{ applicableCount }} 页；被门禁拒 {{ rejectedCount }} 页；没产出草稿 {{ noDraftCount }} 页。
         </p>
 
-        <a-table
+        <DataTable
           :data-source="drafts"
           :columns="draftColumns"
           :pagination="false"
@@ -235,7 +235,7 @@
           <template #emptyText>
             <a-empty description="这一轮还没有产出：先把第 3 步的「先估算消耗 → 勾选确认 → 开始整站组装」走完" />
           </template>
-        </a-table>
+        </DataTable>
       </a-spin>
     </a-card>
 
@@ -278,6 +278,8 @@ import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import PageTitle from '../../components/PageTitle.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
+import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 
 /**
  * AI 整站组装任务视图（Spec §6.3，Q3；N4：只有平台能发起）。

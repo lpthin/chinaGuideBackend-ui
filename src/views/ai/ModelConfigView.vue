@@ -107,11 +107,12 @@
           </template>
         </filter-bar>
 
-        <a-table
+        <DataTable
           :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="filteredConfigs"
           :pagination="false"
+          :loading="loading"
           :row-key="(record: any) => record.id"
         >
           <template #bodyCell="{ column, record }">
@@ -194,7 +195,7 @@
               </a-space>
             </template>
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </a-spin>
 
@@ -377,6 +378,7 @@ import {
 import { formatDateTime } from '../../utils/format'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import PageTitle from '../../components/PageTitle.vue'
 
 // M-P102（2026-11-01 拍板）：这一屏不再问「在看哪一家客户」。模型池归平台一套、所有客户共用，

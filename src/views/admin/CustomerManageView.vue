@@ -90,8 +90,7 @@
 
       <!-- 客户列表 -->
       <a-card title="客户列表" :bordered="false">
-        <a-table
-          :scroll="{ x: 'max-content' }"
+        <DataTable
           :columns="columns"
           :data-source="customerListData"
           :pagination="paginationConfig"
@@ -143,7 +142,7 @@
               @create="openCreate"
             />
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </a-spin>
 
@@ -226,6 +225,7 @@ import { formatDate, formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   asEmptyReason,

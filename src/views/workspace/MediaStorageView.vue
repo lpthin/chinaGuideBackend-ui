@@ -165,7 +165,7 @@
     </a-card>
 
     <a-card size="small" title="搬一批过去" class="media-storage__card">
-      <a-form layout="inline" class="media-storage__toolbar">
+      <FilterBar class="media-storage__toolbar">
         <a-form-item label="只搬这个客户">
           <a-input v-model:value="tenantId" class="js-tenant" style="width: 140px" placeholder="留空 = 全平台" allow-clear />
         </a-form-item>
@@ -173,7 +173,7 @@
           <a-input-number v-model:value="limit" class="js-limit" :min="1" :max="2000" style="width: 120px" />
           <span class="media-storage__hint">行（重跑安全，已经搬过的会幂等跳过）</span>
         </a-form-item>
-        <a-form-item class="toolbar-actions">
+        <template #actions>
           <a-space>
             <a-button class="js-refresh-state" :disabled="loadingState" @click="loadState">刷新状态</a-button>
             <a-popconfirm
@@ -189,8 +189,8 @@
               <a-button type="primary" class="js-migrate" :disabled="!canRun" :loading="running">搬一批</a-button>
             </a-popconfirm>
           </a-space>
-        </a-form-item>
-      </a-form>
+        </template>
+      </FilterBar>
 
       <a-alert v-if="runError" type="error" show-icon :message="runError" />
 
@@ -213,12 +213,12 @@
           </a-descriptions-item>
         </a-descriptions>
 
-        <a-table v-if="report.errors.length" :data-source="report.errors" :columns="errorColumns"
+        <DataTable v-if="report.errors.length" :data-source="report.errors" :columns="errorColumns"
                  :pagination="false" row-key="(r: string) => r" size="small" class="media-storage__errors">
           <template #bodyCell="{ text }">
             <span class="media-storage__error-line">{{ text }}</span>
           </template>
-        </a-table>
+        </DataTable>
         <p v-else class="media-storage__hint">
           上面这些数之后端返回，界面没有自己算任何一个（「看了多少」不等于「搬成 + 失败」时，
           说明有素材被吃掉了，那是后端的错，不该由这里圆回来）。
@@ -240,6 +240,8 @@ import {
   type MediaStorageTestResult
 } from '../../api/mediaStorage'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 
 /**
  * 超管「素材存储」：OSS 那四个参数现在就在这屏上填，不用改 YAML、不用重启。

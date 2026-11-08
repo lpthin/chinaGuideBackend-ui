@@ -1,7 +1,7 @@
 <template>
   <div class="revision-ticket-page">
     <PageTitle />
-    <a-form layout="inline" class="revision-ticket-page__filter">
+    <FilterBar class="revision-ticket-page__filter">
       <a-form-item label="状态">
         <a-select
           v-model:value="statusFilter"
@@ -24,19 +24,19 @@
           @change="loadTickets"
         />
       </a-form-item>
-      <a-form-item class="toolbar-actions">
+      <template #actions>
         <a-space>
           <a-button :loading="loading" @click="reload">刷新</a-button>
           <a-button type="primary" @click="openSessionModal">预览链接</a-button>
         </a-space>
-      </a-form-item>
-    </a-form>
+      </template>
+    </FilterBar>
 
     <a-alert v-if="pagesNote" type="info" show-icon style="margin-bottom: 12px">
       <template #message>{{ pagesNote }}</template>
     </a-alert>
 
-    <a-table
+    <DataTable
       :data-source="tickets"
       :columns="columns"
       :loading="loading"
@@ -91,7 +91,7 @@
           :empty-reason="emptyReason"
         />
       </template>
-    </a-table>
+    </DataTable>
 
     <!-- ---------------- 工单详情 ---------------- -->
     <a-drawer v-model:open="ticketOpen" :title="ticketTitle" width="960" placement="right">
@@ -161,7 +161,7 @@
 
     <!-- ---------------- 预览链接 ---------------- -->
     <a-modal v-model:open="sessionOpen" title="预览链接与已发出的会话" width="760" :footer="null">
-      <a-form layout="inline">
+      <FilterBar>
         <a-form-item label="页面">
           <a-select
             v-model:value="sessionPageId"
@@ -175,10 +175,12 @@
         <a-form-item label="备注">
           <a-input v-model:value="sessionLabel" placeholder="例如：张总第二轮反馈" :maxlength="100" style="width: 200px" />
         </a-form-item>
-        <a-form-item>
-          <a-button type="primary" :loading="creatingSession" @click="createSession">生成链接</a-button>
-        </a-form-item>
-      </a-form>
+        <template #actions>
+          <a-form-item>
+            <a-button type="primary" :loading="creatingSession" @click="createSession">生成链接</a-button>
+          </a-form-item>
+        </template>
+      </FilterBar>
 
       <a-alert
         v-if="createdPreviewUrl"
@@ -195,7 +197,7 @@
 
       <a-divider>已发出的会话</a-divider>
       <a-spin :spinning="sessionsLoading">
-        <a-table
+        <DataTable
           :data-source="sessions"
           :columns="sessionColumns"
           :pagination="{ pageSize: 8, showTotal: (total: number) => `共 ${total} 条` }"
@@ -221,7 +223,7 @@
               </a-popconfirm>
             </template>
           </template>
-        </a-table>
+        </DataTable>
       </a-spin>
       <p class="revision-ticket-page__muted">
         令牌授权的是「这一页 + 提反馈」，有效期与次数由后端配置；撤销只让链接失效，客户已经提的工单照常保留。
@@ -267,6 +269,8 @@ import {
 } from '../../api/portalTickets'
 import { portalPagesApi, type PortalPage } from '../../api/portalPages'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import { describeHttpError } from '../../api/http'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import DraftReviewCard from './builder/DraftReviewCard.vue'

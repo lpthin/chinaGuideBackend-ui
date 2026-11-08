@@ -171,7 +171,7 @@
 
           <a-tabs style="margin-top: 16px">
             <a-tab-pane key="calls" :tab="`逐次外呼（${detail.calls.length}）`">
-              <a-table
+              <DataTable
                 :data-source="detail.calls"
                 :columns="callColumns"
                 :pagination="{ pageSize: 20 }"
@@ -196,10 +196,10 @@
                     <div class="citation-page__muted">{{ record.callDurationMs ?? PH_DASH }} ms</div>
                   </template>
                 </template>
-              </a-table>
+              </DataTable>
             </a-tab-pane>
             <a-tab-pane key="hits" :tab="`命中明细（${detail.hits.length}）`">
-              <a-table
+              <DataTable
                 :data-source="detail.hits"
                 :columns="hitColumns"
                 :pagination="{ pageSize: 20 }"
@@ -216,7 +216,7 @@
                     <div class="citation-page__muted">命中字面串：{{ record.matchedText || PH_DASH }}</div>
                   </template>
                 </template>
-              </a-table>
+              </DataTable>
             </a-tab-pane>
           </a-tabs>
         </template>
@@ -232,20 +232,22 @@
       />
       <a-form
         ref="questionFormRef"
-        layout="inline"
-        style="margin-top: 12px"
         :model="questionForm"
         :rules="questionRules"
       >
-        <a-form-item label="题目" name="questionText">
-          <a-input v-model:value="questionForm.questionText" style="width: 380px" placeholder="例：{{region}}哪家口腔医院比较靠谱？" />
-        </a-form-item>
-        <a-form-item label="排序">
-          <a-input-number v-model:value="questionForm.sort" :min="0" style="width: 90px" />
-        </a-form-item>
-        <a-form-item class="toolbar-actions">
-          <a-button type="primary" :loading="savingQuestion" @click="saveQuestion">新增</a-button>
-        </a-form-item>
+        <FilterBar style="margin-top: 12px">
+          <a-form-item label="题目" name="questionText">
+            <a-input v-model:value="questionForm.questionText" style="width: 380px" placeholder="例：{{region}}哪家口腔医院比较靠谱？" />
+          </a-form-item>
+          <a-form-item label="排序">
+            <a-input-number v-model:value="questionForm.sort" :min="0" style="width: 90px" />
+          </a-form-item>
+          <template #actions>
+            <a-form-item>
+              <a-button type="primary" :loading="savingQuestion" @click="saveQuestion">新增</a-button>
+            </a-form-item>
+          </template>
+        </FilterBar>
       </a-form>
       <data-table
         :data-source="questions"

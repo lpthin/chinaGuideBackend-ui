@@ -80,7 +80,7 @@
         </template>
       </filter-bar>
 
-      <a-table
+      <DataTable
         :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="tenantList"
@@ -136,7 +136,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <!-- 新建/编辑租户弹窗 -->
@@ -320,6 +320,7 @@ import {
   PlusOutlined,
 } from '@ant-design/icons-vue'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import type { TableProps, FormInstance } from 'ant-design-vue'
 import http, { describeHttpError } from '@/api/http'
 import { formatDateTime } from '@/utils/format'

@@ -99,7 +99,7 @@
         </template>
       </filter-bar>
 
-      <a-table
+      <DataTable
         :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="templateList"
@@ -161,7 +161,7 @@
             </a-space>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <a-modal
@@ -225,7 +225,7 @@
 
         <a-divider>变量配置</a-divider>
 
-        <a-table
+        <DataTable
           :scroll="{ x: 'max-content' }"
           :columns="variableColumns"
           :data-source="formData.variables"
@@ -278,7 +278,7 @@
               </a-button>
             </template>
           </template>
-        </a-table>
+        </DataTable>
 
         <a-button type="dashed" style="width: 100%; margin-top: 12px" @click="addVariable">
           <template #icon><PlusOutlined /></template>
@@ -319,6 +319,7 @@ import type {
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   JUMP_BACK_NOTICE,

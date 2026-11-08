@@ -27,7 +27,7 @@ const props = withDefaults(
     dataSource?: readonly unknown[]
     loading?: boolean
     error?: string | null
-    rowKey?: string
+    rowKey?: string | ((record: never) => string | number)
     /** 传 false 关掉分页（详情页内嵌小表用）；传对象则与默认分页配置合并 */
     pagination?: false | Record<string, unknown>
   }>(),
@@ -49,14 +49,23 @@ const MAX_PAGE_SIZE = 100
 
 const mergedPagination = computed(() => {
   if (props.pagination === false) return false
-  const merged = {
+  const fromPage = props.pagination ?? {}
+  const merged: Record<string, unknown> = {
     pageSize: 20,
     showSizeChanger: true,
     pageSizeOptions: ['20', '50', String(MAX_PAGE_SIZE)],
-    ...(props.pagination ?? {}),
+    ...fromPage,
   }
   // §7.3 硬闸：每页最多 100 条，谁传大了按 100 收
-  merged.pageSize = Math.min(Number(merged.pageSize) || 20, MAX_PAGE_SIZE)
+  const pageSize = Math.min(Number(merged.pageSize) || 20, MAX_PAGE_SIZE)
+  merged.pageSize = pageSize
+  // 档位里必须有当前每页条数：页面传 5/8/10 时，默认的 20/50/100 三个档位里没有它，
+  // 尺寸下拉回显不出当前值。页面自己列了档位（如 8/16/32）的按页面的来，不掺。
+  if (!fromPage.pageSizeOptions) {
+    merged.pageSizeOptions = Array.from(new Set([pageSize, 20, 50, MAX_PAGE_SIZE]))
+      .sort((a, b) => a - b)
+      .map(String)
+  }
   return merged
 })
 

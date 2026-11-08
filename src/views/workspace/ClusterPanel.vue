@@ -88,10 +88,11 @@
         </div>
 
         <!-- Cluster Table -->
-        <a-table
+        <DataTable
           :scroll="{ x: 'max-content' }"
           :columns="tableColumns"
           :data-source="filteredClusters"
+          :loading="loading"
           :row-selection="{
             selectedRowKeys: selectedClusterKeys,
             onChange: (keys: (string | number)[]) => selectedClusterKeys = keys,
@@ -201,7 +202,7 @@
               </a-space>
             </template>
           </template>
-        </a-table>
+        </DataTable>
       </div>
 
       <!-- Modals -->
@@ -437,9 +438,10 @@
           </div>
 
           <!-- 预览表格（带行选 / 展开 suggestions / 列渲染） -->
-          <a-table
+          <DataTable
             :columns="previewDrawerTableColumns"
             :data-source="filteredPreviewClusters"
+            :loading="distilling"
             :row-selection="{
               selectedRowKeys: previewSelectedRowKeys,
               onChange: onPreviewSelectChange,
@@ -548,7 +550,7 @@
                 </div>
               </div>
             </template>
-          </a-table>
+          </DataTable>
         </template>
 
         <!-- 底部：取消 / 仅保存选中 / 确认保存全部 -->
@@ -618,6 +620,7 @@ import type { KeywordCluster, KeywordContentSuggestion } from '../../types/works
 import { logError } from '../../utils/errorLog'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import DataTable from '../../components/DataTable.vue'
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()

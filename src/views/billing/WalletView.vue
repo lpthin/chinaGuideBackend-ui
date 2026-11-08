@@ -128,7 +128,7 @@
           </template>
         </filter-bar>
 
-        <a-table
+        <DataTable
           :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="transactionListData"
@@ -166,7 +166,7 @@
               :not-sent="notSentLine"
             />
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </a-spin>
 
@@ -227,6 +227,7 @@ import { logError } from '../../utils/errorLog'
 import { walletIsActive } from '../../utils/walletState'
 import { paymentMethodLabel, type PaymentMethodCode } from '../../utils/paymentMethod'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   asEmptyReason,

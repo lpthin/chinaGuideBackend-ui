@@ -13,6 +13,8 @@ import type { Site } from '../../types'
 import type { Tenant } from '../../types/workspace'
 import PageTitle from '../../components/PageTitle.vue'
 import SiteDomainWizard from '../../components/SiteDomainWizard.vue'
+import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -468,7 +470,7 @@ onMounted(() => {
       </template>
     </PageTitle>
 
-    <a-form layout="inline" class="sites-view__toolbar">
+    <FilterBar class="sites-view__toolbar">
       <a-form-item label="归档候选">
         <a-select
           :value="archiveScope"
@@ -477,12 +479,12 @@ onMounted(() => {
           @update:value="onArchiveScopeChange"
         />
       </a-form-item>
-      <a-form-item class="toolbar-actions">
+      <template #actions>
         <a-space wrap>
           <a-button @click="load">刷新站点</a-button>
         </a-space>
-      </a-form-item>
-    </a-form>
+      </template>
+    </FilterBar>
 
     <!-- 从需求单过来的那一发过滤要一直挂在脸上：不然人会把「只列出 2 个站」读成「一共只有 2 个站」 -->
     <a-alert v-if="briefFilter !== null" type="info" show-icon class="sites-view__filter-alert">
@@ -509,7 +511,7 @@ onMounted(() => {
       </template>
     </a-alert>
 
-    <a-table
+    <DataTable
       :data-source="visibleSites"
       :loading="loading"
       :pagination="false"
@@ -596,7 +598,7 @@ onMounted(() => {
         <!-- 筛完为空不等于一站都没有：把「当前过滤下没有」和「一个站都没有」分开说 -->
         <a-empty :description="emptyText" />
       </template>
-    </a-table>
+    </DataTable>
 
     <SiteDomainWizard v-model:open="wizardOpen" :site="wizardSite" @saved="onWizardSaved" />
 

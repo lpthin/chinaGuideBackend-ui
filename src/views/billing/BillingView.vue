@@ -175,7 +175,7 @@
           </template>
         </filter-bar>
 
-        <a-table
+        <DataTable
           :scroll="{ x: 'max-content' }"
           :columns="invoiceColumns"
           :data-source="invoiceList"
@@ -228,7 +228,7 @@
               </a-space>
             </template>
           </template>
-        </a-table>
+        </DataTable>
       </a-card>
     </a-spin>
 
@@ -317,6 +317,7 @@ import { paymentMethodLabel, type PaymentMethodCode } from '../../utils/paymentM
 import { walletIsActive } from '../../utils/walletState'
 import { useAuthStore } from '../../stores/auth'
 import InvoiceDetailDrawer from './InvoiceDetailDrawer.vue'
+import DataTable from '../../components/DataTable.vue'
 import FilterBar from '../../components/FilterBar.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
