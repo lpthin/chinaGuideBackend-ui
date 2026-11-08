@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { describeHttpError, isContainerLevelRejection } from '../http'
+import { errorRawDetail } from '../../utils/errorRaw'
 
 function axiosError(partial: Record<string, any>) {
   return Object.assign(new Error(partial?.response?.data?.message || 'Request failed'), { isAxiosError: true }, partial)
@@ -86,6 +87,34 @@ describe('容器级错误页（回的不是自家 {success,code,message,data} �
     }))
     expect(said).toContain('这一发不是本系统回的话（HTTP 502）')
     expect(said).not.toContain('百分号编码')
+  })
+
+  it('原文里带请求 id：响应头 x-request-id 优先', () => {
+    describeHttpError(axiosError({
+      config: { url: '/api/audit-logs', method: 'get' },
+      response: {
+        status: 500,
+        headers: { 'x-request-id': 'req-header-1' },
+        data: { success: false, traceId: 'tr-body' },
+      },
+    }))
+    expect(errorRawDetail('服务器处理失败，请稍后重试或联系管理员')).toContain('requestId: req-header-1')
+  })
+
+  it('没有响应头时退到响应体 traceId', () => {
+    describeHttpError(axiosError({
+      config: { url: '/api/audit-logs', method: 'get' },
+      response: { status: 500, headers: {}, data: { success: false, traceId: 'tr-body-2' } },
+    }))
+    expect(errorRawDetail('服务器处理失败，请稍后重试或联系管理员')).toContain('requestId: tr-body-2')
+  })
+
+  it('两个来源都没有就不编造 requestId 行', () => {
+    describeHttpError(axiosError({
+      config: { url: '/api/audit-logs', method: 'get' },
+      response: { status: 500, headers: {}, data: { success: false } },
+    }))
+    expect(errorRawDetail('服务器处理失败，请稍后重试或联系管理员')).not.toContain('requestId')
   })
 
   it('判据本身：无响应/自家形状都判否，只有回体不是自家形状才判是', () => {

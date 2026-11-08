@@ -75,6 +75,7 @@ import { computed, ref, watch } from 'vue'
 import { offersCreateOnEmpty, type EmptyReason } from '../utils/emptyPage'
 import { errorRawDetail } from '../utils/errorRaw'
 import { errorAdviceOfText, REPEAT_FAILURE_HINT } from '../utils/errorText'
+import { recordErrorExposure, recordRetryAttempt, recordRetryOutcome } from '../utils/errorMetrics'
 import ErrorHelpActions from './ErrorHelpActions.vue'
 
 const props = withDefaults(
@@ -113,10 +114,14 @@ const emit = defineEmits<{ create: [] }>()
  */
 const retrying = ref(false)
 const failureStreak = ref(0)
+/** 这一发重试已经发出去，等 loading 回落配一次成败（SPEC-UI-8 G1） */
+let retryPending = false
 
 async function runRetry(): Promise<void> {
   if (retrying.value || !props.retry) return
   retrying.value = true
+  retryPending = true
+  recordRetryAttempt(props.readFailed, 'manual')
   try {
     await props.retry()
   } finally {
@@ -133,6 +138,12 @@ watch(
   (loading, wasLoading) => {
     if (loading || !wasLoading) return
     failureStreak.value = props.readFailed ? failureStreak.value + 1 : 0
+    // 读失败曝光与重试结果（SPEC-UI-8 G1）：这里没有行，错误 + 0 行这一形就是空态行本身
+    if (props.readFailed) recordErrorExposure(props.readFailed, 'empty', true)
+    if (retryPending) {
+      recordRetryOutcome(!props.readFailed, 'manual')
+      retryPending = false
+    }
   }
 )
 

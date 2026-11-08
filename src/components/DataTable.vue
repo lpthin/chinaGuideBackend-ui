@@ -23,6 +23,13 @@ import { computed, onBeforeUnmount, ref, shallowRef, useAttrs, watch } from 'vue
 import type { TablePaginationConfig } from 'ant-design-vue'
 import StateBlock from './StateBlock.vue'
 import { errorKindOfText, REPEAT_FAILURE_HINT } from '../utils/errorText'
+import {
+  recordErrorExposure,
+  recordRecovery,
+  recordRetryAttempt,
+  recordRetryOutcome,
+  type RetrySource
+} from '../utils/errorMetrics'
 
 const props = withDefaults(
   defineProps<{
@@ -102,6 +109,15 @@ const isEmpty = computed(() => !props.loading && !props.error && props.dataSourc
 const errorText = computed(() => String(props.error ?? ''))
 
 /**
+ * 读失败度量（SPEC-UI-8 G1）：
+ * - `errorStartedAt` 记「错误出现」那一下，读成功后算恢复耗时；
+ * - `pendingRetrySource` 记这一发重试是手动还是自动，读口落定后配一次成败。
+ */
+let errorStartedAt: number | null = null
+let pendingRetrySource: RetrySource | null = null
+let lastErrorText = ''
+
+/**
  * 上一次读成功的行。只记非空那一档：成功读到空也算「新状态」，由 loading 回落那一下清掉。
  * 页面在 catch 里把 rows 清空是常态，这里兜住「抖动一次就把整块数据撤走」。
  */
@@ -135,10 +151,26 @@ watch(
     // 读口每落败一次记一笔（U3）：第 2 次后不再劝「再点一下」，改为劝把诊断发给管理员
     if (props.error) {
       failureStreak.value += 1
+      // 同一轮错误只开一次计时：连续失败不重置起点，恢复耗时才是「卡了多久」
+      if (errorStartedAt === null) errorStartedAt = Date.now()
+      lastErrorText = errorText.value
+      recordErrorExposure(lastErrorText, 'table', displayRows.value.length === 0)
+      if (pendingRetrySource) {
+        recordRetryOutcome(false, pendingRetrySource)
+        pendingRetrySource = null
+      }
       scheduleAutoRetry()
     } else {
       failureStreak.value = 0
       autoRetried.value = false
+      if (pendingRetrySource) {
+        recordRetryOutcome(true, pendingRetrySource)
+        pendingRetrySource = null
+      }
+      if (errorStartedAt !== null) {
+        recordRecovery(Date.now() - errorStartedAt, lastErrorText)
+        errorStartedAt = null
+      }
     }
   }
 )
@@ -171,9 +203,11 @@ function clearAutoRetry(): void {
   }
 }
 
-async function runRetry(): Promise<void> {
+async function runRetry(source: RetrySource = 'manual'): Promise<void> {
   if (retrying.value || !props.retry) return
   retrying.value = true
+  pendingRetrySource = source
+  recordRetryAttempt(errorText.value, source)
   try {
     await props.retry()
   } finally {
@@ -194,7 +228,7 @@ function scheduleAutoRetry(): void {
   clearAutoRetry()
   autoRetryTimer = setTimeout(() => {
     autoRetryTimer = null
-    void runRetry()
+    void runRetry('auto')
   }, AUTO_RETRY_DELAY_MS)
 }
 

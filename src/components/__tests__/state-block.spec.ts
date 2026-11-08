@@ -75,6 +75,16 @@ describe('StateBlock', () => {
     expect(details.find('summary').attributes('tabindex')).toBeUndefined()
   })
 
+  it('G2：原文区给一颗「导出诊断包」，整包可下载而不必复现', () => {
+    rememberRawDetail('读取失败-G2', 'GET /api/audit-logs → HTTP 500\nrequestId: req-1')
+    const w = mount(StateBlock, { props: { state: 'error', detail: '读取失败-G2' } })
+    const download = w.find('button.admin-state-block__download')
+    expect(download.exists()).toBe(true)
+    expect(download.text()).toBe('导出诊断包')
+    expect(download.attributes('type')).toBe('button')
+    expect(download.attributes('tabindex')).toBeUndefined()
+  })
+
   it('键盘链路所需的三样都还在：原文 → 复制 → 页内重试', () => {
     rememberRawDetail('读取失败', 'HTTP 500')
     const w = mount(StateBlock, {

@@ -7,6 +7,7 @@ import { computed, ref } from 'vue'
 import { PH_NONE, PH_NOT_MEASURED } from '../utils/display'
 import { errorRawDetail } from '../utils/errorRaw'
 import { errorAdviceOfText } from '../utils/errorText'
+import { downloadDiagnosticPackage } from '../utils/diagnostic'
 import ErrorHelpActions from './ErrorHelpActions.vue'
 
 const props = defineProps<{
@@ -71,9 +72,15 @@ async function copyRaw(): Promise<void> {
     <details v-if="rawDetail" class="admin-state-block__raw">
       <summary>错误原文（排查用，可复制给工单）</summary>
       <pre class="admin-state-block__rawtext">{{ rawDetail }}</pre>
-      <button type="button" class="admin-state-block__copy" @click="copyRaw">
-        {{ copied ? '已复制' : '复制原文' }}
-      </button>
+      <!-- 单条复制给这一发；整包导出给「不只这一处出错」的报障（SPEC-UI-8 G2） -->
+      <div class="admin-state-block__raw-actions">
+        <button type="button" class="admin-state-block__copy" @click="copyRaw">
+          {{ copied ? '已复制' : '复制原文' }}
+        </button>
+        <button type="button" class="admin-state-block__copy admin-state-block__download" @click="downloadDiagnosticPackage">
+          导出诊断包
+        </button>
+      </div>
     </details>
     <div v-if="$slots.default" class="admin-state-block__extra">
       <slot />
@@ -149,6 +156,12 @@ async function copyRaw(): Promise<void> {
     font-size: 12px;
     white-space: pre-wrap;
     word-break: break-all;
+  }
+
+  &__raw-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
   }
 
   &__copy {

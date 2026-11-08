@@ -6,6 +6,7 @@ import { slugOfPath } from '../portal/portalPath'
 import { isPortalPath, withSitePreviewToken } from '../portal/previewNavigation'
 import { useReviewMode } from '../portal/useReviewMode'
 import { safeInternalPath } from '../utils/redirect'
+import { recordPageView } from '../utils/errorMetrics'
 
 // 🔐 主布局
 const WorkspaceView = () => import('../views/workspace/WorkspaceView.vue')
@@ -155,6 +156,8 @@ const NotificationInboxView = () => import('../views/workspace/NotificationInbox
 const DailyOutputView = () => import('../views/workspace/DailyOutputView.vue')
 const InteractionView = () => import('../views/workspace/InteractionView.vue')
 const NotFoundView = () => import('../views/NotFoundView.vue')
+// 列表三态契约示例页（SPEC-UI-8 G3）：只在地址栏可达，不进菜单
+const ListStateDemoView = () => import('../views/dev/ListStateDemoView.vue')
 
 /**
  * 路由 meta 里那 80 条 `breadcrumb: ['首页', '…', '…']` 已整体删除（Spec-F Q10-A）。
@@ -1121,6 +1124,13 @@ export const routes: RouteRecordRaw[] = [
           icon: 'notification',
           requiresSuperAdmin: true
         }
+      },
+      {
+        // 列表三态契约的活例子（SPEC-UI-8 G3）：不进菜单（hidden），避免治理页变成业务入口
+        path: 'dev/list-states',
+        name: 'workspace-dev-list-states',
+        component: ListStateDemoView,
+        meta: { title: '列表状态示例', hidden: true }
       }
     ]
   },
@@ -1183,6 +1193,8 @@ router.beforeEach((to) => {
 // 这一刀不能放在页面组件的 onUnmounted 里：切页时新页先挂载、旧页后卸载（2026-11-05 现场实测），
 // 卸载钩子会把下一页刚激活的预览态连同记住的令牌一起抹掉——门户内部的去留由各页面自己看地址栏。
 router.afterEach((to) => {
+  // 页面浏览是错误曝光率的分母（SPEC-UI-8 G1）：每落一页记一次，单页内刷新不算新的浏览
+  recordPageView(to.fullPath)
   if (!isPortalPath(to.path)) {
     useReviewMode().deactivate()
   }

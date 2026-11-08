@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { useSlots } from 'vue'
 import RecordListPage from '../RecordListPage.vue'
+import DataTable from '../DataTable.vue'
 
 /**
  * 列表页模板 `RecordListPage` 自己那五件事（Spec-Q §4.1 A/B 型，P1 第一次落地，P2 补 section 形）。
@@ -214,6 +215,30 @@ describe('RecordListPage 的三态分账', () => {
     const w = mountPage({ countLine: '', readFailed: '读口断了', columns: COLUMNS, rows: [] })
     expect(w.find('.record-list-page__count').exists()).toBe(false)
     expect(w.text()).not.toContain('共 0')
+  })
+})
+
+describe('RecordListPage 模板默认带「错误可见 + 可重试」（SPEC-UI-8 G3）', () => {
+  it('readFailed 与 retry 必须同时交给 DataTable：新页面不改模板也天然满足契约', async () => {
+    let calls = 0
+    const w = mountPage({
+      readFailed: '读口断了',
+      retry: () => { calls += 1 },
+      columns: COLUMNS,
+      rows: []
+    })
+    const table = w.findComponent(DataTable)
+    expect(table.props('error')).toBe('读口断了')
+    expect(typeof table.props('retry')).toBe('function')
+
+    // 错误块里那颗「重试」真接到页面交上来的加载函数上，不是摆一颗点了没反应的
+    await w.find('.admin-state-block .btn-stub').trigger('click')
+    expect(calls).toBe(1)
+  })
+
+  it('没传 retry 时不摆一颗点了没反应的按钮（契约允许页面有刷新按钮时省略）', () => {
+    const w = mountPage({ readFailed: '读口断了', columns: COLUMNS, rows: [] })
+    expect(w.find('.admin-state-block .btn-stub').exists()).toBe(false)
   })
 })
 

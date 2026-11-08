@@ -13,3 +13,11 @@ export function logError(code: string, ...rest: unknown[]): void {
 export function logWarn(code: string, ...rest: unknown[]): void {
   console.warn(`[ui-warn] ${code}`, ...rest)
 }
+
+/**
+ * 中性事件留痕（SPEC-UI-8 G1）：页面浏览、重试、恢复这类「不是错误但要有账」的计数走这一档。
+ * 单独一条理由：这些事件量比错误大，混进 error 通道会把真错误淹掉，也让人误以为整页在报错。
+ */
+export function logInfo(code: string, ...rest: unknown[]): void {
+  console.info(`[ui-info] ${code}`, ...rest)
+}

@@ -98,17 +98,20 @@ export function describeHttpError(error: unknown): string {
 }
 
 /**
- * 原文材料（给工单用）：状态码、请求地址、axios 代码、后端回的那段壳。
+ * 原文材料（给工单用）：状态码、请求地址、请求 id、axios 代码、后端回的那段壳。
  * 它不上标题，只折叠在错误块里（拍板 Q5-A）。
+ * SPEC-UI-8 G2：补请求 id —— 后端能按它定位那一次请求，没有就不编造。
  */
 function rawDetailOfError(error: unknown): string {
   const axiosError = error as AxiosError<unknown>
   const lines: string[] = []
   const status = axiosError?.response?.status
+  const requestId = requestIdOfError(axiosError)
   if (status) {
     const url = axiosError.config?.url || ''
     lines.push(`${axiosError.config?.method?.toUpperCase() || 'GET'} ${url} → HTTP ${status}`.trim())
   }
+  if (requestId) lines.push(`requestId: ${requestId}`)
   if (axiosError?.code) lines.push(`code: ${axiosError.code}`)
   const body = axiosError?.response?.data
   if (body !== undefined && body !== null && typeof body !== 'string') {
@@ -119,6 +122,16 @@ function rawDetailOfError(error: unknown): string {
   const message = (error as Error | null)?.message
   if (message && message !== lines[lines.length - 1]) lines.push(message)
   return lines.join('\n')
+}
+
+/** 请求 id 的两个来源：响应头 `x-request-id`（axios 转小写）优先，其次是响应体的 `traceId` */
+function requestIdOfError(error: AxiosError<unknown>): string | null {
+  const fromHeader = error?.response?.headers?.['x-request-id']
+  if (fromHeader) return String(fromHeader)
+  const body = error?.response?.data as Record<string, unknown> | undefined
+  const traceId = body && typeof body === 'object' ? body.traceId : undefined
+  if (traceId !== undefined && traceId !== null && String(traceId).trim()) return String(traceId)
+  return null
 }
 
 function humanizeHttpError(error: unknown): string {

@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import DataTable from '../DataTable.vue'
 import StateBlock from '../StateBlock.vue'
+import { getErrorMetrics, resetErrorMetrics } from '../../utils/errorMetrics'
 
 // 错误块里的 403/401 求助动作要读会话（有没有工单权限），先给一个空会话
 beforeEach(() => {
@@ -273,5 +274,38 @@ describe('DataTable', () => {
   it('G12：scroll=false 是「这张表明确不要横向滚动」，不许被兜底改成对象', () => {
     const w = mountTable({ scroll: false })
     expect(w.findComponent(TableStub).props('scroll')).toBe(false)
+  })
+
+  // ===== SPEC-UI-8 G1：读失败度量从这里落账 =====
+  it('失败一发记一次曝光（无行时同时记风险触发）；重试成功后记重试成功与恢复耗时', async () => {
+    resetErrorMetrics()
+    const w = mountTable({ dataSource: [], loading: true, retry: () => {} })
+    await w.setProps({ loading: false, error: '服务器处理失败，请稍后重试或联系管理员' })
+
+    let m = getErrorMetrics()
+    expect(m.exposures).toBe(1)
+    expect(m.errorZeroRowCases).toBe(1)
+
+    await w.find('.btn-stub').trigger('click')
+    expect(getErrorMetrics().retryAttempts).toBe(1)
+
+    await w.setProps({ loading: true, error: null })
+    await w.setProps({ loading: false, error: null, dataSource: [{ id: 1 }] })
+
+    m = getErrorMetrics()
+    expect(m.retrySuccesses).toBe(1)
+    expect(m.retrySuccessRate).toBe(1)
+    expect(m.recoveryCount).toBe(1)
+    expect(m.avgRecoveryMs).toBeGreaterThanOrEqual(0)
+  })
+
+  it('有旧行时错误不再算「错误 + 0 行」，但仍记一次曝光', async () => {
+    resetErrorMetrics()
+    const w = mountTable({ dataSource: [{ id: 1 }], loading: true, keepStaleOnError: true })
+    await w.setProps({ dataSource: [], loading: false, error: '网络抖动' })
+
+    const m = getErrorMetrics()
+    expect(m.exposures).toBe(1)
+    expect(m.errorZeroRowCases).toBe(0)
   })
 })

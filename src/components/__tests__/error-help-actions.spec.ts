@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '../../stores/auth'
+import { rememberRawDetail } from '../../utils/errorRaw'
 
 /**
  * SPEC-UI-7 U2：403 的求助入口、401 的重新登录。
@@ -74,6 +75,17 @@ describe('ErrorHelpActions', () => {
     expect(copied).toContain('原文：')
     await w.vm.$nextTick()
     expect(w.text()).toContain('已复制诊断信息')
+  })
+
+  it('G2：复制诊断带上原文里的 requestId，后端能按 id 定位那一次请求', async () => {
+    loginWith(['portal:ticket:submit'])
+    rememberRawDetail('没有权限执行该操作-G2', 'GET /api/audit-logs → HTTP 403\nrequestId: req-abc')
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const w = mountActions('没有权限执行该操作-G2')
+    await w.find('.error-help-actions__copy').trigger('click')
+    await Promise.resolve()
+    expect(writeText.mock.calls[0][0]).toContain('requestId: req-abc')
   })
 
   it('401 只摆「重新登录」，点后带当前路径去登录页', async () => {
