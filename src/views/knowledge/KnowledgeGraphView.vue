@@ -238,13 +238,15 @@
       <div v-else>
         <a-tabs v-model:activeKey="activeTab">
           <a-tab-pane key="entities" :tab="`实体 (${selectedEntities.length}/${extractionResult.entities.length})`">
-            <a-table
+            <DataTable
               :scroll="{ x: 'max-content' }"
               :data-source="extractionResult.entities"
               :pagination="{ pageSize: 5 }"
               size="small"
               row-key="name"
+              :loading="loading"
             >
+              <template #emptyText><EmptyListHint :own-line="recentEntityEmptyText" /></template>
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'select'">
                   <a-checkbox
@@ -270,7 +272,7 @@
               <a-table-column key="type" title="类型" width="120" />
               <a-table-column key="description" title="描述" />
               <a-table-column key="confidence" title="置信度" width="100" />
-            </a-table>
+            </DataTable>
             <div style="margin-top: 8px">
               <a-checkbox
                 :checked="allEntitiesSelected"
@@ -282,13 +284,15 @@
           </a-tab-pane>
 
           <a-tab-pane key="relations" :tab="`关系 (${selectedRelations.length}/${extractionResult.relations.length})`">
-            <a-table
+            <DataTable
               :scroll="{ x: 'max-content' }"
               :data-source="extractionResult.relations"
               :pagination="{ pageSize: 5 }"
               size="small"
               row-key="(r) => r.sourceName + '-' + r.relationType + '-' + r.targetName"
+              :loading="loading"
             >
+              <template #emptyText><EmptyListHint :own-line="recentRelationEmptyText" /></template>
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'select'">
                   <a-checkbox
@@ -314,7 +318,7 @@
               <a-table-column key="relation" title="关系" width="100" />
               <a-table-column key="target" title="目标实体" />
               <a-table-column key="confidence" title="置信度" width="100" />
-            </a-table>
+            </DataTable>
             <div style="margin-top: 8px">
               <a-checkbox
                 :checked="allRelationsSelected"
@@ -397,6 +401,8 @@ import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logWarn } from '../../utils/errorLog'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 
 const authStore = useAuthStore()
 

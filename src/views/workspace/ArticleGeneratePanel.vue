@@ -388,8 +388,11 @@
             </a-space>
           </a-space>
         </div>
-        <a-table :scroll="{ x: 'max-content' }" :data-source="generationTasks" :columns="taskColumns"
-          row-key="taskId" :pagination="false" size="middle" :row-selection="taskRowSelection">
+        <DataTable :scroll="{ x: 'max-content' }" :data-source="generationTasks" :columns="taskColumns"
+          row-key="taskId" :pagination="false" size="middle" :row-selection="taskRowSelection" :loading="loading">
+          <template #emptyText>
+            <EmptyListHint :not-sent="requestedTenantId === null ? notSentLine : ''" />
+          </template>
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'driver'">
               <a-tag>{{ driverLabel(record.driver) }}</a-tag>
@@ -444,7 +447,7 @@
               </a-button>
             </template>
           </template>
-        </a-table>
+        </DataTable>
       </div>
 
       <!-- 质量分析抽屉 -->
@@ -578,6 +581,8 @@ import type { GenerationTaskView } from '../../api/workspace'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 import { logError } from '../../utils/errorLog'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 
 const router = useRouter()
 const route = useRoute()

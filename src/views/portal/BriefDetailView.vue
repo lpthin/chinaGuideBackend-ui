@@ -38,6 +38,7 @@ import { formatDateTime } from '@/utils/format'
 import type { Site } from '@/types'
 import type { Tenant } from '@/types/workspace'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
 
 /**
  * 需求单详情（Spec-C §3.2「需求单详情 = 后链路的落点」；P3 起「出方案」这条主线也挂在这一页）。
@@ -872,7 +873,7 @@ onUnmounted(stopPolling)
           <p v-else class="brief-detail__muted">
             共 {{ answerRows.length }} 题，其中 {{ answeredCount }} 题有答案。空着的那一格就是当时没勾/没填，不是这里没显示出来。
           </p>
-          <a-table
+          <DataTable
             :data-source="answerRows"
             :columns="columns"
             :loading="loading"
@@ -904,7 +905,7 @@ onUnmounted(stopPolling)
                   : '词表里一道题都没有：那不是「这单没答题」，是词表回包空了，刷新重试'"
               />
             </template>
-          </a-table>
+          </DataTable>
         </template>
       </a-card>
 
@@ -1207,7 +1208,7 @@ onUnmounted(stopPolling)
           <p v-if="sitesUnavailable" class="brief-detail__muted">
             站点列表这次没取到：下面这一格只能按需求单自己回填的那个站号显示，候选清单要刷新重试才有。
           </p>
-          <a-table
+          <DataTable
             :data-source="linkedSites"
             :columns="siteColumns"
             :pagination="false"
@@ -1232,7 +1233,7 @@ onUnmounted(stopPolling)
                 <a-button size="small" type="link" @click="goAssemble(record)">这一站的组装任务</a-button>
               </template>
             </template>
-          </a-table>
+          </DataTable>
           <a-space wrap class="brief-detail__actions">
             <a-button @click="goSites">到站点清单只看这一单的站</a-button>
           </a-space>
