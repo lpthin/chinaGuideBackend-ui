@@ -454,6 +454,10 @@
             :scroll="{ x: 1000, y: 'calc(100vh - 520px)' }"
             style="margin-top: 12px"
           >
+            <template #emptyText>
+              <EmptyListHint :loading="distilling" own-line="按当前的搜索与优先级筛选，这一栏没有候选簇。" />
+            </template>
+
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'priority'">
                 <div class="priority-cell">

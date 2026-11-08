@@ -113,6 +113,7 @@
           :data-source="filteredConfigs"
           :pagination="false"
           :loading="loading"
+          :error="loadError"
           :row-key="(record: any) => record.id"
         >
           <template #bodyCell="{ column, record }">
@@ -386,6 +387,7 @@ import PageTitle from '../../components/PageTitle.vue'
 // 原先这里写的是 `selectedTenantId || tenantId || 1`——最后那个 `|| 1` 让「没选客户」变成「偷偷去看 1 号家」。
 
 const loading = ref(false)
+const loadError = ref<string | null>(null)
 const saving = ref(false)
 const testingId = ref<number | null>(null)
 const probingId = ref<number | null>(null)
@@ -935,6 +937,7 @@ async function handleSaveConfig() {
 
 async function loadData() {
   loading.value = true
+  loadError.value = null
   try {
     const result = await modelConfigApi.list({ page: 1, size: 100 })
     const list = result?.records || []
@@ -946,6 +949,7 @@ async function loadData() {
     configs.value.forEach(config => priceSnapshot.set(config.id, config.pricePer1kTokens ?? null))
   } catch (error) {
     logError('ai/model-config-view', '加载模型配置失败:', error)
+    loadError.value = (error as { message?: string })?.message || '加载模型配置失败'
     message.error('加载模型配置失败')
     configs.value = []
   } finally {
