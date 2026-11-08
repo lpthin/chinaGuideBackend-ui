@@ -68,7 +68,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
   RobotOutlined,
@@ -79,9 +79,11 @@ import { useAuthStore } from '../stores/auth'
 import { authApi } from '../api'
 import type { LoginRequest } from '../types'
 import { logWarn } from '../utils/errorLog'
+import { safeInternalPath } from '../utils/redirect'
 import { APP_NAME } from '../copy/brand'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const formRef = ref()
@@ -169,7 +171,8 @@ async function handleLogin() {
     }
 
     message.success('登录成功！')
-    router.push('/workspace/dashboard')
+    // 401 之后从错误块点「重新登录」进来时回原页；只放行站内路径（SPEC-UI-7 U2）
+    router.push(safeInternalPath(route.query.redirect))
     loading.value = false
   } catch (error: any) {
     message.error(error.message || '登录失败，请重试')

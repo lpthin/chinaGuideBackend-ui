@@ -4,6 +4,7 @@ import { message } from 'ant-design-vue'
 import { router } from '../router'
 import { useAuthStore } from '../stores/auth'
 import { rememberRawDetail } from '../utils/errorRaw'
+import { ERROR_COPY } from '../utils/errorText'
 
 let isRedirecting = false
 
@@ -124,28 +125,32 @@ function humanizeHttpError(error: unknown): string {
   const axiosError = error as AxiosError<{ message?: string }>
   const bizMessage = axiosError?.response?.data?.message
   if (bizMessage) return bizMessage
-  if (axiosError?.code === 'ECONNABORTED') return '请求超时，服务处理时间较长，请稍后重试'
+  // 5 类的「发生了什么」只有 ERROR_COPY 一个出处（SPEC-UI-7 U1）；
+  // 后端说了什么仍优先（上面那一支），但只顶替这一格，不挤掉下一步。
+  if (axiosError?.code === 'ECONNABORTED') return ERROR_COPY.timeout.happened
   const status = axiosError?.response?.status
   if (!status) {
     // axios 自身的技术错误（Network Error 等）不能直接抛给界面；
     // 拦截器转抛的纯 Error 里带的是后端返回的中文业务文案，原样透出。
-    if (axiosError?.isAxiosError) return '无法连接服务器，请确认后端已启动'
-    return (error as Error | null)?.message || '无法连接服务器，请确认后端已启动'
+    if (axiosError?.isAxiosError) return ERROR_COPY.offline.happened
+    return (error as Error | null)?.message || ERROR_COPY.offline.happened
   }
   if (isContainerLevelRejection(axiosError)) {
     return containerRejectionMessage(status)
   }
   switch (status) {
     case 400: return '请求参数有误，请检查后重试'
-    case 401: return '登录状态已失效，请重新登录'
-    case 403: return '没有权限执行该操作'
+    // 401 / 403 / 5xx 归 5 类，句子从 ERROR_COPY 取；网关三型也算服务异常，
+    // 具体状态仍留在「错误原文」里给工单看，标题上不重复。
+    case 401: return ERROR_COPY.unauthorized.happened
+    case 403: return ERROR_COPY.forbidden.happened
     case 404: return '请求的内容不存在或已被删除'
     case 409: return '数据已被他人修改，请刷新后重试'
     case 429: return '操作过于频繁，请稍后再试'
-    case 500: return '服务器处理失败，请稍后重试或联系管理员'
-    case 502: return '后端服务不可用（网关 502），请确认服务已启动'
-    case 503: return '服务暂时不可用，请稍后重试'
-    case 504: return '后端响应超时（网关 504），请稍后重试'
+    case 500: return ERROR_COPY.server.happened
+    case 502: return ERROR_COPY.server.happened
+    case 503: return ERROR_COPY.server.happened
+    case 504: return ERROR_COPY.server.happened
     default: return `请求失败（HTTP ${status}）`
   }
 }

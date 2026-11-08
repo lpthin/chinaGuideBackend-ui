@@ -24,7 +24,7 @@ describe('describeHttpError', () => {
   })
 
   it('网关/HTTP 状态翻译成中文，不暴露 axios 英文原文', () => {
-    expect(describeHttpError(axiosError({ response: { status: 502 } }))).toContain('502')
+    expect(describeHttpError(axiosError({ response: { status: 502 } }))).toContain('服务器处理失败')
     expect(describeHttpError(axiosError({ response: { status: 403 } }))).toBe('没有权限执行该操作')
   })
 

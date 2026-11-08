@@ -23,6 +23,7 @@ const blocked = []
 const emptyLies = []
 const staleMisuse = []
 const doubleToasts = []
+const autoRetryMisuse = []
 
 for (const file of vueFiles(SRC)) {
   const rel = relative(process.cwd(), file).replace(/\\/g, '/')
@@ -203,8 +204,27 @@ for (const file of vueFiles(SRC)) {
   }
 }
 
-if (missing.length || blocked.length || emptyLies.length || staleMisuse.length || doubleToasts.length) {
-  console.error([...missing, ...blocked, ...emptyLies, ...staleMisuse, ...doubleToasts].join('\n'))
+/**
+ * 6. 自动退避重读只给只读列表（SPEC-UI-7 U3）。
+ * 写入型页面开了自动重试，可能把一次失败的写操作又发一遍；只放行登记过的只读页。
+ * 页面内也只会对网络断 / 超时 / 服务异常排一次，403 / 401 不自动重试。
+ */
+const AUTO_RETRY_WHITELIST = new Map([
+  ['src/views/portal/CitationProbeView.vue', '引用探针：只读结果列表，失败一次自动退避重读'],
+])
+
+for (const file of vueFiles(SRC)) {
+  const rel = relative(process.cwd(), file).replace(/\\/g, '/')
+  if (!rel.startsWith('src/views/')) continue
+  const source = readFileSync(file, 'utf8')
+  if (!/auto-retry-read-only|autoRetryReadOnly/.test(source)) continue
+  if (!AUTO_RETRY_WHITELIST.has(rel)) {
+    autoRetryMisuse.push(`自动重试只许给只读白名单页：${rel}`)
+  }
+}
+
+if (missing.length || blocked.length || emptyLies.length || staleMisuse.length || doubleToasts.length || autoRetryMisuse.length) {
+  console.error([...missing, ...blocked, ...emptyLies, ...staleMisuse, ...doubleToasts, ...autoRetryMisuse].join('\n'))
   process.exit(1)
 }
-console.log('表格状态规则通过：错误态都有重试、不会被 v-if 挡死、空态不替读失败撒谎、旧数据保留只发生在白名单页、读失败不重复弹 toast。')
+console.log('表格状态规则通过：错误态都有重试、不会被 v-if 挡死、空态不替读失败撒谎、旧数据保留只发生在白名单页、读失败不重复弹 toast、自动重试只发生在只读白名单页。')

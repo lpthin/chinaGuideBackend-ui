@@ -5,6 +5,7 @@ import { message } from 'ant-design-vue'
 import { slugOfPath } from '../portal/portalPath'
 import { isPortalPath, withSitePreviewToken } from '../portal/previewNavigation'
 import { useReviewMode } from '../portal/useReviewMode'
+import { safeInternalPath } from '../utils/redirect'
 
 // 🔐 主布局
 const WorkspaceView = () => import('../views/workspace/WorkspaceView.vue')
@@ -1155,7 +1156,8 @@ router.beforeEach((to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.name === 'login' && authStore.isLoggedIn) {
-    return { name: 'workspace-dashboard' }
+    // 已登录却被带到登录页（例如点了错误块里的「重新登录」）：按 redirect 回原页（SPEC-UI-7 U2）
+    return safeInternalPath(to.query.redirect)
   }
   const requiresSuperAdmin = to.matched.some(record => record.meta.requiresSuperAdmin === true)
   if (requiresSuperAdmin && !authStore.isSuperAdmin) {

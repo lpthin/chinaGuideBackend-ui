@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import EmptyListHint from '../EmptyListHint.vue'
+import { rememberRawDetail } from '../../utils/errorRaw'
 
 /**
  * 空态那一格的四件硬事（M-P53 拍板「只保人会看错的屏」+「没有时给个新建入口」）：
@@ -21,6 +23,11 @@ const BUTTON = {
 
 const mountHint = (props: Record<string, unknown>) =>
   mount(EmptyListHint, { props, global: { stubs: { 'a-button': BUTTON } } } as any)
+
+// 读失败里的 403/401 求助动作要读会话（有没有工单权限），先给一个空会话
+beforeEach(() => {
+  setActivePinia(createPinia())
+})
 
 describe('EmptyListHint 念的是后端那句原文', () => {
   it('后端给了 emptyLine 就逐字念它，一个字不改', () => {
@@ -59,6 +66,45 @@ describe('EmptyListHint 念的是后端那句原文', () => {
     const w = mountHint({ loading: true, emptyLine: '报警规则：这一档查过了，一条都没有。' })
     expect(w.text()).toBe('')
   })
+
+  // ===== SPEC-UI-7 U4：读失败那一格也要能听、能 Tab =====
+  it('读失败行 aria-live，原文与重试都在原生 Tab 顺序里', () => {
+    rememberRawDetail('读口断了', 'GET /api/x → Network Error')
+    const w = mountHint({ readFailed: '读口断了', retry: () => {} })
+    expect(w.find('p.empty-line').attributes('aria-live')).toBe('polite')
+    const raw = w.find('[aria-label="展开错误原文（排查用，可复制给工单）"]')
+    expect(raw.exists()).toBe(true)
+    for (const el of w.findAll('button')) {
+      expect(el.attributes('tabindex')).toBeUndefined()
+    }
+  })
+})
+
+describe('EmptyListHint 的重试体验（SPEC-UI-7 U3）', () => {
+  it('重试在途时连点只发一次，结束后才允许再点', async () => {
+    let release!: () => void
+    const retry = vi.fn(() => new Promise<void>((resolve) => { release = resolve }))
+    const w = mountHint({ readFailed: '读口断了', retry })
+    const btn = w.find('.retry-on-failed')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    await btn.trigger('click')
+    expect(retry).toHaveBeenCalledTimes(1)
+    release()
+    await flushPromises()
+    await btn.trigger('click')
+    expect(retry).toHaveBeenCalledTimes(2)
+  })
+
+  it('连续第 2 次读失败后改劝「把诊断发给管理员」', async () => {
+    const w = mountHint({ readFailed: '读口断了', retry: () => {} })
+    await w.setProps({ loading: true })
+    await w.setProps({ loading: false })
+    expect(w.find('.empty-line__repeat-hint').exists()).toBe(false)
+    await w.setProps({ loading: true })
+    await w.setProps({ loading: false })
+    expect(w.find('.empty-line__repeat-hint').exists()).toBe(true)
+  })
 })
 
 describe('EmptyListHint 那颗新建入口', () => {
@@ -87,12 +133,12 @@ describe('EmptyListHint 那颗新建入口', () => {
 
   it.each(NO_BUTTON)('%s → 不摆新建入口', (_label, props) => {
     const w = mountHint({ emptyLine: 'A', canCreate: true, createLabel: '新建', ...props })
-    expect(w.find('.btn-stub').exists()).toBe(false)
+    expect(w.find('.create-on-empty').exists()).toBe(false)
   })
 
   it('不认识的码一律当「后端没答」：既不摆按钮，也不念成某一句成因', () => {
     const w = mountHint({ emptyLine: undefined, emptyReason: 'WEIRD' as any, canCreate: true })
-    expect(w.find('.btn-stub').exists()).toBe(false)
+    expect(w.find('.create-on-empty').exists()).toBe(false)
     expect(w.text()).toContain('后端没回是哪一种空')
   })
 })

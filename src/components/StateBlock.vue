@@ -6,12 +6,16 @@
 import { computed, ref } from 'vue'
 import { PH_NONE, PH_NOT_MEASURED } from '../utils/display'
 import { errorRawDetail } from '../utils/errorRaw'
+import { errorAdviceOfText } from '../utils/errorText'
+import ErrorHelpActions from './ErrorHelpActions.vue'
 
 const props = defineProps<{
   state: 'empty' | 'error' | 'not-measured'
   title?: string
   detail?: string
   next?: string
+  /** 读口连续失败后的加一句（U3）：由调用方数次数，这里只负责摆出来 */
+  hint?: string
 }>()
 
 const TEXTS = {
@@ -22,19 +26,16 @@ const TEXTS = {
 
 const shownTitle = computed(() => props.title || TEXTS[props.state].title)
 /**
- * 读失败的「下一步」要按原因分流（拍板 Q3-A）：权限不足让人一直「稍后重试」，
- * 问题不会好；登录失效更该去重新登录。判定只看人话文案（status 在 describeHttpError 里已经丢掉）。
+ * 读失败按 5 类文案库分流（SPEC-UI-7 U1）：detail 是「发生了什么」，
+ * next 是「可以做什么」，help 是「要不要找人」。认不出来的一律回落通用句，
+ * 不把业务提示硬说成服务异常。
  */
-const PERMISSION_HINT = /没有权限|权限不足|无权/
-const LOGIN_HINT = /登录状态已失效|重新登录/
+const advice = computed(() => (props.state === 'error' ? errorAdviceOfText(props.detail) : null))
 const shownNext = computed(() => {
   if (props.next) return props.next
-  if (props.state === 'error' && props.detail) {
-    if (PERMISSION_HINT.test(props.detail)) return '请联系管理员，或换一个有该权限的账号。'
-    if (LOGIN_HINT.test(props.detail)) return '请重新登录后再试。'
-  }
-  return TEXTS[props.state].next
+  return advice.value?.canDo || TEXTS[props.state].next
 })
+const shownHelp = computed(() => (props.next ? '' : advice.value?.askHelp || ''))
 
 /** 原文材料折叠在错误块里（拍板 Q5-A）：人话是标题，原始技术串给工单用 */
 const rawDetail = computed(() => (props.state === 'error' ? errorRawDetail(props.detail) : null))
@@ -51,10 +52,22 @@ async function copyRaw(): Promise<void> {
 </script>
 
 <template>
-  <div class="admin-state-block" :data-state="state">
+  <div
+    class="admin-state-block"
+    :data-state="state"
+    :role="state === 'error' ? 'status' : undefined"
+    :aria-live="state === 'error' ? 'polite' : undefined"
+    :aria-atomic="state === 'error' ? 'true' : undefined"
+  >
     <div class="admin-state-block__title">{{ shownTitle }}</div>
     <div v-if="detail" class="admin-state-block__detail">{{ detail }}</div>
     <div class="admin-state-block__next">{{ shownNext }}</div>
+    <div v-if="shownHelp" class="admin-state-block__help">{{ shownHelp }}</div>
+    <!-- 403 / 401 的求助动作（SPEC-UI-7 U2）：念了「找管理员」就得给出入口 -->
+    <div v-if="state === 'error' && detail" class="admin-state-block__help-actions">
+      <ErrorHelpActions :text="detail" />
+    </div>
+    <div v-if="hint" class="admin-state-block__hint">{{ hint }}</div>
     <details v-if="rawDetail" class="admin-state-block__raw">
       <summary>错误原文（排查用，可复制给工单）</summary>
       <pre class="admin-state-block__rawtext">{{ rawDetail }}</pre>
@@ -92,6 +105,21 @@ async function copyRaw(): Promise<void> {
     font-size: 12px;
   }
 
+  &__help {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  &__help-actions {
+    margin-top: var(--admin-space-1, 8px);
+  }
+
+  &__hint {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--admin-text-secondary);
+  }
+
   &__extra {
     margin-top: var(--admin-space-2, 16px);
   }
@@ -104,6 +132,11 @@ async function copyRaw(): Promise<void> {
     summary {
       cursor: pointer;
       color: var(--admin-text-secondary);
+    }
+
+    summary:focus-visible {
+      outline: 2px solid var(--admin-primary, #1677ff);
+      outline-offset: 2px;
     }
   }
 
@@ -125,6 +158,11 @@ async function copyRaw(): Promise<void> {
     color: var(--admin-primary, #1677ff);
     cursor: pointer;
     font-size: 12px;
+  }
+
+  &__copy:focus-visible {
+    outline: 2px solid var(--admin-primary, #1677ff);
+    outline-offset: 2px;
   }
 }
 </style>

@@ -1,7 +1,17 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import DataTable from '../DataTable.vue'
 import StateBlock from '../StateBlock.vue'
+
+// 错误块里的 403/401 求助动作要读会话（有没有工单权限），先给一个空会话
+beforeEach(() => {
+  setActivePinia(createPinia())
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 /**
  * DataTable 的分页单一口径（§7.3 列表一律分页、每页上限 100）与三态兜底。
@@ -108,9 +118,69 @@ describe('DataTable', () => {
 
   it('权限不足不能念「稍后重试」', () => {
     const w = mountTable({ dataSource: [], error: '没有权限执行该操作' })
-    const next = w.findComponent(StateBlock).props('next') as string
+    const next = w.find('.admin-state-block__next').text()
     expect(next).toContain('管理员')
     expect(next).not.toContain('稍后重试')
+  })
+
+  // ===== SPEC-UI-7 U3：重试有反馈、有上限、只读才自动 =====
+  it('重试在途时按钮 loading + 禁用，连点只发一次', async () => {
+    let release!: () => void
+    const retry = vi.fn(() => new Promise<void>((resolve) => { release = resolve }))
+    const w = mountTable({ dataSource: [], error: '服务器处理失败，请稍后重试或联系管理员', retry })
+    const btn = w.find('.btn-stub')
+    await btn.trigger('click')
+    expect(btn.attributes('disabled')).toBe('')
+    await btn.trigger('click')
+    expect(retry).toHaveBeenCalledTimes(1)
+    release()
+    await flushPromises()
+    await btn.trigger('click')
+    expect(retry).toHaveBeenCalledTimes(2)
+  })
+
+  it('连续第 2 次读失败后改劝「把诊断发给管理员」，不再只让人点重试', async () => {
+    const w = mountTable({ dataSource: [], loading: true, retry: () => {} })
+    await w.setProps({ loading: false, error: '服务器处理失败，请稍后重试或联系管理员' })
+    expect(w.find('.admin-state-block__hint').exists()).toBe(false)
+    await w.setProps({ loading: true })
+    await w.setProps({ loading: false })
+    expect(w.find('.admin-state-block__hint').exists()).toBe(true)
+  })
+
+  it('只读页开 autoRetryReadOnly：服务异常失败后自动重读一次，本轮不再自动', async () => {
+    vi.useFakeTimers()
+    const retry = vi.fn()
+    const w = mountTable({ dataSource: [], loading: true, retry, autoRetryReadOnly: true })
+    await w.setProps({ loading: false, error: '服务器处理失败，请稍后重试或联系管理员' })
+    vi.advanceTimersByTime(1300)
+    await w.vm.$nextTick()
+    expect(retry).toHaveBeenCalledTimes(1)
+    await w.setProps({ loading: true })
+    await w.setProps({ loading: false })
+    vi.advanceTimersByTime(1300)
+    await w.vm.$nextTick()
+    expect(retry).toHaveBeenCalledTimes(1)
+  })
+
+  it('403 不自动重试：重读不会把权限变出来', async () => {
+    vi.useFakeTimers()
+    const retry = vi.fn()
+    const w = mountTable({ dataSource: [], loading: true, retry, autoRetryReadOnly: true })
+    await w.setProps({ loading: false, error: '没有权限执行该操作' })
+    vi.advanceTimersByTime(1300)
+    await w.vm.$nextTick()
+    expect(retry).not.toHaveBeenCalled()
+  })
+
+  it('没开 autoRetryReadOnly 时，网络失败也只等人点，不自己重读', async () => {
+    vi.useFakeTimers()
+    const retry = vi.fn()
+    const w = mountTable({ dataSource: [], loading: true, retry })
+    await w.setProps({ loading: false, error: '无法连接服务器，请确认后端已启动' })
+    vi.advanceTimersByTime(1300)
+    await w.vm.$nextTick()
+    expect(retry).not.toHaveBeenCalled()
   })
 
   it('keepStaleOnError：刷新失败保留上一次的行并挂提示，不整表撤成错误块', async () => {

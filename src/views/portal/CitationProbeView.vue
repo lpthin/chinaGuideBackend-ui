@@ -45,6 +45,7 @@
       :loading="loading"
       :error="loadError"
       :retry="load"
+      auto-retry-read-only
       row-key="id"
       size="middle"
       :scroll="{ x: 1180 }"

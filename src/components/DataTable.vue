@@ -19,9 +19,10 @@
  * 改之后 5 屏 0 格，页面上渲染出的 10 张表全部有可用的横向滚动层；
  * 1440 档两头都是 0 格且滚动层没被激活，兜底不给宽屏添一条没人要的横向滚动条。
  */
-import { computed, ref, shallowRef, useAttrs, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, useAttrs, watch } from 'vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import StateBlock from './StateBlock.vue'
+import { errorKindOfText, REPEAT_FAILURE_HINT } from '../utils/errorText'
 
 const props = withDefaults(
   defineProps<{
@@ -47,8 +48,14 @@ const props = withDefaults(
      * 屏幕上不能再出现上一家客户或上一档筛选的任何一行（M2）。
      */
     staleKey?: string | number
+    /**
+     * 只读列表的一次自动退避重读（U3）：仅在网络断 / 超时 / 服务异常时排一次，
+     * 1.2s 后重读；成功即清零。403 / 401 重读没有意义，一律不自动重试。
+     * 写入型页面不许开——由 check-table-states 的白名单守住。
+     */
+    autoRetryReadOnly?: boolean
   }>(),
-  { dataSource: () => [], loading: false, error: null, rowKey: 'id', pagination: undefined, keepStaleOnError: false, staleKey: '' }
+  { dataSource: () => [], loading: false, error: null, rowKey: 'id', pagination: undefined, keepStaleOnError: false, staleKey: '', autoRetryReadOnly: false }
 )
 
 const attrs = useAttrs()
@@ -94,13 +101,6 @@ const isEmpty = computed(() => !props.loading && !props.error && props.dataSourc
 
 const errorText = computed(() => String(props.error ?? ''))
 
-/** 权限与登录问题不能念「稍后重试」：那不是等一等就会好的事 */
-const errorNext = computed(() => {
-  if (/没有权限|权限不足|无权/.test(errorText.value)) return '需要更高权限：请联系管理员开通后再回来'
-  if (/登录状态已失效|重新登录/.test(errorText.value)) return '请重新登录后再试'
-  return undefined
-})
-
 /**
  * 上一次读成功的行。只记非空那一档：成功读到空也算「新状态」，由 loading 回落那一下清掉。
  * 页面在 catch 里把 rows 清空是常态，这里兜住「抖动一次就把整块数据撤走」。
@@ -131,6 +131,15 @@ watch(
       // 读成功才把这一档算「干净」的；失败就一直脏着，旧数据不许顶上来
       contextDirty.value = false
     }
+    if (loading) return
+    // 读口每落败一次记一笔（U3）：第 2 次后不再劝「再点一下」，改为劝把诊断发给管理员
+    if (props.error) {
+      failureStreak.value += 1
+      scheduleAutoRetry()
+    } else {
+      failureStreak.value = 0
+      autoRetried.value = false
+    }
   }
 )
 
@@ -144,16 +153,74 @@ const displayRows = computed(() => {
 /** 有行可看时只挂提示条，不再整表撤成错误块 */
 const showErrorBlock = computed(() => !!props.error && displayRows.value.length === 0)
 
-function onRetry() {
-  void props.retry?.()
+/**
+ * 重试的本地守卫与自动退避（SPEC-UI-7 U3）。
+ * 页面的 loading 不一定会同步翻转，这里先拦一遍重复点击；
+ * 自动重读每轮失败最多排一次，成功才允许下一轮再排。
+ */
+const AUTO_RETRY_DELAY_MS = 1200
+const retrying = ref(false)
+const failureStreak = ref(0)
+const autoRetried = ref(false)
+let autoRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearAutoRetry(): void {
+  if (autoRetryTimer) {
+    clearTimeout(autoRetryTimer)
+    autoRetryTimer = null
+  }
 }
+
+async function runRetry(): Promise<void> {
+  if (retrying.value || !props.retry) return
+  retrying.value = true
+  try {
+    await props.retry()
+  } finally {
+    retrying.value = false
+  }
+}
+
+function onRetry(): void {
+  void runRetry()
+}
+
+/** 只对只读列表、只对网络 / 超时 / 服务异常排一次自动重读 */
+function scheduleAutoRetry(): void {
+  if (!props.autoRetryReadOnly || autoRetried.value || !props.retry) return
+  const kind = errorKindOfText(props.error)
+  if (kind !== 'offline' && kind !== 'timeout' && kind !== 'server') return
+  autoRetried.value = true
+  clearAutoRetry()
+  autoRetryTimer = setTimeout(() => {
+    autoRetryTimer = null
+    void runRetry()
+  }, AUTO_RETRY_DELAY_MS)
+}
+
+onBeforeUnmount(clearAutoRetry)
 
 </script>
 
 <template>
-  <StateBlock v-if="showErrorBlock" state="error" :detail="errorText" :next="errorNext">
+  <!-- 错误态的三层文案交给 StateBlock 按 errorText 统一分流（SPEC-UI-7 U1），
+       表格不再自造 errorNext——两处实现迟早会说成两种话。 -->
+  <StateBlock
+    v-if="showErrorBlock"
+    state="error"
+    :detail="errorText"
+    :hint="failureStreak >= 2 ? REPEAT_FAILURE_HINT : ''"
+  >
     <slot name="errorExtra">
-      <a-button v-if="retry" type="primary" :loading="loading" @click="onRetry">重试</a-button>
+      <a-button
+        v-if="retry"
+        type="primary"
+        :loading="loading || retrying"
+        :disabled="retrying"
+        @click="onRetry"
+      >
+        重试
+      </a-button>
     </slot>
   </StateBlock>
   <!-- 页面自己带了「这一种空是哪一种」那一句（N-05：后端原文，界面不改写）时，这一块固定话术

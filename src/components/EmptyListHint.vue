@@ -16,12 +16,37 @@
     但只有这一屏本来就有新建动作、且登录的人有权限时才摆——读不到（NOT_VISIBLE）与翻过头
     （OUT_OF_RANGE）都不摆，那两种空不是说「这一档还空着」。
   -->
-  <p v-if="!loading" class="empty-line">
+  <p
+    v-if="!loading"
+    class="empty-line"
+    :aria-live="readFailed ? 'polite' : undefined"
+    :aria-atomic="readFailed ? 'true' : undefined"
+  >
     <template v-if="notSent">{{ notSent }}</template>
     <template v-else-if="readFailed">
       这一发读失败：{{ readFailed }}（读失败不是「这一档没有」）
-      <a-button v-if="retry" type="link" size="small" class="retry-on-failed" @click="onRetry">重试</a-button>
-      <a-button v-if="rawDetail" type="link" size="small" @click="showRaw = !showRaw">
+      <span v-if="readAdvice" class="empty-line__advice">{{ readAdvice.canDo }}{{ readAdvice.askHelp }}</span>
+      <span v-if="failureStreak >= 2" class="empty-line__advice empty-line__repeat-hint">{{ REPEAT_FAILURE_HINT }}</span>
+      <!-- 403 / 401 的求助动作（SPEC-UI-7 U2）：和表格错误块同一颗组件，话与入口只做一份 -->
+      <ErrorHelpActions v-if="readFailed" :text="readFailed" />
+      <a-button
+        v-if="retry"
+        type="link"
+        size="small"
+        class="retry-on-failed"
+        :loading="loading || retrying"
+        :disabled="retrying"
+        @click="onRetry"
+      >
+        重试
+      </a-button>
+      <a-button
+        v-if="rawDetail"
+        type="link"
+        size="small"
+        :aria-label="showRaw ? '收起错误原文' : '展开错误原文（排查用，可复制给工单）'"
+        @click="showRaw = !showRaw"
+      >
         {{ showRaw ? '收起原文' : '错误原文' }}
       </a-button>
       <template v-if="showRaw && rawDetail">
@@ -46,9 +71,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { offersCreateOnEmpty, type EmptyReason } from '../utils/emptyPage'
 import { errorRawDetail } from '../utils/errorRaw'
+import { errorAdviceOfText, REPEAT_FAILURE_HINT } from '../utils/errorText'
+import ErrorHelpActions from './ErrorHelpActions.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -80,12 +107,39 @@ const props = withDefaults(
 
 const emit = defineEmits<{ create: [] }>()
 
-function onRetry() {
-  props.retry?.()
+/**
+ * 重试体验（SPEC-UI-7 U3）：组件内先拦重复点击；
+ * 每一发读口落败记一笔，第 2 次后不再劝「再点一下」，改为劝把诊断发给管理员。
+ */
+const retrying = ref(false)
+const failureStreak = ref(0)
+
+async function runRetry(): Promise<void> {
+  if (retrying.value || !props.retry) return
+  retrying.value = true
+  try {
+    await props.retry()
+  } finally {
+    retrying.value = false
+  }
 }
+
+function onRetry(): void {
+  void runRetry()
+}
+
+watch(
+  () => props.loading,
+  (loading, wasLoading) => {
+    if (loading || !wasLoading) return
+    failureStreak.value = props.readFailed ? failureStreak.value + 1 : 0
+  }
+)
 
 /** 读失败时折叠出原始技术串（拍板 Q5-A）：人话在上，原文给工单用 */
 const rawDetail = computed(() => errorRawDetail(props.readFailed))
+/** 读失败的三层文案（SPEC-UI-7 U1）：「可以做什么 / 要不要找人」跟人话同源 */
+const readAdvice = computed(() => errorAdviceOfText(props.readFailed))
 const showRaw = ref(false)
 const copied = ref(false)
 async function copyRaw(): Promise<void> {
@@ -104,6 +158,18 @@ async function copyRaw(): Promise<void> {
   margin: 0;
   color: rgba(0, 0, 0, 0.45);
   text-align: center;
+
+  /* 错误态里的按钮都在原生 focus 顺序里，补一圈可见焦点环，键盘用户才看得见走到哪了 */
+  button:focus-visible {
+    outline: 2px solid var(--admin-primary, #1677ff);
+    outline-offset: 2px;
+  }
+
+  &__advice {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+  }
 }
 
 .create-on-empty {
