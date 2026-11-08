@@ -30,7 +30,7 @@
       />
 
       <a-divider orientation="left">每一格装得下什么（槽位形状）</a-divider>
-      <a-table
+      <DataTable
         :data-source="slotShapeRows"
         :columns="slotShapeColumns"
         :pagination="false"
@@ -58,14 +58,14 @@
         <template #emptyText>
           <a-empty description="还没有槽位形状：抓取那一步（T4 之后）才会产出" />
         </template>
-      </a-table>
+      </DataTable>
       <p class="reference-site-page__muted">
         「必填」那一行说的是<b>必填是从哪一路看出来的</b>，不是「这个字段必须填」：
         我们的表单必填归服务端写死，区块侧没有必填开关槽。它最终的去处是前采里问客户的一道题。
       </p>
 
       <a-divider orientation="left">这一站用过的枚举组（栏目候选的原料）</a-divider>
-      <a-table
+      <DataTable
         :data-source="vocabularyRows"
         :columns="vocabularyColumns"
         :pagination="false"
@@ -84,7 +84,7 @@
         <template #emptyText>
           <a-empty description="没有认出成组的枚举（下拉 / 单选复选 / 筛选 tabs / 卡片栅格标题）" />
         </template>
-      </a-table>
+      </DataTable>
       <p class="reference-site-page__muted">
         同一组枚举常在三处复用，所以带「出现在哪几条路由」。<b>它们是候选，不是栏目</b>：
         真正建栏目要过内容完整度与词表闸，这里只是把原料递过去。
@@ -108,6 +108,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import DataTable from '../../../components/DataTable.vue'
 import { referenceLabel, type ReferenceVocabularies, type TemplatePackage } from '../../../api/referenceSites'
 
 /**

@@ -9,7 +9,7 @@
         </a-button>
       </template>
     </PageTitle>
-    <a-table
+    <DataTable
   :scroll="{ x: 'max-content' }"
   :data-source="templates"
   :loading="loading"
@@ -55,7 +55,7 @@
       </a-space>
     </template>
   </a-table-column>
-</a-table>
+</DataTable>
 
     <a-modal
       v-model:open="modalOpen"
@@ -111,6 +111,7 @@ import {
   type EmptyReason,
 } from '../../utils/emptyPage'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
 
 const purposeNames: Record<string, string> = {
   keyword_distill: '关键词蒸馏',

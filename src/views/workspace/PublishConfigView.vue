@@ -53,7 +53,14 @@
             </a-button>
           </template>
 
-          <a-table :scroll="{ x: 'max-content' }" :columns="platformColumns" :data-source="platformList" :loading="platformLoading" row-key="id">
+          <DataTable
+            :scroll="{ x: 'max-content' }"
+            :columns="platformColumns"
+            :data-source="platformList"
+            :loading="platformLoading"
+            :pagination="{ pageSize: 10 }"
+            row-key="id"
+          >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'type'">
                 <a-tag :color="getPlatformTypeColor(record.type)">
@@ -82,7 +89,7 @@
                 </a-space>
               </template>
             </template>
-          </a-table>
+          </DataTable>
         </a-card>
       </a-tab-pane>
     </a-tabs>
@@ -146,6 +153,7 @@ import { publishConfigApi } from '../../api/workspace'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
 
 const authStore = useAuthStore()
 

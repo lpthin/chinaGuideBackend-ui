@@ -120,7 +120,7 @@
                   <p v-if="!canWrite" class="prompt-page__muted">{{ writeHint }}</p>
 
                   <h4 class="prompt-page__sub">这份能占的位（后端回的那一份，不是前端抄的）</h4>
-                  <a-table
+                  <DataTable
                     :data-source="variableRows"
                     :columns="variableColumns"
                     size="small"
@@ -131,7 +131,7 @@
                       <code v-if="column.key === 'name'">{{ placeholderText(record.name) }}</code>
                       <span v-else>{{ record.note }}</span>
                     </template>
-                  </a-table>
+                  </DataTable>
 
                   <h4 class="prompt-page__sub">这一份里现在占着的位</h4>
                   <p v-if="!detail.summary.placeholders.length" class="prompt-page__muted">
@@ -153,7 +153,7 @@
                     <p v-else-if="!overrides.length" class="prompt-page__muted">
                       还没有任何站点覆盖这一份：现在每一家读的都是左栏这一份全局正文。
                     </p>
-                    <a-table
+                    <DataTable
                       v-else
                       :data-source="overrides"
                       :columns="overrideColumns"
@@ -175,7 +175,7 @@
                           <span v-else>—</span>
                         </template>
                       </template>
-                    </a-table>
+                    </DataTable>
                     <p v-if="overrides.length" class="prompt-page__muted">
                       一站一行，摆的是生成真会拿的那一条。这一期站级覆盖只给平台侧（那一口要
                       <code>portal:build:manage</code>，客户管理员连读都是 403），界面上也还没有摆那一页；这里只给看。
@@ -195,6 +195,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Modal, message } from 'ant-design-vue'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
 import {
   platformPromptApi,
   type PlatformPromptDetail,

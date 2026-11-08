@@ -39,7 +39,7 @@
         <p v-if="!(invoice.items || []).length" class="no-items-hint">
           这一张账单只记了应付总额，系统里没有逐条明细可读。
         </p>
-        <a-table
+        <DataTable
           v-else
           :scroll="{ x: 'max-content' }"
           :columns="itemColumns"
@@ -56,7 +56,7 @@
               ¥{{ formatAmount(record.unitPrice) }}
             </template>
           </template>
-        </a-table>
+        </DataTable>
 
         <!-- 金额汇总 -->
         <div class="amount-summary">
@@ -90,6 +90,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
+import DataTable from '../../components/DataTable.vue'
 import { InvoiceStatus, Currency, ProductType } from '../../types/billing'
 import type { Invoice, InvoiceItem } from '../../types/billing'
 import { paymentMethodLabel } from '../../utils/paymentMethod'

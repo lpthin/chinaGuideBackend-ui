@@ -105,7 +105,7 @@
         message="留痕没读到"
         :description="runsError"
       />
-      <a-table
+      <DataTable
         v-else
         :columns="runColumns"
         :data-source="runs"
@@ -135,7 +135,7 @@
             {{ formatDateTime(record.updatedAt, true) }}
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
   </div>
 </template>
@@ -152,6 +152,7 @@ import { useAuthStore } from '../../stores/auth'
 import { formatDateTime } from '../../utils/format'
 import { useTenantReadGuard } from '../../utils/latestRead'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
 
 /**
  * 「每天自动产出」那张配置卡（P9-B 拍板 Q7：租户管理员改得动，也分配得出去）。

@@ -79,7 +79,7 @@
         </template>
       </filter-bar>
 
-      <a-table
+      <DataTable
         v-if="activeTab === 'login'"
         :scroll="{ x: 'max-content' }"
         :columns="loginColumns"
@@ -120,9 +120,9 @@
             </a-tooltip>
           </template>
         </template>
-      </a-table>
+      </DataTable>
 
-      <a-table
+      <DataTable
         v-else
         :scroll="{ x: 'max-content' }"
         :columns="switchColumns"
@@ -150,7 +150,7 @@
             </a-tooltip>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
   </div>
 </template>
@@ -171,6 +171,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import DataTable from '../../components/DataTable.vue'
 import PageTitle from '../../components/PageTitle.vue'
 import { useTenantReadGuard } from '../../utils/latestRead'
 import {

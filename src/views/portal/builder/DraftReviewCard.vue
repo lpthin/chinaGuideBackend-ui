@@ -20,7 +20,7 @@
       <p v-for="warning in warnings" :key="warning">{{ warning }}</p>
     </div>
 
-    <a-table
+    <DataTable
       v-if="diffRows.length"
       :data-source="diffRows"
       :columns="columns"
@@ -41,7 +41,7 @@
           <span class="draft-card__ins">{{ record.after }}</span>
         </template>
       </template>
-    </a-table>
+    </DataTable>
     <p v-else-if="!draft.validationError" class="draft-card__muted">
       这份草稿没有字段级差异记录（可能只改了主题变量），应用前请确认页面现状。
     </p>
@@ -66,6 +66,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { message } from 'ant-design-vue'
+import DataTable from '../../../components/DataTable.vue'
 import { portalTicketsApi, type RevisionDraft } from '../../../api/portalTickets'
 import { formatDateTime } from '../../../utils/format'
 

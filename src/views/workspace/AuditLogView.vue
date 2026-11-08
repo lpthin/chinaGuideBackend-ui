@@ -3,7 +3,7 @@
     <PageTitle />
     <a-card :bordered="false">
       <!-- 筛选区 -->
-      <a-form layout="inline" :model="filterForm" class="filter-form">
+      <FilterBar class="filter-form">
         <a-form-item label="客户归属">
           <a-select v-model:value="filterForm.tenantScope" style="width: 220px">
             <a-select-option value="all">按右上角所选客户（没选则全部）</a-select-option>
@@ -44,7 +44,7 @@
             value-format="YYYY-MM-DD"
           />
         </a-form-item>
-        <a-form-item class="toolbar-actions">
+        <template #actions>
           <a-space>
             <a-button type="primary" :loading="loading" @click="handleSearch">
               <template #icon><SearchOutlined /></template>
@@ -59,8 +59,8 @@
               导出
             </a-button>
           </a-space>
-        </a-form-item>
-      </a-form>
+        </template>
+      </FilterBar>
 
       <!-- 统计卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
@@ -97,7 +97,7 @@
       <p v-if="statsRangeNotice" class="stats-note">{{ statsRangeNotice }}</p>
 
       <!-- 表格 -->
-      <a-table
+      <DataTable
         :scroll="{ x: 'max-content' }"
         :columns="columns"
         :data-source="logList"
@@ -147,7 +147,7 @@
             </a-button>
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
 
     <!-- 详情抽屉 -->
@@ -210,6 +210,8 @@ import {
   type EmptyReason
 } from '../../utils/emptyPage'
 import PageTitle from '../../components/PageTitle.vue'
+import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 
 const authStore = useAuthStore()
 

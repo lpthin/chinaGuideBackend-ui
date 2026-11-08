@@ -7,7 +7,7 @@
       :message="`对不上的观察区块归并后 ${groups.length} 类，其中 ${trueGapCount} 类这一趟没对上任何区块（其余 ${groups.length - trueGapCount} 类我们有这个能力，只是这一趟没再映射）`"
       :description="explainText"
     />
-    <a-table
+    <DataTable
       :data-source="groups"
       :columns="unmatchedColumns"
       :loading="loading"
@@ -57,13 +57,14 @@
       <template #emptyText>
         <a-empty description="没有对不上的区块" />
       </template>
-    </a-table>
+    </DataTable>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { message } from 'ant-design-vue'
+import DataTable from '../../../components/DataTable.vue'
 import {
   portalReferenceApi,
   unmatchedTrueGapCountOf,

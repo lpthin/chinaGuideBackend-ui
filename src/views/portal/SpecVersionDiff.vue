@@ -14,7 +14,7 @@
         <li v-for="line in versionNotices" :key="line">{{ line }}</li>
       </ul>
 
-      <a-table
+      <DataTable
         v-if="versions && versions.versions.length"
         size="small"
         row-key="specVersion"
@@ -32,7 +32,7 @@
             {{ formatDateTime(record.confirmedAt) }}
           </template>
         </template>
-      </a-table>
+      </DataTable>
     </a-spin>
 
     <a-alert v-if="versions && !versions.versions.length" type="info" show-icon class="spec-diff__notice">
@@ -98,6 +98,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import DataTable from '../../components/DataTable.vue'
 import { siteSpecApi, type SpecDiffView, type SpecSectionDiff, type SpecVersionsView } from '../../api/siteSpec'
 import { formatDateTime } from '../../utils/format'
 

@@ -6,7 +6,7 @@
       style="margin-bottom: 12px"
       message="模型给的置信度只是排序依据，没人点过「确认」的映射不会进草稿页"
     />
-    <a-table
+    <DataTable
       :data-source="mappings"
       :columns="mappingColumns"
       :loading="loading"
@@ -54,7 +54,7 @@
       <template #emptyText>
         <a-empty description="还没有映射：等任务跑到「映射已就绪」或「需人工处理」再看这里" />
       </template>
-    </a-table>
+    </DataTable>
 
     <!-- ---------------- 人工确认一条映射 ---------------- -->
     <a-modal
@@ -110,6 +110,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
+import DataTable from '../../../components/DataTable.vue'
 import { portalReferenceApi, propsSuggestionOf, type ReferenceMapping } from '../../../api/referenceSites'
 import { formatDateTime } from '../../../utils/format'
 import type { PortalBlockMeta } from '../../../api/portalPages'

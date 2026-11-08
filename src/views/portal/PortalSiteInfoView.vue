@@ -149,7 +149,7 @@
       <StateBlock v-if="pagesFailed" state="error" :detail="pagesFailed">
         <a-button @click="loadPages">重新读取这一发</a-button>
       </StateBlock>
-      <a-table
+      <DataTable
         v-else
         :data-source="pageSeoRows"
         :columns="pageSeoColumns"
@@ -180,6 +180,7 @@ import {
   type SiteInfoView
 } from '../../api/portalSiteInfo';
 import SettingsPage from '../../components/SettingsPage.vue'
+import DataTable from '../../components/DataTable.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import type { SettingsGroup } from '../../components/settingsPageModel'
 

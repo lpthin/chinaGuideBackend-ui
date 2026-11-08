@@ -20,6 +20,7 @@
  * 1440 档两头都是 0 格且滚动层没被激活，兜底不给宽屏添一条没人要的横向滚动条。
  */
 import { computed, useAttrs } from 'vue'
+import type { TablePaginationConfig } from 'ant-design-vue'
 import StateBlock from './StateBlock.vue'
 
 const props = withDefaults(
@@ -29,7 +30,7 @@ const props = withDefaults(
     error?: string | null
     rowKey?: string | ((record: never) => string | number)
     /** 传 false 关掉分页（详情页内嵌小表用）；传对象则与默认分页配置合并 */
-    pagination?: false | Record<string, unknown>
+    pagination?: false | TablePaginationConfig
   }>(),
   { dataSource: () => [], loading: false, error: null, rowKey: 'id', pagination: undefined }
 )

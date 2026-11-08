@@ -24,7 +24,7 @@
       :message="`${deadRoutes} 条路由在清单里但抓不开，它们的抓取状态那一格写着为什么。`
         + `死链仍然留在清单里（那是这一站的真实结构），但不会被当成页入库、也不进摘要与草稿`"
     />
-    <a-table
+    <DataTable
       class="reference-site-page__routes"
       :data-source="pages"
       :columns="pageColumns"
@@ -86,10 +86,10 @@
       <template #emptyText>
         <a-empty description="清单还是空的：网址任务点「只列路由清单」或直接「开始抓取」，截图任务在下面上传" />
       </template>
-    </a-table>
+    </DataTable>
 
     <a-divider orientation="left">补传一张截图</a-divider>
-    <a-form layout="inline">
+    <FilterBar>
       <a-form-item label="挂到哪一页">
         <a-select v-model:value="shotForm.referencePageId" style="width: 300px" :options="pageOptions">
         </a-select>
@@ -97,12 +97,14 @@
       <a-form-item label="视口">
         <a-select v-model:value="shotForm.viewport" style="width: 110px" :options="viewportOptions" />
       </a-form-item>
-      <a-form-item>
-        <a-upload :before-upload="pickShot" :show-upload-list="false" accept="image/*">
-          <a-button :loading="uploading">选择图片并上传</a-button>
-        </a-upload>
-      </a-form-item>
-    </a-form>
+      <template #actions>
+        <a-form-item>
+          <a-upload :before-upload="pickShot" :show-upload-list="false" accept="image/*">
+            <a-button :loading="uploading">选择图片并上传</a-button>
+          </a-upload>
+        </a-form-item>
+      </template>
+    </FilterBar>
     <p class="reference-site-page__muted">
       上传这一步不花钱：不 OCR、不调模型。但一个任务里<b>只有截图、没有抓取摘要</b>时，
       「开始 AI 摄取」会把截图交给视觉模型看版面（每页一张、桌面优先，一次最多 6 页），
@@ -115,6 +117,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import DataTable from '../../../components/DataTable.vue'
+import FilterBar from '../../../components/FilterBar.vue'
 import {
   portalReferenceApi,
   observedSectionsOf,
