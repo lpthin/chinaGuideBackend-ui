@@ -32,6 +32,10 @@
   /* 行悬停底与占位底同一支浅灰：多挑一支就等于多一个「为什么这屏这两块颜色不一样」要答的问题 */
   --admin-fill-hover: var(--admin-table-header-bg);
 
+  /* 管理端页面底色（外壳与登录页共用一支）。Spec-UI-1 §3.3：登录页原来自己挑了一支紫蓝渐变，
+     与后台的浅灰底不是一个产品；收成令牌之后「管理端底色」只有一个出处。 */
+  --admin-page-bg: #f5f7fa;
+
   /* 主色。语义出处仍是 styles/theme.ts 的 ADMIN_THEME_TOKEN.colorPrimary，这里只是给 less 一个能引用的别名；
      两处必须同值——theme.spec.ts 盯的就是「全站一支蓝」，页面里再写第六支就是把它拆掉。 */
   --admin-primary: #1890ff;

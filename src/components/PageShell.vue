@@ -1,21 +1,39 @@
 <script setup lang="ts">
 /**
- * 页面骨架唯一出处（Spec-F §9.2-4）：标题 / 副标题 / 右上操作区 / 内容 / 底部。
- * padding 归本组件：页面里再写自己的 padding 就是违规（消灭 GeoSeoDashboardView 式手抄）。
+ * 页面骨架唯一出处（Spec-F §9.2-4 / Spec-UI-1 §3.4）：标题 / 副标题 / 右上操作区 / 内容 / 底部。
+ *
+ * 留白归外壳：`.workspace-area` 给一次 32px（Spec-UI-1 §3.3），所以这里不再自己加 padding——
+ * 否则「外壳 32 + 本组件 24」又是一层叠一层，和改造前 32/36/56 三档的老毛病一样。
+ *
+ * 标题缺省读 `route.meta.title`，与 PageTitle 同一规则：页头文字只有一个出处，
+ * 页面不必再把 meta 里的字抄一遍。显式传 `title` 的页仍然优先用传入值（存量 3 页不动）。
  */
-defineProps<{ title?: string; subtitle?: string }>()
+import { computed, getCurrentInstance } from 'vue'
+import { useRoute } from 'vue-router'
+
+const props = defineProps<{ title?: string; subtitle?: string }>()
 defineSlots<{
   actions?: () => unknown
   default?: () => unknown
   footer?: () => unknown
 }>()
+
+/** 单元测试里 mount 不带 router，这里必须先确认 router 存在，否则 useRoute() 会在 setup 阶段炸掉 */
+const instance = getCurrentInstance()
+const route = instance?.appContext.config.globalProperties.$router ? useRoute() : null
+
+const resolvedTitle = computed(() => {
+  if (props.title) return props.title
+  const metaTitle = route?.meta?.title
+  return typeof metaTitle === 'string' ? metaTitle : ''
+})
 </script>
 
 <template>
   <div class="admin-page">
     <div class="admin-page__head">
       <div class="admin-page__heading">
-        <h2 class="admin-page__title">{{ title }}</h2>
+        <h2 v-if="resolvedTitle" class="admin-page__title">{{ resolvedTitle }}</h2>
         <div v-if="subtitle" class="admin-page__subtitle">{{ subtitle }}</div>
       </div>
       <div class="admin-page__actions">
@@ -33,7 +51,8 @@ defineSlots<{
 
 <style scoped lang="less">
 .admin-page {
-  padding: var(--admin-space-3, 24px);
+  /* 留白归外壳（.workspace-area），这里只负责页头与块间距 */
+  padding: 0;
 
   &__head {
     display: flex;

@@ -5,7 +5,7 @@
         <div class="logo">
           <component :is="RobotOutlined" class="logo-icon" />
         </div>
-        <h1 class="title">AI 门户管理系统</h1>
+        <h1 class="title">{{ APP_NAME }}</h1>
         <p class="subtitle">登录您的账户以继续</p>
       </div>
 
@@ -79,6 +79,7 @@ import { useAuthStore } from '../stores/auth'
 import { authApi } from '../api'
 import type { LoginRequest } from '../types'
 import { logWarn } from '../utils/errorLog'
+import { APP_NAME } from '../copy/brand'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -183,7 +184,8 @@ async function handleLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  /* 与工作台同一支底色：登录页是同一产品的第一屏，不该是另一套紫蓝渐变（Spec-UI-1 §3.2） */
+  background: var(--admin-page-bg);
   padding: 20px;
 }
 
@@ -191,8 +193,8 @@ async function handleLogin() {
   width: 100%;
   max-width: 440px;
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border-radius: var(--admin-radius-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   padding: 48px 40px;
 }
 
@@ -205,20 +207,20 @@ async function handleLogin() {
 
     .logo-icon {
       font-size: 56px;
-      color: #1890ff;
+      color: var(--admin-primary);
     }
   }
 
   .title {
     font-size: 28px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--admin-text-primary);
     margin: 0 0 8px 0;
   }
 
   .subtitle {
     font-size: 14px;
-    color: #8c8c8c;
+    color: var(--admin-text-secondary);
     margin: 0;
   }
 }
@@ -236,11 +238,10 @@ async function handleLogin() {
   height: 48px;
   font-size: 16px;
   font-weight: 500;
-  border-radius: 8px;
 }
 
 .form-hint {
   font-size: 14px;
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
 }
 </style>

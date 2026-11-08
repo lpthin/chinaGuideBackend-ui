@@ -8,8 +8,7 @@
           <component :is="siderCollapsed ? MenuUnfoldOutlined : MenuFoldOutlined" />
         </a-button>
         <div class="logo">
-          <span class="logo-icon">📝</span>
-          <span class="logo-text">内容管理系统</span>
+          <span class="logo-text">{{ APP_SHORT_NAME }}</span>
         </div>
       </div>
       <div class="header-right">
@@ -29,7 +28,7 @@
             </a-button>
           </a-tooltip>
           <a-divider type="vertical" />
-          <a @click="openPortalHome" style="margin-right: 12px; color: #1890ff; font-weight: 500; cursor: pointer;">
+          <a @click="openPortalHome" style="margin-right: 12px; color: var(--admin-primary); font-weight: 500; cursor: pointer;">
             查看前端
           </a>
           <a-dropdown>
@@ -253,6 +252,7 @@ import { portalSectionsApi } from '../../api/portalSections'
 import { message } from 'ant-design-vue'
 import { describeHttpError } from '../../api/http'
 import { logError, logWarn } from '../../utils/errorLog'
+import { APP_SHORT_NAME } from '../../copy/brand'
 
 const router = useRouter()
 const route = useRoute()
@@ -533,7 +533,7 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 <style scoped>
 .workspace-layout {
   height: 100vh;
-  background: #f5f7fa;
+  background: var(--admin-page-bg);
   overflow: hidden;
 }
 
@@ -576,14 +576,10 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
   gap: 12px;
 }
 
-.logo-icon {
-  font-size: 24px;
-}
-
 .logo-text {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--admin-text-primary);
 }
 
 .header-right {
@@ -745,9 +741,14 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
  * 一颗图标 + hover 弹层，弹层里才是组名与子项。
  */
 
+/*
+ * 内容区留白只有这一处（Spec-UI-1 §3.3）：原来是 content 16px + area 20/16 两层叠成 32/36，
+ * PageShell 再叠 24 就变成 56 —— 同一产品三档左边界。现在只由 .workspace-area 给一次，
+ * 页面型模板（PageTitle / PageShell / 列表 / 设置）全部继承同一个 32。
+ */
 .workspace-content {
   flex: 1;
-  padding: 16px;
+  padding: 0;
   height: 100%;
   overflow-y: auto;
   overflow-x: visible;
@@ -767,8 +768,8 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 
 .workspace-area {
   background: #fff;
-  border-radius: 8px;
-  padding: 20px 16px;
+  border-radius: var(--admin-radius-card);
+  padding: var(--admin-space-4);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   overflow: visible;
   box-sizing: border-box;
@@ -890,8 +891,8 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
     width: 112px;
   }
 
-  .workspace-content {
-    padding: 8px;
+  .workspace-area {
+    padding: var(--admin-space-2);
   }
 }
 </style>
