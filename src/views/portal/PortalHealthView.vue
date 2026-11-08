@@ -493,7 +493,6 @@ async function load() {
     // 读失败与「这一档没有」是两件事：旧行要清掉，否则界面一边摆着上一发的行、一边念「读失败」
     findings.value = []
     listReadFailed.value = describeHttpError(error)
-    message.error((error as Error).message || '巡检结果加载失败')
   } finally {
     loading.value = false
   }

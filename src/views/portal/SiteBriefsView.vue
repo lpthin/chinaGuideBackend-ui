@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { briefStatusLabel, siteBriefsApi, vocabularyApi, type SiteBrief, type SiteBriefVocabulary } from '@/api/siteBriefs'
 import { tenantApi } from '@/api/workspace'
@@ -106,7 +105,6 @@ async function load() {
   } catch (error) {
     briefs.value = []
     listError.value = error instanceof Error ? error.message : String(error)
-    message.error(listError.value)
   } finally {
     loading.value = false
   }

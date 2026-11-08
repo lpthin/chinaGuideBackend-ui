@@ -171,7 +171,8 @@ describe('KnowledgeDocumentView 项目面板的空态成因（资料库项目，
     expect(said).toContain('读失败不是「这一档没有」')
     expect(said).not.toContain('一条都没有')
     expect(wrapper.find('.create-on-empty').exists()).toBe(false)
-    expect(message.error).toHaveBeenCalledWith('加载项目失败')
+    // 读失败只走空态那句，不再另弹 toast
+    expect(message.error).not.toHaveBeenCalled()
   })
 
   it('有项目时根本不渲那一句，卡片按后端回的行摆出来', async () => {

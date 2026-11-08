@@ -295,7 +295,6 @@ async function loadPlatforms() {
   } catch (error: any) {
     platformList.value = []
     platformError.value = (error as { message?: string })?.message || '加载发布平台失败'
-    message.error(error?.message || '加载发布平台失败')
   } finally {
     platformLoading.value = false
   }

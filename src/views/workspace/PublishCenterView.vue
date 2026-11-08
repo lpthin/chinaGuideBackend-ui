@@ -520,7 +520,6 @@ async function loadCandidates() {
   } catch (error: any) {
     candidates.value = []
     candidateTotal.value = 0
-    message.error(error?.message || '加载发布候选失败')
     // 读失败与「这一档没有」是两件事：这一句只交给界面自己说，别让它落回那句硬编码的「没有审核通过的文章」
     candidateReadFailed.value = describeHttpError(error)
   } finally {
@@ -743,7 +742,6 @@ async function loadQueue() {
   } catch (error: any) {
     queueList.value = []
     queueTotal.value = 0
-    message.error(error?.message || '加载发布队列失败')
     // 读失败与「队列是空的」是两件事：这一句只交给界面自己说，别再落回那句硬编码的「队列中暂无任务」
     queueReadFailed.value = describeHttpError(error)
   } finally {
@@ -911,7 +909,6 @@ async function loadRecords() {
   } catch (error: any) {
     recordList.value = []
     recordTotal.value = 0
-    message.error(error?.message || '加载发布记录失败')
     recordReadFailed.value = describeHttpError(error)
   } finally {
     recordLoading.value = false

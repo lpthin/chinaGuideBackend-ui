@@ -347,7 +347,6 @@ async function loadKnowledgeSources(id: number) {
     // 读失败不许念成「这一篇没引用资料」：那一格的话只在真的读通了且是空的时候说
     knowledgeSources.value = []
     sourcesLoadFailed.value = true
-    message.warning(`资料引用读取失败：${describeHttpError(error)}`)
   }
 }
 
@@ -400,7 +399,6 @@ async function loadArticle() {
   } catch (error) {
     article.value = null
     loadFailure.value = describeHttpError(error)
-    message.error(`加载文章详情失败：${loadFailure.value}`)
   } finally {
     loading.value = false
   }

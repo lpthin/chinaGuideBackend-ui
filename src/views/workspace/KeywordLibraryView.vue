@@ -302,7 +302,6 @@ async function loadKeywords() {
     readFailed.value = describeHttpError(error)
     keywords.value = []
     total.value = 0
-    message.error(`加载关键词列表失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }

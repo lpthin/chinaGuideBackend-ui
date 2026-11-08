@@ -429,7 +429,6 @@ async function loadUsers() {
       message.info(JUMP_BACK_NOTICE)
     }
   } catch (error) {
-    message.error(`加载用户列表失败：${describeHttpError(error)}`)
     readFailed.value = describeHttpError(error)
   } finally {
     loading.value = false

@@ -620,7 +620,6 @@ async function loadVocabulary() {
   } catch (error) {
     vocabularyFailed.value = true
     vocabulary.value = null
-    message.error(errText(error))
   }
 }
 
@@ -659,7 +658,6 @@ async function loadBlocks() {
     blockCatalog.value = (await portalPagesApi.blocks()) || []
   } catch (error) {
     blocksFailed.value = true
-    message.error(errText(error))
   }
 }
 

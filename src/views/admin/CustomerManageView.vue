@@ -424,7 +424,6 @@ async function loadCustomerList() {
     paginationConfig.total = 0
     updateStats()
     readFailed.value = describeHttpError(error)
-    message.error(`加载客户列表失败：${describeHttpError(error)}`)
   } finally {
     tableLoading.value = false
   }

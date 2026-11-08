@@ -226,7 +226,6 @@ async function loadTasks() {
   } catch (error) {
     tasks.value = []
     tasksError.value = (error as { message?: string })?.message || '任务列表加载失败'
-    message.error((error as Error).message || '任务列表加载失败')
   } finally {
     loading.value = false
   }

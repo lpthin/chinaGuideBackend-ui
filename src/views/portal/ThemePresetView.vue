@@ -354,7 +354,6 @@ async function load() {
     const presetList = await themePresetsApi.list()
     presets.value = presetList || []
   } catch (error) {
-    message.error((error as Error).message || '沉淀记录加载失败')
     presetsError.value = (error as { message?: string })?.message || '沉淀记录加载失败'
   } finally {
     loading.value = false

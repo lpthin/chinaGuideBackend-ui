@@ -239,7 +239,8 @@ describe('KeywordLibraryView 的空态成因', () => {
     expect(said).toContain('这一发读失败：读口断了')
     expect(said).toContain('读失败不是「这一档没有」')
     expect(said).not.toContain('一条都没有')
-    expect(message.error).toHaveBeenCalledWith('加载关键词列表失败：读口断了')
+    // 读失败只走空态那句，不再另弹 toast
+    expect(vi.mocked(message.error).mock.calls.flat().join()).not.toContain('加载关键词列表失败')
     expect(wrapper.find('.row').exists()).toBe(false)
   })
 

@@ -342,7 +342,6 @@ async function loadData() {
     bannerList.value = []
     pagination.total = 0
     readFailed.value = describeHttpError(error)
-    message.error(`加载横幅列表失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }

@@ -952,7 +952,6 @@ async function loadData() {
   } catch (error) {
     logError('ai/model-config-view', '加载模型配置失败:', error)
     loadError.value = (error as { message?: string })?.message || '加载模型配置失败'
-    message.error('加载模型配置失败')
     configs.value = []
   } finally {
     loading.value = false

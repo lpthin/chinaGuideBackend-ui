@@ -517,7 +517,6 @@ async function loadMessageList() {
     readFailed.value = describeHttpError(error)
     messageList.value = []
     paginationConfig.total = 0
-    message.error(`加载消息列表失败：${readFailed.value}`)
     logError('portal/message-manage-view', '加载消息列表失败:', error)
   } finally {
     loading.value = false

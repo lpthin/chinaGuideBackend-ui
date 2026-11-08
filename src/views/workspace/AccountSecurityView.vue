@@ -357,7 +357,6 @@ const fetchTab = async (kind: TabKey): Promise<boolean> => {
       return false
     }
     table.readFailed = describeHttpError(error)
-    message.error(kind === 'login' ? `获取登录记录失败：${table.readFailed}` : `获取切换记录失败：${table.readFailed}`)
     return true
   } finally {
     if (latestRead.isCurrent(ticket)) {
@@ -379,7 +378,6 @@ const fetchTenants = async () => {
     if (filterForm.tenantOption !== ALL_TENANTS && filterForm.tenantOption !== UNKNOWN_TENANTS) {
       filterForm.tenantOption = ALL_TENANTS
     }
-    message.warning(`客户名单读取失败：${describeHttpError(error)}`)
   } finally {
     tenantsLoading.value = false
   }

@@ -430,7 +430,6 @@ async function loadInvoiceList() {
   } catch (error) {
     logError('billing/invoice-view', 'Failed to load invoices:', error)
     readFailed.value = describeHttpError(error)
-    message.error(`加载账单列表失败：${readFailed.value}`)
     invoiceListData.value = []
     paginationConfig.total = 0
   } finally {

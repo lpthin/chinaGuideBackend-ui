@@ -194,7 +194,6 @@ async function loadData() {
   } catch (error) {
     tickets.value = []
     readFailed.value = describeHttpError(error)
-    message.error(`加载工单列表失败：${readFailed.value}`)
     logError('portal/support-ticket-view', error)
   } finally {
     loading.value = false

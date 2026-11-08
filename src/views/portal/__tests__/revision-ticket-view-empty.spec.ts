@@ -172,7 +172,8 @@ describe('改版工单屏的空态', () => {
     expect(said).toContain('这一发读失败：读口断了')
     expect(said).toContain('读失败不是「这一档没有」')
     expect(said).not.toContain('一条都没有')
-    expect(message.error).toHaveBeenCalledWith(expect.stringContaining('工单列表加载失败'))
+    // 读失败只走空态那句，不再另弹 toast
+    expect(message.error).not.toHaveBeenCalled()
   })
 
   it('这一屏永不摆新建入口（客户从预览链接提单，运营这侧没有「新建工单」这个动作）', async () => {

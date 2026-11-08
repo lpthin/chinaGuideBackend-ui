@@ -602,7 +602,6 @@ async function loadData() {
       message.info(JUMP_BACK_NOTICE)
     }
   } catch (error) {
-    message.error(`加载知识卡片列表失败：${describeHttpError(error)}`)
     cardList.value = []
     pagination.total = 0
     readFailed.value = describeHttpError(error)

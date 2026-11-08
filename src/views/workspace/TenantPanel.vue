@@ -620,7 +620,6 @@ const loadData = async () => {
     }).length
   } catch (e) {
     tenantsError.value = (e as { message?: string })?.message || '加载客户列表失败'
-    message.error(`加载客户列表失败：${describeHttpError(e)}`)
   } finally {
     loading.value = false
   }

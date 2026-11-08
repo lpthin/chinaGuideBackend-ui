@@ -470,7 +470,6 @@ async function loadAll() {
   } catch (error) {
     brief.value = null
     loadError.value = errText(error)
-    message.error(loadError.value)
   }
   vocabularyFailed.value = false
   try {

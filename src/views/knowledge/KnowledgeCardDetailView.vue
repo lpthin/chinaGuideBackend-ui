@@ -178,7 +178,6 @@ async function loadCard() {
     const result = await knowledgeCardApi.get(cardId.value)
     card.value = result
   } catch (error) {
-    message.error(`加载卡片详情失败：${describeHttpError(error)}`)
     card.value = null
     loadFailure.value = describeHttpError(error)
   } finally {

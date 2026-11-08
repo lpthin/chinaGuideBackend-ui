@@ -503,7 +503,6 @@ async function loadPages() {
       selectPage(pages.value[0].id)
     }
   } catch (error) {
-    message.error((error as Error).message || '页面列表加载失败')
     readFailed.value = describeHttpError(error)
   } finally {
     loadingPages.value = false

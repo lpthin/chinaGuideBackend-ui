@@ -1171,7 +1171,6 @@ const loadLogs = async () => {
     }
   } catch (error) {
     const reason = describeHttpError(error)
-    message.error(`加载调用日志失败：${reason}`)
     logError('ai/model-usage-view', 'Failed to load logs:', error)
     logList.value = []
     logPagination.total = 0

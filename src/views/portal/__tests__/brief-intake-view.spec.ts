@@ -477,7 +477,8 @@ describe('一屏一题：题序、题干与控件形态只认词表', () => {
     expect(wrapper.find('.brief-intake__rail').exists()).toBe(false)
     expect(wrapper.find('.brief-intake__stepper').exists()).toBe(false)
     expect(wrapper.findAll('.brief-intake__question')).toHaveLength(0)
-    expect(vi.mocked(message.error).mock.calls.flat().join()).toContain('词表接口 500')
+    // 词表没取到已由页内那句当面说，不再另弹 toast
+    expect(message.error).not.toHaveBeenCalled()
 
     clickSave(wrapper)
     expect(siteBriefsApi.create).not.toHaveBeenCalled()

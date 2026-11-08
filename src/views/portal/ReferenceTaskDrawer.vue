@@ -547,7 +547,6 @@ async function loadPages() {
   } catch (error) {
     pages.value = []
     pagesError.value = (error as { message?: string })?.message || '页面列表加载失败'
-    message.error((error as Error).message || '页面列表加载失败')
   } finally {
     pagesLoading.value = false
   }
@@ -584,7 +583,6 @@ async function loadMappings() {
   } catch (error) {
     mappings.value = []
     mappingsError.value = (error as { message?: string })?.message || '映射列表加载失败'
-    message.error((error as Error).message || '映射列表加载失败')
   } finally {
     mappingsLoading.value = false
   }
@@ -703,7 +701,6 @@ async function loadPackage() {
   } catch (error) {
     templatePackage.value = null
     packageError.value = (error as { message?: string })?.message || '模板包载入失败'
-    message.error((error as Error).message || '模板包载入失败')
   } finally {
     packageLoading.value = false
   }

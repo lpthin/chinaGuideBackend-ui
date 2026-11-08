@@ -419,7 +419,6 @@ const fetchRecords = async () => {
     }
   } catch (error) {
     readFailed.value = describeHttpError(error)
-    message.error(`获取报警记录失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }

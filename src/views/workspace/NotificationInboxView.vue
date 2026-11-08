@@ -179,7 +179,6 @@ async function load() {
     records.value = []
     total.value = 0
     readFailed.value = describeHttpError(err)
-    message.error(`加载待办列表失败：${describeHttpError(err)}`)
   } finally {
     loading.value = false
   }

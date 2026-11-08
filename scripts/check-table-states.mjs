@@ -22,6 +22,7 @@ const missing = []
 const blocked = []
 const emptyLies = []
 const staleMisuse = []
+const doubleToasts = []
 
 for (const file of vueFiles(SRC)) {
   const rel = relative(process.cwd(), file).replace(/\\/g, '/')
@@ -121,8 +122,89 @@ for (const file of vueFiles(SRC)) {
   }
 }
 
-if (missing.length || blocked.length || emptyLies.length || staleMisuse.length) {
-  console.error([...missing, ...blocked, ...emptyLies, ...staleMisuse].join('\n'))
+/**
+ * 5. 一次故障只说一次（M3）。
+ * 读失败已经有了「看得见」的出口（表内错误块 / 空态读失败 / 页面级错误态）时，
+ * catch 里不许再弹 toast 把同一件事说第二遍。用户主动操作失败不在本规则射程内，
+ * 所以只盯读路径函数（load / fetch / read / init / open / refresh / reload 开头）。
+ */
+const TOAST_EXEMPT = new Map([
+  ['src/views/workspace/ArticleGeneratePanel.vue', '最近任务读失败时保留旧行、表内错误口被置空，轻提示是这一发唯一的出口'],
+])
+
+const READ_FN = /^(load|fetch|read|init|open|refresh|reload)/
+const TOAST_CALL = /message\.(error|warning)\s*\(/
+
+function templateOf(source) {
+  const start = source.indexOf('<template')
+  if (start < 0) return ''
+  const end = source.lastIndexOf('</template>')
+  return end > start ? source.slice(start, end) : ''
+}
+
+/** catch 块靠花括号配对取出来，跳过字符串里的括号（模板字符串里的 `${}` 也当字符串算） */
+function catchBlocksOf(source) {
+  const out = []
+  const re = /\bcatch\s*(?:\(\s*\w+[^)]*\))?\s*\{/g
+  for (const m of source.matchAll(re)) {
+    let depth = 0
+    let quote = ''
+    let ended = -1
+    for (let j = m.index + m[0].length - 1; j < source.length; j++) {
+      const ch = source[j]
+      if (quote) {
+        if (ch === '\\') { j++; continue }
+        if (ch === quote) quote = ''
+        continue
+      }
+      if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue }
+      if (ch === '{') depth++
+      else if (ch === '}') {
+        depth--
+        if (depth === 0) { ended = j + 1; break }
+      }
+    }
+    if (ended > 0) out.push({ start: m.index, text: source.slice(m.index, ended) })
+  }
+  return out
+}
+
+function fnNameBefore(source, at) {
+  const before = source.slice(0, at)
+  const ms = [...before.matchAll(/\b(?:async\s+)?function\s+(\w+)|(?:const|let)\s+(\w+)\s*=\s*async\s*\(|(\w+)\s*=\s*async\s*\(/g)]
+  if (!ms.length) return ''
+  const last = ms[ms.length - 1]
+  return last[1] || last[2] || last[3] || ''
+}
+
+/** 这个 ref 在模板里有没有一个看得见的错误出口（表内错误块 / 空态读失败 / 页面级错误态） */
+function hasVisibleOutlet(template, name) {
+  const tags = [...template.matchAll(/<(?:a-alert|state-block|DataTable)\b[\s\S]*?>/g)].map((m) => m[0])
+  const words = new RegExp(`\\b${name}\\b`)
+  return tags.some((tag) => words.test(tag))
+}
+
+for (const file of vueFiles(SRC)) {
+  const rel = relative(process.cwd(), file).replace(/\\/g, '/')
+  if (TOAST_EXEMPT.has(rel)) continue
+  const source = readFileSync(file, 'utf8')
+  const template = templateOf(source)
+  for (const block of catchBlocksOf(source)) {
+    if (!TOAST_CALL.test(block.text)) continue
+    if (!READ_FN.test(fnNameBefore(source, block.start))) continue
+    const refs = new Set()
+    for (const m of block.text.matchAll(/(\w+)(?:\.readFailed)?\s*\.value\s*=(?!=)|(\w+)\.readFailed\s*=(?!=)/g)) {
+      const name = m[1] || m[2]
+      if (name && /(error|fail)/i.test(name)) refs.add(name)
+    }
+    if (![...refs].some((name) => hasVisibleOutlet(template, name))) continue
+    const line = source.slice(0, block.start).split('\n').length
+    doubleToasts.push(`读失败又弹 toast（同一件事说了两遍）：${rel}:${line}`)
+  }
+}
+
+if (missing.length || blocked.length || emptyLies.length || staleMisuse.length || doubleToasts.length) {
+  console.error([...missing, ...blocked, ...emptyLies, ...staleMisuse, ...doubleToasts].join('\n'))
   process.exit(1)
 }
-console.log('表格状态规则通过：错误态都有重试、不会被 v-if 挡死、空态不替读失败撒谎、旧数据保留只发生在白名单页。')
+console.log('表格状态规则通过：错误态都有重试、不会被 v-if 挡死、空态不替读失败撒谎、旧数据保留只发生在白名单页、读失败不重复弹 toast。')

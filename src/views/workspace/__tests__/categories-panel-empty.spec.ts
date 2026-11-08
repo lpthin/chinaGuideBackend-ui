@@ -193,6 +193,7 @@ describe('CategoriesPanel 的空态成因', () => {
     const wrapper = await mountView([], {}, new Error('读口断了'))
 
     expect(wrapper.find('.tree-stub').exists()).toBe(false)
-    expect(message.error).toHaveBeenCalledWith('分类数据加载失败：读口断了')
+    // 读失败只走空态那句，不再另弹 toast
+    expect(vi.mocked(message.error).mock.calls.flat().join()).not.toContain('分类数据加载失败')
   })
 })

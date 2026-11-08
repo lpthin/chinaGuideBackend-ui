@@ -678,7 +678,6 @@ async function loadData() {
   } catch (error) {
     logError('article/image-library-view', '加载文件列表失败:', error)
     const said = describeHttpError(error)
-    message.error(said)
     readFailed.value = said
     imageError.value = (error as { message?: string })?.message || '加载文件列表失败'
     imageList.value = []

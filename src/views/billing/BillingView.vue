@@ -684,7 +684,6 @@ async function loadInvoices() {
     invoiceList.value = []
     pagination.total = 0
     invoiceReadFailed.value = describeHttpError(error)
-    message.error(`加载账单列表失败：${describeHttpError(error)}`)
   } finally {
     tableLoading.value = false
   }

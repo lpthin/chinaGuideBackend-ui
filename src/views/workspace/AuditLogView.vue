@@ -391,7 +391,6 @@ const fetchLogs = async () => {
     }
   } catch (error: any) {
     readFailed.value = describeHttpError(error)
-    message.error(`获取审计日志失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }

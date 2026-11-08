@@ -1452,7 +1452,6 @@ async function loadData() {
     stats.topViews = topArticle?.viewCount || 0
   } catch (error) {
     readFailed.value = describeHttpError(error)
-    message.error(`数据加载失败：${readFailed.value}`)
     logError('workspace/articles-panel', error)
   } finally {
     loading.value = false

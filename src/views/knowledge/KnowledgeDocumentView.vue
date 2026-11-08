@@ -798,7 +798,6 @@ async function loadCategories() {
     panelEmptyReason.value = asEmptyReason(result.emptyReason)
   } catch (e) {
     logError('knowledge/knowledge-document-view', '加载分类失败:', e)
-    message.error('加载项目失败')
     categories.value = []
     panelReadFailed.value = describeHttpError(e)
   } finally {
@@ -879,7 +878,6 @@ async function loadDocuments() {
     }
   } catch (e) {
     logError('knowledge/knowledge-document-view', '加载文档列表失败:', e)
-    message.error('加载文档列表失败')
     documents.value = []
     pagination.value.total = 0
     readFailed.value = describeHttpError(e)

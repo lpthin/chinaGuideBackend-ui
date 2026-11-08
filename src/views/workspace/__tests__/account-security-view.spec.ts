@@ -445,7 +445,8 @@ describe('AccountSecurityView 的空态与失败', () => {
   it('那一口读失败说的是读失败，不是「这一档没有」', async () => {
     const wrapper = await mountView({ loginFail: new Error('读口断了') })
 
-    expect(message.error).toHaveBeenCalledWith('获取登录记录失败：读口断了')
+    // 读失败只走空态那句，不再另弹 toast
+    expect(vi.mocked(message.error).mock.calls.flat().join()).not.toContain('获取登录记录失败')
     expect(emptyText(wrapper)).toContain('这一发读失败：读口断了')
     expect(emptyText(wrapper)).toContain('读失败不是「这一档没有」')
     expect(emptyText(wrapper)).not.toContain('一条都没有')
@@ -473,7 +474,8 @@ describe('AccountSecurityView 的空态与失败', () => {
     expect(wrapper.find('.tenant-list-failed').text()).toContain('客户名单读失败：只认「全部客户」和「归属未知」两档')
     const options = scopeSelect(wrapper).findAll('option').map((node: any) => node.text().trim())
     expect(options).toEqual(['全部客户', '归属未知'])
-    expect(message.warning).toHaveBeenCalledWith('客户名单读取失败：名单读不到')
+    // 名单读失败只走下拉旁那句，不再另弹 toast
+    expect(vi.mocked(message.warning).mock.calls.flat().join()).not.toContain('客户名单读取失败')
     // 名单读不到时不许拿一个没核过的客户号继续发：那一发仍是「全部客户」
     expect(lastLoginParams()).toMatchObject({ tenantScope: 'all' })
     expect(lastLoginParams()).not.toHaveProperty('tenantId')

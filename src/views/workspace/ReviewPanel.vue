@@ -749,7 +749,6 @@ async function loadData() {
     articles.value = []
     listTotal.value = 0
     listReadFailed.value = describeHttpError(error)
-    message.error('数据加载失败')
     logError('workspace/review-panel', error)
   } finally {
     loading.value = false

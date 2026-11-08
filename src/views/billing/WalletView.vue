@@ -494,7 +494,6 @@ async function loadTransactionList() {
     transactionListData.value = []
     paginationConfig.total = 0
     readFailed.value = describeHttpError(error)
-    message.error(`加载交易记录失败：${describeHttpError(error)}`)
   } finally {
     tableLoading.value = false
   }

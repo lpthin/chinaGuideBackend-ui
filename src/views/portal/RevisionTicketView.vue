@@ -444,7 +444,6 @@ async function loadTickets() {
     tickets.value = []
     paginationConfig.total = 0
     readFailed.value = describeHttpError(error)
-    message.error(`工单列表加载失败：${readFailed.value}`)
   } finally {
     loading.value = false
   }
@@ -563,7 +562,6 @@ async function loadSessions() {
   } catch (error) {
     sessions.value = []
     sessionsError.value = (error as { message?: string })?.message || '会话列表加载失败'
-    message.error((error as Error).message || '会话列表加载失败')
   } finally {
     sessionsLoading.value = false
   }

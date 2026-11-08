@@ -177,7 +177,6 @@ const fetchTemplates = async () => {
     templates.value = []
     pagination.total = 0
     readFailed.value = describeHttpError(e)
-    message.error(`获取模板列表失败：${describeHttpError(e)}`)
   } finally {
     loading.value = false
   }

@@ -146,7 +146,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import dayjs, { type Dayjs } from 'dayjs'
-import { message } from 'ant-design-vue'
 import { siteApi } from '../../api/workspace'
 import DataTable from '../../components/DataTable.vue'
 import StateBlock from '../../components/StateBlock.vue'
@@ -269,7 +268,6 @@ async function loadAll(): Promise<void> {
     }))
   } catch (error) {
     loadError.value = (error as Error).message || '引用统计加载失败'
-    message.error(loadError.value)
     logError('portal-citation-summary', error)
   } finally {
     loading.value = false
@@ -285,7 +283,6 @@ async function loadTraffic(): Promise<void> {
     traffic.value = await citationApi.trafficSources(rangeParams())
   } catch (error) {
     trafficError.value = (error as Error).message || '流量来源加载失败'
-    message.error(trafficError.value)
     logError('portal-citation-traffic', error)
   } finally {
     trafficLoading.value = false
@@ -306,7 +303,6 @@ async function openEvidence(record: CitationTargetStat): Promise<void> {
     })
   } catch (error) {
     evidenceError.value = (error as Error).message || '证据加载失败'
-    message.error(evidenceError.value)
     logError('portal-citation-evidence', error)
   } finally {
     evidenceLoading.value = false
@@ -327,7 +323,6 @@ async function initPage(): Promise<void> {
     siteId.value = sites.value[0]?.id ?? null
   } catch (error) {
     loadError.value = (error as Error).message || '页面初始化失败'
-    message.error(loadError.value)
     logError('portal-citation-init', error)
     return
   }

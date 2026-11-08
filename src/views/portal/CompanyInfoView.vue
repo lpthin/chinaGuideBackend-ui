@@ -716,7 +716,6 @@ async function loadCompanyInfo() {
   } catch (error) {
     const reason = describeHttpError(error)
     readFailed.value = `企业信息没读回来：${reason}`
-    message.error(`加载企业信息失败：${reason}`)
     logError('portal/company-info-view', error)
   } finally {
     loading.value = false

@@ -102,7 +102,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import dayjs, { type Dayjs } from 'dayjs'
-import { message } from 'ant-design-vue'
 import { useAuthStore } from '../../stores/auth'
 import DataTable from '../../components/DataTable.vue'
 import StateBlock from '../../components/StateBlock.vue'
@@ -191,7 +190,6 @@ async function loadAll(): Promise<void> {
     renderTrend()
   } catch (error: any) {
     loadError.value = error?.message || '门户访问统计加载失败'
-    message.error(loadError.value)
     logError('portal-analytics-load', error)
   } finally {
     loading.value = false

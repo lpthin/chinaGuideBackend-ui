@@ -636,7 +636,6 @@ const loadGraphData = async (): Promise<boolean> => {
   } catch (e: any) {
     logWarn('knowledge/knowledge-graph-view', '加载知识图谱数据失败', e)
     readError.value = e?.message || '读不到知识图谱：这一发没有拿到答复，下面不是「这一家没有图谱」。'
-    message.error(readError.value)
     graphData.value = null
     statsReady.value = false
     recentEntities.value = []

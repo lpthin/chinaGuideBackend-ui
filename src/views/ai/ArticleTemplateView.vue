@@ -609,7 +609,6 @@ const loadTemplates = async () => {
     }
   } catch (error: any) {
     logError('ai/article-template-view', '加载模板列表失败:', error)
-    message.error(error?.message || '加载模板列表失败')
     templateList.value = []
     readFailed.value = describeHttpError(error)
   } finally {

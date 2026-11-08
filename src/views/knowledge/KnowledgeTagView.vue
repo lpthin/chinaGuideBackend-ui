@@ -336,7 +336,6 @@ async function loadData() {
     }
   } catch (error) {
     readFailed.value = describeHttpError(error)
-    message.error(`加载标签列表失败：${readFailed.value}`)
     logError('knowledge/tag-view', '加载标签列表失败', error)
     tagList.value = []
     paginationConfig.total = 0

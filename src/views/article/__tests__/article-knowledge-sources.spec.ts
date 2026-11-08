@@ -171,7 +171,7 @@ describe('#232 详情页摆出「这一篇用了哪几份资料」', () => {
 
     expect(text).not.toContain('这一篇没有资料引用留痕')
     expect(text).toContain('这一栏没读到，不代表这一篇没引用资料')
-    // 当面念那一句走的是 message.warning（DOM 里没有这行字），断言要盯真的那发调用
-    expect(notify.warning).toHaveBeenCalledWith('资料引用读取失败：502 Bad Gateway')
+    // 读失败只走这一栏自己那一句，不许再弹 toast 说第二遍
+    expect(vi.mocked(notify.warning).mock.calls.flat().join()).not.toContain('资料引用读取失败')
   })
 })

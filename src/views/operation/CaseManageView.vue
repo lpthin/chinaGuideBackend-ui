@@ -525,7 +525,6 @@ async function loadCaseList() {
     }
   } catch (error) {
     readFailed.value = describeHttpError(error)
-    message.error(`加载案例列表失败：${readFailed.value}`)
     logError('operation/case-manage-view', error)
     caseList.value = []
   } finally {

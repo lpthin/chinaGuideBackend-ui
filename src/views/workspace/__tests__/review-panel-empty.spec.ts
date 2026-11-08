@@ -240,7 +240,8 @@ describe('审核管理「待审核」列表的空态', () => {
     expect(wrapper.findAll('.article-card-item')).toHaveLength(0)
     expect(wrapper.find('.list-count').text()).toBe('0')
     expect(statValues(wrapper)).toEqual(['—', '—', '—', '—'])
-    expect(message.error).toHaveBeenCalledWith('数据加载失败')
+    // 读失败只走空态那句，不再另弹 toast
+    expect(vi.mocked(message.error).mock.calls.flat().join()).not.toContain('数据加载失败')
   })
 
   it('有行只是筛选没命中时，那句话要说清是谁把行挡住的', async () => {

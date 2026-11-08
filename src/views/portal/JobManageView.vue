@@ -391,7 +391,6 @@ async function loadData() {
     readFailed.value = describeHttpError(error)
     jobList.value = []
     pagination.total = 0
-    message.error(`加载职位列表失败：${readFailed.value}`)
     logError('portal/job-manage-view', error)
   } finally {
     loading.value = false

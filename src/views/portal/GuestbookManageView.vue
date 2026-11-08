@@ -419,7 +419,6 @@ async function loadData() {
     readFailed.value = describeHttpError(error)
     messageList.value = []
     pagination.total = 0
-    message.error(`加载留言列表失败：${readFailed.value}`)
     logError('portal/guestbook-manage-view', error)
   } finally {
     loading.value = false

@@ -548,7 +548,6 @@ async function loadCases() {
     }
   } catch (error) {
     logError('case/case-list-view', 'Failed to load cases:', error)
-    message.error(`加载案例列表失败：${describeHttpError(error)}`)
     caseList.value = []
     readFailed.value = describeHttpError(error)
   } finally {

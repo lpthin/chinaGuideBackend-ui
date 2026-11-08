@@ -276,7 +276,8 @@ describe('过滤与错误各说各的', () => {
     expect(said).toContain('读失败不是「这一档没有」')
     expect(wrapper.text()).not.toContain('下一步是录一份前采需求单') // 失败不等于空
     expect(wrapper.text()).not.toContain('draft')
-    expect(vi.mocked(message.error).mock.calls.flat().join()).toContain('这个账号没有看需求单的资格')
+    // 读失败只走空态那句，不再另弹 toast
+    expect(message.error).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 

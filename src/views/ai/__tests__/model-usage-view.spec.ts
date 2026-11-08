@@ -874,7 +874,8 @@ describe('调用日志那张表的空态：那三种空在界面上分得开', (
     expect(cell.text()).toContain('这一发读失败：无法连接服务器，请确认后端已启动')
     expect(cell.text()).toContain('读失败不是「这一档没有」')
     expect(cell.text()).not.toContain('一条都没有')
-    expect(message.error).toHaveBeenCalledWith('加载调用日志失败：无法连接服务器，请确认后端已启动')
+    // 读失败已由表内那句当面说，不再另弹 toast 把同一件事说第二遍
+    expect(vi.mocked(message.error).mock.calls.flat().join()).not.toContain('加载调用日志失败')
   })
 
   it('后端答「这一页翻过了头」：页码自己回到第一页重读，那句提示说的是界面替你翻的', async () => {

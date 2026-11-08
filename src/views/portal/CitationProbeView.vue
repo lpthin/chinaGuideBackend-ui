@@ -456,7 +456,6 @@ async function load(): Promise<void> {
     probeTotal.value = Number(pageData?.total ?? probes.value.length)
   } catch (error) {
     loadError.value = (error as Error).message || '探测任务加载失败'
-    message.error(loadError.value)
     logError('citation-probe-list', error)
   } finally {
     loading.value = false

@@ -758,7 +758,6 @@ async function loadData() {
     stats.totalCategories = 0
     stats.totalArticles = 0
     readFailed.value = describeHttpError(error)
-    message.error(`分类数据加载失败：${readFailed.value}`)
     logError('workspace/categories-panel', error)
   } finally {
     loading.value = false

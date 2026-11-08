@@ -216,7 +216,6 @@ async function loadVocabulary() {
     vocabulary.value = null
     vocabularyFailed.value = true
     vocabularyError.value = (error as { message?: string })?.message || '词表加载失败'
-    message.error(errText(error))
   }
 }
 
@@ -251,7 +250,6 @@ async function load() {
   } catch (error) {
     brief.value = null
     loadError.value = errText(error)
-    message.error(loadError.value)
   } finally {
     loading.value = false
   }

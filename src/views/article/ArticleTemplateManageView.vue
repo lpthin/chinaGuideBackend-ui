@@ -598,7 +598,6 @@ async function loadTemplates() {
     paginationConfig.total = 0
     readFailed.value = describeHttpError(e)
     templateError.value = (e as { message?: string })?.message || '加载模板列表失败'
-    message.error(`加载模板列表失败：${describeHttpError(e)}`)
   } finally {
     loading.value = false
   }

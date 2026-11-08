@@ -194,7 +194,8 @@ describe('巡检屏的空态', () => {
     expect(said).toContain('读失败不是「这一档没有」')
     expect(said).not.toContain('一条都没有')
     expect(ok.findAll('.row').length).toBe(0)
-    expect(message.error).toHaveBeenCalledWith(expect.stringContaining('巡检口断了'))
+    // 读失败只走空态那句，不再另弹 toast
+    expect(message.error).not.toHaveBeenCalled()
   })
 
   it('旧那句写死的「没有待处理的巡检结果」在界面上一个字都不剩（读不到/读失败都不再念成健康）', async () => {

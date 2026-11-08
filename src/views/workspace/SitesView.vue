@@ -376,7 +376,6 @@ async function load() {
   } catch (e) {
     sites.value = []
     sitesError.value = (e as { message?: string })?.message || '加载站点列表失败'
-    message.error((e as Error)?.message || '加载站点列表失败')
   } finally {
     loading.value = false
   }

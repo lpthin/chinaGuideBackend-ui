@@ -705,7 +705,6 @@ async function loadBillingStats(): Promise<boolean> {
     statsState.value = 'failed'
     statsError.value = errorMessage(error)
     logError('billing/billing-stats-view', 'Failed to load billing stats:', error)
-    message.error('加载计费统计数据失败')
     return true
   }
 }

@@ -229,7 +229,6 @@ async function loadPermissions() {
     permissions.value = treeData
   } catch (error) {
     permissionsError.value = (error as { message?: string })?.message || '加载权限列表失败'
-    message.error(`加载权限列表失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }

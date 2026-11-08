@@ -295,7 +295,6 @@ async function loadRoles() {
     roles.value = []
     pagination.total = 0
     readFailed.value = describeHttpError(error)
-    message.error(`加载角色列表失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false
   }

@@ -279,7 +279,6 @@ async function load() {
     const reason = describeHttpError(error);
     view.value = null;
     readFailed.value = `站点信息没读回来：${reason}`;
-    message.error(`加载站点信息失败：${reason}`);
   } finally {
     loading.value = false;
   }
@@ -296,7 +295,6 @@ async function loadPages() {
     pageSeoRows.value = [];
     pagesError.value = (error as { message?: string })?.message || '逐页 SEO 加载失败';
     pagesFailed.value = `逐页 SEO 没读回来：${reason}`;
-    message.error(`加载逐页 SEO 失败：${reason}`);
   } finally {
     loadingPages.value = false;
   }

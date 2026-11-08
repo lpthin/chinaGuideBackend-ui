@@ -351,7 +351,7 @@ const requestedTenantId = computed<number | null>(() =>
 
 function emptyText(key: SectionKey): string {
   return failed[key]
-    ? `${sectionNames[key]}这次没取到，页面顶部的提示里有原因；把日期改一下再试`
+    ? `${sectionNames[key]}这次没取到，把日期改一下再试`
     : '这段时间没有数据'
 }
 
@@ -499,7 +499,6 @@ async function loadTrafficTrend() {
     chartData.value = []
     failed.trend = true
     logError('operation/data-report-view', '加载流量趋势失败', error)
-    message.error(`流量趋势这次没取到：${errText(error)}`)
   }
 }
 
@@ -517,7 +516,6 @@ async function loadCategoryDistribution() {
     categoryData.value = []
     failed.category = true
     logError('operation/data-report-view', '加载分类分布失败', error)
-    message.error(`分类占比这次没取到：${errText(error)}`)
   }
 }
 
@@ -535,7 +533,6 @@ async function loadUserGrowth() {
     userGrowthData.value = []
     failed.growth = true
     logError('operation/data-report-view', '加载用户增长失败', error)
-    message.error(`用户增长趋势这次没取到：${errText(error)}`)
   }
 }
 
@@ -553,7 +550,6 @@ async function loadUserActivity() {
     userActivityData.value = []
     failed.activity = true
     logError('operation/data-report-view', '加载用户活跃度失败', error)
-    message.error(`用户活跃度这次没取到：${errText(error)}`)
   }
 }
 
@@ -571,7 +567,6 @@ async function loadTrafficSource() {
     sourceData.value = []
     failed.source = true
     logError('operation/data-report-view', '加载流量来源失败', error)
-    message.error(`流量来源这次没取到：${errText(error)}`)
   }
 }
 
@@ -589,7 +584,6 @@ async function loadDeviceDistribution() {
     deviceData.value = []
     failed.device = true
     logError('operation/data-report-view', '加载设备分布失败', error)
-    message.error(`设备分布这次没取到：${errText(error)}`)
   }
 }
 

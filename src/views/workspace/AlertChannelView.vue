@@ -435,7 +435,6 @@ const fetchChannels = async (): Promise<boolean> => {
     // 旧客户那一发晚到的失败也不许往新客户的屏上报错
     if (!latestRead.isCurrent(ticket)) return false
     readFailed.value = describeHttpError(error)
-    message.error(`获取通知渠道失败：${readFailed.value}`)
     return true
   } finally {
     if (latestRead.isCurrent(ticket)) loading.value = false
