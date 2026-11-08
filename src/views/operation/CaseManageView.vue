@@ -114,6 +114,7 @@
             <empty-list-hint
               :loading="tableLoading"
               :read-failed="readFailed"
+              :retry="loadCaseList"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
               :not-sent="notSentLine"

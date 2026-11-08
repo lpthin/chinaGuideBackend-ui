@@ -130,6 +130,32 @@ describe('DataTable', () => {
     expect(w.findComponent(TableStub).exists()).toBe(false)
   })
 
+  it('还失败着的时候，页面自带的空态插槽也不许抢戏（M1：失败态与空态分离）', () => {
+    const w = mountTable({ dataSource: [], error: '读取失败' }, { emptyText: '<span class="empty-slot">这一档还没有数据</span>' })
+    expect(w.findComponent(StateBlock).props('state')).toBe('error')
+    expect(w.find('.empty-slot').exists()).toBe(false)
+  })
+
+  it('成功读到 0 条时，页面自带的空态引导照旧保留（首次使用引导不许被规则误伤）', () => {
+    // 这一例要把 emptyText 插槽真渲出来，TableStub 只渲默认插槽看不见它
+    const w = mount(DataTable, {
+      props: { dataSource: [] },
+      slots: { emptyText: '<span class="empty-slot">这一档还没有数据</span>' },
+      global: {
+        stubs: {
+          'a-table': {
+            name: 'ATable',
+            props: ['dataSource', 'loading', 'rowKey', 'pagination', 'scroll'],
+            template: '<div class="table-stub"><slot name="emptyText" /></div>',
+          },
+          StateBlock,
+        },
+      },
+    })
+    expect(w.findComponent(StateBlock).exists()).toBe(false)
+    expect(w.find('.empty-slot').exists()).toBe(true)
+  })
+
   it('columns 等其余属性透传给 a-table', () => {
     const w = mount(DataTable, {
       props: { dataSource: [{ id: 1 }] },

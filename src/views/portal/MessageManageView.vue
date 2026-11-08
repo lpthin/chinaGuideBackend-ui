@@ -16,9 +16,6 @@
             我发出的公告 · 各家的阅读情况
             <a-tag color="blue" class="broadcast-summary-card__scope">当前：全部客户合计</a-tag>
           </template>
-          <a-alert v-if="broadcastNote" type="warning" show-icon>
-            <template #message>{{ broadcastNote }}</template>
-          </a-alert>
           <a-spin :spinning="broadcastLoading">
             <DataTable
               :columns="broadcastColumns"
@@ -27,8 +24,16 @@
               row-key="rowKey"
               size="small"
             >
-              <!-- 规则 7：:locale.emptyText 会被 DataTable 自带空态拦掉，原文案一字不改挪进 slot -->
-              <template #emptyText>你还没有以发送人身份发出去过消息</template>
+              <!-- 读失败不再借上面那条 alert 说，也不许念「你还没发过公告」：
+                   那会把一次读失败说成「没发过」，这里交给空态块分清两件事（M1）。 -->
+              <template #emptyText>
+                <EmptyListHint
+                  :loading="broadcastLoading"
+                  :read-failed="broadcastNote"
+                  :retry="loadBroadcastSummary"
+                  own-line="你还没有以发送人身份发出去过消息"
+                />
+              </template>
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'title'">{{ record.title }}</template>
                 <template v-else-if="column.key === 'type'">
@@ -231,6 +236,7 @@ import type { Tenant } from '../../types/workspace'
 import TenantSelect from '../../components/TenantSelect.vue'
 import RecordListPage from '../../components/RecordListPage.vue'
 import DataTable from '../../components/DataTable.vue'
+import EmptyListHint from '../../components/EmptyListHint.vue'
 import { formatNumber } from '../../utils/format'
 import { describeHttpError } from '../../api/http'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
@@ -333,7 +339,7 @@ const showPager = computed(() => !platformNotSent.value && !readFailed.value)
 
 const broadcastRows = ref<(PortalBroadcastReadRow & { rowKey: string })[]>([])
 const broadcastLoading = ref(false)
-/** 有值就代表这一张表是「没读到」，不是「你没发过公告」 */
+/** 有值就代表这一张表是「没读到」，不是「你没发过公告」；只装原因原文，由空态块念 */
 const broadcastNote = ref('')
 
 const broadcastColumns = [
@@ -359,7 +365,7 @@ async function loadBroadcastSummary() {
     }))
   } catch (error: any) {
     broadcastRows.value = []
-    broadcastNote.value = `公告阅读情况读取失败：${String(error?.message || '未知原因')}`
+    broadcastNote.value = String(error?.message || '未知原因')
     logError('portal/message-manage-view', '加载公告阅读情况失败:', error)
   } finally {
     broadcastLoading.value = false

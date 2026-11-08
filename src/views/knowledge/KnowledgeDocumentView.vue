@@ -61,6 +61,7 @@
             <empty-list-hint
               :loading="loading"
               :read-failed="panelReadFailed"
+              :retry="loadCategories"
               :empty-line="panelEmptyLine"
               :empty-reason="panelEmptyReason"
               can-create
@@ -210,6 +211,7 @@
               v-else
               :loading="loading"
               :read-failed="readFailed"
+              :retry="loadDocuments"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
             />
@@ -240,6 +242,7 @@
               v-else
               :loading="loading"
               :read-failed="readFailed"
+              :retry="loadDocuments"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
             />

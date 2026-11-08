@@ -79,7 +79,11 @@ const mergedPagination = computed(() => {
   return merged
 })
 
-const isEmpty = computed(() => !props.loading && props.dataSource.length === 0)
+/**
+ * 空态唯一判据（M1）：没在读、没失败、且真的 0 行。
+ * 读失败时这一格必须让给错误块——否则「这一档没有」会把一次 500 说成业务事实。
+ */
+const isEmpty = computed(() => !props.loading && !props.error && props.dataSource.length === 0)
 
 const errorText = computed(() => String(props.error ?? ''))
 
@@ -133,7 +137,7 @@ function onRetry() {
   <!-- 页面自己带了「这一种空是哪一种」那一句（N-05：后端原文，界面不改写）时，这一块固定话术
        不能再盖在上面——「调整筛选条件，或新建一条记录」对「这一家读不到」那一形是谎报。
        没带这一句的屏一行没变。 -->
-  <StateBlock v-else-if="!error && isEmpty && !$slots.emptyText" state="empty" :next="emptyLine" />
+  <StateBlock v-else-if="isEmpty && !$slots.emptyText" state="empty" :next="emptyLine" />
   <template v-else>
     <!-- 有旧数据就留表 + 顶部提示：一次抖动不该把用户已经看到的内容撤走 -->
     <a-alert

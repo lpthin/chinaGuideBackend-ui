@@ -480,7 +480,11 @@ describe('平台档：我发的公告在各家读成什么样', () => {
     vi.mocked(portalMessageApi.broadcastSummary).mockRejectedValue(new Error('数据库连接超时'))
 
     const wrapper = await mountAs(['SUPER_ADMIN'], ['portal:admin:tenant'])
-    expect(summaryText()).toContain('公告阅读情况读取失败：数据库连接超时')
+    const text = summaryText()
+    // M1：失败只念失败，并把「重试」摆出来；不许转念成「你还没发过公告」
+    expect(text).toContain('这一发读失败：数据库连接超时')
+    expect(text).not.toContain('你还没有以发送人身份发出去过消息')
+    expect(text).toContain('重试')
     wrapper.unmount()
   })
 

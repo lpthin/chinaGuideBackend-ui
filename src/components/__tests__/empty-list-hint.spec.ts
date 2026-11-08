@@ -79,7 +79,10 @@ describe('EmptyListHint 那颗新建入口', () => {
     ['读不到这一档（NOT_VISIBLE）', { emptyReason: 'NOT_VISIBLE' }],
     ['这一页翻过了头（OUT_OF_RANGE）', { emptyReason: 'OUT_OF_RANGE' }],
     ['后端没答是哪一种空', { emptyReason: null }],
-    ['没权限的人（canCreate=false）', { emptyReason: 'NONE', canCreate: false }]
+    ['没权限的人（canCreate=false）', { emptyReason: 'NONE', canCreate: false }],
+    // M1：读失败/没发出去不是在说「这一档还空着」，此时哪怕后端回了 NONE 也不许摆新建
+    ['读失败那一发', { readFailed: '读口断了', emptyReason: 'NONE' }],
+    ['没发出去那一发', { notSent: '还没选定客户', emptyReason: 'NONE' }]
   ]
 
   it.each(NO_BUTTON)('%s → 不摆新建入口', (_label, props) => {

@@ -122,6 +122,7 @@
               :loading="loading"
               :not-sent="notSentLine"
               :read-failed="readFailed"
+              :retry="loadData"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
               :can-create="canCreateHere"

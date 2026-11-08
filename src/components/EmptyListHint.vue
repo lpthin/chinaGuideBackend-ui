@@ -32,8 +32,10 @@
     <template v-else-if="emptyLine">{{ emptyLine }}</template>
     <template v-else-if="ownLine">{{ ownLine }}</template>
     <template v-else>这一格这一发没有行（后端没回是哪一种空，界面不替它猜）。</template>
+    <!-- 读失败与「没发出去」都不摆新建入口：那两种空不是在说「这一档还空着」，
+         摆出来等于让人去补一份根本不缺的东西（M1 空态与失败态分离）。 -->
     <a-button
-      v-if="canCreate && offersCreateOnEmpty(emptyReason)"
+      v-if="!notSent && !readFailed && canCreate && offersCreateOnEmpty(emptyReason)"
       type="primary"
       class="create-on-empty"
       @click="emit('create')"
