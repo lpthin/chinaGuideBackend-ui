@@ -8,6 +8,10 @@ on:
   push:
     branches:
       - main
+  # SPEC-UI-6 M4：重试矩阵只在夜间跑（要一整套前后端与超管账号，不适合挂 PR 上）
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
 
 jobs:
   ui:
@@ -34,3 +38,42 @@ jobs:
 
       - name: Unit tests
         run: npx vitest run
+
+  # SPEC-UI-6 M4：5 页 × 断网 / 500 / 403 的重试行为回归。
+  # 红灯输出「哪一页、哪种模式、哪一步没恢复」，见 scripts/e2e/retry-matrix.mjs。
+  # 没配 E2E_BASE_URL（仓库变量）时这一支会打印 SKIP 并绿——真测依赖可复现的整套环境，
+  # 环境缺席不能天天红，但配了就按 REQUIRED 跑（跳过即失败）。
+  retry-matrix:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Retry matrix
+        env:
+          E2E_BASE_URL: ${{ vars.E2E_BASE_URL }}
+          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_REQUIRED: ${{ vars.E2E_BASE_URL != '' && '1' || '0' }}
+          E2E_CHANNEL: none
+        run: node scripts/e2e/retry-matrix.mjs
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retry-matrix-report
+          path: e2e-out/retry-matrix.json
+          if-no-files-found: ignore

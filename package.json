@@ -12,7 +12,8 @@
     "test:coverage": "vitest --coverage",
     "test:run": "vitest run",
     "test:related": "node scripts/check-table-states.mjs && node scripts/test-related.mjs",
-    "check:table-states": "node scripts/check-table-states.mjs"
+    "check:table-states": "node scripts/check-table-states.mjs",
+    "test:e2e:retry": "node scripts/e2e/retry-matrix.mjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.0",

@@ -106,6 +106,11 @@
       </p>
     </template>
 
+    <!-- 还没载入过就读失败时不能只留一句「还没载入」：那一句读起来像「包里什么都没有」，
+         而真正该做的是重试（M4：错误态要有出路） -->
+    <StateBlock v-else-if="error" state="error" :detail="error">
+      <a-button v-if="retry" type="primary" @click="retry()">重试</a-button>
+    </StateBlock>
     <a-empty v-else description="还没载入：这一栏是只读的取证快照，载入它不改变任务状态" />
   </div>
 </template>
@@ -113,6 +118,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import DataTable from '../../../components/DataTable.vue'
+import StateBlock from '../../../components/StateBlock.vue'
 import { referenceLabel, type ReferenceVocabularies, type TemplatePackage } from '../../../api/referenceSites'
 
 /**
