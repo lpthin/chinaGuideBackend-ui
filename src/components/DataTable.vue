@@ -31,6 +31,8 @@ const props = withDefaults(
     rowKey?: string | ((record: never) => string | number)
     /** 传 false 关掉分页（详情页内嵌小表用）；传对象则与默认分页配置合并 */
     pagination?: false | TablePaginationConfig
+    /** 只读页的「空」不该念「新建一条记录」时，用这一句覆盖空态第二行（不传仍是通用话术） */
+    emptyLine?: string
   }>(),
   { dataSource: () => [], loading: false, error: null, rowKey: 'id', pagination: undefined }
 )
@@ -78,7 +80,7 @@ const isEmpty = computed(() => !props.loading && props.dataSource.length === 0)
   <!-- 页面自己带了「这一种空是哪一种」那一句（N-05：后端原文，界面不改写）时，这一块固定话术
        不能再盖在上面——「调整筛选条件，或新建一条记录」对「这一家读不到」那一形是谎报。
        没带这一句的屏一行没变。 -->
-  <StateBlock v-else-if="isEmpty && !$slots.emptyText" state="empty" />
+  <StateBlock v-else-if="isEmpty && !$slots.emptyText" state="empty" :next="emptyLine" />
   <a-table v-else :data-source="dataSource" :loading="loading" :row-key="rowKey" :pagination="mergedPagination" :scroll="mergedScroll" v-bind="$attrs">
     <template v-for="(_, name) in $slots" #[name]="slotData"><slot :name="name" v-bind="slotData ?? {}" /></template>
   </a-table>

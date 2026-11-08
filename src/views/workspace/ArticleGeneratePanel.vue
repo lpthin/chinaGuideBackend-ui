@@ -389,7 +389,8 @@
           </a-space>
         </div>
         <DataTable :scroll="{ x: 'max-content' }" :data-source="generationTasks" :columns="taskColumns"
-          row-key="taskId" :pagination="false" size="middle" :row-selection="taskRowSelection" :loading="loading">
+          row-key="taskId" :pagination="false" size="middle" :row-selection="taskRowSelection" :loading="loading"
+          :error="generationTasks.length ? null : tasksError">
           <template #emptyText>
             <EmptyListHint :not-sent="requestedTenantId === null ? notSentLine : ''" />
           </template>
@@ -608,6 +609,7 @@ const scopeNotice = computed(() => {
 })
 
 const notSentLine = ref('')
+const tasksError = ref<string | null>(null)
 
 /** 接口参数是 number | undefined，而 selectedTenantId 是 number | null，统一在此收敛 */
 const tenantId = computed<number | undefined>(() => requestedTenantId.value ?? undefined)
@@ -934,6 +936,7 @@ let followUpRounds = 0
  * 会话内正在跟踪的那几趟以本地为准，回填只补本地没有的 id。
  */
 async function loadRecentTasks() {
+  tasksError.value = null
   if (requestedTenantId.value === null) {
     generationTasks.value = []
     notSentLine.value = '这一发没发出去，所以这里的生成任务一条都不是（不是「这一家没有任务」）。请在右上角选一家客户。'
@@ -947,6 +950,7 @@ async function loadRecentTasks() {
     })) ?? []
   } catch (error) {
     // 回填读不到只说一声：本会话提交的那几趟照常摆着，整页转圈比空表更坏
+    tasksError.value = (error as { message?: string })?.message || '最近生成任务读取失败'
     logError('workspace/article-generate-panel', error)
     message.warning('最近生成任务读取失败，本次会话内提交的任务照常显示')
     return

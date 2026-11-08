@@ -71,11 +71,13 @@ const brief = ref<SiteBrief | null>(null)
 
 const vocabulary = ref<SiteBriefVocabulary | null>(null)
 const vocabularyFailed = ref(false)
+const vocabularyError = ref<string | null>(null)
 
 const tenants = ref<Tenant[]>([])
 const tenantsFailed = ref(false)
 const sites = ref<Site[]>([])
 const sitesFailed = ref(false)
+const sitesError = ref<string | null>(null)
 
 function errText(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error)
@@ -207,11 +209,13 @@ const intakeLabel = computed(() => (brief.value?.requirementsSummary ? '继续�
 
 async function loadVocabulary() {
   vocabularyFailed.value = false
+  vocabularyError.value = null
   try {
     vocabulary.value = await vocabularyApi.adminVocabulary()
   } catch (error) {
     vocabulary.value = null
     vocabularyFailed.value = true
+    vocabularyError.value = (error as { message?: string })?.message || '词表加载失败'
     message.error(errText(error))
   }
 }
@@ -223,11 +227,13 @@ async function loadAux() {
   } catch (error) {
     tenantsFailed.value = true
   }
+  sitesError.value = null
   try {
     sites.value = (await siteApi.list()) || []
     sitesFailed.value = false
   } catch (error) {
     sitesFailed.value = true
+    sitesError.value = (error as { message?: string })?.message || '站点列表加载失败'
   }
 }
 
@@ -877,6 +883,7 @@ onUnmounted(stopPolling)
             :data-source="answerRows"
             :columns="columns"
             :loading="loading"
+            :error="vocabularyError"
             :pagination="false"
             row-key="key"
             size="small"
@@ -1211,11 +1218,12 @@ onUnmounted(stopPolling)
           <DataTable
             :data-source="linkedSites"
             :columns="siteColumns"
+            :error="sitesError"
             :pagination="false"
             row-key="id"
             size="small"
             bordered
-            :scroll="{ x: 860 }"
+            :scroll="{ x: 900 }"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'site'">

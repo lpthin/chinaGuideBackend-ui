@@ -10,7 +10,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:related": "node scripts/test-related.mjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.0",

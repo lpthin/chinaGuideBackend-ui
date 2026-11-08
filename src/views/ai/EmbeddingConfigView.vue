@@ -254,6 +254,7 @@
         :pagination="false"
         size="small"
         :row-key="(record: VectorDatabaseConfig) => record.id"
+        :error="connectionsError"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'address'">
@@ -393,6 +394,7 @@ const saving = ref(false)
 const previewLoading = ref(false)
 const testingId = ref<number | null>(null)
 const togglingId = ref<number | null>(null)
+const connectionsError = ref<string | null>(null)
 const activePreviewKey = ref<number[]>([])
 
 const stats = reactive({
@@ -465,7 +467,13 @@ async function loadEmbeddingModels() {
 }
 
 async function loadConnections() {
-  connections.value = await vectorDbApi.list()
+  connectionsError.value = null
+  try {
+    connections.value = await vectorDbApi.list()
+  } catch (error) {
+    connectionsError.value = (error as { message?: string })?.message || '加载连接列表失败'
+    throw error
+  }
 }
 
 async function loadAll() {
@@ -573,7 +581,7 @@ const connForm = reactive({
 
 function openConnModal() {
   connModalVisible.value = true
-  loadConnections().catch(() => message.error('加载连接列表失败'))
+  loadConnections().catch((error: any) => message.error(error?.message || '加载连接列表失败'))
 }
 
 function openConnForm(record?: VectorDatabaseConfig) {

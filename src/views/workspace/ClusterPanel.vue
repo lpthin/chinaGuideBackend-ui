@@ -89,7 +89,7 @@
 
         <!-- Cluster Table -->
         <DataTable
-          :scroll="{ x: 'max-content' }"
+          :scroll="{ x: 1000 }"
           :columns="tableColumns"
           :data-source="filteredClusters"
           :loading="loading"

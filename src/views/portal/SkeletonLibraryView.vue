@@ -35,6 +35,7 @@
       :data-source="visibleSkeletons"
       :columns="columns"
       :loading="loading"
+      :error="loadError"
       row-key="skeletonKey"
       size="middle"
       :pagination="false"

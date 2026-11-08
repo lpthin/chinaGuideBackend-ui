@@ -58,6 +58,7 @@
             :columns="platformColumns"
             :data-source="platformList"
             :loading="platformLoading"
+            :error="platformError"
             :pagination="{ pageSize: 10 }"
             row-key="id"
           >
@@ -181,6 +182,7 @@ const isPlatformMode = computed(() => requestedTenantId.value === null)
 const tenantId = computed(() => requestedTenantId.value ?? undefined)
 
 const platformList = ref<any[]>([])
+const platformError = ref<string | null>(null)
 
 const platformForm = reactive({
   name: '',
@@ -279,6 +281,7 @@ async function saveConfig() {
 }
 
 async function loadPlatforms() {
+  platformError.value = null
   if (isPlatformMode.value) {
     platformList.value = []
     return
@@ -289,6 +292,7 @@ async function loadPlatforms() {
     platformList.value = Array.isArray(data) ? data : []
   } catch (error: any) {
     platformList.value = []
+    platformError.value = (error as { message?: string })?.message || '加载发布平台失败'
     message.error(error?.message || '加载发布平台失败')
   } finally {
     platformLoading.value = false

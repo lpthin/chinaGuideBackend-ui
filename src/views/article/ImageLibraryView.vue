@@ -203,6 +203,7 @@
             :row-key="(record: any) => record.id"
             :row-selection="tableRowSelection"
             :pagination="false"
+            :error="imageError"
           >
             <!-- 列表形态与网格形态念同一句：空态的成因只认后端回的 emptyLine -->
             <template #emptyText>
@@ -435,6 +436,7 @@ const imageList = ref<ImageLibrary[]>([])
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
 const readFailed = ref('')
+const imageError = ref<string | null>(null)
 
 // Spec-J：筛选项读 /media/categories 真数据。旧版这里硬编码六个假类别，
 // 与库里的真实类别一个都对不上——选任何一项都筛不出东西。
@@ -632,6 +634,7 @@ async function loadData() {
   emptyLine.value = ''
   emptyReason.value = null
   readFailed.value = ''
+  imageError.value = null
   notSentLine.value = ''
   const id = requestedTenantId.value
   if (id === null) {
@@ -675,6 +678,7 @@ async function loadData() {
     const said = describeHttpError(error)
     message.error(said)
     readFailed.value = said
+    imageError.value = (error as { message?: string })?.message || '加载文件列表失败'
     imageList.value = []
     pagination.total = 0
   } finally {

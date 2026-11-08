@@ -20,6 +20,8 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const loading = ref(false)
+/** 站点清单没读到时写在这一格：空表不能冒充「一个站点都没有」 */
+const sitesError = ref<string | null>(null)
 const modalVisible = ref(false)
 const editingId = ref<number | null>(null)
 
@@ -367,11 +369,14 @@ function resetForm(site?: Site) {
 
 async function load() {
   loading.value = true
+  sitesError.value = null
   try {
     const res = await siteApi.list()
     sites.value = res || []
   } catch (e) {
-    message.error('加载站点列表失败')
+    sites.value = []
+    sitesError.value = (e as { message?: string })?.message || '加载站点列表失败'
+    message.error((e as Error)?.message || '加载站点列表失败')
   } finally {
     loading.value = false
   }
@@ -514,6 +519,7 @@ onMounted(() => {
     <DataTable
       :data-source="visibleSites"
       :loading="loading"
+      :error="sitesError"
       :pagination="false"
       row-key="id"
       bordered

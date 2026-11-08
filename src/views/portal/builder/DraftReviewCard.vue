@@ -21,9 +21,11 @@
     </div>
 
     <DataTable
-      v-if="diffRows.length"
+      v-if="diffRows.length || diffError"
       :data-source="diffRows"
       :columns="columns"
+      :error="diffError"
+      empty-line="这一栏还没有内容。"
       :pagination="false"
       row-key="rowKey"
       size="small"
@@ -64,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import DataTable from '../../../components/DataTable.vue'
 import { portalTicketsApi, type RevisionDraft } from '../../../api/portalTickets'
@@ -160,6 +162,25 @@ const diffRows = computed<DiffRow[]>(() => {
     return []
   }
 })
+
+const diffError = ref<string | null>(null)
+
+watch(
+  () => props.draft.changeSummaryJson,
+  raw => {
+    if (!raw) {
+      diffError.value = null
+      return
+    }
+    try {
+      JSON.parse(raw)
+      diffError.value = null
+    } catch (error) {
+      diffError.value = (error as { message?: string })?.message || '草稿差异读取失败'
+    }
+  },
+  { immediate: true }
+)
 
 const warnings = computed<string[]>(() => {
   const raw = props.draft.changeSummaryJson

@@ -1,7 +1,7 @@
 <template>
   <div class="reference-site-page">
     <PageTitle />
-    <a-form layout="inline" class="reference-site-page__filter">
+    <FilterBar class="reference-site-page__filter">
       <a-form-item label="状态">
         <a-select
           v-model:value="statusFilter"
@@ -12,13 +12,13 @@
           @change="loadTasks"
         />
       </a-form-item>
-      <a-form-item class="toolbar-actions">
+      <template #actions>
         <a-space>
           <a-button :loading="loading" @click="reload">刷新</a-button>
           <a-button type="primary" @click="openCreateModal">新建摄取任务</a-button>
         </a-space>
-      </a-form-item>
-    </a-form>
+      </template>
+    </FilterBar>
 
     <a-alert type="info" show-icon class="reference-site-page__notice">
       <template #message>
@@ -35,6 +35,7 @@
       :data-source="tasks"
       :columns="columns"
       :loading="loading"
+      :error="tasksError"
       :pagination="paginationConfig"
       row-key="id"
       size="middle"
@@ -129,6 +130,7 @@ import { message } from 'ant-design-vue'
 import { LoadingOutlined } from '@ant-design/icons-vue'
 import PageTitle from '../../components/PageTitle.vue'
 import DataTable from '../../components/DataTable.vue'
+import FilterBar from '../../components/FilterBar.vue'
 import ReferenceTaskDrawer from './ReferenceTaskDrawer.vue'
 import {
   portalReferenceApi,
@@ -165,6 +167,7 @@ const vocabularies = ref<ReferenceVocabularies | null>(null)
 /** 词表读不到时界面仍然照跑（标签退回后端原值），但要把「这份词表旧了/没读到」说在明处 */
 const vocabError = ref<string | null>(null)
 const tasks = ref<ReferenceSite[]>([])
+const tasksError = ref<string | null>(null)
 const loading = ref(false)
 const statusFilter = ref<string | undefined>(undefined)
 
@@ -214,12 +217,14 @@ async function reload() {
 }
 
 async function loadTasks() {
+  tasksError.value = null
   loading.value = true
   try {
     tasks.value = await portalReferenceApi.list(statusFilter.value)
     paginationConfig.total = tasks.value.length
   } catch (error) {
     tasks.value = []
+    tasksError.value = (error as { message?: string })?.message || '任务列表加载失败'
     message.error((error as Error).message || '任务列表加载失败')
   } finally {
     loading.value = false

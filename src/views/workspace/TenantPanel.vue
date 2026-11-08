@@ -85,6 +85,7 @@
         :columns="columns"
         :data-source="tenantList"
         :loading="loading"
+        :error="tenantsError"
         :pagination="pagination"
         row-key="id"
         @change="handleTableChange"
@@ -450,6 +451,7 @@ const columns = [
 ]
 
 const tenantList = ref<Tenant[]>([])
+const tenantsError = ref<string | null>(null)
 
 const formData = reactive({
   name: '',
@@ -585,6 +587,7 @@ const getStatusText = (status: number) => {
 
 const loadData = async () => {
   loading.value = true
+  tenantsError.value = null
   try {
     const data = await http.get<Tenant[]>('/admin/tenants')
     let filtered = data
@@ -614,6 +617,7 @@ const loadData = async () => {
       return created.toDateString() === today.toDateString()
     }).length
   } catch (e) {
+    tenantsError.value = (e as { message?: string })?.message || '加载客户列表失败'
     message.error(`加载客户列表失败：${describeHttpError(e)}`)
   } finally {
     loading.value = false

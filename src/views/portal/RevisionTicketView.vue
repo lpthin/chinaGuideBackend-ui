@@ -200,6 +200,7 @@
         <DataTable
           :data-source="sessions"
           :columns="sessionColumns"
+          :error="sessionsError"
           :pagination="{ pageSize: 8, showTotal: (total: number) => `共 ${total} 条` }"
           row-key="id"
           size="small"
@@ -365,6 +366,7 @@ const sessionOpen = ref(false)
 const sessionsLoading = ref(false)
 const creatingSession = ref(false)
 const sessions = ref<ReviewSession[]>([])
+const sessionsError = ref<string | null>(null)
 const sessionPageId = ref<number | null>(null)
 const sessionLabel = ref('')
 const createdPreviewUrl = ref('')
@@ -552,11 +554,13 @@ function openSessionModal() {
 }
 
 async function loadSessions() {
+  sessionsError.value = null
   sessionsLoading.value = true
   try {
     sessions.value = await portalTicketsApi.listSessions()
   } catch (error) {
     sessions.value = []
+    sessionsError.value = (error as { message?: string })?.message || '会话列表加载失败'
     message.error((error as Error).message || '会话列表加载失败')
   } finally {
     sessionsLoading.value = false

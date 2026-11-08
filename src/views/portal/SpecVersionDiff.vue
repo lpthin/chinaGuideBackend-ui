@@ -20,6 +20,8 @@
         row-key="specVersion"
         :columns="columns"
         :data-source="versions.versions"
+        :error="versionsError"
+        empty-line="这一栏还没有内容。"
         :pagination="false"
         class="spec-diff__table"
       >

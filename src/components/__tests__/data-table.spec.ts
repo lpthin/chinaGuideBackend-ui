@@ -67,6 +67,17 @@ describe('DataTable', () => {
     expect(w.findComponent(StateBlock).props('state')).toBe('empty')
   })
 
+  it('空态第二行默认仍是通用话术', () => {
+    const w = mountTable({ dataSource: [] })
+    expect(w.text()).toContain('调整筛选条件，或新建一条记录')
+  })
+
+  it('只读页传 emptyLine 时，空态第二行换成页面给的那句，不再暗示新建', () => {
+    const w = mountTable({ dataSource: [], emptyLine: '这一栏还没有内容。' })
+    expect(w.text()).toContain('这一栏还没有内容。')
+    expect(w.text()).not.toContain('新建一条记录')
+  })
+
   it('error 优先于一切，且原因要念出来', () => {
     const w = mountTable({ dataSource: [], loading: true, error: '加载文章列表失败' })
     const block = w.findComponent(StateBlock)

@@ -10,6 +10,7 @@
       :data-source="mappings"
       :columns="mappingColumns"
       :loading="loading"
+      :error="error"
       :pagination="false"
       row-key="id"
       size="small"
@@ -129,6 +130,8 @@ const props = defineProps<{
   referenceId: number
   mappings: ReferenceMapping[]
   loading: boolean
+  /** 清单本身没读到时写在这一格：不能让一张空表冒充「一条映射都没有」 */
+  error?: string | null
   /** /portal/blocks 那一份：区块显示名与可绑定的数据路径都从它读，界面不自己声明 */
   blocks: PortalBlockMeta[]
 }>()

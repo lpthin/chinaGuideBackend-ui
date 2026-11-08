@@ -103,6 +103,7 @@
           :pagination="paginationConfig"
           :loading="tableLoading"
           :row-key="(record: any) => record.id"
+          :error="orderError"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'orderNo'">
@@ -259,6 +260,7 @@ const columns = [
 ]
 
 const orderListData = ref<any[]>([])
+const orderError = ref<string | null>(null)
 
 // 四张统计卡以前按小写比对库里的状态：库里存的是大写代码，比不中，于是这三张卡恒为 0。
 // 计数与比对统一走 orderStatus.ts 那张词表，折成大写再归类。
@@ -309,10 +311,12 @@ async function loadOrderList() {
       ? '当前没有选定客户，订单这一发没发出去，所以这里一条都不是（不是「这一家没有订单」）。请在右上角选一家客户。'
       : '登录信息里没有客户编号，订单这一发没发出去，所以这里一条都不是。'
     tableLoading.value = false
+    orderError.value = null
     return
   }
   notSentLine.value = ''
   tableLoading.value = true
+  orderError.value = null
   try {
     const params: any = {
       tenantId,
@@ -329,6 +333,7 @@ async function loadOrderList() {
   } catch (error) {
     logError('billing/orders-view', 'Failed to load orders:', error)
     message.error('加载订单列表失败')
+    orderError.value = (error as { message?: string })?.message || '加载订单列表失败'
     orderListData.value = []
   } finally {
     tableLoading.value = false

@@ -26,6 +26,7 @@
       :data-source="presets"
       :columns="columns"
       :loading="loading"
+      :error="presetsError"
       row-key="id"
       size="middle"
       :scroll="{ x: 1240 }"
@@ -277,6 +278,7 @@ const canBuild = computed(() => auth.hasPermission('portal:build:manage'))
 const canReadPages = computed(() => auth.hasPermission('portal:page:manage'))
 
 const presets = ref<ThemePreset[]>([])
+const presetsError = ref<string | null>(null)
 const pages = ref<PortalPage[]>([])
 const pagesNote = ref('')
 const sites = ref<Array<{ id: number; name: string }>>([])
@@ -345,12 +347,14 @@ function strippedItems(raw: string | null): string[] {
 }
 
 async function load() {
+  presetsError.value = null
   loading.value = true
   try {
     const presetList = await themePresetsApi.list()
     presets.value = presetList || []
   } catch (error) {
     message.error((error as Error).message || '沉淀记录加载失败')
+    presetsError.value = (error as { message?: string })?.message || '沉淀记录加载失败'
   } finally {
     loading.value = false
   }

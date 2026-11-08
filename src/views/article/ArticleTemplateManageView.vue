@@ -129,6 +129,7 @@
             :data-source="templateList"
             :pagination="paginationConfig"
             :row-key="(record: any) => record.id"
+            :error="templateError"
             @change="handleTableChange"
           >
             <!-- 这一屏的空从前只有一句写死的「暂无模板」：「这一家真的一个模板都没有」「这一页翻过了头」
@@ -458,6 +459,7 @@ const formRef = ref()
 const emptyLine = ref('')
 const emptyReason = ref<EmptyReason>(null)
 const readFailed = ref('')
+const templateError = ref<string | null>(null)
 
 const stats = reactive<TemplateStats>({
   totalCount: 0,
@@ -568,6 +570,7 @@ async function loadTemplates() {
   emptyLine.value = ''
   emptyReason.value = null
   readFailed.value = ''
+  templateError.value = null
   try {
     const data = await articleTemplateApi.list({
       page: paginationConfig.current,
@@ -592,6 +595,7 @@ async function loadTemplates() {
     templateList.value = []
     paginationConfig.total = 0
     readFailed.value = describeHttpError(e)
+    templateError.value = (e as { message?: string })?.message || '加载模板列表失败'
     message.error(`加载模板列表失败：${describeHttpError(e)}`)
   } finally {
     loading.value = false

@@ -11,6 +11,7 @@
       :data-source="groups"
       :columns="unmatchedColumns"
       :loading="loading"
+      :error="error"
       :pagination="false"
       row-key="observedBlock"
       size="small"
@@ -82,6 +83,8 @@ const props = defineProps<{
   referenceId: number
   groups: UnmatchedGroup[]
   loading: boolean
+  /** 清单没读到时写在这一格：不能让「暂未对上」这一栏用空表冒充「一条都没有」 */
+  error?: string | null
 }>()
 
 const emit = defineEmits<{ (e: 'promoted'): void }>()

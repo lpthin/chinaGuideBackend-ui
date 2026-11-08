@@ -134,6 +134,8 @@
                   :data-source="loginLogs"
                   :pagination="pagination"
                   :loading="logsLoading"
+                  :error="logsError"
+                  empty-line="这一栏还没有内容。"
                   size="middle"
                 />
               </div>
@@ -181,6 +183,7 @@ const activeTab = ref('basic')
 const saving = ref(false)
 const changingPassword = ref(false)
 const logsLoading = ref(false)
+const logsError = ref<string | null>(null)
 
 const profile = reactive({
   id: 0,
@@ -306,6 +309,7 @@ const changePassword = async () => {
 
 const loadLoginLogs = async () => {
   logsLoading.value = true
+  logsError.value = null
   try {
     const data = await profileApi.getLoginLogs({ page: pagination.current, size: pagination.pageSize }) as any
     loginLogs.value = (data.records || []).map((log: any) => ({
@@ -314,6 +318,7 @@ const loadLoginLogs = async () => {
     }))
     pagination.total = data.total || 0
   } catch (error) {
+    logsError.value = (error as { message?: string })?.message || '加载登录日志失败'
     logWarn('user/user-profile-view', '获取登录日志失败:', error)
   } finally {
     logsLoading.value = false

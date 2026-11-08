@@ -33,6 +33,7 @@
       <DataTable
         :data-source="slotShapeRows"
         :columns="slotShapeColumns"
+        :error="error"
         :pagination="false"
         row-key="rowKey"
         size="small"
@@ -68,6 +69,7 @@
       <DataTable
         :data-source="vocabularyRows"
         :columns="vocabularyColumns"
+        :error="error"
         :pagination="false"
         row-key="rowKey"
         size="small"
@@ -122,6 +124,8 @@ const props = defineProps<{
   pkg: TemplatePackage | null
   vocabularies: ReferenceVocabularies | null
   loading: boolean
+  /** 模板包没载入成功时写在这一格：空表不能冒充「这一份包里一项都没有」 */
+  error?: string | null
 }>()
 
 const emit = defineEmits<{ (e: 'load'): void }>()

@@ -46,6 +46,7 @@
           :data-source="invoice.items || []"
           :pagination="false"
           :row-key="(record: any) => record.id"
+          empty-line="这一栏还没有内容。"
           size="small"
         >
           <template #bodyCell="{ column, record }">

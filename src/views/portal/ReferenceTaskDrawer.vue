@@ -97,6 +97,7 @@
             <ReferencePagesTab
               :reference-id="currentId"
               :pages="pages"
+              :error="pagesError"
               :loading="pagesLoading"
               :selectable="canCrawl"
               v-model:selected-page-ids="selectedPageIds"
@@ -112,6 +113,7 @@
               :reference-id="currentId"
               :mappings="mappings"
               :loading="mappingsLoading"
+              :error="mappingsError"
               :blocks="blocks"
               @verified="afterVerify"
             />
@@ -121,13 +123,20 @@
             <ReferenceUnmatchedTab
               :reference-id="currentId"
               :groups="unmatchedGroups"
+              :error="unmatchedError"
               :loading="unmatchedLoading"
               @promoted="loadMappings"
             />
           </a-tab-pane>
 
           <a-tab-pane key="package" :tab="`拆出来的模板证据${packageTabSuffix}`">
-            <ReferencePackageTab :pkg="templatePackage" :vocabularies="vocabularies" :loading="packageLoading" @load="loadPackage" />
+            <ReferencePackageTab
+              :pkg="templatePackage"
+              :vocabularies="vocabularies"
+              :error="packageError"
+              :loading="packageLoading"
+              @load="loadPackage"
+            />
           </a-tab-pane>
         </a-tabs>
       </template>
@@ -292,12 +301,15 @@ const task = ref<ReferenceSite | null>(null)
 const tab = ref('pages')
 const pages = ref<ReferencePage[]>([])
 const pagesLoading = ref(false)
+const pagesError = ref<string | null>(null)
 /** 素材 id → 后端现签的可显示地址；截图列的 <img> 只能用这个，不能拿 id 拼 */
 const shotUrls = ref<Record<number, string>>({})
 const mappings = ref<ReferenceMapping[]>([])
 const mappingsLoading = ref(false)
+const mappingsError = ref<string | null>(null)
 const unmatchedGroups = ref<UnmatchedGroup[]>([])
 const unmatchedLoading = ref(false)
+const unmatchedError = ref<string | null>(null)
 /** 勾选要抓的那几条路由。只在还能开始抓取的任务上有意义，见 ReferencePagesTab 里 selectable 的注释 */
 const selectedPageIds = ref<number[]>([])
 
@@ -331,6 +343,7 @@ const applyForm = reactive<ApplyForm>({
  */
 const templatePackage = ref<TemplatePackage | null>(null)
 const packageLoading = ref(false)
+const packageError = ref<string | null>(null)
 
 /** refreshDetail 既要能按 id 拉，也要能在轮询里沿用当前 id，所以把 id 单独存一份 */
 const currentId = ref(0)
@@ -439,11 +452,14 @@ async function openTask(id: number) {
   currentId.value = id
   task.value = null
   pages.value = []
+  pagesError.value = null
   mappings.value = []
   unmatchedGroups.value = []
+  unmatchedError.value = null
   shotUrls.value = {}
   selectedPageIds.value = []
   templatePackage.value = null
+  packageError.value = null
   await refreshDetail()
   startPollIfNeeded()
 }
@@ -518,6 +534,7 @@ function stopPoll() {
 async function loadPages() {
   if (!currentId.value) return
   pagesLoading.value = true
+  pagesError.value = null
   try {
     pages.value = await portalReferenceApi.pages(currentId.value)
     // 清单会重排甚至少几行，勾中一个已经不存在的号会让后端整次抓取被拒（它逐条核对归属）
@@ -525,6 +542,7 @@ async function loadPages() {
     loadShotUrls()
   } catch (error) {
     pages.value = []
+    pagesError.value = (error as { message?: string })?.message || '页面列表加载失败'
     message.error((error as Error).message || '页面列表加载失败')
   } finally {
     pagesLoading.value = false
@@ -555,18 +573,22 @@ async function loadMappings() {
   if (!currentId.value) return
   mappingsLoading.value = true
   unmatchedLoading.value = true
+  mappingsError.value = null
+  unmatchedError.value = null
   try {
     mappings.value = await portalReferenceApi.mappings(currentId.value)
   } catch (error) {
     mappings.value = []
+    mappingsError.value = (error as { message?: string })?.message || '映射列表加载失败'
     message.error((error as Error).message || '映射列表加载失败')
   } finally {
     mappingsLoading.value = false
   }
   try {
     unmatchedGroups.value = await portalReferenceApi.unmatchedGroups(currentId.value)
-  } catch {
+  } catch (error) {
     unmatchedGroups.value = []
+    unmatchedError.value = (error as { message?: string })?.message || '映射列表加载失败'
   } finally {
     unmatchedLoading.value = false
   }
@@ -671,10 +693,12 @@ async function submitRoute() {
 async function loadPackage() {
   if (!currentId.value) return
   packageLoading.value = true
+  packageError.value = null
   try {
     templatePackage.value = await portalReferenceApi.templatePackage(currentId.value)
   } catch (error) {
     templatePackage.value = null
+    packageError.value = (error as { message?: string })?.message || '模板包载入失败'
     message.error((error as Error).message || '模板包载入失败')
   } finally {
     packageLoading.value = false

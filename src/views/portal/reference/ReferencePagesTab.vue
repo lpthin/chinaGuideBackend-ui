@@ -29,6 +29,7 @@
       :data-source="pages"
       :columns="pageColumns"
       :loading="loading"
+      :error="error"
       :pagination="false"
       :row-selection="pageSelection"
       row-key="id"
@@ -147,6 +148,8 @@ const props = defineProps<{
   referenceId: number
   pages: ReferencePage[]
   loading: boolean
+  /** 清单本身没读到时写在这一格：空表不能冒充「这一站一条路由都没有」 */
+  error?: string | null
   /** 这一趟还能不能再发起抓取：决定那一排勾选框摆不摆 */
   selectable: boolean
   selectedPageIds: number[]

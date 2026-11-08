@@ -126,6 +126,7 @@
                     size="small"
                     row-key="name"
                     :pagination="false"
+                    :error="detailError"
                   >
                     <template #bodyCell="{ column, record }">
                       <code v-if="column.key === 'name'">{{ placeholderText(record.name) }}</code>
@@ -160,6 +161,7 @@
                       size="small"
                       row-key="id"
                       :pagination="false"
+                      :error="overrideError"
                     >
                       <template #bodyCell="{ column, record }">
                         <span v-if="column.key === 'site'">
@@ -223,8 +225,8 @@ const detailLoading = ref(false)
 const overridesLoading = ref(false)
 const saving = ref(false)
 const denied = ref('')
-const detailError = ref('')
-const overrideError = ref('')
+const detailError = ref<string | null>(null)
+const overrideError = ref<string | null>(null)
 const activePurpose = ref('')
 const detail = ref<PlatformPromptDetail | null>(null)
 const overrides = ref<PlatformPromptOverride[]>([])
@@ -310,19 +312,19 @@ async function select(purpose: string) {
   activePurpose.value = purpose
   detail.value = null
   overrides.value = []
-  detailError.value = ''
-  overrideError.value = ''
+  detailError.value = null
+  overrideError.value = null
   await Promise.all([loadDetail(purpose), loadOverrides(purpose)])
 }
 
 async function loadDetail(purpose: string) {
   detailLoading.value = true
-  detailError.value = ''
+  detailError.value = null
   try {
     applyDetail(await platformPromptApi.detail(purpose))
   } catch (error: any) {
     // 库里缺这一行（那一支迁移还没跑）时后端就是这么说的：原文摆出来，不换成「暂无数据」
-    detailError.value = error?.message || '未知原因'
+    detailError.value = (error as { message?: string })?.message || '未知原因'
   } finally {
     detailLoading.value = false
   }
@@ -339,11 +341,12 @@ function applyDetail(next: PlatformPromptDetail) {
 
 async function loadOverrides(purpose: string) {
   overridesLoading.value = true
+  overrideError.value = null
   try {
     overrides.value = await platformPromptApi.overrides(purpose)
   } catch (error: any) {
     overrides.value = []
-    overrideError.value = error?.message || '未知原因'
+    overrideError.value = (error as { message?: string })?.message || '未知原因'
   } finally {
     overridesLoading.value = false
   }

@@ -153,6 +153,8 @@
         v-else
         :data-source="pageSeoRows"
         :columns="pageSeoColumns"
+        :error="pagesError"
+        empty-line="这一栏还没有内容。"
         :loading="loadingPages"
         row-key="pageId"
         size="small"
@@ -202,6 +204,8 @@ const pageSeoRows = ref<PageSeoRow[]>([]);
 const readFailed = ref('');
 /** 逐页 SEO 是另一发请求，失败只让它那一块退场，不牵连站点信息。 */
 const pagesFailed = ref('');
+/** 逐页 SEO 那一发读失败的后端原话：交给表格的错误态，别再当成「这一栏没有内容」。 */
+const pagesError = ref<string | null>(null);
 
 const fieldRows = computed(() => siteInfoFieldRows(view.value));
 
@@ -283,11 +287,13 @@ async function load() {
 async function loadPages() {
   loadingPages.value = true;
   pagesFailed.value = '';
+  pagesError.value = null;
   try {
     pageSeoRows.value = await siteInfoApi.pagesSeo(siteId.value);
   } catch (error) {
     const reason = describeHttpError(error);
     pageSeoRows.value = [];
+    pagesError.value = (error as { message?: string })?.message || '逐页 SEO 加载失败';
     pagesFailed.value = `逐页 SEO 没读回来：${reason}`;
     message.error(`加载逐页 SEO 失败：${reason}`);
   } finally {

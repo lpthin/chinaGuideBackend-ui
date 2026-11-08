@@ -31,6 +31,8 @@
         :data-source="permissions"
         :pagination="false"
         :loading="loading"
+        :error="permissionsError"
+        empty-line="这一栏还没有内容。"
         row-key="id"
         :default-expand-all="true"
         :children-column-name="'children'"
@@ -126,6 +128,7 @@ const modalVisible = ref(false)
 const formRef = ref()
 
 const permissions = ref<any[]>([])
+const permissionsError = ref<string | null>(null)
 
 const formState = reactive({
   id: null as number | null,
@@ -213,6 +216,7 @@ function getTypeColor(type: string): string {
 
 async function loadPermissions() {
   loading.value = true
+  permissionsError.value = null
   try {
     const result = await adminApi.permissions.tree()
     let treeData = result || []
@@ -223,6 +227,7 @@ async function loadPermissions() {
     
     permissions.value = treeData
   } catch (error) {
+    permissionsError.value = (error as { message?: string })?.message || '加载权限列表失败'
     message.error(`加载权限列表失败：${describeHttpError(error)}`)
   } finally {
     loading.value = false

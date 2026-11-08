@@ -71,6 +71,7 @@
         :data-source="jobs"
         :columns="jobColumns"
         :loading="loadingJobs"
+        :error="jobsError"
         :pagination="false"
         row-key="id"
         size="small"
@@ -195,10 +196,11 @@
         <DataTable
           :data-source="drafts"
           :columns="draftColumns"
+          :error="detailError"
           :pagination="false"
           row-key="pageKey"
           size="small"
-          :scroll="{ x: 980 }"
+          :scroll="{ x: 1080 }"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'page'">
@@ -353,7 +355,7 @@ const creating = ref(false)
 const sitesError = ref('')
 const skeletonsError = ref('')
 const referencesError = ref('')
-const jobsError = ref('')
+const jobsError = ref<string | null>(null)
 
 /** 建任务表单里没有 confirm 这个东西：这一步不花钱，花钱的确认归第 3 步 */
 const createForm = reactive<{ skeletonKey: string | undefined; referenceSiteId: number | null }>({
@@ -365,7 +367,7 @@ const selectedJobId = ref<number | null>(null)
 const job = ref<PortalAssembleJob | null>(null)
 const drafts = ref<AssembleDraftRow[]>([])
 const detailLoading = ref(false)
-const detailError = ref('')
+const detailError = ref<string | null>(null)
 
 const estimate = ref<AssembleEstimate | null>(null)
 const estimating = ref(false)
@@ -573,9 +575,9 @@ async function loadReferences() {
 }
 
 async function loadJobs() {
+  jobsError.value = null
   if (!siteId.value) {
     jobs.value = []
-    jobsError.value = ''
     return
   }
   loadingJobs.value = true
@@ -635,6 +637,7 @@ async function openDetail(id: number) {
 
 async function refreshDetail() {
   if (!selectedJobId.value) return
+  detailError.value = null
   detailLoading.value = true
   try {
     const view = await portalAssembleApi.detail(selectedJobId.value)
