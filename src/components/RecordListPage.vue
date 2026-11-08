@@ -42,6 +42,8 @@ withDefaults(
     countLine?: string
     /** 读失败那句后端原文：非空时整张表退场，只说失败 */
     readFailed?: string
+    /** 读失败时「重试」按钮要调的函数（页面有刷新按钮时可省） */
+    retry?: () => unknown
     /** 后端答了成因时那句原文，界面不改写 */
     emptyLine?: string
     emptyReason?: EmptyReason
@@ -112,6 +114,7 @@ const tableSlotNames = computed(() =>
         :data-source="rows"
         :loading="loading"
         :error="readFailed"
+        :retry="retry"
         :pagination="false"
         :scroll="scroll"
         v-bind="{ columns }"

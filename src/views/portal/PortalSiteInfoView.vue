@@ -154,6 +154,7 @@
         :data-source="pageSeoRows"
         :columns="pageSeoColumns"
         :error="pagesError"
+        :retry="loadPages"
         empty-line="这一栏还没有内容。"
         :loading="loadingPages"
         row-key="pageId"

@@ -63,6 +63,7 @@
             :columns="suggestionColumns"
             :loading="loading"
             :error="loadError"
+            :retry="loadData"
             row-key="message"
             size="middle"
           >

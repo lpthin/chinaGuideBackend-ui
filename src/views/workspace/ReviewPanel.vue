@@ -182,6 +182,7 @@
                   v-if="!articles.length"
                   :loading="loading"
                   :read-failed="listReadFailed"
+                  :retry="loadData"
                   :empty-line="listEmptyLine"
                   :empty-reason="listEmptyReason"
                 />

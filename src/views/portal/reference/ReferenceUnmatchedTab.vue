@@ -12,6 +12,7 @@
       :columns="unmatchedColumns"
       :loading="loading"
       :error="error"
+      :retry="retry"
       :pagination="false"
       row-key="observedBlock"
       size="small"
@@ -85,6 +86,8 @@ const props = defineProps<{
   loading: boolean
   /** 清单没读到时写在这一格：不能让「暂未对上」这一栏用空表冒充「一条都没有」 */
   error?: string | null
+  /** 读失败时「重试」按钮要重发的那一发：由上层传本栏的加载函数 */
+  retry?: () => unknown
 }>()
 
 const emit = defineEmits<{ (e: 'promoted'): void }>()

@@ -46,6 +46,7 @@
           <empty-list-hint
             :loading="loading"
             :read-failed="readFailed"
+            :retry="fetchChannels"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
             can-create

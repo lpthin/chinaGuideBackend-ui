@@ -86,6 +86,8 @@
         :data-source="tenantList"
         :loading="loading"
         :error="tenantsError"
+        :retry="loadData"
+        empty-line="还没有客户记录。"
         :pagination="pagination"
         row-key="id"
         @change="handleTableChange"

@@ -139,6 +139,7 @@
           <empty-list-hint
             :loading="loading"
             :read-failed="readFailed"
+            :retry="fetchRules"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
             can-create

@@ -59,6 +59,7 @@
           :rows="messageList"
           :columns="columns"
           :read-failed="readFailed"
+          :retry="loadMessageList"
           :empty-line="emptyLine"
           :empty-reason="emptyReason"
           :not-sent="platformNotSent"

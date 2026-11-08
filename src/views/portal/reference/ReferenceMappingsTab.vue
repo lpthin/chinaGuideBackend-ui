@@ -11,6 +11,7 @@
       :columns="mappingColumns"
       :loading="loading"
       :error="error"
+      :retry="retry"
       :pagination="false"
       row-key="id"
       size="small"
@@ -132,6 +133,8 @@ const props = defineProps<{
   loading: boolean
   /** 清单本身没读到时写在这一格：不能让一张空表冒充「一条映射都没有」 */
   error?: string | null
+  /** 读失败时「重试」按钮要重发的那一发：由上层传本栏的加载函数 */
+  retry?: () => unknown
   /** /portal/blocks 那一份：区块显示名与可绑定的数据路径都从它读，界面不自己声明 */
   blocks: PortalBlockMeta[]
 }>()

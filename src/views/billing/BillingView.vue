@@ -189,6 +189,7 @@
             <empty-list-hint
               :loading="tableLoading"
               :read-failed="invoiceReadFailed"
+              :retry="loadInvoices"
               :empty-line="invoiceEmptyLine"
               :empty-reason="invoiceEmptyReason"
             />

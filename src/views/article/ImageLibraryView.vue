@@ -185,6 +185,7 @@
             v-if="!imageList.length"
             :loading="loading"
             :read-failed="readFailed"
+            :retry="loadData"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
             :not-sent="notSentLine"
@@ -204,6 +205,7 @@
             :row-selection="tableRowSelection"
             :pagination="false"
             :error="imageError"
+            :retry="loadData"
           >
             <!-- 列表形态与网格形态念同一句：空态的成因只认后端回的 emptyLine -->
             <template #emptyText>

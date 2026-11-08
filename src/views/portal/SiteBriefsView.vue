@@ -261,6 +261,7 @@ onMounted(() => {
         <empty-list-hint
           :loading="loading"
           :read-failed="listError"
+          :retry="load"
           :empty-line="emptyLine"
           :empty-reason="emptyReason"
           :can-create="true"

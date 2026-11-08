@@ -35,6 +35,7 @@
           <empty-list-hint
             :loading="loading"
             :read-failed="readFailed"
+            :retry="loadRoles"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
             can-create

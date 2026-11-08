@@ -137,6 +137,7 @@
               :loading="loading"
               :not-sent="notSentLine"
               :read-failed="readFailed"
+              :retry="loadInvoiceList"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
             />

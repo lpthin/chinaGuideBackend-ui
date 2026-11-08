@@ -54,7 +54,9 @@
       </a-radio-button>
     </a-radio-group>
 
-    <state-block v-if="loadError" state="error" :detail="loadError" />
+    <state-block v-if="loadError" state="error" :detail="loadError">
+      <a-button @click="initPage">重试</a-button>
+    </state-block>
     <state-block v-else-if="!loading && visibleTargets.length === 0" state="empty" :title="targetEmptyTitle" />
     <data-table
       v-else
@@ -90,12 +92,14 @@
       </template>
     </data-table>
 
-    <a-card size="small" title="流量来源（人工浏览，与爬虫抓取不相加）">
+    <!-- 初始化那一发失败时整页都在错误块里：这张卡不能再念「调整筛选条件」——那是在替读失败谎报「没有数据」 -->
+    <a-card v-if="!loadError" size="small" title="流量来源（人工浏览，与爬虫抓取不相加）">
       <data-table
         :data-source="traffic.buckets || []"
         :columns="trafficColumns"
         :loading="trafficLoading"
         :error="trafficError"
+        :retry="loadTraffic"
         row-key="key"
         size="middle"
       >
@@ -310,6 +314,12 @@ async function openEvidence(record: CitationTargetStat): Promise<void> {
 }
 
 onMounted(async () => {
+  await initPage()
+})
+
+/** 站点清单与词表是这一页所有数字的前置：读不到就没有 siteId，也就不发后面那几发 */
+async function initPage(): Promise<void> {
+  loadError.value = null
   try {
     const [labels, list] = await Promise.all([citationApi.labels(), siteApi.list()])
     vocabulary.value = labels
@@ -322,7 +332,7 @@ onMounted(async () => {
     return
   }
   await loadAll()
-})
+}
 </script>
 
 <style scoped>

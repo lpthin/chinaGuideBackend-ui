@@ -36,6 +36,8 @@
       :columns="columns"
       :loading="loading"
       :error="loadError"
+      :retry="load"
+      empty-line="还没有骨架，先在上方生成一版。"
       row-key="skeletonKey"
       size="middle"
       :pagination="false"

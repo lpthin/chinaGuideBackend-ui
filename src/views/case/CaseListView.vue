@@ -146,6 +146,7 @@
               :loading="tableLoading"
               :not-sent="notSentLine"
               :read-failed="readFailed"
+              :retry="reload"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
               :can-create="canCreateHere"

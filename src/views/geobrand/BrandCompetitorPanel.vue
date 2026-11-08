@@ -110,6 +110,8 @@ defineExpose({ reload })
       :data-source="competitors"
       :loading="loading"
       :error="error"
+      :retry="reload"
+      empty-line="还没有添加竞品。"
       :columns="columns"
       size="small"
     >

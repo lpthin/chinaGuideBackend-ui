@@ -114,6 +114,8 @@
           :pagination="false"
           :loading="loading"
           :error="loadError"
+          :retry="loadData"
+          empty-line="还没有配置模型供应商。"
           :row-key="(record: any) => record.id"
         >
           <template #bodyCell="{ column, record }">

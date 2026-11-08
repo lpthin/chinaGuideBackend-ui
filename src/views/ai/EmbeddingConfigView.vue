@@ -255,6 +255,8 @@
         size="small"
         :row-key="(record: VectorDatabaseConfig) => record.id"
         :error="connectionsError"
+        :retry="loadConnections"
+        empty-line="还没有接入嵌入连接。"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'address'">

@@ -39,6 +39,7 @@
       :columns="commentColumns"
       :scroll="{ x: 990 }"
       :read-failed="queueError"
+      :retry="reloadQueue"
       :empty-line="queueEmptyLine"
       :empty-reason="queueEmptyReason"
       :not-sent="queueNotSent"

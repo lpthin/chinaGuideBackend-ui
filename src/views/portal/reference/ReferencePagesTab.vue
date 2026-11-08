@@ -30,6 +30,7 @@
       :columns="pageColumns"
       :loading="loading"
       :error="error"
+      :retry="retry"
       :pagination="false"
       :row-selection="pageSelection"
       row-key="id"
@@ -158,6 +159,8 @@ const props = defineProps<{
   vocabError: string | null
   /** 素材 id → 后端现签的可显示地址；截图列的 <img> 只能用这个，不能拿 id 拼 */
   shotUrls: Record<number, string>
+  /** 读失败时「重试」按钮要重发的那一发：由上层传本栏的加载函数 */
+  retry?: () => unknown
 }>()
 
 const emit = defineEmits<{

@@ -17,7 +17,14 @@ function mountTable(props: Record<string, unknown> = {}, slots: Record<string, s
   return mount(DataTable, {
     props: { dataSource: [{ id: 1 }], ...props },
     slots,
-    global: { stubs: { 'a-table': TableStub, StateBlock } },
+    global: {
+      stubs: {
+        'a-table': TableStub,
+        StateBlock,
+        'a-alert': { props: ['message'], template: '<div class="alert-stub">{{ message }}</div>' },
+        'a-button': { template: '<button class="btn-stub" @click="$emit(\'click\')">x</button>' },
+      },
+    },
   })
 }
 
@@ -83,6 +90,44 @@ describe('DataTable', () => {
     const block = w.findComponent(StateBlock)
     expect(block.props('state')).toBe('error')
     expect(block.props('detail')).toBe('加载文章列表失败')
+  })
+
+  // ===== SPEC-UI-6：错误态能自救（重试 / 权限分流 / 旧数据） =====
+  it('传 retry 时错误块里出现「重试」，点了就调页面加载函数', async () => {
+    let calls = 0
+    const w = mountTable({ dataSource: [], error: '加载失败', retry: () => { calls += 1 } })
+    expect(w.find('.btn-stub').exists()).toBe(true)
+    await w.find('.btn-stub').trigger('click')
+    expect(calls).toBeGreaterThan(0)
+  })
+
+  it('没传 retry 时不摆一颗点了没反应的按钮', () => {
+    const w = mountTable({ dataSource: [], error: '加载失败' })
+    expect(w.find('.btn-stub').exists()).toBe(false)
+  })
+
+  it('权限不足不能念「稍后重试」', () => {
+    const w = mountTable({ dataSource: [], error: '没有权限执行该操作' })
+    const next = w.findComponent(StateBlock).props('next') as string
+    expect(next).toContain('管理员')
+    expect(next).not.toContain('稍后重试')
+  })
+
+  it('keepStaleOnError：刷新失败保留上一次的行并挂提示，不整表撤成错误块', async () => {
+    const w = mountTable({ dataSource: [{ id: 1 }], keepStaleOnError: true })
+    await w.setProps({ dataSource: [], loading: true })
+    await w.setProps({ loading: false, error: '网络抖动' })
+    expect(w.findComponent(StateBlock).exists()).toBe(false)
+    expect(w.findComponent(TableStub).props('dataSource')).toEqual([{ id: 1 }])
+    expect(w.text()).toContain('下面是上一次读到的数据')
+  })
+
+  it('没开 keepStaleOnError 时，失败照样整表撤成错误块（默认行为不变）', async () => {
+    const w = mountTable({ dataSource: [{ id: 1 }] })
+    await w.setProps({ dataSource: [], loading: true })
+    await w.setProps({ loading: false, error: '网络抖动' })
+    expect(w.findComponent(StateBlock).props('state')).toBe('error')
+    expect(w.findComponent(TableStub).exists()).toBe(false)
   })
 
   it('columns 等其余属性透传给 a-table', () => {

@@ -57,6 +57,7 @@
         <empty-list-hint
           :loading="loading"
           :read-failed="readFailed"
+          :retry="load"
           :empty-line="emptyLine"
           :empty-reason="emptyReason"
         />

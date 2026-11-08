@@ -6,6 +6,7 @@
       :rows="messageList"
       :columns="columns"
       :read-failed="readFailed"
+      :retry="loadData"
       :empty-line="emptyLine"
       :empty-reason="emptyReason"
       :not-sent="notSentLine"

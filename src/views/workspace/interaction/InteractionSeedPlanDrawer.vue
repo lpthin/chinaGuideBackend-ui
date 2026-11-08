@@ -12,6 +12,7 @@
       :rows="rows"
       :columns="COLUMNS"
       :read-failed="error"
+      :retry="() => emit('reload')"
       :empty-line="emptyLine"
       :empty-reason="emptyReason"
       :not-sent="notSent"

@@ -27,5 +27,10 @@ jobs:
       - name: Type check
         run: npx vue-tsc -b
 
+      # Spec-UI-6 T8：静态拦住「绑了 :error 却没有重试 / 错误态被 v-if 挡死」的新写法，
+      # 不依赖谁记得手测；删掉任一页面的错误态，这一步会红。
+      - name: Table state guard
+        run: npm run check:table-states
+
       - name: Unit tests
         run: npx vitest run

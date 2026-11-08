@@ -7,6 +7,7 @@
       :columns="columns"
       :count-line="countLine"
       :read-failed="loadError"
+      :retry="loadRows"
       own-line="还没有录过门店：点「新增门店」把第一家实体网点填进来"
       can-create
       create-label="新增门店"

@@ -119,6 +119,8 @@ defineExpose({ reload })
       :data-source="tenantQuestions"
       :loading="loading"
       :error="error"
+      :retry="reload"
+      empty-line="还没有添加问题。"
       :columns="poolColumns"
       size="small"
     >

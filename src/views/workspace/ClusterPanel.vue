@@ -110,6 +110,7 @@
             <empty-list-hint
               :loading="loading"
               :read-failed="clustersReadFailed"
+              :retry="loadData"
               :empty-line="clustersEmptyLine"
               :empty-reason="clustersEmptyReason"
               can-create

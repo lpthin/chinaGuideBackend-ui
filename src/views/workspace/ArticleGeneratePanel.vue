@@ -390,7 +390,7 @@
         </div>
         <DataTable :scroll="{ x: 'max-content' }" :data-source="generationTasks" :columns="taskColumns"
           row-key="taskId" :pagination="false" size="middle" :row-selection="taskRowSelection" :loading="loading"
-          :error="generationTasks.length ? null : tasksError">
+          :error="generationTasks.length ? null : tasksError" :retry="loadRecentTasks">
           <template #emptyText>
             <EmptyListHint :not-sent="requestedTenantId === null ? notSentLine : ''" />
           </template>

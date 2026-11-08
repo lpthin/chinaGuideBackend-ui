@@ -133,6 +133,7 @@
           <empty-list-hint
             :loading="loading"
             :read-failed="readFailed"
+            :retry="fetchRecords"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
           />

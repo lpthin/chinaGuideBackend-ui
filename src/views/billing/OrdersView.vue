@@ -104,6 +104,7 @@
           :loading="tableLoading"
           :row-key="(record: any) => record.id"
           :error="orderError"
+          :retry="loadOrderList"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'orderNo'">
@@ -332,7 +333,7 @@ async function loadOrderList() {
     updateStats(res.records || [])
   } catch (error) {
     logError('billing/orders-view', 'Failed to load orders:', error)
-    message.error('加载订单列表失败')
+    // 表内已经有错误块和重试了，再弹一句 toast 只是同一次故障说两遍（拍板 T7）
     orderError.value = (error as { message?: string })?.message || '加载订单列表失败'
     orderListData.value = []
   } finally {

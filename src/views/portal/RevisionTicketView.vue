@@ -87,6 +87,7 @@
         <empty-list-hint
           :loading="loading"
           :read-failed="readFailed"
+          :retry="loadTickets"
           :empty-line="emptyLine"
           :empty-reason="emptyReason"
         />
@@ -201,6 +202,7 @@
           :data-source="sessions"
           :columns="sessionColumns"
           :error="sessionsError"
+          :retry="loadSessions"
           :pagination="{ pageSize: 8, showTotal: (total: number) => `共 ${total} 条` }"
           row-key="id"
           size="small"

@@ -116,6 +116,7 @@
               <empty-list-hint
                 :loading="candidateLoading"
                 :read-failed="candidateReadFailed"
+                :retry="loadCandidates"
                 :empty-line="candidateEmptyLine"
                 :empty-reason="candidateEmptyReason"
                 can-create
@@ -252,6 +253,7 @@
               <empty-list-hint
                 :loading="queueLoading"
                 :read-failed="queueReadFailed"
+                :retry="loadQueue"
                 :empty-line="queueEmptyLine"
                 :empty-reason="queueEmptyReason"
               />
@@ -332,6 +334,7 @@
               <empty-list-hint
                 :loading="recordLoading"
                 :read-failed="recordReadFailed"
+                :retry="loadRecords"
                 :empty-line="recordEmptyLine"
                 :empty-reason="recordEmptyReason"
               />

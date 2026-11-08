@@ -54,7 +54,10 @@
 
             <a-spin v-else :spinning="detailLoading">
               <a-alert v-if="detailError" type="error" show-icon>
-                <template #message>正文没读到（后端原话：{{ detailError }}）</template>
+                <template #message>
+                  正文没读到（后端原话：{{ detailError }}）
+                  <a-button type="link" size="small" @click="() => loadDetail(activePurpose)">重试</a-button>
+                </template>
               </a-alert>
 
               <template v-else-if="detail">
@@ -126,7 +129,7 @@
                     size="small"
                     row-key="name"
                     :pagination="false"
-                    :error="detailError"
+                    empty-line="这一份模板还没有可占的位。"
                   >
                     <template #bodyCell="{ column, record }">
                       <code v-if="column.key === 'name'">{{ placeholderText(record.name) }}</code>
@@ -150,7 +153,10 @@
 
                   <h4 class="prompt-page__sub">各站盖着这一份的行（只读）</h4>
                   <a-spin :spinning="overridesLoading">
-                    <p v-if="overrideError" class="prompt-page__muted">覆盖行没读到（后端原话：{{ overrideError }}）</p>
+                    <p v-if="overrideError" class="prompt-page__muted">
+                      覆盖行没读到（后端原话：{{ overrideError }}）
+                      <a-button type="link" size="small" @click="() => loadOverrides(activePurpose)">重试</a-button>
+                    </p>
                     <p v-else-if="!overrides.length" class="prompt-page__muted">
                       还没有任何站点覆盖这一份：现在每一家读的都是左栏这一份全局正文。
                     </p>
@@ -161,7 +167,6 @@
                       size="small"
                       row-key="id"
                       :pagination="false"
-                      :error="overrideError"
                     >
                       <template #bodyCell="{ column, record }">
                         <span v-if="column.key === 'site'">

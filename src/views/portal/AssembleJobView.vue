@@ -66,12 +66,12 @@
 
     <!-- ---------------- 第 2 步：这个站点的任务历史 ---------------- -->
     <a-card size="small" title="2 本站的组装任务" class="assemble-job-page__panel">
-      <a-alert v-if="jobsError" type="error" show-icon class="assemble-job-page__notice" :message="jobsError" />
       <DataTable
         :data-source="jobs"
         :columns="jobColumns"
         :loading="loadingJobs"
         :error="jobsError"
+        :retry="loadJobs"
         :pagination="false"
         row-key="id"
         size="small"
@@ -124,14 +124,6 @@
             <span class="assemble-job-page__error">{{ job.errorMessage }}</span>
           </a-descriptions-item>
         </a-descriptions>
-
-        <a-alert
-          v-if="detailError"
-          type="error"
-          show-icon
-          class="assemble-job-page__notice"
-          :message="detailError"
-        />
 
         <a-space wrap class="assemble-job-page__actions">
           <a-button :disabled="!canEstimate" :loading="estimating" @click="runEstimate">先估算消耗</a-button>
@@ -197,6 +189,8 @@
           :data-source="drafts"
           :columns="draftColumns"
           :error="detailError"
+          :retry="refreshDetail"
+          keep-stale-on-error
           :pagination="false"
           row-key="pageKey"
           size="small"

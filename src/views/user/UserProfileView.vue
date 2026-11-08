@@ -135,6 +135,7 @@
                   :pagination="pagination"
                   :loading="logsLoading"
                   :error="logsError"
+                  :retry="loadLoginLogs"
                   empty-line="这一栏还没有内容。"
                   size="middle"
                 />

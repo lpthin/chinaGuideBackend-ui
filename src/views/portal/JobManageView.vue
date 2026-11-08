@@ -6,6 +6,7 @@
       :rows="jobList"
       :columns="columns"
       :read-failed="readFailed"
+      :retry="loadData"
       :empty-line="emptyLine"
       :empty-reason="emptyReason"
       :count-line="countLine"

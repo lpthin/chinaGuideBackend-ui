@@ -520,6 +520,7 @@ onMounted(() => {
       :data-source="visibleSites"
       :loading="loading"
       :error="sitesError"
+      :retry="load"
       :pagination="false"
       row-key="id"
       bordered

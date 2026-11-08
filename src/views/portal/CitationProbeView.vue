@@ -44,6 +44,7 @@
       :columns="columns"
       :loading="loading"
       :error="loadError"
+      :retry="load"
       row-key="id"
       size="middle"
       :scroll="{ x: 1180 }"

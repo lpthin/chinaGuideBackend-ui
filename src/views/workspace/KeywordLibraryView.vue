@@ -717,6 +717,7 @@ watch(requestedTenantId, () => {
             <empty-list-hint
               :loading="loading"
               :read-failed="readFailed"
+              :retry="loadKeywords"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
               :not-sent="notSentLine"

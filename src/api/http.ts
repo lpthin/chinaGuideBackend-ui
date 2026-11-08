@@ -3,6 +3,7 @@ import type { ApiResponse } from '../types'
 import { message } from 'ant-design-vue'
 import { router } from '../router'
 import { useAuthStore } from '../stores/auth'
+import { rememberRawDetail } from '../utils/errorRaw'
 
 let isRedirecting = false
 
@@ -90,6 +91,36 @@ function containerRejectionMessage(status: number): string {
 
 /** 给用户看的错误文案：axios/网关的英文原文（如 Request failed with status code 502）不能直接抛到界面上 */
 export function describeHttpError(error: unknown): string {
+  const humanText = humanizeHttpError(error)
+  rememberRawDetail(humanText, rawDetailOfError(error))
+  return humanText
+}
+
+/**
+ * 原文材料（给工单用）：状态码、请求地址、axios 代码、后端回的那段壳。
+ * 它不上标题，只折叠在错误块里（拍板 Q5-A）。
+ */
+function rawDetailOfError(error: unknown): string {
+  const axiosError = error as AxiosError<unknown>
+  const lines: string[] = []
+  const status = axiosError?.response?.status
+  if (status) {
+    const url = axiosError.config?.url || ''
+    lines.push(`${axiosError.config?.method?.toUpperCase() || 'GET'} ${url} → HTTP ${status}`.trim())
+  }
+  if (axiosError?.code) lines.push(`code: ${axiosError.code}`)
+  const body = axiosError?.response?.data
+  if (body !== undefined && body !== null && typeof body !== 'string') {
+    lines.push(JSON.stringify(body))
+  } else if (typeof body === 'string' && body.trim()) {
+    lines.push(body)
+  }
+  const message = (error as Error | null)?.message
+  if (message && message !== lines[lines.length - 1]) lines.push(message)
+  return lines.join('\n')
+}
+
+function humanizeHttpError(error: unknown): string {
   const axiosError = error as AxiosError<{ message?: string }>
   const bizMessage = axiosError?.response?.data?.message
   if (bizMessage) return bizMessage

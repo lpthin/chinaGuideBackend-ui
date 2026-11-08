@@ -56,6 +56,7 @@
         v-if="!pages.length"
         :loading="loadingPages"
         :read-failed="readFailed"
+        :retry="loadPages"
         :empty-line="emptyLine"
         :empty-reason="emptyReason"
         :can-create="canBuild"

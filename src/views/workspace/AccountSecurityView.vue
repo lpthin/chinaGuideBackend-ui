@@ -62,7 +62,8 @@
           <a-select-option value="failed">失败</a-select-option>
         </a-select>
         <span v-if="tenantsReadFailed" class="tenant-list-failed">
-          客户名单读失败：只认「全部客户」和「归属未知」两档（<a @click="fetchTenants">重试</a>）
+          客户名单读失败：只认「全部客户」和「归属未知」两档
+          <a-button type="link" size="small" @click="fetchTenants">重试</a-button>
         </span>
 
         <template #actions>
@@ -98,6 +99,7 @@
           <empty-list-hint
             :loading="loginTable.loading"
             :read-failed="loginTable.readFailed"
+            :retry="() => fetchTab('login')"
             :empty-line="loginTable.emptyLine"
             :empty-reason="loginTable.emptyReason"
           />
@@ -136,6 +138,7 @@
           <empty-list-hint
             :loading="switchTable.loading"
             :read-failed="switchTable.readFailed"
+            :retry="() => fetchTab('switch')"
             :empty-line="switchTable.emptyLine"
             :empty-reason="switchTable.emptyReason"
           />

@@ -75,6 +75,7 @@
         <empty-list-hint
           :loading="loading"
           :read-failed="listReadFailed"
+          :retry="load"
           :empty-line="listEmptyLine"
           :empty-reason="listEmptyReason"
         />

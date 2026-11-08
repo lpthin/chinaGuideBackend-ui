@@ -32,6 +32,7 @@
         :pagination="false"
         :loading="loading"
         :error="permissionsError"
+        :retry="loadPermissions"
         empty-line="这一栏还没有内容。"
         row-key="id"
         :default-expand-all="true"

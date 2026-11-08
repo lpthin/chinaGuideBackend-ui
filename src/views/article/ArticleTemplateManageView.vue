@@ -130,6 +130,7 @@
             :pagination="paginationConfig"
             :row-key="(record: any) => record.id"
             :error="templateError"
+            :retry="loadTemplates"
             @change="handleTableChange"
           >
             <!-- 这一屏的空从前只有一句写死的「暂无模板」：「这一家真的一个模板都没有」「这一页翻过了头」
@@ -255,6 +256,7 @@
             v-if="templateList.length === 0"
             :loading="loading"
             :read-failed="readFailed"
+            :retry="loadTemplates"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
             can-create

@@ -94,7 +94,10 @@
       </a-row>
 
       <!-- 三格统计与下面这张表不一定是同一个范围，界面要说在哪一格不摆数 -->
-      <p v-if="statsRangeNotice" class="stats-note">{{ statsRangeNotice }}</p>
+      <p v-if="statsRangeNotice" class="stats-note">
+        {{ statsRangeNotice }}
+        <a-button v-if="statsReadFailed" type="link" size="small" @click="fetchStats">重试</a-button>
+      </p>
 
       <!-- 表格 -->
       <DataTable
@@ -112,6 +115,7 @@
           <empty-list-hint
             :loading="loading"
             :read-failed="readFailed"
+            :retry="fetchLogs"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
           />

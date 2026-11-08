@@ -59,6 +59,8 @@
             :data-source="platformList"
             :loading="platformLoading"
             :error="platformError"
+            :retry="loadPlatforms"
+            empty-line="这一栏还没有配置内容。"
             :pagination="{ pageSize: 10 }"
             row-key="id"
           >

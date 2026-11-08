@@ -115,6 +115,7 @@
             :loading="loading"
             :not-sent="notSentLine"
             :read-failed="readFailed"
+            :retry="loadTemplates"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
             can-create

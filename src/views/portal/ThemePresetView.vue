@@ -27,6 +27,7 @@
       :columns="columns"
       :loading="loading"
       :error="presetsError"
+      :retry="load"
       row-key="id"
       size="middle"
       :scroll="{ x: 1240 }"

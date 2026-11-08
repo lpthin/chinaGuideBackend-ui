@@ -34,6 +34,7 @@
         :data-source="slotShapeRows"
         :columns="slotShapeColumns"
         :error="error"
+        :retry="retry"
         :pagination="false"
         row-key="rowKey"
         size="small"
@@ -70,6 +71,7 @@
         :data-source="vocabularyRows"
         :columns="vocabularyColumns"
         :error="error"
+        :retry="retry"
         :pagination="false"
         row-key="rowKey"
         size="small"
@@ -126,6 +128,8 @@ const props = defineProps<{
   loading: boolean
   /** 模板包没载入成功时写在这一格：空表不能冒充「这一份包里一项都没有」 */
   error?: string | null
+  /** 读失败时「重试」按钮要重发的那一发：由上层传本栏的加载函数 */
+  retry?: () => unknown
 }>()
 
 const emit = defineEmits<{ (e: 'load'): void }>()

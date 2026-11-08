@@ -15,12 +15,13 @@
       </ul>
 
       <DataTable
-        v-if="versions && versions.versions.length"
+        v-if="versionsError || (versions && versions.versions.length)"
         size="small"
         row-key="specVersion"
         :columns="columns"
-        :data-source="versions.versions"
+        :data-source="versions?.versions ?? []"
         :error="versionsError"
+        :retry="loadVersions"
         empty-line="这一栏还没有内容。"
         :pagination="false"
         class="spec-diff__table"

@@ -46,6 +46,7 @@
           <empty-list-hint
             :loading="loading"
             :read-failed="readFailed"
+            :retry="loadUsers"
             :empty-line="emptyLine"
             :empty-reason="emptyReason"
             can-create

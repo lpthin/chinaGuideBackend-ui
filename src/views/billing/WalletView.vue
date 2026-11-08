@@ -161,6 +161,7 @@
             <empty-list-hint
               :loading="tableLoading"
               :read-failed="readFailed"
+              :retry="loadTransactionList"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
               :not-sent="notSentLine"

@@ -19,7 +19,7 @@
  * 改之后 5 屏 0 格，页面上渲染出的 10 张表全部有可用的横向滚动层；
  * 1440 档两头都是 0 格且滚动层没被激活，兜底不给宽屏添一条没人要的横向滚动条。
  */
-import { computed, useAttrs } from 'vue'
+import { computed, shallowRef, useAttrs, watch } from 'vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import StateBlock from './StateBlock.vue'
 
@@ -33,8 +33,15 @@ const props = withDefaults(
     pagination?: false | TablePaginationConfig
     /** 只读页的「空」不该念「新建一条记录」时，用这一句覆盖空态第二行（不传仍是通用话术） */
     emptyLine?: string
+    /** 读失败时给的一颗「重试」按钮：传页面的加载函数，不传就只念原因（页面本来有刷新按钮时可省） */
+    retry?: () => unknown
+    /**
+     * 刷新失败时保留上一次读到的行 + 顶部提示，而不是整表撤成错误块。
+     * 轮询类页面（进度、任务）必须有：后台每几秒刷一次，抖动一次就闪成「读取失败」等于谎报任务丢了。
+     */
+    keepStaleOnError?: boolean
   }>(),
-  { dataSource: () => [], loading: false, error: null, rowKey: 'id', pagination: undefined }
+  { dataSource: () => [], loading: false, error: null, rowKey: 'id', pagination: undefined, keepStaleOnError: false }
 )
 
 const attrs = useAttrs()
@@ -73,19 +80,78 @@ const mergedPagination = computed(() => {
 })
 
 const isEmpty = computed(() => !props.loading && props.dataSource.length === 0)
+
+const errorText = computed(() => String(props.error ?? ''))
+
+/** 权限与登录问题不能念「稍后重试」：那不是等一等就会好的事 */
+const errorNext = computed(() => {
+  if (/没有权限|权限不足|无权/.test(errorText.value)) return '需要更高权限：请联系管理员开通后再回来'
+  if (/登录状态已失效|重新登录/.test(errorText.value)) return '请重新登录后再试'
+  return undefined
+})
+
+/**
+ * 上一次读成功的行。只记非空那一档：成功读到空也算「新状态」，由 loading 回落那一下清掉。
+ * 页面在 catch 里把 rows 清空是常态，这里兜住「抖动一次就把整块数据撤走」。
+ */
+const staleRows = shallowRef<readonly unknown[]>([])
+watch(
+  () => props.dataSource,
+  (rows) => {
+    if (rows.length > 0) staleRows.value = rows
+  },
+  { immediate: true }
+)
+watch(
+  () => props.loading,
+  (loading) => {
+    if (!loading && !props.error) staleRows.value = props.dataSource
+  }
+)
+
+const displayRows = computed(() => {
+  if (!props.error) return props.dataSource
+  if (props.dataSource.length > 0) return props.dataSource
+  return props.keepStaleOnError ? staleRows.value : []
+})
+
+/** 有行可看时只挂提示条，不再整表撤成错误块 */
+const showErrorBlock = computed(() => !!props.error && displayRows.value.length === 0)
+
+function onRetry() {
+  void props.retry?.()
+}
+
 </script>
 
 <template>
-  <StateBlock v-if="error" state="error" :detail="error" />
+  <StateBlock v-if="showErrorBlock" state="error" :detail="errorText" :next="errorNext">
+    <slot name="errorExtra">
+      <a-button v-if="retry" type="primary" :loading="loading" @click="onRetry">重试</a-button>
+    </slot>
+  </StateBlock>
   <!-- 页面自己带了「这一种空是哪一种」那一句（N-05：后端原文，界面不改写）时，这一块固定话术
        不能再盖在上面——「调整筛选条件，或新建一条记录」对「这一家读不到」那一形是谎报。
        没带这一句的屏一行没变。 -->
-  <StateBlock v-else-if="isEmpty && !$slots.emptyText" state="empty" :next="emptyLine" />
-  <a-table v-else :data-source="dataSource" :loading="loading" :row-key="rowKey" :pagination="mergedPagination" :scroll="mergedScroll" v-bind="$attrs">
-    <template v-for="(_, name) in $slots" #[name]="slotData"><slot :name="name" v-bind="slotData ?? {}" /></template>
-  </a-table>
+  <StateBlock v-else-if="!error && isEmpty && !$slots.emptyText" state="empty" :next="emptyLine" />
+  <template v-else>
+    <!-- 有旧数据就留表 + 顶部提示：一次抖动不该把用户已经看到的内容撤走 -->
+    <a-alert
+      v-if="error"
+      type="warning"
+      show-icon
+      class="admin-data-table__stale"
+      :message="`这次没刷新成功：${errorText}。下面是上一次读到的数据。`"
+    />
+    <a-table :data-source="displayRows" :loading="loading" :row-key="rowKey" :pagination="mergedPagination" :scroll="mergedScroll" v-bind="$attrs">
+      <template v-for="(_, name) in $slots" #[name]="slotData"><slot :name="name" v-bind="slotData ?? {}" /></template>
+    </a-table>
+  </template>
 </template>
 
 <style scoped lang="less">
 /* 分页尺寸上限由 mergedPagination 保证（100）；样式交给 antd 与主题 */
+.admin-data-table__stale {
+  margin-bottom: var(--admin-space-2, 16px);
+}
 </style>

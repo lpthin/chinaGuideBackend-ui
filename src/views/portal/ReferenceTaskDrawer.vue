@@ -98,6 +98,7 @@
               :reference-id="currentId"
               :pages="pages"
               :error="pagesError"
+              :retry="loadPages"
               :loading="pagesLoading"
               :selectable="canCrawl"
               v-model:selected-page-ids="selectedPageIds"
@@ -114,6 +115,7 @@
               :mappings="mappings"
               :loading="mappingsLoading"
               :error="mappingsError"
+              :retry="loadMappings"
               :blocks="blocks"
               @verified="afterVerify"
             />
@@ -124,6 +126,7 @@
               :reference-id="currentId"
               :groups="unmatchedGroups"
               :error="unmatchedError"
+              :retry="loadMappings"
               :loading="unmatchedLoading"
               @promoted="loadMappings"
             />
@@ -134,6 +137,7 @@
               :pkg="templatePackage"
               :vocabularies="vocabularies"
               :error="packageError"
+              :retry="loadPackage"
               :loading="packageLoading"
               @load="loadPackage"
             />

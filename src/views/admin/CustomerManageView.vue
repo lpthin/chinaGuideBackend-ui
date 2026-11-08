@@ -135,6 +135,7 @@
               :loading="tableLoading"
               :not-sent="notSentLine"
               :read-failed="readFailed"
+              :retry="loadCustomerList"
               :empty-line="emptyLine"
               :empty-reason="emptyReason"
               can-create

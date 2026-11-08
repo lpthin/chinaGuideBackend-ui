@@ -6,6 +6,7 @@
       :rows="rowsOf(activeKind)"
       :columns="columns"
       :read-failed="loadError"
+      :retry="loadRows"
       :count-line="countLine"
       :own-line="ownLine"
       can-create

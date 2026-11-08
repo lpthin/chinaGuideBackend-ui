@@ -23,6 +23,7 @@
         <empty-list-hint
           :loading="loading"
           :read-failed="readFailed"
+          :retry="fetchTemplates"
           :empty-line="emptyLine"
           :empty-reason="emptyReason"
           can-create

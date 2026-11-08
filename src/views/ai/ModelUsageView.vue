@@ -496,6 +496,7 @@
                     v-if="!logList.length"
                     :loading="loading"
                     :read-failed="logsReadFailed"
+                    :retry="loadLogs"
                     :empty-line="logsEmptyLine"
                     :empty-reason="logsEmptyReason"
                   />

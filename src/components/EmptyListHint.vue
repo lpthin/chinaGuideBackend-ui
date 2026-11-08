@@ -18,7 +18,17 @@
   -->
   <p v-if="!loading" class="empty-line">
     <template v-if="notSent">{{ notSent }}</template>
-    <template v-else-if="readFailed">这一发读失败：{{ readFailed }}（读失败不是「这一档没有」）</template>
+    <template v-else-if="readFailed">
+      这一发读失败：{{ readFailed }}（读失败不是「这一档没有」）
+      <a-button v-if="retry" type="link" size="small" class="retry-on-failed" @click="onRetry">重试</a-button>
+      <a-button v-if="rawDetail" type="link" size="small" @click="showRaw = !showRaw">
+        {{ showRaw ? '收起原文' : '错误原文' }}
+      </a-button>
+      <template v-if="showRaw && rawDetail">
+        <code class="raw-text">{{ rawDetail }}</code>
+        <a-button type="link" size="small" @click="copyRaw">{{ copied ? '已复制' : '复制' }}</a-button>
+      </template>
+    </template>
     <template v-else-if="emptyLine">{{ emptyLine }}</template>
     <template v-else-if="ownLine">{{ ownLine }}</template>
     <template v-else>这一格这一发没有行（后端没回是哪一种空，界面不替它猜）。</template>
@@ -34,9 +44,11 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { offersCreateOnEmpty, type EmptyReason } from '../utils/emptyPage'
+import { errorRawDetail } from '../utils/errorRaw'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     loading?: boolean
     readFailed?: string
@@ -48,6 +60,8 @@ withDefaults(
     notSent?: string
     /** 后端没回成因时，这一屏自己那句具体的话（比通用兜底有用；后端一答就让位） */
     ownLine?: string
+    /** 读失败时的「重试」按钮：传页面重新加载这张表的函数；不传就只念原因（页面有刷新按钮时可省） */
+    retry?: () => unknown
   }>(),
   {
     loading: false,
@@ -58,10 +72,29 @@ withDefaults(
     createLabel: '新建',
     notSent: '',
     ownLine: '',
+    retry: undefined,
   }
 )
 
 const emit = defineEmits<{ create: [] }>()
+
+function onRetry() {
+  props.retry?.()
+}
+
+/** 读失败时折叠出原始技术串（拍板 Q5-A）：人话在上，原文给工单用 */
+const rawDetail = computed(() => errorRawDetail(props.readFailed))
+const showRaw = ref(false)
+const copied = ref(false)
+async function copyRaw(): Promise<void> {
+  if (!rawDetail.value) return
+  try {
+    await navigator.clipboard.writeText(rawDetail.value)
+    copied.value = true
+  } catch {
+    copied.value = false
+  }
+}
 </script>
 
 <style scoped lang="less">
@@ -74,5 +107,17 @@ const emit = defineEmits<{ create: [] }>()
 .create-on-empty {
   display: block;
   margin: 12px auto 0;
+}
+
+.raw-text {
+  display: inline-block;
+  max-width: 100%;
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.03);
+  font-size: 12px;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>

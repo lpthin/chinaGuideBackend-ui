@@ -36,6 +36,7 @@
       :columns="columns"
       :loading="loading"
       :error="tasksError"
+      :retry="loadTasks"
       :pagination="paginationConfig"
       row-key="id"
       size="middle"
