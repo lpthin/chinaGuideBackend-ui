@@ -630,11 +630,14 @@ describe('账单表的四种空各说各的（M-P97）', () => {
     expect(wrapper.text()).not.toContain('翻过了头')
   })
 
-  it('读失败：卡念「没取到」，空态说清读失败不是「这一档没有」', async () => {
+  it('读失败：卡念「没取到」，表内错误块说清读失败并给重试', async () => {
     const wrapper = await mountView({ invoiceError: '网关超时' })
     expect(totalCard(wrapper)).toBe('没取到')
-    expect(emptySlot(wrapper)).toContain('这一发读失败：网关超时')
-    expect(emptySlot(wrapper)).toContain('读失败不是「这一档没有」')
+    // M2：账单明细把读失败交给表内错误块（同一档可保留旧行），不再让空态替它解释
+    const said = wrapper.text()
+    expect(said).toContain('网关超时')
+    expect(said).toContain('重试')
+    expect(said).not.toContain('一条都没有')
   })
 
   it('后端只回了旧四格（没答成因）：兜底那句不替它挑一种空', async () => {

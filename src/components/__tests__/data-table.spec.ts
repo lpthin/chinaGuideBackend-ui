@@ -130,6 +130,22 @@ describe('DataTable', () => {
     expect(w.findComponent(TableStub).exists()).toBe(false)
   })
 
+  it('M2：staleKey 一变，上一份旧行立刻作废——页面没来得及清也不能端上来', async () => {
+    // 页面在切客户时往往还没把 dataSource 清空，这正是串号最容易发生的一瞬
+    const w = mountTable({ dataSource: [{ id: 1 }], keepStaleOnError: true, staleKey: '客户A|第1页' })
+    await w.setProps({ staleKey: '客户B|第1页', loading: true })
+    await w.setProps({ loading: false, error: '网络抖动' })
+    expect(w.findComponent(StateBlock).props('state')).toBe('error')
+    expect(w.findComponent(TableStub).exists()).toBe(false)
+  })
+
+  it('M2：换上下文后读成功，新一档的行照常上桌', async () => {
+    const w = mountTable({ dataSource: [{ id: 1 }], keepStaleOnError: true, staleKey: '客户A' })
+    await w.setProps({ staleKey: '客户B', dataSource: [], loading: true })
+    await w.setProps({ dataSource: [{ id: 2 }], loading: false, error: null })
+    expect(w.findComponent(TableStub).props('dataSource')).toEqual([{ id: 2 }])
+  })
+
   it('还失败着的时候，页面自带的空态插槽也不许抢戏（M1：失败态与空态分离）', () => {
     const w = mountTable({ dataSource: [], error: '读取失败' }, { emptyText: '<span class="empty-slot">这一档还没有数据</span>' })
     expect(w.findComponent(StateBlock).props('state')).toBe('error')

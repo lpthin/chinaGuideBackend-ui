@@ -106,6 +106,10 @@
         :data-source="logList"
         :pagination="pagination"
         :loading="loading"
+        :error="readFailed"
+        :retry="fetchLogs"
+        :keep-stale-on-error="true"
+        :stale-key="logContextKey"
         row-key="id"
         @change="handleTableChange"
       >
@@ -272,6 +276,23 @@ const pagination = reactive<TablePaginationConfig>({
   showQuickJumper: true,
   showTotal: (total) => `共 ${total} 条`
 })
+
+/**
+ * M2：审计是「同一档里值钱的只读重数据」，刷新失败允许留上一次的行；
+ * 但换客户 / 换筛选 / 翻页就是另一档了，旧行必须作废，不许端上来冒充这一档。
+ */
+const logContextKey = computed(() =>
+  [
+    authStore.selectedTenantId ?? '',
+    filterForm.tenantScope,
+    filterForm.action ?? '',
+    filterForm.resource ?? '',
+    filterForm.username,
+    filterForm.dateRange.join(','),
+    pagination.current ?? 1,
+    pagination.pageSize ?? 10
+  ].join('|')
+)
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 70 },

@@ -191,6 +191,7 @@
           :error="detailError"
           :retry="refreshDetail"
           keep-stale-on-error
+          :stale-key="siteId ?? ''"
           :pagination="false"
           row-key="pageKey"
           size="small"

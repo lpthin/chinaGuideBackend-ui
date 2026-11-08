@@ -21,6 +21,7 @@ function vueFiles(dir) {
 const missing = []
 const blocked = []
 const emptyLies = []
+const staleMisuse = []
 
 for (const file of vueFiles(SRC)) {
   const rel = relative(process.cwd(), file).replace(/\\/g, '/')
@@ -88,8 +89,40 @@ for (const file of vueFiles(SRC)) {
   }
 }
 
-if (missing.length || blocked.length || emptyLies.length) {
-  console.error([...missing, ...blocked, ...emptyLies].join('\n'))
+/**
+ * 4. keep-stale-on-error 只给「同一上下文里反复刷新的只读重数据」用（M2）。
+ * 跟随客户 / 站点 / 筛选切换的名单类一律不许开；开了还必须配 :stale-key，
+ * 让上下文一变就把上一份行作废（切换客户后读失败不许显示上一家的行）。
+ */
+const STALE_WHITELIST = new Map([
+  ['src/views/workspace/AuditLogView.vue', '审计日志：同一档内反复刷新，跨档由 stale-key 作废'],
+  ['src/views/billing/OrdersView.vue', '订单：金额账，跨档由 stale-key 作废'],
+  ['src/views/billing/BillingView.vue', '账单明细：金额账，跨档由 stale-key 作废'],
+  ['src/views/portal/AssembleJobView.vue', '组装任务轮次：轮询进度，换站点由 stale-key 作废'],
+])
+
+for (const file of vueFiles(SRC)) {
+  const rel = relative(process.cwd(), file).replace(/\\/g, '/')
+  if (!rel.startsWith('src/views/')) continue
+  const source = readFileSync(file, 'utf8')
+  if (!/keep-stale-on-error|keepStaleOnError/.test(source)) continue
+  if (!STALE_WHITELIST.has(rel)) {
+    staleMisuse.push(`旧数据保留未登记白名单：${rel}`)
+    continue
+  }
+  for (const match of source.matchAll(TABLE_OPEN)) {
+    const openEnd = openTagEnd(source, match.index)
+    if (openEnd < 0) continue
+    const openTag = source.slice(match.index, openEnd)
+    if (!/keep-stale-on-error|keepStaleOnError/.test(openTag)) continue
+    if (!/stale-key|staleKey/.test(openTag)) {
+      staleMisuse.push(`开了旧数据保留却没给上下文键 :stale-key：${rel}`)
+    }
+  }
+}
+
+if (missing.length || blocked.length || emptyLies.length || staleMisuse.length) {
+  console.error([...missing, ...blocked, ...emptyLies, ...staleMisuse].join('\n'))
   process.exit(1)
 }
-console.log('表格状态规则通过：错误态都有重试、不会被 v-if 挡死、空态也不替读失败撒谎。')
+console.log('表格状态规则通过：错误态都有重试、不会被 v-if 挡死、空态不替读失败撒谎、旧数据保留只发生在白名单页。')

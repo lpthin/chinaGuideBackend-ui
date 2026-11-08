@@ -182,6 +182,10 @@
           :pagination="pagination"
           :row-key="(record: any) => record.id"
           :loading="tableLoading"
+          :error="invoiceReadFailed"
+          :retry="loadInvoices"
+          :keep-stale-on-error="true"
+          :stale-key="invoiceContextKey"
         >
           <template #emptyText>
             <!-- 空列表有三种完全不同的成因（真的没有 / 这一家读不到 / 这一页翻过了头），
@@ -390,6 +394,22 @@ const pagination = reactive({
     loadInvoices()
   },
 })
+
+/**
+ * M2：账单明细允许「刷新失败留上一次」，但客户 / 状态 / 关键词 / 时间档 / 页码一变就作废。
+ * 跨档留行 = 把另一档的钱端到这一档，比白屏更坏。
+ */
+const invoiceContextKey = computed(() =>
+  [
+    authStore.selectedTenantId ?? '',
+    queryParams.status ?? '',
+    queryParams.keyword,
+    queryParams.startDate ?? '',
+    queryParams.endDate ?? '',
+    pagination.current,
+    pagination.pageSize
+  ].join('|')
+)
 
 const rechargePackages = ref<RechargePackage[]>([])
 

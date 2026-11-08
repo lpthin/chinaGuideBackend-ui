@@ -211,10 +211,12 @@ describe('AuditLogView 的空态成因', () => {
   it('读失败那一发说的是读失败，不是「这一档没有」', async () => {
     const wrapper = await mountView([], {}, new Error('读口断了'))
 
-    const said = emptyText(wrapper)
-    expect(said).toContain('这一发读失败：读口断了')
-    expect(said).toContain('读失败不是「这一档没有」')
+    // M2：审计页把读失败交给表内错误块（保留旧行 + 顶部提示的那一档），空态不再替它说话
+    const said = wrapper.text()
+    expect(said).toContain('读口断了')
+    expect(said).toContain('重试')
     expect(said).not.toContain('一条都没有')
+    expect(wrapper.html()).not.toContain('暂无数据')
   })
 
   it('这一家读不到时三格统计摆「—」，不把三个 0 当成结果', async () => {

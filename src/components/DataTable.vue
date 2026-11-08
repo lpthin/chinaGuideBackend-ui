@@ -19,7 +19,7 @@
  * 改之后 5 屏 0 格，页面上渲染出的 10 张表全部有可用的横向滚动层；
  * 1440 档两头都是 0 格且滚动层没被激活，兜底不给宽屏添一条没人要的横向滚动条。
  */
-import { computed, shallowRef, useAttrs, watch } from 'vue'
+import { computed, ref, shallowRef, useAttrs, watch } from 'vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import StateBlock from './StateBlock.vue'
 
@@ -37,11 +37,18 @@ const props = withDefaults(
     retry?: () => unknown
     /**
      * 刷新失败时保留上一次读到的行 + 顶部提示，而不是整表撤成错误块。
-     * 轮询类页面（进度、任务）必须有：后台每几秒刷一次，抖动一次就闪成「读取失败」等于谎报任务丢了。
+     * 只允许「同一上下文里反复刷新」的只读重数据（审计、订单、账单、任务）开启；
+     * 跟随客户/站点/筛选切换的名单类禁止开启，由 check-table-states 的白名单守住。
      */
     keepStaleOnError?: boolean
+    /**
+     * 这一份数据所处的上下文（客户 + 筛选 + 页码拼成的串）。
+     * 一旦变化，上一次留下的行立刻作废——切换客户/改筛选后读失败时，
+     * 屏幕上不能再出现上一家客户或上一档筛选的任何一行（M2）。
+     */
+    staleKey?: string | number
   }>(),
-  { dataSource: () => [], loading: false, error: null, rowKey: 'id', pagination: undefined, keepStaleOnError: false }
+  { dataSource: () => [], loading: false, error: null, rowKey: 'id', pagination: undefined, keepStaleOnError: false, staleKey: '' }
 )
 
 const attrs = useAttrs()
@@ -99,6 +106,16 @@ const errorNext = computed(() => {
  * 页面在 catch 里把 rows 清空是常态，这里兜住「抖动一次就把整块数据撤走」。
  */
 const staleRows = shallowRef<readonly unknown[]>([])
+/** 上下文换过之后、新一发还没成功之前，上一次的行一律不许再端上来 */
+const contextDirty = ref(false)
+
+watch(
+  () => props.staleKey,
+  () => {
+    staleRows.value = []
+    contextDirty.value = true
+  }
+)
 watch(
   () => props.dataSource,
   (rows) => {
@@ -109,12 +126,17 @@ watch(
 watch(
   () => props.loading,
   (loading) => {
-    if (!loading && !props.error) staleRows.value = props.dataSource
+    if (!loading && !props.error) {
+      staleRows.value = props.dataSource
+      // 读成功才把这一档算「干净」的；失败就一直脏着，旧数据不许顶上来
+      contextDirty.value = false
+    }
   }
 )
 
 const displayRows = computed(() => {
   if (!props.error) return props.dataSource
+  if (contextDirty.value) return []
   if (props.dataSource.length > 0) return props.dataSource
   return props.keepStaleOnError ? staleRows.value : []
 })

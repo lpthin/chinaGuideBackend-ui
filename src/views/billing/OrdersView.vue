@@ -105,6 +105,8 @@
           :row-key="(record: any) => record.id"
           :error="orderError"
           :retry="loadOrderList"
+          :keep-stale-on-error="true"
+          :stale-key="orderContextKey"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'orderNo'">
@@ -249,6 +251,20 @@ const paginationConfig = reactive({
     loadOrderList()
   },
 })
+
+/**
+ * M2：订单是「同一档里值钱的只读重数据」，刷新失败允许留上一次；
+ * 客户 / 状态 / 关键词 / 页码一变就作废，绝不把另一档的订单端上来。
+ */
+const orderContextKey = computed(() =>
+  [
+    authStore.selectedTenantId ?? '',
+    queryParams.status,
+    queryParams.keyword,
+    paginationConfig.current,
+    paginationConfig.pageSize
+  ].join('|')
+)
 
 const columns = [
   { title: '订单编号', key: 'orderNo', width: 180 },
