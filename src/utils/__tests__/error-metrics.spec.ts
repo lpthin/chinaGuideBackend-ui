@@ -169,12 +169,23 @@ describe('errorMetrics 按页面分桶', () => {
   })
 
   it('页面内 Tab 切换由 recordView 显式计入，等价一次页面浏览', () => {
-    recordView('/workspace/settings#ai')
+    recordView('/workspace/settings')
     recordErrorExposure('读取失败', 'table', true)
 
     const byPage = getErrorMetricsByPage()
     expect(getErrorMetrics().pageViews).toBe(1)
-    expect(byPage['/workspace/settings#ai'].exposures).toBe(1)
+    expect(byPage['/workspace/settings'].exposures).toBe(1)
+  })
+
+  it('同一页带不同 query / hash 只落一个桶，页面键取路径', () => {
+    // 站内 Tab 是写进地址栏的（`?tab=`）：按 fullPath 分桶会把一页裂成好几桶（SPEC-UI-9 B1）
+    recordPageView('/workspace/alerts?tab=pending')
+    recordPageView('/workspace/alerts?tab=history')
+    recordView('/workspace/alerts#detail')
+
+    const byPage = getErrorMetricsByPage()
+    expect(Object.keys(byPage)).toEqual(['/workspace/alerts'])
+    expect(byPage['/workspace/alerts'].pageViews).toBe(3)
   })
 
   it('分桶比率在出口算好，页面不必各自除', () => {

@@ -1134,11 +1134,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '列表状态示例', hidden: true }
       },
       {
-        // 四阶段度量的现场看板（SPEC-UI-9 H4-2）：hidden 且不计入分母，纯治理工具
+        // 四阶段度量的现场看板（SPEC-UI-9 H4-2）：hidden 且不计入分母，纯治理工具。
+        // 只有平台（超管）账号能进；其他人按 404 处理，不暴露这个入口（SPEC-UI-9 B2）。
         path: 'dev/metrics',
         name: 'workspace-dev-metrics',
         component: ErrorMetricsView,
-        meta: { title: '读失败度量', hidden: true }
+        meta: { title: '读失败度量', hidden: true, requiresSuperAdmin: true, notFoundIfForbidden: true }
       }
     ]
   },
@@ -1179,6 +1180,11 @@ router.beforeEach((to) => {
   }
   const requiresSuperAdmin = to.matched.some(record => record.meta.requiresSuperAdmin === true)
   if (requiresSuperAdmin && !authStore.isSuperAdmin) {
+    // 治理工具对非平台账号按「页面不存在」处理（SPEC-UI-9 B2）：
+    // 弹「无权限」等于告诉对方这里有个内部看板，直接落 404 不暴露存在性
+    if (to.matched.some(record => record.meta.notFoundIfForbidden === true)) {
+      return { name: 'not-found', params: { pathMatch: to.path.split('/').filter(Boolean) }, replace: true }
+    }
     message.error('无权限访问该页面')
     return { name: 'workspace-dashboard' }
   }
@@ -1200,10 +1206,12 @@ router.beforeEach((to) => {
 // 离开门户（工作台/登录/客户选择页这些非门户路径）就整体退出预览态、把记住的令牌擦干净。
 // 这一刀不能放在页面组件的 onUnmounted 里：切页时新页先挂载、旧页后卸载（2026-11-05 现场实测），
 // 卸载钩子会把下一页刚激活的预览态连同记住的令牌一起抹掉——门户内部的去留由各页面自己看地址栏。
-router.afterEach((to) => {
-  // 页面浏览是错误曝光率的分母（SPEC-UI-8 G1）：每落一页记一次，单页内刷新不算新的浏览；
-  // hidden 治理页不进分母（SPEC-UI-9 H4-1），/workspace/dev/* 在 recordPageView 里已跳过
-  if (!to.meta.hidden) recordPageView(to.fullPath)
+router.afterEach((to, from) => {
+  // 页面浏览是错误曝光率的分母（SPEC-UI-8 G1）：每落一页记一次。
+  // 同一页内切 Tab 只改 query（`router.replace({ query: { tab } })`），那是一次新的浏览面
+  // 而不是一次新的页面浏览——放进来会让分母每点一次 Tab 就涨一次（SPEC-UI-9 B1）。
+  // hidden 治理页不进分母（SPEC-UI-9 H4-1），/workspace/dev/* 在 recordPageView 里已跳过。
+  if (!to.meta.hidden && to.path !== from.path) recordPageView(to.path)
   if (!isPortalPath(to.path)) {
     useReviewMode().deactivate()
   }

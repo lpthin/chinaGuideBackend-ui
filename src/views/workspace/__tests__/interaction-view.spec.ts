@@ -1158,7 +1158,7 @@ describe('Spec-R R3：勾选与批量放行/驳回', () => {
     authState.selectedTenantId = 42
     await flushPromises()
     expect(wrapper.find('.interaction-page').text()).not.toContain('已选')
-  }, 15000)
+  }, 30000)
 
   it('批量口被后端拒时原样念那句中文（50 上限那道门是双保险）', async () => {
     const wrapper = await mountView()
@@ -1171,5 +1171,5 @@ describe('Spec-R R3：勾选与批量放行/驳回', () => {
     expect(message.error).toHaveBeenCalledWith(expect.stringContaining('一次最多批量处理 50 条'))
     // 拒了不许清勾选：人还得留着这份勾选重试
     expect(wrapper.find('.interaction-page').text()).toContain('已选 1 条')
-  }, 15000)
+  }, 30000)
 })

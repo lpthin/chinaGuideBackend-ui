@@ -155,15 +155,26 @@ function restore(): void {
 
 restore()
 
+/**
+ * 分桶与日志用的页面键：去掉查询串与哈希，只留路径（SPEC-UI-9 B1）。
+ * 站内 Tab 是写进地址栏的（`?tab=`），按 fullPath 分桶会把同一页裂成好几个桶，
+ * 明细里就看不出「哪一页最差」。
+ */
+function pageKeyOf(path: string): string {
+  const cut = path.search(/[?#]/)
+  return cut < 0 ? path : path.slice(0, cut)
+}
+
 /** 路由 afterEach 每落一页记一次；同时重置「本页是否已曝光」的标记 */
 export function recordPageView(path: string): void {
+  const key = pageKeyOf(path)
   // 开发页与 hidden 路由不进页面浏览分母（SPEC-UI-9 H4-1）
-  if (!path || path.startsWith(EXCLUDED_PREFIX)) return
+  if (!key || key.startsWith(EXCLUDED_PREFIX)) return
   state.pageViews += 1
-  bucket(path).pageViews += 1
-  currentPath = path
+  bucket(key).pageViews += 1
+  currentPath = key
   currentViewExposed = false
-  logInfo('metrics/page_view', { path, pageViews: state.pageViews })
+  logInfo('metrics/page_view', { path: key, pageViews: state.pageViews })
   persist()
 }
 
@@ -261,7 +272,7 @@ export function getErrorMetrics(): ErrorMetricsSnapshot {
 
 /**
  * 按页面分桶快照（SPEC-UI-9 H4-1）。
- * 返回普通对象方便直接 JSON / 表格渲染；页面键就是路由 fullPath。
+ * 返回普通对象方便直接 JSON / 表格渲染；页面键是去掉 query/hash 的路径（SPEC-UI-9 B1）。
  */
 export function getErrorMetricsByPage(): Record<string, ErrorMetricsSnapshot> {
   const result: Record<string, ErrorMetricsSnapshot> = {}

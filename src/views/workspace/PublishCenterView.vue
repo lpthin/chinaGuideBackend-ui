@@ -102,7 +102,7 @@
               <template v-else-if="column.key === 'actions'">
                 <a-space size="small">
                   <a-popconfirm title="立即发布该文章？" :disabled="isPlatformMode" @confirm="publishNow(record)">
-                    <a-button type="link" size="small" :disabled="isPlatformMode">立即发布</a-button>
+                    <a-button type="link" size="small" :disabled="isPlatformMode" :loading="publishGuard.pending.value">立即发布</a-button>
                   </a-popconfirm>
                   <a-button type="link" size="small" :disabled="isPlatformMode" @click="openScheduleModal([record.id])">定时发布</a-button>
                   <a-button type="link" size="small" @click="viewArticle(record.id)">查看</a-button>
@@ -215,7 +215,7 @@
                     :disabled="isPlatformMode"
                     @confirm="runQueueItem(record)"
                   >
-                    <a-button type="link" size="small" :disabled="isPlatformMode">立即发布</a-button>
+                    <a-button type="link" size="small" :disabled="isPlatformMode" :loading="publishGuard.pending.value">立即发布</a-button>
                   </a-popconfirm>
                   <a-button
                     v-if="record.status === 'pending'"
@@ -240,7 +240,7 @@
                     :disabled="isPlatformMode"
                     @confirm="removeQueueItem(record)"
                   >
-                    <a-button type="link" size="small" danger :disabled="isPlatformMode">删除</a-button>
+                    <a-button type="link" size="small" danger :disabled="isPlatformMode" :loading="publishGuard.pending.value">删除</a-button>
                   </a-popconfirm>
                 </a-space>
               </template>
@@ -415,6 +415,7 @@ import {
 import type { PublishRecord, PublishTask } from '../../types/workspace'
 import { articleStatusMeta, jobStatusMeta, queueStatusMeta } from '../../utils/contentStatus'
 import { formatDateTime } from '../../utils/format'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { useAuthStore } from '../../stores/auth'
 import PageTitle from '../../components/PageTitle.vue'
 
@@ -428,6 +429,8 @@ const isPlatformMode = computed(() => requestedTenantId.value === null)
 
 const activeTab = ref<'candidates' | 'queue' | 'records'>('candidates')
 const submitting = ref(false)
+/** 发布 / 立即发布 / 删队列记录是同一类不可逆写入（SPEC-UI-9 B3）：在途一律只发一次 */
+const publishGuard = createSubmitGuard()
 
 const queueStats = reactive({ pending: 0, publishing: 0, todayPublished: 0, failed: 0 })
 const recordStats = reactive({ total: 0, successCount: 0, failedCount: 0, cancelledCount: 0, todayCount: 0, successRate: 0 })
@@ -532,17 +535,20 @@ async function publishNow(article: any) {
     message.warning('请先在右上角选择客户')
     return
   }
-  try {
-    const result = await publishApi.publish(article.id, {}, requestedTenantId.value ?? undefined)
-    if (result?.status === 'success') {
-      message.success(`「${article.title || article.id}」已发布`)
-    } else {
-      message.warning(`「${article.title || article.id}」发布未完成（状态：${result?.status || '未知'}）`)
+  // 发布是不可逆写入（SPEC-UI-9 B3）：同一篇文章连点两次会造两条发布任务
+  await publishGuard.run(async () => {
+    try {
+      const result = await publishApi.publish(article.id, {}, requestedTenantId.value ?? undefined)
+      if (result?.status === 'success') {
+        message.success(`「${article.title || article.id}」已发布`)
+      } else {
+        message.warning(`「${article.title || article.id}」发布未完成（状态：${result?.status || '未知'}）`)
+      }
+      refreshAll()
+    } catch (error: any) {
+      message.error(error?.message || '发布失败')
     }
-    refreshAll()
-  } catch (error: any) {
-    message.error(error?.message || '发布失败')
-  }
+  })
 }
 
 async function batchPublishNow() {
@@ -754,17 +760,20 @@ async function runQueueItem(record: PublishTask) {
     message.warning('请先在右上角选择客户')
     return
   }
-  try {
-    const result = await publishQueueApi.publishNow(record.id, requestedTenantId.value ?? undefined)
-    if (result?.status === 'success') {
-      message.success(`已发布，完成时间 ${formatDateTime(result.publishTime)}`)
-    } else {
-      message.error(`发布未成功（${queueStatusMeta(result?.status).label}）：${result?.errorMessage || '见队列失败原因'}`)
+  // 队列里点「立即发布」同样不可逆（SPEC-UI-9 B3）
+  await publishGuard.run(async () => {
+    try {
+      const result = await publishQueueApi.publishNow(record.id, requestedTenantId.value ?? undefined)
+      if (result?.status === 'success') {
+        message.success(`已发布，完成时间 ${formatDateTime(result.publishTime)}`)
+      } else {
+        message.error(`发布未成功（${queueStatusMeta(result?.status).label}）：${result?.errorMessage || '见队列失败原因'}`)
+      }
+      refreshAll()
+    } catch (error: any) {
+      message.error(error?.message || '触发发布失败')
     }
-    refreshAll()
-  } catch (error: any) {
-    message.error(error?.message || '触发发布失败')
-  }
+  })
 }
 
 async function cancelQueueItem(record: PublishTask) {
@@ -786,13 +795,16 @@ async function removeQueueItem(record: PublishTask) {
     message.warning('请先在右上角选择客户')
     return
   }
-  try {
-    await publishQueueApi.remove(record.id, requestedTenantId.value ?? undefined)
-    message.success('队列记录已删除')
-    refreshAll()
-  } catch (error: any) {
-    message.error(error?.message || '删除失败')
-  }
+  // 删队列记录是删除类不可逆写入（SPEC-UI-9 B3）
+  await publishGuard.run(async () => {
+    try {
+      await publishQueueApi.remove(record.id, requestedTenantId.value ?? undefined)
+      message.success('队列记录已删除')
+      refreshAll()
+    } catch (error: any) {
+      message.error(error?.message || '删除失败')
+    }
+  })
 }
 
 const priorityModalVisible = ref(false)

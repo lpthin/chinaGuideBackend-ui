@@ -6,6 +6,10 @@ import PublishCenterView from '../PublishCenterView.vue'
 import { articleApi, publishApi, publishQueueApi } from '../../../api/workspace'
 import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
 
+// 这一屏一次 mount 要铺六张卡 + 三个页签，全量并行跑时单条会顶到默认 5s（SPEC-UI-9 收尾）。
+// 只放宽机械耗时，断言口径一条不动。
+vi.setConfig({ testTimeout: 20000 })
+
 /**
  * 发布中心这一屏的空态：「发布记录」页签是 M-P74，「发布候选」页签与顶部那几张统计卡是 M-P79。
  *

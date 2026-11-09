@@ -11,7 +11,7 @@ import { join, relative } from 'node:path'
 const SRC = join(process.cwd(), 'src')
 const BUTTON_OPEN = /<(a-button|el-button)\b/g
 const PENDING_LOADING = /:loading\s*=\s*["']([^"']*)["']/
-const PENDING_WORDS = /\b(saving|submitting|pending)\b/
+const PENDING_WORDS = /\b(saving|submitting|pending|deleting|removing|publishing|archiving|uploading|importing)\b/
 
 /** 已知例外：登记后必须写清为什么这里不需要 :disabled */
 const EXEMPT = new Map([])

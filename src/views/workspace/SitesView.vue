@@ -8,6 +8,7 @@ import { PROFILE_QUESTION_KEYS, findProfileQuestion, siteStatusColor, siteStatus
 import type { BriefVocabularyQuestion, SiteBriefVocabulary } from '@/api/siteBriefs'
 import { useAuthStore } from '../../stores/auth'
 import { useSiteStore } from '@/stores/site'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { formatDateTime } from '@/utils/format'
 import type { Site } from '../../types'
 import type { Tenant } from '../../types/workspace'
@@ -129,6 +130,8 @@ const defaultForm = (): SiteForm => ({
 const siteStore = useSiteStore()
 const form = reactive<SiteForm>(defaultForm())
 const sites = ref<Site[]>([])
+/** 归档是写入（SPEC-UI-9 B3）：在途期间第二次点击直接丢弃 */
+const archiveGuard = createSubmitGuard()
 
 /**
  * 归档范围（Spec-C §7「站点管理」那行：`candidate`/`archived` 要显式标出，归档的不许静默混在默认列表里）。
@@ -256,15 +259,19 @@ function canRestoreArchivedPlaceholder(record: Site): boolean {
 }
 
 async function archiveSite(record: Site) {
-  if (!record.id) return
-  try {
-    await siteApi.update(record.id, { status: 'archived' })
-    message.success(`「${record.name || record.code}」已归档：客户后台不再列出它，一行都没有删`)
-    await load()
-    await siteStore.loadSites()
-  } catch (e) {
-    message.error((e as Error)?.message || '归档失败')
-  }
+  const siteId = record.id
+  if (!siteId) return
+  // 归档是不可逆写入（SPEC-UI-9 B3）：连点两次会发两次 status=archived
+  await archiveGuard.run(async () => {
+    try {
+      await siteApi.update(siteId, { status: 'archived' })
+      message.success(`「${record.name || record.code}」已归档：客户后台不再列出它，一行都没有删`)
+      await load()
+      await siteStore.loadSites()
+    } catch (e) {
+      message.error((e as Error)?.message || '归档失败')
+    }
+  })
 }
 
 async function restoreArchivedPlaceholder(record: Site) {
@@ -580,7 +587,7 @@ onMounted(() => {
             cancel-text="先不"
             @confirm="archiveSite(record)"
           >
-            <a-button type="link" size="small">归档</a-button>
+            <a-button type="link" size="small" :loading="archiveGuard.pending.value">归档</a-button>
           </a-popconfirm>
           <a-popconfirm
             v-if="canRestoreArchivedPlaceholder(record)"
