@@ -13,7 +13,7 @@
         <a-button
           type="primary"
           :loading="saving"
-          :disabled="!canEdit"
+          :disabled="saving || !canEdit"
           @click="handleSave"
         >保存修改</a-button>
       </a-space>

@@ -148,7 +148,7 @@
             <template #extra>
               <a-space>
                 <a-button @click="resetForm">重置</a-button>
-                <a-button type="primary" :loading="saving" @click="saveCategory">
+                <a-button type="primary" :loading="saving" :disabled="saving" @click="saveCategory">
                   <template #icon><SaveOutlined /></template>
                   保存
                 </a-button>

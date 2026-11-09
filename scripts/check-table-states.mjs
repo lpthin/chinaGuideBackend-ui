@@ -24,6 +24,7 @@ const emptyLies = []
 const staleMisuse = []
 const doubleToasts = []
 const autoRetryMisuse = []
+const contractViolations = []
 
 for (const file of vueFiles(SRC)) {
   const rel = relative(process.cwd(), file).replace(/\\/g, '/')
@@ -223,8 +224,57 @@ for (const file of vueFiles(SRC)) {
   }
 }
 
-if (missing.length || blocked.length || emptyLies.length || staleMisuse.length || doubleToasts.length || autoRetryMisuse.length) {
-  console.error([...missing, ...blocked, ...emptyLies, ...staleMisuse, ...doubleToasts, ...autoRetryMisuse].join('\n'))
+/**
+ * 7. 列表契约不许绕过（SPEC-UI-9 H3-1）。
+ * workspace / portal 下的视图若直接写 `<a-table>`，或直接用 `DataTable` 却没绑 `:error`，
+ * 一次 500 就会退化成空表——新加一页漏错误口必须在提交前红。
+ * 确属非列表场景（例如只读排版预览）逐条登记豁免理由。
+ */
+const CONTRACT_EXEMPT = new Map([
+  // 存量页：读失败已有独立错误面，只是没挂在 DataTable 的 :error 上。逐个登记，别再往这些文件里加新表
+  ['src/views/portal/CitationProbeView.vue', '详情三张表是同一发读取的子表，读失败在页面 alert / message 收口'],
+  ['src/views/portal/PageBuilderView.vue', '版本历史抽屉读失败走 message.error；主页面列表已绑 :error'],
+  ['src/views/portal/SiteWizardView.vue', '向导内候选/进度表读失败各有独立 a-alert；表格只展示已读到的结果'],
+  ['src/views/portal/SkeletonLibraryView.vue', '主 DataTable 已绑 :error；另一张是方案预览（本地数据）'],
+  ['src/views/workspace/ClusterPanel.vue', '建议表读失败走 message.error 与空态 unreadable，不挂表内错误块'],
+  ['src/views/workspace/DailyOutputView.vue', '留痕表是 v-else 分支，读失败由上方 a-alert（runsError）承担'],
+  ['src/views/workspace/MediaStorageView.vue', '该表展示后端账目里的错误明细（本地数据），不是远端列表'],
+  ['src/views/workspace/ArticleGeneratePanel.vue', 'Token 统计弹窗里的模型明细（本地统计），不是远端列表'],
+])
+const A_TABLE_OPEN = /<(a-table)(?=[\s/>])/g
+
+for (const file of vueFiles(SRC)) {
+  const rel = relative(process.cwd(), file).replace(/\\/g, '/')
+  if (!rel.startsWith('src/views/workspace/') && !rel.startsWith('src/views/portal/')) continue
+  if (CONTRACT_EXEMPT.has(rel)) continue
+  const source = readFileSync(file, 'utf8')
+
+  for (const match of source.matchAll(A_TABLE_OPEN)) {
+    const line = source.slice(0, match.index).split('\n').length
+    contractViolations.push(`直接写 a-table 绕过了错误口：${rel}:${line}`)
+  }
+
+  for (const match of source.matchAll(TABLE_OPEN)) {
+    if (match[1] === 'a-table') continue
+    const openEnd = openTagEnd(source, match.index)
+    if (openEnd < 0) continue
+    const openTag = source.slice(match.index, openEnd)
+    // 错误口两选一：DataTable 绑 :error；或 #emptyText 里挂 EmptyListHint（:read-failed）
+    // 开闭标签大小写都可能变（`<data-table>` / `</data-table>`），按忽略大小写找收尾
+    const rest = source.slice(openEnd)
+    const closeRel = rest.toLowerCase().indexOf(`</${match[1].toLowerCase()}>`)
+    const block = closeRel < 0 ? rest.slice(0, 4000) : rest.slice(0, closeRel)
+    const hasErrorProp = /:error\s*=|\serror\s*=/.test(openTag)
+    const hasEmptyHintError = /:read-failed\s*=|\sread-failed\s*=/.test(block)
+    if (!hasErrorProp && !hasEmptyHintError) {
+      const line = source.slice(0, match.index).split('\n').length
+      contractViolations.push(`DataTable 没绑 :error（#emptyText 里也没有 :read-failed）：${rel}:${line}`)
+    }
+  }
+}
+
+if (missing.length || blocked.length || emptyLies.length || staleMisuse.length || doubleToasts.length || autoRetryMisuse.length || contractViolations.length) {
+  console.error([...missing, ...blocked, ...emptyLies, ...staleMisuse, ...doubleToasts, ...autoRetryMisuse, ...contractViolations].join('\n'))
   process.exit(1)
 }
-console.log('表格状态规则通过：错误态都有重试、不会被 v-if 挡死、空态不替读失败撒谎、旧数据保留只发生在白名单页、读失败不重复弹 toast、自动重试只发生在只读白名单页。')
+console.log('表格状态规则通过：错误态都有重试、不会被 v-if 挡死、空态不替读失败撒谎、旧数据保留只发生在白名单页、读失败不重复弹 toast、自动重试只发生在只读白名单页、workspace/portal 视图不绕过 DataTable 错误口。')

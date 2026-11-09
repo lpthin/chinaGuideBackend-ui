@@ -61,7 +61,7 @@
 
     <div v-if="siteChosen" class="section-admin-page__toolbar">
       <a-space wrap>
-        <a-button type="primary" :disabled="!dirtyCount" :loading="saving" @click="saveAll">
+        <a-button type="primary" :disabled="saving || !dirtyCount" :loading="saving" @click="saveAll">
           保存到站点{{ dirtyCount ? `（${dirtyCount} 处改动）` : '' }}
         </a-button>
         <a-button :disabled="!dirtyCount" @click="resetAll">全部还原</a-button>

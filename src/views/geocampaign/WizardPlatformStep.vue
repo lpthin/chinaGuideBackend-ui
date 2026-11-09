@@ -233,7 +233,7 @@ onMounted(async () => {
             <a-input v-model:value="draft.note" :maxlength="200" placeholder="例如：这轮先看牙科三家在 deepseek 上的样子" />
           </a-form-item>
         </div>
-        <a-button type="primary" :loading="saving" @click="savePlan">
+        <a-button type="primary" :loading="saving" :disabled="saving" @click="savePlan">
           {{ campaignId ? '保存这一屏的勾选' : '存为诊断计划' }}
         </a-button>
       </section>

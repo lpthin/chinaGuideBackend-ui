@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '../../stores/auth'
 import { rememberRawDetail } from '../../utils/errorRaw'
@@ -58,6 +58,8 @@ describe('ErrorHelpActions', () => {
     loginWith(['portal:ticket:submit'])
     const w = mountActions('没有权限执行该操作')
     await w.find('.error-help-actions__ticket').trigger('click')
+    // 路由单例改成了点击时才动态 import（错误块不再顶层拖入整张路由表），跳转落一拍后到
+    await flushPromises()
     expect(mocks.push).toHaveBeenCalledWith('/workspace/portal/support')
   })
 
@@ -94,9 +96,27 @@ describe('ErrorHelpActions', () => {
     expect(w.find('.error-help-actions__relogin').exists()).toBe(true)
     expect(w.find('.error-help-actions__copy').exists()).toBe(false)
     await w.find('.error-help-actions__relogin').trigger('click')
+    await flushPromises()
     const target = mocks.push.mock.calls[0][0] as { path: string; query: Record<string, string> }
     expect(target.path).toBe('/login')
     expect(target.query.redirect).toMatch(/^\//)
+  })
+
+  it('服务异常也摆同一套诊断动作：复制 + 导出诊断包 + 工单入口（SPEC-UI-9 H3）', () => {
+    loginWith(['portal:ticket:submit'])
+    const w = mountActions('请求失败（HTTP 500）')
+    expect(w.find('.error-help-actions__copy').exists()).toBe(true)
+    expect(w.find('.error-help-actions__download').exists()).toBe(true)
+    expect(w.find('.error-help-actions__ticket').exists()).toBe(true)
+    expect(w.text()).toContain('导出诊断包')
+  })
+
+  it('断网类也摆复制与导出；没有工单权限时不摆工单入口', () => {
+    loginWith([])
+    const w = mountActions('无法连接服务器，请检查网络后重试')
+    expect(w.find('.error-help-actions__copy').exists()).toBe(true)
+    expect(w.find('.error-help-actions__download').exists()).toBe(true)
+    expect(w.find('.error-help-actions__ticket').exists()).toBe(false)
   })
 
   it('认不出来的业务提示不摆任何求助按钮', () => {

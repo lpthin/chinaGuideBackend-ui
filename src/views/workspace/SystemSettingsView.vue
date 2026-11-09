@@ -55,7 +55,7 @@
             </a-form-item>
             <a-form-item :wrapper-col="{ offset: 4, span: 16 }">
               <a-space>
-                <a-button type="primary" :loading="saving" :disabled="isPlatformMode" @click="saveSiteSettings">
+                <a-button type="primary" :loading="saving" :disabled="saving || isPlatformMode" @click="saveSiteSettings">
                   保存设置
                 </a-button>
                 <a-button :disabled="isPlatformMode" @click="resetSiteForm">重置</a-button>
@@ -123,7 +123,7 @@
             </a-form-item>
             <a-form-item :wrapper-col="{ offset: 4, span: 16 }">
               <a-space>
-                <a-button type="primary" :loading="saving" :disabled="isPlatformMode" @click="saveAiSettings">
+                <a-button type="primary" :loading="saving" :disabled="saving || isPlatformMode" @click="saveAiSettings">
                   保存设置
                 </a-button>
                 <a-button :loading="testing" :disabled="isPlatformMode" @click="testAiConnection">测试连接</a-button>
@@ -212,7 +212,7 @@
 
             <a-form-item :wrapper-col="{ offset: 4, span: 16 }">
               <a-space>
-                <a-button type="primary" :loading="saving" :disabled="isPlatformMode" @click="saveWorkflowSettings">
+                <a-button type="primary" :loading="saving" :disabled="saving || isPlatformMode" @click="saveWorkflowSettings">
                   保存设置
                 </a-button>
                 <a-button :disabled="isPlatformMode" @click="resetWorkflowForm">重置</a-button>
@@ -236,6 +236,7 @@ import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
 import type { SiteSettings, AiSettings, WorkflowSettings } from '../../types/workspace'
 import PageTitle from '../../components/PageTitle.vue'
+import { createSubmitGuard } from '../../utils/submitGuard'
 
 const authStore = useAuthStore()
 
@@ -245,6 +246,10 @@ const isPlatformMode = computed(() => requestedTenantId.value === null)
 
 const activeTab = ref('site')
 const saving = ref(false)
+// 三个表单各发各的写口（SPEC-UI-9 H2）：一个在途只挡自己那一份，别把另一页的保存也拒了
+const siteSaveGuard = createSubmitGuard()
+const aiSaveGuard = createSubmitGuard()
+const workflowSaveGuard = createSubmitGuard()
 const testing = ref(false)
 const loading = ref(false)
 
@@ -429,34 +434,36 @@ const saveSiteSettings = async () => {
     message.warning('请先在右上角选择客户')
     return
   }
-  try {
-    await siteFormRef.value?.validate()
-    saving.value = true
+  await siteSaveGuard.run(async () => {
+    try {
+      await siteFormRef.value?.validate()
+      saving.value = true
 
-    const siteData: SiteSettings = {
-      name: siteForm.siteName,
-      description: siteForm.siteDescription,
-      logo: siteForm.logo,
-      contactEmail: siteForm.contactEmail,
-      contactPhone: siteForm.contactPhone,
-      copyright: siteForm.copyright
+      const siteData: SiteSettings = {
+        name: siteForm.siteName,
+        description: siteForm.siteDescription,
+        logo: siteForm.logo,
+        contactEmail: siteForm.contactEmail,
+        contactPhone: siteForm.contactPhone,
+        copyright: siteForm.copyright
+      }
+
+      await adminApi.settings.update(
+        { site: siteData },
+        requestedTenantId.value ?? undefined
+      )
+
+      message.success('站点设置保存成功')
+    } catch (error: any) {
+      if (error.errorFields) {
+        message.error('表单验证失败')
+      } else {
+        message.error(error.message || '保存失败')
+      }
+    } finally {
+      saving.value = false
     }
-
-    await adminApi.settings.update(
-      { site: siteData },
-      requestedTenantId.value ?? undefined
-    )
-
-    message.success('站点设置保存成功')
-  } catch (error: any) {
-    if (error.errorFields) {
-      message.error('表单验证失败')
-    } else {
-      message.error(error.message || '保存失败')
-    }
-  } finally {
-    saving.value = false
-  }
+  })
 }
 
 const resetSiteForm = () => {
@@ -468,30 +475,32 @@ const saveAiSettings = async () => {
     message.warning('请先在右上角选择客户')
     return
   }
-  try {
-    saving.value = true
+  await aiSaveGuard.run(async () => {
+    try {
+      saving.value = true
 
-    const aiData: AiSettings = {
-      defaultModel: aiForm.defaultModel,
-      apiKey: aiForm.apiKey,
-      apiBaseUrl: aiForm.apiBaseUrl,
-      temperature: aiForm.temperature,
-      maxTokens: aiForm.maxTokens,
-      streamEnabled: aiForm.streamEnabled,
-      systemPrompt: aiForm.systemPrompt
+      const aiData: AiSettings = {
+        defaultModel: aiForm.defaultModel,
+        apiKey: aiForm.apiKey,
+        apiBaseUrl: aiForm.apiBaseUrl,
+        temperature: aiForm.temperature,
+        maxTokens: aiForm.maxTokens,
+        streamEnabled: aiForm.streamEnabled,
+        systemPrompt: aiForm.systemPrompt
+      }
+
+      await adminApi.settings.update(
+        { ai: aiData },
+        requestedTenantId.value ?? undefined
+      )
+
+      message.success('AI配置保存成功')
+    } catch (error: any) {
+      message.error(error.message || '保存失败')
+    } finally {
+      saving.value = false
     }
-
-    await adminApi.settings.update(
-      { ai: aiData },
-      requestedTenantId.value ?? undefined
-    )
-
-    message.success('AI配置保存成功')
-  } catch (error: any) {
-    message.error(error.message || '保存失败')
-  } finally {
-    saving.value = false
-  }
+  })
 }
 
 const testAiConnection = async () => {
@@ -530,33 +539,35 @@ const saveWorkflowSettings = async () => {
     message.warning('请先在右上角选择客户')
     return
   }
-  try {
-    saving.value = true
+  await workflowSaveGuard.run(async () => {
+    try {
+      saving.value = true
 
-    const workflowData: WorkflowSettings = {
-      keywordCrawlInterval: workflowForm.keywordCrawlInterval,
-      keywordCrawlLimit: workflowForm.keywordCrawlLimit,
-      autoCrawlEnabled: workflowForm.autoCrawlEnabled,
-      clusterThreshold: workflowForm.clusterThreshold,
-      minClusterSize: workflowForm.minClusterSize,
-      autoGenerateEnabled: workflowForm.autoGenerateEnabled,
-      dailyGenerateLimit: workflowForm.dailyGenerateLimit,
-      autoReviewEnabled: workflowForm.autoReviewEnabled,
-      autoPublishEnabled: workflowForm.autoPublishEnabled,
-      publishTime: workflowForm.publishTime
+      const workflowData: WorkflowSettings = {
+        keywordCrawlInterval: workflowForm.keywordCrawlInterval,
+        keywordCrawlLimit: workflowForm.keywordCrawlLimit,
+        autoCrawlEnabled: workflowForm.autoCrawlEnabled,
+        clusterThreshold: workflowForm.clusterThreshold,
+        minClusterSize: workflowForm.minClusterSize,
+        autoGenerateEnabled: workflowForm.autoGenerateEnabled,
+        dailyGenerateLimit: workflowForm.dailyGenerateLimit,
+        autoReviewEnabled: workflowForm.autoReviewEnabled,
+        autoPublishEnabled: workflowForm.autoPublishEnabled,
+        publishTime: workflowForm.publishTime
+      }
+
+      await adminApi.settings.update(
+        { workflow: workflowData },
+        requestedTenantId.value ?? undefined
+      )
+
+      message.success('工作流配置保存成功')
+    } catch (error: any) {
+      message.error(error.message || '保存失败')
+    } finally {
+      saving.value = false
     }
-
-    await adminApi.settings.update(
-      { workflow: workflowData },
-      requestedTenantId.value ?? undefined
-    )
-
-    message.success('工作流配置保存成功')
-  } catch (error: any) {
-    message.error(error.message || '保存失败')
-  } finally {
-    saving.value = false
-  }
+  })
 }
 
 const resetWorkflowForm = () => {

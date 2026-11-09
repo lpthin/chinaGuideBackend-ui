@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   getErrorMetrics,
+  getErrorMetricsByPage,
   recordErrorExposure,
   recordFalseEmpty,
   recordPageView,
   recordRecovery,
   recordRetryAttempt,
   recordRetryOutcome,
+  recordView,
   resetErrorMetrics,
 } from '../errorMetrics'
 
@@ -125,5 +127,67 @@ describe('errorMetrics 口径', () => {
     expect(info).toHaveBeenCalledWith('[ui-info] metrics/retry_outcome', expect.anything())
     expect(info).toHaveBeenCalledWith('[ui-info] metrics/recovery', expect.anything())
     expect(error).not.toHaveBeenCalled()
+  })
+})
+
+/** SPEC-UI-9 H4-1：全局四个数不动，另给一份「哪一页最常读失败」的分桶 */
+describe('errorMetrics 按页面分桶', () => {
+  it('曝光、重试、恢复都记到当时那一页，不串到别的页面', () => {
+    recordPageView('/workspace/a')
+    recordErrorExposure('读取失败', 'table', true)
+    recordRetryAttempt('读取失败', 'manual')
+    recordRetryOutcome(true, 'manual')
+    recordRecovery(1200, '读取失败')
+
+    recordPageView('/workspace/b')
+    recordErrorExposure('读取失败', 'empty', false)
+
+    const byPage = getErrorMetricsByPage()
+    expect(Object.keys(byPage)).toEqual(['/workspace/a', '/workspace/b'])
+
+    expect(byPage['/workspace/a'].pageViews).toBe(1)
+    expect(byPage['/workspace/a'].exposures).toBe(1)
+    expect(byPage['/workspace/a'].errorZeroRowCases).toBe(1)
+    expect(byPage['/workspace/a'].retryAttempts).toBe(1)
+    expect(byPage['/workspace/a'].retrySuccesses).toBe(1)
+    expect(byPage['/workspace/a'].avgRecoveryMs).toBe(1200)
+
+    expect(byPage['/workspace/b'].exposures).toBe(1)
+    expect(byPage['/workspace/b'].retryAttempts).toBe(0)
+    expect(byPage['/workspace/b'].avgRecoveryMs).toBe(0)
+
+    // 全局口径不因分桶变化
+    expect(getErrorMetrics().pageViews).toBe(2)
+    expect(getErrorMetrics().retryAttempts).toBe(1)
+  })
+
+  it('hidden / 开发页不进页面浏览分母，也不会建桶', () => {
+    recordPageView('/workspace/dev/metrics')
+    recordPageView('/workspace/dev/list-states')
+    expect(getErrorMetrics().pageViews).toBe(0)
+    expect(getErrorMetricsByPage()).toEqual({})
+  })
+
+  it('页面内 Tab 切换由 recordView 显式计入，等价一次页面浏览', () => {
+    recordView('/workspace/settings#ai')
+    recordErrorExposure('读取失败', 'table', true)
+
+    const byPage = getErrorMetricsByPage()
+    expect(getErrorMetrics().pageViews).toBe(1)
+    expect(byPage['/workspace/settings#ai'].exposures).toBe(1)
+  })
+
+  it('分桶比率在出口算好，页面不必各自除', () => {
+    recordPageView('/workspace/a')
+    recordErrorExposure('读取失败', 'table', false)
+    recordPageView('/workspace/a')
+    recordPageView('/workspace/a')
+    recordErrorExposure('读取失败', 'table', false)
+
+    const page = getErrorMetricsByPage()['/workspace/a']
+    expect(page.pageViews).toBe(3)
+    // 每一「次」页面浏览独立算曝光：三次里有两次落到了错误页
+    expect(page.exposedPageViews).toBe(2)
+    expect(page.exposureRate).toBeCloseTo(2 / 3)
   })
 })

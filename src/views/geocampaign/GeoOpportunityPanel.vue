@@ -320,7 +320,7 @@ watch(includeResolved, () => void load())
              藏起按钮用户就只知道「没有这一发」，不知道「差哪一步」。 -->
         <a-checkbox v-if="estimate && !notice" v-model:checked="confirmChecked">{{ DRAFT_CONFIRM_TEXT }}</a-checkbox>
         <div class="geo-opp__confirm-actions">
-          <a-button danger type="primary" :disabled="gate.disabled" :loading="submitting" @click="submitDraft">
+          <a-button danger type="primary" :disabled="submitting || gate.disabled" :loading="submitting" @click="submitDraft">
             {{ gate.text }}
           </a-button>
           <span class="geo-opp__meta">

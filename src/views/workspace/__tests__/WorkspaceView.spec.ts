@@ -125,8 +125,10 @@ describe('WorkspaceView 侧边菜单', () => {
     // 平台模式：只显示平台段
     expect(text).not.toContain('客户日常')
     expect(text).toContain('平台管理')
-    // 不显示固定项（工作台、联系平台/平台工单队列）
-    expect(text).not.toContain('工作台')
+    // 不显示固定项（工作台、联系平台/平台工单队列）。判菜单项而不是整页文字：
+    // 顶栏品牌名是「内容工作台」（APP_SHORT_NAME），整页 text 里天然带着「工作台」三个字
+    const menuItemTexts = wrapper.findAll('.menu-item-stub').map(node => node.text())
+    expect(menuItemTexts).not.toContain('工作台')
     expect(text).not.toContain('联系平台')
     expect(text).not.toContain('平台工单队列')
     // 平台段的项应该还在
@@ -675,8 +677,8 @@ describe('WorkspaceView 侧边菜单', () => {
     // 平台模式：只显示平台段
     expect(text).not.toContain('客户日常')
     expect(text).toContain('平台管理')
-    // 不显示固定项
-    expect(text).not.toContain('工作台')
+    // 不显示固定项。判菜单项而不是整页文字：顶栏品牌名是「内容工作台」，整页 text 里天然带「工作台」
+    expect(wrapper.findAll('.menu-item-stub').map(node => node.text())).not.toContain('工作台')
     expect(text).not.toContain('联系平台')
     expect(text).not.toContain('平台工单队列')
   })

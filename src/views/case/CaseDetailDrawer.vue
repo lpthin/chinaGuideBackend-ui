@@ -13,7 +13,7 @@
         <a-button
           type="primary"
           :loading="saving"
-          :disabled="!caseId && requestedTenantId === null"
+          :disabled="saving || (!caseId && requestedTenantId === null)"
           @click="handleSave"
         >保存</a-button>
       </a-space>

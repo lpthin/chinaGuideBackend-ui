@@ -172,6 +172,7 @@
           id="guestbook-reply-submit"
           type="primary"
           :loading="saving"
+          :disabled="saving"
           @click="handleReplyOk"
         >提交回复</a-button>
       </template>

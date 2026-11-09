@@ -81,7 +81,7 @@
                     </a-input>
                   </a-form-item>
                   <a-form-item>
-                    <a-button type="primary" @click="saveProfile" :loading="saving">
+                    <a-button type="primary" @click="saveProfile" :loading="saving" :disabled="saving">
                       <SaveOutlined />
                       保存修改
                     </a-button>

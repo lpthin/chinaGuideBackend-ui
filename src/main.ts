@@ -13,6 +13,19 @@ import App from './App.vue'
 import { router } from './router'
 import { setupPortalTracking } from './portal/usePortalTrack'
 import { ADMIN_THEME_TOKEN } from './styles/theme'
+import { logError } from './utils/errorLog'
+import { notifyChunkLoadFailure, setupChunkLoadGuard } from './utils/chunkLoad'
+import { getErrorMetrics, getErrorMetricsByPage } from './utils/errorMetrics'
+
+declare global {
+  interface Window {
+    /** 现场取值（SPEC-UI-9 H4-2）：控制台可直接读四个数与分页明细，不必开看板 */
+    __uiErrorMetrics?: {
+      getErrorMetrics: typeof getErrorMetrics
+      getErrorMetricsByPage: typeof getErrorMetricsByPage
+    }
+  }
+}
 
 // 一次性迁移：v2_ 前缀 localStorage key → 无前缀
 const keyMigration: [string, string][] = [
@@ -41,6 +54,22 @@ const app = createApp({
   render: () =>
     h(ConfigProvider, { theme: { token: { ...ADMIN_THEME_TOKEN } }, locale: zhCN }, () => h(App)),
 })
+// 渲染异常的最后一道留痕（SPEC-UI-9 H1-1）：被 RouteErrorBoundary 接住的不会再走到这里，
+// 走到这里说明兜底本身也失败了——控制台之外至少还有一条带页面代号的记录。
+app.config.errorHandler = (error, _instance, info) => {
+  logError('app/render-error', info, error)
+}
+
+// 分包加载失败（SPEC-UI-9 H1-2）：`vite:preloadError` 与 `router.onError` 两个口都接，
+// 任一命中即给一次全屏提示；判定收口在 isChunkLoadFailure。
+setupChunkLoadGuard()
+router.onError((error) => {
+  notifyChunkLoadFailure(error)
+})
+
+// 现场排障（SPEC-UI-9 H4-2）：浏览器控制台 `__uiErrorMetrics.getErrorMetrics()` 即可取数
+window.__uiErrorMetrics = { getErrorMetrics, getErrorMetricsByPage }
+
 app.use(createPinia())
 app.use(router)
 // 门户访客埋点：注册在挂载之前，首屏那一次 afterEach 才不会漏

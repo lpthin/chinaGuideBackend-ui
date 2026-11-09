@@ -22,6 +22,7 @@
 import { computed, onBeforeUnmount, ref, shallowRef, useAttrs, watch } from 'vue'
 import type { TablePaginationConfig } from 'ant-design-vue'
 import StateBlock from './StateBlock.vue'
+import ErrorHelpActions from './ErrorHelpActions.vue'
 import { errorKindOfText, REPEAT_FAILURE_HINT } from '../utils/errorText'
 import {
   recordErrorExposure,
@@ -249,6 +250,7 @@ onBeforeUnmount(clearAutoRetry)
       <a-button
         v-if="retry"
         type="primary"
+        class="admin-data-table__retry"
         :loading="loading || retrying"
         :disabled="retrying"
         @click="onRetry"
@@ -269,7 +271,12 @@ onBeforeUnmount(clearAutoRetry)
       show-icon
       class="admin-data-table__stale"
       :message="`这次没刷新成功：${errorText}。下面是上一次读到的数据。`"
-    />
+    >
+      <!-- 旧数据提示是第三种错误形态（SPEC-UI-9 H3）：诊断动作与错误块、空态同一颗组件 -->
+      <template #action>
+        <ErrorHelpActions :text="errorText" />
+      </template>
+    </a-alert>
     <a-table :data-source="displayRows" :loading="loading" :row-key="rowKey" :pagination="mergedPagination" :scroll="mergedScroll" v-bind="$attrs">
       <template v-for="(_, name) in $slots" #[name]="slotData"><slot :name="name" v-bind="slotData ?? {}" /></template>
     </a-table>

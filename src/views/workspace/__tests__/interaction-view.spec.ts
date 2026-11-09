@@ -6,6 +6,10 @@ import InteractionView from '../InteractionView.vue'
 import { interactionApi, type InteractionConfig, type InteractionSeedTask } from '../../../api/interaction'
 import { JUMP_BACK_NOTICE } from '../../../utils/emptyPage'
 
+// 这一屏一次 mount 要铺三块卡 + 最多 51 行队列，本机满负载时单条会顶到默认 5s。
+// 只放宽机械耗时，断言口径一条不动（先用 20000 复跑过 58/58，失败集合随负载漂移）。
+vi.setConfig({ testTimeout: 20000 })
+
 /**
  * 后台「读者互动」这一页的形状（P9-C 拍板 1/2/4 的界面那一半）。
  *

@@ -76,6 +76,17 @@ export function errorAdviceOfText(text: string | null | undefined): ErrorAdvice 
 }
 
 /**
+ * 渲染异常的人话（SPEC-UI-9 H1）。
+ * 组件抛错时手里没有 HTTP 上下文：先看异常消息能不能归进 5 类；
+ * 认不出来就直说「这一块没渲染出来」，不把前端渲染问题说成服务异常。
+ */
+export function describeRenderError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  const advice = errorAdviceOfText(message)
+  return advice ? advice.happened : '页面渲染时出错，这一块没能显示出来'
+}
+
+/**
  * 403 的「复制诊断信息」（U2）：用户报障时能直接贴一段完整的，
  * 不需要复现、也不需要他描述自己点了什么。
  */

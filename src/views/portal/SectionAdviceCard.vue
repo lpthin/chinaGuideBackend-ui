@@ -68,7 +68,7 @@
         <a-button v-if="mode === 'apply'" type="primary" :disabled="!canApply" @click="emitApply">
           填进下面的草稿
         </a-button>
-        <a-button v-else type="primary" :disabled="!canSave" :loading="saving" @click="save">
+        <a-button v-else type="primary" :disabled="saving || !canSave" :loading="saving" @click="save">
           保存到站点
         </a-button>
       </a-space>

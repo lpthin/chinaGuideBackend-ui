@@ -68,7 +68,7 @@
                   :disabled="!selectedArticleIds.length || isPlatformMode"
                   @confirm="batchPublishNow"
                 >
-                  <a-button type="primary" :disabled="!selectedArticleIds.length || isPlatformMode" :loading="submitting">
+                  <a-button type="primary" :disabled="submitting || !selectedArticleIds.length || isPlatformMode" :loading="submitting">
                     <template #icon><SendOutlined /></template>
                     批量立即发布
                   </a-button>

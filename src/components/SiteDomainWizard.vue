@@ -15,6 +15,7 @@ import { describeHttpError } from '../api/http'
 import WizardSteps from './WizardSteps.vue'
 import type { WizardState } from './wizardModel'
 import type { Site } from '../types'
+import { createSubmitGuard } from '../utils/submitGuard'
 
 interface DomainCheckResult {
   status: 'OK' | 'NOT_MATCHED' | 'INVALID' | 'ROOT_NOT_CONFIGURED' | 'ERROR'
@@ -45,6 +46,8 @@ const domain = ref('')
 const checking = ref(false)
 const result = ref<DomainCheckResult | null>(null)
 const saving = ref(false)
+/** 绑定是写入（SPEC-UI-9 H2）：同一拍连点只发一次，失败时域名原样留在输入框 */
+const bindGuard = createSubmitGuard()
 
 watch(() => props.open, (open) => {
   if (open) {
@@ -91,24 +94,28 @@ const resultColor: Record<string, string> = {
 }
 
 async function bind() {
-  if (!props.site?.id) return
-  saving.value = true
-  try {
-    // 只动域名一格：状态与名称原样带回（后端 update 认状态流转闸，原值原样是放行的）
-    const saved = await siteApi.update(props.site.id, {
-      id: props.site.id,
-      name: props.site.name,
-      status: props.site.status,
-      domain: domain.value.trim()
-    })
-    message.success(`域名已绑定：${domain.value.trim()}`)
-    emit('saved', saved)
-    emit('update:open', false)
-  } catch (error) {
-    message.error(`绑定失败：${describeHttpError(error)}`)
-  } finally {
-    saving.value = false
-  }
+  const site = props.site
+  const siteId = site?.id
+  if (!site || !siteId) return
+  await bindGuard.run(async () => {
+    saving.value = true
+    try {
+      // 只动域名一格：状态与名称原样带回（后端 update 认状态流转闸，原值原样是放行的）
+      const saved = await siteApi.update(siteId, {
+        id: siteId,
+        name: site.name,
+        status: site.status,
+        domain: domain.value.trim()
+      })
+      message.success(`域名已绑定：${domain.value.trim()}`)
+      emit('saved', saved)
+      emit('update:open', false)
+    } catch (error) {
+      message.error(`绑定失败：${describeHttpError(error)}`)
+    } finally {
+      saving.value = false
+    }
+  })
 }
 </script>
 
@@ -171,7 +178,7 @@ async function bind() {
           </a-descriptions-item>
         </a-descriptions>
         <div style="margin-top: 24px">
-          <a-button type="primary" :loading="saving" @click="bind">确认绑定</a-button>
+          <a-button type="primary" :loading="saving" :disabled="saving" @click="bind">确认绑定</a-button>
         </div>
       </template>
     </WizardSteps>

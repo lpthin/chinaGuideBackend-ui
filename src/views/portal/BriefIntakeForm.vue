@@ -1352,7 +1352,7 @@ onMounted(boot)
     </div>
 
     <div class="brief-intake__footer">
-      <a-button type="primary" :loading="saving" @click="save">保存</a-button>
+      <a-button type="primary" :loading="saving" :disabled="saving" @click="save">保存</a-button>
       <span class="brief-intake__muted">保存只写需求单本身；这一页不提供出方案/预览，那是生成链路接通后的事。</span>
     </div>
     <div v-if="saveError" class="brief-intake__save-error">{{ saveError }}</div>

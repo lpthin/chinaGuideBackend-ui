@@ -236,7 +236,7 @@
       <div class="action-bar">
         <a-space>
           <a-button @click="handleReset">重置为默认值</a-button>
-          <a-button type="primary" :loading="saving" @click="handleSave">保存配置</a-button>
+          <a-button type="primary" :loading="saving" :disabled="saving" @click="handleSave">保存配置</a-button>
         </a-space>
       </div>
     </a-spin>

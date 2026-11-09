@@ -4,6 +4,8 @@ import {
   diagnosticPackageText,
   copyDiagnosticPackage,
   downloadDiagnosticPackage,
+  sanitizeRawText,
+  RAW_TEXT_LIMIT,
 } from '../diagnostic'
 import { rememberRawDetail } from '../errorRaw'
 
@@ -62,6 +64,39 @@ describe('诊断包', () => {
 
     await expect(copyDiagnosticPackage()).resolves.toBe(false)
     vi.unstubAllGlobals()
+  })
+
+  // ===== SPEC-UI-9 H3：导出前脱敏 + 4KB 截断 =====
+  it('敏感键的值换成 ***；requestId 与路径保留供排查', () => {
+    rememberRawDetail(
+      '带敏感值',
+      'GET /api/x?access_token=tok-1&page=2\nAuthorization: Bearer abc.def\n"password":"p@ss"\nrequestId: req-11'
+    )
+    const pkg = buildDiagnosticPackage(FIXED_AT)
+    const entry = pkg.errors.find((item) => item.humanText === '带敏感值')
+
+    expect(entry?.rawText).not.toContain('tok-1')
+    expect(entry?.rawText).not.toContain('abc.def')
+    expect(entry?.rawText).not.toContain('p@ss')
+    expect(entry?.rawText).toContain('***')
+    expect(entry?.rawText).toContain('requestId: req-11')
+    expect(entry?.rawText).toContain('/api/x')
+    expect(entry?.rawText).toContain('page=2')
+  })
+
+  it('超过 4KB 的原文截断并标注原长，不把整段回体塞进工单', () => {
+    rememberRawDetail('超长回体', 'A'.repeat(RAW_TEXT_LIMIT + 100))
+    const pkg = buildDiagnosticPackage(FIXED_AT)
+    const entry = pkg.errors.find((item) => item.humanText === '超长回体')
+
+    expect(entry?.rawText.length).toBeLessThanOrEqual(RAW_TEXT_LIMIT + 40)
+    expect(entry?.rawText).toContain('已截断')
+    expect(entry?.rawText).toContain('原长')
+  })
+
+  it('脱敏函数单独可用：普通排查字段原样保留', () => {
+    const raw = 'GET /api/admin/audit-logs → HTTP 500\nrequestId: req-12\ntraceId: tr-1'
+    expect(sanitizeRawText(raw)).toBe(raw)
   })
 
   it('下载为 JSON，文件名带本地时间；用完即释放 blob 地址', () => {

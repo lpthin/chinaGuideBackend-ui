@@ -584,6 +584,7 @@ import { logError } from '../../utils/errorLog'
 import PageTitle from '../../components/PageTitle.vue'
 import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
+import { createSubmitGuard } from '../../utils/submitGuard'
 
 const router = useRouter()
 const route = useRoute()
@@ -616,6 +617,8 @@ const tenantId = computed<number | undefined>(() => requestedTenantId.value ?? u
 
 const loading = ref(false)
 const generating = ref(false)
+/** 生成会真花钱（SPEC-UI-9 H2）：同一拍连点只发一次，第二拍由守卫直接拒 */
+const generateGuard = createSubmitGuard()
 const activeTab = ref('keyword')
 
 // 聚类驱动模式
@@ -1193,9 +1196,14 @@ async function generateArticle() {
     message.warning('当前没有选定客户，这一发没发出去（生成会烧额度）。请在右上角选一家客户。')
     return
   }
-  // 把手上的 :loading 要等下一个 microtask 才落到 DOM，连点挡不住；这一道同步闸才顶用
+  // 提交守卫（SPEC-UI-9 H2）：同步在途判定，第二拍直接拒；
+  // 只靠 :loading 要等下一个 microtask 才落到 DOM，连点挡不住
   // （10-13 走查现场：取证脚本一次提交造出 task 9/10 两笔逐字相同的单，两篇都真花了钱）
-  if (generating.value) return
+  await generateGuard.run(doGenerateArticle)
+}
+
+/** 真正发出去的那一半：守卫只管「只发一次」，这里保留原来的进度与结果面 */
+async function doGenerateArticle() {
   generating.value = true
   generateProgress.value = 0
   isCanceling.value = false

@@ -72,7 +72,7 @@ const emit = defineEmits<{ (e: 'save'): void; (e: 'cancel'): void }>()
       <a-textarea v-model:value="form.brandIntro" :rows="3" placeholder="一两句就够：AI 引用你时最该带上的身份" />
     </div>
     <div class="geobrand-profile-form__actions">
-      <a-button type="primary" :loading="saving" @click="emit('save')">保存</a-button>
+      <a-button type="primary" :loading="saving" :disabled="saving" @click="emit('save')">保存</a-button>
       <a-button @click="emit('cancel')">取消</a-button>
     </div>
   </div>

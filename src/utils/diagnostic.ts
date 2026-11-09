@@ -16,8 +16,49 @@ export interface DiagnosticPackage {
   /** 浏览器 UA：只用来判断「哪一版浏览器出的问题」 */
   browser: string
   metrics: ErrorMetricsSnapshot
-  /** 最近错误原文，最近优先 */
+  /** 最近错误原文，最近优先（已脱敏、已截断） */
   errors: RawDetailEntry[]
+}
+
+/** 单条原文上限 4KB（SPEC-UI-9 H3）：HTTP 回体 JSON 动辄上万字，整包贴进工单会超长 */
+export const RAW_TEXT_LIMIT = 4096
+
+/** 敏感键：命中就只留键名，值换成 *** */
+const SENSITIVE_KEY = /(token|cookie|authorization|password|secret|api[_-]?key|credential|session)/i
+
+/**
+ * 原文脱敏 + 截断（SPEC-UI-9 H3）。
+ *
+ * 诊断包会被贴进工单或聊天窗口：`token / cookie / authorization / password / secret`
+ * 这类键的值一律换成 `***`；超过 4KB 的原文按字符截断并标注原长。
+ * 宽进严出：键名认不出来就保留，宁可多留排查材料，也不把整段回体抹掉。
+ */
+export function sanitizeRawText(raw: string): string {
+  if (!raw) return raw
+  // 1) 头部行：`Authorization: Bearer xxx` 里 Bearer 后还有一段值，普通键值规则会漏
+  let text = raw.replace(
+    /(^|\n)(authorization|cookie|set-cookie|proxy-authorization)\s*:\s*[^\n]*/gi,
+    (_match, lead: string, name: string) => `${lead}${name}: ***`
+  )
+  // 2) JSON 键值：`"password": "abc"` / `"access_token": "xyz"`
+  text = text.replace(
+    /("[A-Za-z0-9_.-]+"\s*:\s*)("[^"]*"|'[^']*')/g,
+    (match, prefix: string) => (SENSITIVE_KEY.test(prefix) ? `${prefix}"***"` : match)
+  )
+  // 3) 查询串 / 表单：`?access_token=abc&x=1`
+  text = text.replace(
+    /([A-Za-z0-9_.-]+\s*=\s*)([^&\s,;)]+)/g,
+    (match, prefix: string) => (SENSITIVE_KEY.test(prefix) ? `${prefix}***` : match)
+  )
+  // 4) 头 / 对象简写：`password: abc`（键名不含引号）
+  text = text.replace(
+    /([A-Za-z0-9_.-]+\s*:\s*)([^\s,;}{]+)/g,
+    (match, prefix: string) => (SENSITIVE_KEY.test(prefix) ? `${prefix}***` : match)
+  )
+  if (text.length > RAW_TEXT_LIMIT) {
+    text = `${text.slice(0, RAW_TEXT_LIMIT)}\n…（已截断，原长 ${raw.length} 字）`
+  }
+  return text
 }
 
 function pagePath(): string {
@@ -35,7 +76,7 @@ export function buildDiagnosticPackage(now: Date = new Date()): DiagnosticPackag
     page: pagePath(),
     browser: browserOf(),
     metrics: getErrorMetrics(),
-    errors: listRawDetails()
+    errors: listRawDetails().map((entry) => ({ ...entry, rawText: sanitizeRawText(entry.rawText) }))
   }
 }
 

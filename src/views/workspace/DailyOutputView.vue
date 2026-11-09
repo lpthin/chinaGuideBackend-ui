@@ -77,7 +77,7 @@
               id="daily-output-save"
               type="primary"
               :loading="saving"
-              :disabled="!canManage || isPlatformMode"
+              :disabled="saving || !canManage || isPlatformMode"
               @click="save"
             >保存配置</a-button>
           </a-space>

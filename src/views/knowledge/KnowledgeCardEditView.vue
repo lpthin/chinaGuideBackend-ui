@@ -11,7 +11,7 @@
             <a-button
               type="primary"
               :loading="saving"
-              :disabled="requestedTenantId === null"
+              :disabled="saving || requestedTenantId === null"
               @click="handleSave"
             >
               保存
@@ -121,7 +121,7 @@
                 type="primary"
                 block
                 :loading="saving"
-                :disabled="requestedTenantId === null"
+                :disabled="saving || requestedTenantId === null"
                 @click="handleSave"
               >
                 <SaveOutlined /> 保存

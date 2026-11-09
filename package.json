@@ -13,6 +13,7 @@
     "test:run": "vitest run",
     "test:related": "node scripts/check-table-states.mjs && node scripts/test-related.mjs",
     "check:table-states": "node scripts/check-table-states.mjs",
+    "check:submit-guards": "node scripts/check-submit-guards.mjs",
     "test:e2e:retry": "node scripts/e2e/retry-matrix.mjs"
   },
   "dependencies": {

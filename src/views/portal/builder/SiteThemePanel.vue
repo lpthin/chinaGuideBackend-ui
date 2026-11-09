@@ -26,15 +26,15 @@
         <!-- 白名单没取到时不摆动作：那一份 model 是空的，此时点「保存」发出去的是「整站清空」 -->
         <template v-if="fields.length">
           <a-space class="site-theme__actions" wrap>
-            <a-button size="small" type="primary" :loading="saving" @click="save">保存（整份替换）</a-button>
-            <a-button size="small" :loading="saving" @click="clearAll">清空站级主题</a-button>
+            <a-button size="small" type="primary" :loading="saving" :disabled="saving" @click="save">保存（整份替换）</a-button>
+            <a-button size="small" :loading="saving" :disabled="saving" @click="clearAll">清空站级主题</a-button>
           </a-space>
 
           <a-divider style="margin: 12px 0" />
 
           <a-space class="site-theme__actions" wrap>
             <a-input v-model:value="skinName" size="small" placeholder="存成一份皮肤的名字" style="width: 180px" />
-            <a-button size="small" :disabled="!skinName.trim()" :loading="saving" @click="saveSkin">存为皮肤</a-button>
+            <a-button size="small" :disabled="saving || !skinName.trim()" :loading="saving" @click="saveSkin">存为皮肤</a-button>
           </a-space>
           <a-space class="site-theme__actions" wrap>
             <a-select
@@ -45,7 +45,7 @@
               :options="presetOptions"
               :loading="loadingPresets"
             />
-            <a-button size="small" :disabled="!presetId" :loading="saving" @click="applySkin">套到整站</a-button>
+            <a-button size="small" :disabled="saving || !presetId" :loading="saving" @click="applySkin">套到整站</a-button>
           </a-space>
           <p class="site-theme__muted">
             存皮肤抽的是这一站当前已保存的样式变量；套皮肤写的是站级主题这一份，逐页那份覆盖位不动。

@@ -124,8 +124,9 @@ describe('Spec-Q P3：这一页换成 C 型模板，两类读失败都在屏上�
   it('站点信息那一发读失败：原话进 readFailed，整组卡由模板撤下', () => {
     expect(view).toMatch(/readFailed\.value = `站点信息没读回来：\$\{reason\}`/);
     expect(view).toMatch(/:read-failed="readFailed"/);
-    // 旧的那一条 toast 仍在（提示与屏上落点是两件事，撤掉它等于把失败说得更少）
-    expect(view).toMatch(/加载站点信息失败/);
+    // 失败只落屏上这一处：原话进 readFailed 交给 SettingsPage 撤下整组卡
+    //（27622aa「一次故障只说一次」已删掉重复的 toast，这里跟着钉新口径）
+    expect(view).not.toMatch(/加载站点信息失败/);
   })
 
   it('逐页 SEO 那一发失败单独摆一条，且能只重读这一发', () => {

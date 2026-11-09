@@ -56,7 +56,7 @@
         <a-form-item>
           <a-space>
             <a-button :disabled="loading" @click="emit('reload')">重新读取</a-button>
-            <a-button id="interaction-save-config" type="primary" :loading="saving" :disabled="disabled" @click="emit('save', { ...form })">
+            <a-button id="interaction-save-config" type="primary" :loading="saving" :disabled="saving || disabled" @click="emit('save', { ...form })">
               保存设置
             </a-button>
           </a-space>

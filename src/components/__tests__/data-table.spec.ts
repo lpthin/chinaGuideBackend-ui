@@ -107,14 +107,14 @@ describe('DataTable', () => {
   it('传 retry 时错误块里出现「重试」，点了就调页面加载函数', async () => {
     let calls = 0
     const w = mountTable({ dataSource: [], error: '加载失败', retry: () => { calls += 1 } })
-    expect(w.find('.btn-stub').exists()).toBe(true)
-    await w.find('.btn-stub').trigger('click')
+    expect(w.find('.admin-data-table__retry').exists()).toBe(true)
+    await w.find('.admin-data-table__retry').trigger('click')
     expect(calls).toBeGreaterThan(0)
   })
 
   it('没传 retry 时不摆一颗点了没反应的按钮', () => {
     const w = mountTable({ dataSource: [], error: '加载失败' })
-    expect(w.find('.btn-stub').exists()).toBe(false)
+    expect(w.find('.admin-data-table__retry').exists()).toBe(false)
   })
 
   it('权限不足不能念「稍后重试」', () => {
@@ -129,7 +129,7 @@ describe('DataTable', () => {
     let release!: () => void
     const retry = vi.fn(() => new Promise<void>((resolve) => { release = resolve }))
     const w = mountTable({ dataSource: [], error: '服务器处理失败，请稍后重试或联系管理员', retry })
-    const btn = w.find('.btn-stub')
+    const btn = w.find('.admin-data-table__retry')
     await btn.trigger('click')
     expect(btn.attributes('disabled')).toBe('')
     await btn.trigger('click')
@@ -286,7 +286,7 @@ describe('DataTable', () => {
     expect(m.exposures).toBe(1)
     expect(m.errorZeroRowCases).toBe(1)
 
-    await w.find('.btn-stub').trigger('click')
+    await w.find('.admin-data-table__retry').trigger('click')
     expect(getErrorMetrics().retryAttempts).toBe(1)
 
     await w.setProps({ loading: true, error: null })

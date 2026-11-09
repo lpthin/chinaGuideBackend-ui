@@ -215,7 +215,7 @@
     <div class="page-builder__footer">
       <a-space>
         <a-button :disabled="!pageId || !canBuild" @click="check">检查结构</a-button>
-        <a-button :disabled="!pageId || !canBuild" :loading="saving" type="primary" @click="save">保存</a-button>
+        <a-button :disabled="saving || !pageId || !canBuild" :loading="saving" type="primary" @click="save">保存</a-button>
         <a-button :disabled="!pageId" @click="publish">发布</a-button>
         <a-button :disabled="!pageId" @click="offline">下线</a-button>
         <a-button :disabled="!pageId" @click="openVersions">版本历史</a-button>

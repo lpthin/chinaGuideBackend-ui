@@ -5,7 +5,8 @@ import { describe, it, expect } from 'vitest'
  *
  * 取证脚本一次提交造出 task 9/10 两笔逐字相同的单，两篇都走了完整的出网链——
  * 手上那个 `:loading` 要等下一个 microtask 才落到 DOM，同一拍里的第二次点击照样打进去。
- * 这一格钉两道闸都在：按钮上挂 `:disabled`，处理函数第一行有一句同步的return。
+ * 这一格钉两道闸都在：按钮上挂 `:disabled`，处理函数在把 `generating` 置真之前先交给同步守卫
+ *（SPEC-UI-9 H2：`submitGuard.run` 在途直接拒，语义由 `submit-guard.spec.ts` 钉住）。
  *
  * 说清楚：这里钉的是**源码形状**，不是「人连点两次已经复现过」。
  * 真人在浏览器里连点没复现过，也不打算拿它当验收证据。
@@ -25,7 +26,8 @@ describe('M-P15：「开始生成」的重复提交有两道闸', () => {
 
   it('同步闸在把 generating 置真之前，不等 loading 落到 DOM 再挡', () => {
     const handler = view.slice(view.indexOf('async function generateArticle()'))
-    expect(handler).toMatch(/async function generateArticle\(\)\s*\{[\s\S]{0,400}?if \(generating\.value\) return\n\s*generating\.value = true/)
+    // 置真挪到了 doGenerateArticle；generateArticle 在同一拍先过守卫，第二拍被直接拒
+    expect(handler).toMatch(/async function generateArticle\(\)\s*\{[\s\S]{0,400}?await generateGuard\.run\(doGenerateArticle\)/)
   })
 
   it('按钮上 loading 与 disabled 同时挂（只有 loading 挡不住同一拍的第二次点击）', () => {

@@ -34,7 +34,7 @@
             <template #description>
               这份配置决定全站每一个新上传落在哪儿，改完立刻生效（历史素材按各自的 <code>storage_type</code> 照常读）。
             </template>
-            <a-button type="primary" size="small" class="js-save" :disabled="!canSave" :loading="saving">
+            <a-button type="primary" size="small" class="js-save" :disabled="saving || !canSave" :loading="saving">
               保存配置
             </a-button>
           </a-popconfirm>

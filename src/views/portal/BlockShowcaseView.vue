@@ -166,7 +166,7 @@
       <template #footer>
         <a-space>
           <a-button @click="drawerOpen = false">取消</a-button>
-          <a-button type="primary" :loading="saving" :disabled="!canWrite" @click="save">
+          <a-button type="primary" :loading="saving" :disabled="saving || !canWrite" @click="save">
             {{ editingId === null ? '存为未启用' : '保存' }}
           </a-button>
         </a-space>

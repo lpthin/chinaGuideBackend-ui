@@ -51,7 +51,6 @@
       </a-button>
       <template v-if="showRaw && rawDetail">
         <code class="raw-text">{{ rawDetail }}</code>
-        <a-button type="link" size="small" @click="copyRaw">{{ copied ? '已复制' : '复制' }}</a-button>
       </template>
     </template>
     <template v-else-if="emptyLine">{{ emptyLine }}</template>
@@ -152,16 +151,6 @@ const rawDetail = computed(() => errorRawDetail(props.readFailed))
 /** 读失败的三层文案（SPEC-UI-7 U1）：「可以做什么 / 要不要找人」跟人话同源 */
 const readAdvice = computed(() => errorAdviceOfText(props.readFailed))
 const showRaw = ref(false)
-const copied = ref(false)
-async function copyRaw(): Promise<void> {
-  if (!rawDetail.value) return
-  try {
-    await navigator.clipboard.writeText(rawDetail.value)
-    copied.value = true
-  } catch {
-    copied.value = false
-  }
-}
 </script>
 
 <style scoped lang="less">

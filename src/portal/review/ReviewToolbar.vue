@@ -35,7 +35,7 @@
           allow-clear
           :options="intentOptions"
         />
-        <a-button size="small" type="primary" :loading="submitting" @click="send">提交反馈</a-button>
+        <a-button size="small" type="primary" :loading="submitting" :disabled="submitting" @click="send">提交反馈</a-button>
       </div>
     </div>
 

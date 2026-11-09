@@ -1,5 +1,5 @@
 /**
- * 读失败度量（SPEC-UI-8 G1）：会话内累计，只落 `[ui-info]` 日志，不做看板、不落 localStorage。
+ * 读失败度量（SPEC-UI-8 G1；SPEC-UI-9 H4 加分桶与持久化）。
  *
  * 四个数（口径写死在这里，页面不各算各的）：
  * 1. 错误曝光率 = 至少出现过一次错误块的页面浏览 / 总页面浏览；
@@ -8,7 +8,9 @@
  *    另单独记「错误 + 0 行」的风险触发数，用来看 M1 到底挡了多少次）；
  * 4. 恢复耗时 = 错误出现到错误消失的平均毫秒数。
  *
- * 只做会话内累计：刷新即清零。没有后端埋点端点时不假装有，日志留在控制台。
+ * 会话内累计并落 sessionStorage（每标签页独立、关标签即清）：刷新一次不该把
+ * 「刚发生的那一发」连同 requestId 一起抹掉（SPEC-UI-9 H4-3）。
+ * 存储不可用（无痕 / 配额满）时静默降级为内存。
  */
 import { logInfo } from './errorLog'
 
@@ -60,21 +62,117 @@ const EMPTY_STATE: MetricsState = {
 }
 
 let state: MetricsState = { ...EMPTY_STATE }
+/** 按页面分桶（SPEC-UI-9 H4-1）：全局四个数不动，另存一份「哪一页最常读失败」 */
+const pageStates = new Map<string, MetricsState>()
 /** 最近一次页面浏览的路径：曝光 / 重试事件带上它，日志里才认得出是哪一屏 */
 let currentPath = ''
 /** 这一页浏览是否已经记过曝光：曝光率按页面浏览算，同一页多次错误只算一次 */
 let currentViewExposed = false
 
+export const ERROR_METRICS_STORAGE_KEY = '__ui_error_metrics_v1'
+/** 开发页与 hidden 路由不进分母：它们是治理工具，不是业务页面浏览 */
+const EXCLUDED_PREFIX = '/workspace/dev/'
+
 function ratio(numerator: number, denominator: number): number {
   return denominator > 0 ? numerator / denominator : 0
 }
 
+function snapshotOf(source: MetricsState): ErrorMetricsSnapshot {
+  return {
+    pageViews: source.pageViews,
+    exposedPageViews: source.exposedPageViews,
+    exposureRate: ratio(source.exposedPageViews, source.pageViews),
+    exposures: source.exposures,
+    errorZeroRowCases: source.errorZeroRowCases,
+    falseEmptyShown: source.falseEmptyShown,
+    falseEmptyRate: ratio(source.falseEmptyShown, source.exposures),
+    retryAttempts: source.retryAttempts,
+    retrySuccesses: source.retrySuccesses,
+    retrySuccessRate: ratio(source.retrySuccesses, source.retryAttempts),
+    recoveryCount: source.recoveryCount,
+    avgRecoveryMs: source.recoveryCount > 0 ? Math.round(source.recoveryTotalMs / source.recoveryCount) : 0
+  }
+}
+
+function bucket(path: string): MetricsState {
+  let found = pageStates.get(path)
+  if (!found) {
+    found = { ...EMPTY_STATE }
+    pageStates.set(path, found)
+  }
+  return found
+}
+
+interface PersistedMetrics {
+  global: MetricsState
+  pages: Array<[string, MetricsState]>
+  currentPath: string
+  currentViewExposed: boolean
+}
+
+function pickState(value: unknown): MetricsState {
+  const fallback = { ...EMPTY_STATE }
+  if (!value || typeof value !== 'object') return fallback
+  for (const key of Object.keys(fallback) as Array<keyof MetricsState>) {
+    const raw = (value as Record<string, unknown>)[key]
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) fallback[key] = raw
+  }
+  return fallback
+}
+
+function persist(): void {
+  try {
+    if (typeof sessionStorage === 'undefined') return
+    const payload: PersistedMetrics = {
+      global: state,
+      pages: Array.from(pageStates.entries()),
+      currentPath,
+      currentViewExposed
+    }
+    sessionStorage.setItem(ERROR_METRICS_STORAGE_KEY, JSON.stringify(payload))
+  } catch {
+    // 无痕模式 / 配额满：度量静默降级为内存，不影响页面
+  }
+}
+
+function restore(): void {
+  try {
+    if (typeof sessionStorage === 'undefined') return
+    const raw = sessionStorage.getItem(ERROR_METRICS_STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Partial<PersistedMetrics>
+    state = pickState(parsed.global)
+    pageStates.clear()
+    for (const [path, value] of parsed.pages ?? []) {
+      if (typeof path === 'string') pageStates.set(path, pickState(value))
+    }
+    currentPath = typeof parsed.currentPath === 'string' ? parsed.currentPath : ''
+    currentViewExposed = !!parsed.currentViewExposed
+  } catch {
+    // 坏数据当没有：下一次写入会覆盖
+  }
+}
+
+restore()
+
 /** 路由 afterEach 每落一页记一次；同时重置「本页是否已曝光」的标记 */
 export function recordPageView(path: string): void {
+  // 开发页与 hidden 路由不进页面浏览分母（SPEC-UI-9 H4-1）
+  if (!path || path.startsWith(EXCLUDED_PREFIX)) return
   state.pageViews += 1
-  currentViewExposed = false
+  bucket(path).pageViews += 1
   currentPath = path
+  currentViewExposed = false
   logInfo('metrics/page_view', { path, pageViews: state.pageViews })
+  persist()
+}
+
+/**
+ * 页面内 Tab 切换（不改路由）由宿主显式调（SPEC-UI-9 H4-1）。
+ * Tab 是一次新的浏览面，语义与落一页一致；被动切换不会被自动计数。
+ */
+export function recordView(key: string): void {
+  recordPageView(key)
 }
 
 /**
@@ -84,11 +182,17 @@ export function recordPageView(path: string): void {
  */
 export function recordErrorExposure(humanText: string, surface: ErrorSurface, zeroRows: boolean): void {
   state.exposures += 1
+  const page = bucket(currentPath)
+  page.exposures += 1
   if (!currentViewExposed) {
     state.exposedPageViews += 1
+    page.exposedPageViews += 1
     currentViewExposed = true
   }
-  if (zeroRows) state.errorZeroRowCases += 1
+  if (zeroRows) {
+    state.errorZeroRowCases += 1
+    page.errorZeroRowCases += 1
+  }
   logInfo('metrics/error_exposure', {
     surface,
     zeroRows,
@@ -96,6 +200,7 @@ export function recordErrorExposure(humanText: string, surface: ErrorSurface, ze
     text: humanText,
     exposures: state.exposures
   })
+  persist()
 }
 
 /**
@@ -104,29 +209,37 @@ export function recordErrorExposure(humanText: string, surface: ErrorSurface, ze
  */
 export function recordFalseEmpty(humanText: string, surface: ErrorSurface): void {
   state.falseEmptyShown += 1
+  bucket(currentPath).falseEmptyShown += 1
   logInfo('metrics/false_empty', { surface, page: currentPath, text: humanText })
+  persist()
 }
 
 /** 重试真正发出去时记一次（被防连点守卫拦下的不算） */
 export function recordRetryAttempt(humanText: string, source: RetrySource): void {
   state.retryAttempts += 1
+  bucket(currentPath).retryAttempts += 1
   logInfo('metrics/retry_attempt', {
     source,
     page: currentPath,
     text: humanText,
     retryAttempts: state.retryAttempts
   })
+  persist()
 }
 
 /** 这一发重试的结果：读成功算成功，读失败算失败（页面下次再点会记新的一次尝试） */
 export function recordRetryOutcome(success: boolean, source: RetrySource): void {
-  if (success) state.retrySuccesses += 1
+  if (success) {
+    state.retrySuccesses += 1
+    bucket(currentPath).retrySuccesses += 1
+  }
   logInfo('metrics/retry_outcome', {
     success,
     source,
     page: currentPath,
     retrySuccesses: state.retrySuccesses
   })
+  persist()
 }
 
 /** 错误消失时记一次恢复耗时；由调用方用本地开始时间算好毫秒交进来 */
@@ -134,30 +247,37 @@ export function recordRecovery(elapsedMs: number, humanText: string): void {
   const safeMs = Math.max(0, Math.round(elapsedMs))
   state.recoveryCount += 1
   state.recoveryTotalMs += safeMs
+  const page = bucket(currentPath)
+  page.recoveryCount += 1
+  page.recoveryTotalMs += safeMs
   logInfo('metrics/recovery', { ms: safeMs, page: currentPath, text: humanText })
+  persist()
 }
 
 /** 会话内快照：简报与控制台排查用；比率在这个出口算，页面不重复实现 */
 export function getErrorMetrics(): ErrorMetricsSnapshot {
-  return {
-    pageViews: state.pageViews,
-    exposedPageViews: state.exposedPageViews,
-    exposureRate: ratio(state.exposedPageViews, state.pageViews),
-    exposures: state.exposures,
-    errorZeroRowCases: state.errorZeroRowCases,
-    falseEmptyShown: state.falseEmptyShown,
-    falseEmptyRate: ratio(state.falseEmptyShown, state.exposures),
-    retryAttempts: state.retryAttempts,
-    retrySuccesses: state.retrySuccesses,
-    retrySuccessRate: ratio(state.retrySuccesses, state.retryAttempts),
-    recoveryCount: state.recoveryCount,
-    avgRecoveryMs: state.recoveryCount > 0 ? Math.round(state.recoveryTotalMs / state.recoveryCount) : 0
-  }
+  return snapshotOf(state)
 }
 
-/** 单测用：把累计值、当前路径、本页曝光标记一起清回初始 */
+/**
+ * 按页面分桶快照（SPEC-UI-9 H4-1）。
+ * 返回普通对象方便直接 JSON / 表格渲染；页面键就是路由 fullPath。
+ */
+export function getErrorMetricsByPage(): Record<string, ErrorMetricsSnapshot> {
+  const result: Record<string, ErrorMetricsSnapshot> = {}
+  for (const [path, value] of pageStates) result[path] = snapshotOf(value)
+  return result
+}
+
+/** 单测用：把累计值、当前路径、本页曝光标记一起清回初始（连同持久化快照） */
 export function resetErrorMetrics(): void {
   state = { ...EMPTY_STATE }
+  pageStates.clear()
   currentPath = ''
   currentViewExposed = false
+  try {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(ERROR_METRICS_STORAGE_KEY)
+  } catch {
+    // 存储不可用：内存已经清干净
+  }
 }

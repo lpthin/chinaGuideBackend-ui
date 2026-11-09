@@ -63,25 +63,23 @@ describe('StateBlock', () => {
     expect(empty.attributes('aria-live')).toBeUndefined()
   })
 
-  it('原文折叠有可读标签，summary / 复制都在原生 Tab 顺序里', () => {
+  it('原文折叠有可读标签，诊断动作都在原生 Tab 顺序里（SPEC-UI-9 H3 收口到 ErrorHelpActions）', () => {
     rememberRawDetail('读取失败', 'GET /api/admin/audit-logs → HTTP 500')
     const w = mount(StateBlock, { props: { state: 'error', detail: '读取失败' } })
     const details = w.find('details.admin-state-block__raw')
     expect(details.exists()).toBe(true)
     expect(details.find('summary').text()).toContain('排查用')
-    const copy = details.find('button.admin-state-block__copy')
-    expect(copy.attributes('type')).toBe('button')
+    const copy = w.find('.error-help-actions__copy')
+    expect(copy.exists()).toBe(true)
     expect(copy.attributes('tabindex')).toBeUndefined()
     expect(details.find('summary').attributes('tabindex')).toBeUndefined()
   })
 
-  it('G2：原文区给一颗「导出诊断包」，整包可下载而不必复现', () => {
+  it('G2：错误块给一颗「导出诊断包」，整包可下载而不必复现', () => {
     rememberRawDetail('读取失败-G2', 'GET /api/audit-logs → HTTP 500\nrequestId: req-1')
     const w = mount(StateBlock, { props: { state: 'error', detail: '读取失败-G2' } })
-    const download = w.find('button.admin-state-block__download')
+    const download = w.find('.error-help-actions__download')
     expect(download.exists()).toBe(true)
-    expect(download.text()).toBe('导出诊断包')
-    expect(download.attributes('type')).toBe('button')
     expect(download.attributes('tabindex')).toBeUndefined()
   })
 
@@ -92,9 +90,9 @@ describe('StateBlock', () => {
       slots: { default: '<button class="retry">重试</button>' },
     })
     expect(w.find('details summary').exists()).toBe(true)
-    expect(w.find('button.admin-state-block__copy').exists()).toBe(true)
+    expect(w.find('.error-help-actions__copy').exists()).toBe(true)
     expect(w.find('button.retry').exists()).toBe(true)
-    for (const el of [...w.findAll('button'), ...w.findAll('summary')]) {
+    for (const el of [...w.findAll('button'), ...w.findAll('[role="button"]'), ...w.findAll('summary')]) {
       expect(el.attributes('tabindex')).toBeUndefined()
     }
   })

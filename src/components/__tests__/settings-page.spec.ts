@@ -73,7 +73,7 @@ const GROUPS: SettingsGroup[] = [
 function mountPage(props: Record<string, unknown> = {}, slots: Record<string, unknown> = {}) {
   return mount(SettingsPage, {
     props: { groups: GROUPS, ...props },
-    slots: { basic: '<span class="in-basic">表单</span>', retry: '<button class="btn-stub">重新读取</button>', ...slots },
+    slots: { basic: '<span class="in-basic">表单</span>', retry: '<button class="btn-stub retry-stub">重新读取</button>', ...slots },
     global: GLOBALS,
     attachTo: document.body
   } as any)
@@ -188,7 +188,7 @@ describe('三态各说各的且互斥', () => {
     const block = w.find('.admin-state-block')
     expect(block.attributes('data-state')).toBe('error')
     expect(block.text()).toContain('企业信息没读回来：网关超时')
-    expect(w.find('.btn-stub').text()).toBe('重新读取')
+    expect(w.find('.retry-stub').text()).toBe('重新读取')
   })
 
   it('后端答了但这一屏没内容：说的是「未取到」，与读失败两件事', () => {

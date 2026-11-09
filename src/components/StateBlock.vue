@@ -3,11 +3,10 @@
  * 三态块（Spec-F §9.2-4）：空 / 错 / 未取到，三态语义不许互换（display.ts 的 PH_NONE / PH_NOT_MEASURED），
  * 每态自带一条「下一步做什么」，消灭 v-if 整块消失后用户面对空白。
  */
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { PH_NONE, PH_NOT_MEASURED } from '../utils/display'
 import { errorRawDetail } from '../utils/errorRaw'
 import { errorAdviceOfText } from '../utils/errorText'
-import { downloadDiagnosticPackage } from '../utils/diagnostic'
 import ErrorHelpActions from './ErrorHelpActions.vue'
 
 const props = defineProps<{
@@ -40,16 +39,6 @@ const shownHelp = computed(() => (props.next ? '' : advice.value?.askHelp || '')
 
 /** 原文材料折叠在错误块里（拍板 Q5-A）：人话是标题，原始技术串给工单用 */
 const rawDetail = computed(() => (props.state === 'error' ? errorRawDetail(props.detail) : null))
-const copied = ref(false)
-async function copyRaw(): Promise<void> {
-  if (!rawDetail.value) return
-  try {
-    await navigator.clipboard.writeText(rawDetail.value)
-    copied.value = true
-  } catch {
-    copied.value = false
-  }
-}
 </script>
 
 <template>
@@ -69,18 +58,11 @@ async function copyRaw(): Promise<void> {
       <ErrorHelpActions :text="detail" />
     </div>
     <div v-if="hint" class="admin-state-block__hint">{{ hint }}</div>
+    <!-- 复制单条 / 导出整包 / 找管理员都收口在 ErrorHelpActions（SPEC-UI-9 H3），
+         这里只留原始技术串本身 -->
     <details v-if="rawDetail" class="admin-state-block__raw">
       <summary>错误原文（排查用，可复制给工单）</summary>
       <pre class="admin-state-block__rawtext">{{ rawDetail }}</pre>
-      <!-- 单条复制给这一发；整包导出给「不只这一处出错」的报障（SPEC-UI-8 G2） -->
-      <div class="admin-state-block__raw-actions">
-        <button type="button" class="admin-state-block__copy" @click="copyRaw">
-          {{ copied ? '已复制' : '复制原文' }}
-        </button>
-        <button type="button" class="admin-state-block__copy admin-state-block__download" @click="downloadDiagnosticPackage">
-          导出诊断包
-        </button>
-      </div>
     </details>
     <div v-if="$slots.default" class="admin-state-block__extra">
       <slot />
@@ -156,26 +138,6 @@ async function copyRaw(): Promise<void> {
     font-size: 12px;
     white-space: pre-wrap;
     word-break: break-all;
-  }
-
-  &__raw-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  &__copy {
-    border: none;
-    background: none;
-    padding: 0;
-    color: var(--admin-primary, #1677ff);
-    cursor: pointer;
-    font-size: 12px;
-  }
-
-  &__copy:focus-visible {
-    outline: 2px solid var(--admin-primary, #1677ff);
-    outline-offset: 2px;
   }
 }
 </style>
