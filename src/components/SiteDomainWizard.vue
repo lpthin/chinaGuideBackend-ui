@@ -133,7 +133,7 @@ async function bind() {
           <a-form-item label="要绑的域名" extra="填主机名即可，带不带 https:// 都认；保存前会自动清洗成主机名">
             <a-input v-model:value="domain" placeholder="www.example.com" />
           </a-form-item>
-          <a-button type="primary" :loading="checking" @click="check">检测解析</a-button>
+          <a-button type="primary" :loading="checking" :disabled="checking" @click="check">检测解析</a-button>
         </a-form>
         <a-alert
           v-if="result"

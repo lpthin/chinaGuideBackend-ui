@@ -100,7 +100,7 @@
         </a-form-item>
         <template #actions>
           <a-space>
-            <a-button type="primary" :loading="loading" @click="handleSearch">
+            <a-button type="primary" :loading="loading" :disabled="loading" @click="handleSearch">
               <template #icon><SearchOutlined /></template>
               搜索
             </a-button>
@@ -245,7 +245,7 @@
             <a-select-option value="resolved">已解决</a-select-option>
             <a-select-option value="ignored">已忽略</a-select-option>
           </a-select>
-          <a-button type="primary" :loading="statusUpdateLoading" @click="handleStatusUpdate">
+          <a-button type="primary" :loading="statusUpdateLoading" :disabled="statusUpdateLoading" @click="handleStatusUpdate">
             确认更新
           </a-button>
         </a-space>

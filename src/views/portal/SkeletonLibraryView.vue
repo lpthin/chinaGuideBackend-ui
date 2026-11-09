@@ -26,7 +26,7 @@
       </a-form-item>
       <template #actions>
         <a-space>
-          <a-button :loading="loading" @click="load">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="load">刷新</a-button>
         </a-space>
       </template>
     </FilterBar>
@@ -55,7 +55,7 @@
           <a-tag>{{ statusText(record.status) }}</a-tag>
         </template>
         <template v-else-if="column.key === 'preview'">
-          <a-button size="small" :loading="pagesLoadingKey === record.skeletonKey" @click="togglePreview(record)">
+          <a-button size="small" :loading="pagesLoadingKey === record.skeletonKey" :disabled="pagesLoadingKey === record.skeletonKey" @click="togglePreview(record)">
             {{ previewKey === record.skeletonKey ? '收起逐页预览' : '逐页预览' }}
           </a-button>
         </template>
@@ -252,7 +252,7 @@
               <a-space size="6">
                 <template v-if="confirming?.skeletonKey === row.skeletonKey">
                   <span class="skeleton-library__confirm-tip">{{ confirmingPrompt }}</span>
-                  <a-button size="small" type="primary" :loading="reviewing" @click="confirmReview(row)">
+                  <a-button size="small" type="primary" :loading="reviewing" :disabled="reviewing" @click="confirmReview(row)">
                     {{ confirmingLabel }}
                   </a-button>
                   <a-button size="small" :disabled="reviewing" @click="cancelReview">取消</a-button>

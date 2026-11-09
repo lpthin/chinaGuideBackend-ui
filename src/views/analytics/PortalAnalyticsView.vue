@@ -22,7 +22,7 @@
       </a-form-item>
       <a-form-item class="toolbar-fill" />
       <a-form-item class="toolbar-actions">
-        <a-button type="primary" :loading="loading" @click="loadAll">刷新</a-button>
+        <a-button type="primary" :loading="loading" :disabled="loading" @click="loadAll">刷新</a-button>
       </a-form-item>
     </a-form>
 

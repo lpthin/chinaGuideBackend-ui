@@ -2,14 +2,16 @@
 /**
  * 读失败度量看板（SPEC-UI-9 H4-2）。
  *
- * 只在 `/workspace/dev/metrics` 可达（hidden，不进菜单、不进页面浏览分母）。
- * 数据来自 sessionStorage 的会话快照：刷新不丢，关标签即清。
- * 页面上放全局四个数与分页明细，现场排障时不必开控制台再手算。
+ * 只在 `/workspace/dev/metrics` 可达（hidden、仅平台账号，不进菜单、不进页面浏览分母）。
+ * 数据来自 localStorage 的度量快照：刷新与换标签都不丢，保留 7 天（SPEC-UI-10 G-5）。
+ * 页面上放全局四个数、错误类型分布与分页明细，现场排障时不必开控制台再手算。
  */
 import { onMounted, ref } from 'vue'
 import {
+  getErrorKindBreakdown,
   getErrorMetrics,
   getErrorMetricsByPage,
+  type ErrorKindRow,
   type ErrorMetricsSnapshot
 } from '../../utils/errorMetrics'
 import { listRawDetails, type RawDetailEntry } from '../../utils/errorRaw'
@@ -18,7 +20,20 @@ interface PageRow extends ErrorMetricsSnapshot {
   path: string
 }
 
+/** 超线阈值（SPEC-UI-10 G-4）：过线标红，不靠人记数 */
+const THRESHOLD = {
+  /** 曝光率超过一成算异常 */
+  exposureRate: 0.1,
+  /** 重试成功率低于六成说明重试没带来恢复 */
+  retrySuccessRate: 0.6,
+  /** 平均恢复超过 15 秒说明用户等太久了 */
+  avgRecoveryMs: 15000,
+  /** 样本太小时不判红，避免 1 次浏览 1 次错误就满屏红 */
+  minPageViews: 5
+}
+
 const globalMetrics = ref<ErrorMetricsSnapshot>(getErrorMetrics())
+const kindRows = ref<ErrorKindRow[]>([])
 const pageRows = ref<PageRow[]>([])
 const recentErrors = ref<RawDetailEntry[]>([])
 
@@ -26,8 +41,29 @@ function pct(value: number): string {
   return `${(value * 100).toFixed(1)}%`
 }
 
+/** 曝光率过线且样本够 */
+function exposureBad(): boolean {
+  const m = globalMetrics.value
+  return m.pageViews >= THRESHOLD.minPageViews && m.exposureRate > THRESHOLD.exposureRate
+}
+
+/** 误判空态应该恒为 0，出现一次就不对 */
+function falseEmptyBad(): boolean {
+  return globalMetrics.value.falseEmptyShown > 0
+}
+
+function retryBad(): boolean {
+  const m = globalMetrics.value
+  return m.retryAttempts >= THRESHOLD.minPageViews && m.retrySuccessRate < THRESHOLD.retrySuccessRate
+}
+
+function recoveryBad(): boolean {
+  return globalMetrics.value.avgRecoveryMs > THRESHOLD.avgRecoveryMs
+}
+
 function refresh(): void {
   globalMetrics.value = getErrorMetrics()
+  kindRows.value = getErrorKindBreakdown()
   pageRows.value = Object.entries(getErrorMetricsByPage())
     .map(([path, snapshot]) => ({ path, ...snapshot }))
     .sort((a, b) => b.exposures - a.exposures)
@@ -40,44 +76,60 @@ onMounted(refresh)
 <template>
   <div class="metrics-page">
     <div class="metrics-page__head">
-      <h2 class="metrics-page__title">读失败度量（会话内）</h2>
+      <h2 class="metrics-page__title">读失败度量</h2>
       <a-button size="small" @click="refresh">刷新</a-button>
     </div>
     <p class="metrics-page__note">
-      口径与 SPEC-UI-8 钉死的一致；hidden / 开发页不计入页面浏览分母。刷新页面仍保留，
-      关闭标签页即清空。
+      口径与 SPEC-UI-8 钉死的一致；hidden / 开发页不计入页面浏览分母。数据保留最近 7 天，
+      跨标签共享，清除站点数据即清空。卡片标红表示过线，阈值写在页面脚本里。
     </p>
 
     <div class="metrics-page__cards">
-      <div class="metrics-card">
+      <div class="metrics-card" :class="{ 'metrics-card--alert': exposureBad() }">
         <div class="metrics-card__label">错误曝光率</div>
         <div class="metrics-card__value">{{ pct(globalMetrics.exposureRate) }}</div>
         <div class="metrics-card__hint">
           {{ globalMetrics.exposedPageViews }} / {{ globalMetrics.pageViews }} 次页面浏览
+          <span v-if="exposureBad()">· 超过 {{ pct(THRESHOLD.exposureRate) }}</span>
         </div>
       </div>
-      <div class="metrics-card">
+      <div class="metrics-card" :class="{ 'metrics-card--alert': retryBad() }">
         <div class="metrics-card__label">重试成功率</div>
         <div class="metrics-card__value">{{ pct(globalMetrics.retrySuccessRate) }}</div>
         <div class="metrics-card__hint">
           {{ globalMetrics.retrySuccesses }} / {{ globalMetrics.retryAttempts }} 次重试
+          <span v-if="retryBad()">· 低于 {{ pct(THRESHOLD.retrySuccessRate) }}</span>
         </div>
       </div>
-      <div class="metrics-card">
+      <div class="metrics-card" :class="{ 'metrics-card--alert': falseEmptyBad() }">
         <div class="metrics-card__label">误判空态率</div>
         <div class="metrics-card__value">{{ pct(globalMetrics.falseEmptyRate) }}</div>
         <div class="metrics-card__hint">
           {{ globalMetrics.falseEmptyShown }} 次 / {{ globalMetrics.exposures }} 次错误曝光
+          <span v-if="falseEmptyBad()">· 这个数应该恒为 0</span>
         </div>
       </div>
-      <div class="metrics-card">
+      <div class="metrics-card" :class="{ 'metrics-card--alert': recoveryBad() }">
         <div class="metrics-card__label">平均恢复耗时</div>
         <div class="metrics-card__value">{{ globalMetrics.avgRecoveryMs }} ms</div>
         <div class="metrics-card__hint">
           {{ globalMetrics.recoveryCount }} 次恢复 · 错误 + 0 行 {{ globalMetrics.errorZeroRowCases }} 次
+          <span v-if="recoveryBad()">· 超过 {{ THRESHOLD.avgRecoveryMs }} ms</span>
         </div>
       </div>
     </div>
+
+    <h3 class="metrics-page__subtitle">错误类型分布（{{ kindRows.length }} 类）</h3>
+    <p v-if="!kindRows.length" class="metrics-page__empty">还没有记录到错误。</p>
+    <ul v-else class="metrics-page__kinds">
+      <li v-for="row in kindRows" :key="row.kind" class="metrics-page__kind">
+        <span class="metrics-page__kind-label">{{ row.label }}</span>
+        <span class="metrics-page__kind-bar">
+          <span class="metrics-page__kind-fill" :style="{ width: pct(row.ratio) }" />
+        </span>
+        <span class="metrics-page__kind-count">{{ row.count }} 次 · {{ pct(row.ratio) }}</span>
+      </li>
+    </ul>
 
     <h3 class="metrics-page__subtitle">按页面明细（{{ pageRows.length }} 页）</h3>
     <a-table
@@ -145,6 +197,47 @@ onMounted(refresh)
     margin: var(--admin-space-4, 32px) 0 var(--admin-space-2, 16px);
     font-size: 14px;
     color: var(--admin-text-primary, rgba(0, 0, 0, 0.88));
+  }
+
+  &__kinds {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__kind {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+
+  &__kind-label {
+    width: 72px;
+    flex: none;
+    color: var(--admin-text-primary, rgba(0, 0, 0, 0.88));
+  }
+
+  &__kind-bar {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--admin-fill-secondary, #f5f5f5);
+    overflow: hidden;
+  }
+
+  &__kind-fill {
+    display: block;
+    height: 100%;
+    background: var(--admin-color-primary, #1677ff);
+  }
+
+  &__kind-count {
+    width: 140px;
+    flex: none;
+    text-align: right;
+    color: var(--admin-text-secondary, rgba(0, 0, 0, 0.65));
   }
 
   &__table {
@@ -218,6 +311,16 @@ onMounted(refresh)
     margin-top: 4px;
     font-size: 12px;
     color: var(--admin-text-secondary, rgba(0, 0, 0, 0.65));
+  }
+
+  /** 过线：只把数字与描边标红，不整块变红，避免看板变成一片红 */
+  &--alert {
+    border-color: var(--admin-color-error, #ff4d4f);
+
+    .metrics-card__value,
+    .metrics-card__hint {
+      color: var(--admin-color-error, #ff4d4f);
+    }
   }
 }
 </style>

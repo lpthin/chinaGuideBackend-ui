@@ -70,14 +70,14 @@
               <template #icon><DeleteOutlined /></template>
               批量删除{{ selectedClusterKeys.length > 0 ? ` (${selectedClusterKeys.length})` : '' }}
             </a-button>
-            <a-button size="large" :loading="generating" @click="generateAllSuggestions">
+            <a-button size="large" :loading="generating" :disabled="generating" @click="generateAllSuggestions">
               <template #icon><RocketOutlined /></template>
               批量生成建议
             </a-button>
             <a-button
               type="primary"
               size="large"
-              :loading="distilling"
+              :loading="distilling" :disabled="distilling"
               class="btn-primary"
               @click="distillAll"
             >
@@ -315,7 +315,7 @@
         <div class="suggestion-edit-footer">
           <a-button @click="suggestionModalOpen = false">取消</a-button>
           <a-button
-            :loading="regeneratingSuggestions"
+            :loading="regeneratingSuggestions" :disabled="regeneratingSuggestions"
             @click="regenerateSuggestions"
           >
             <ReloadOutlined /> 重新生成

@@ -31,16 +31,16 @@
 
         <a-space style="margin-top: 16px" wrap>
           <a-button v-if="canAddRoute" @click="openRouteModal">补录一条路由</a-button>
-          <a-button v-if="canDiscover" :loading="discovering" @click="runDiscover">只列路由清单</a-button>
-          <a-button v-if="canCrawl" :loading="crawling" type="primary" @click="startCrawl">
+          <a-button v-if="canDiscover" :loading="discovering" :disabled="discovering" @click="runDiscover">只列路由清单</a-button>
+          <a-button v-if="canCrawl" :loading="crawling" :disabled="crawling" type="primary" @click="startCrawl">
             {{ selectedPageIds.length ? `抓取勾中的 ${selectedPageIds.length} 页` : '开始抓取' }}
           </a-button>
-          <a-button :loading="estimating" @click="runEstimate">先估算消耗</a-button>
+          <a-button :loading="estimating" :disabled="estimating" @click="runEstimate">先估算消耗</a-button>
           <a-button type="primary" :disabled="!estimate" :loading="analyzing" @click="openAnalyzeModal">
             开始 AI 摄取
           </a-button>
           <a-button :disabled="task.status !== 'done'" @click="openApplyModal">生成草稿页</a-button>
-          <a-button :loading="detailLoading" @click="refreshDetail">刷新进度</a-button>
+          <a-button :loading="detailLoading" :disabled="detailLoading" @click="refreshDetail">刷新进度</a-button>
         </a-space>
         <p class="reference-site-page__muted">
           抓取分两步：<b>只列路由清单</b>不抓页面、只读一次首页，把这一站有哪几条路由列出来（不花钱、不改状态）；

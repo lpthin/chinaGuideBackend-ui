@@ -170,7 +170,7 @@
           />
           <template #actions>
             <a-space>
-              <a-button :loading="exportLoading" @click="handleExport">导出</a-button>
+              <a-button :loading="exportLoading" :disabled="exportLoading" @click="handleExport">导出</a-button>
             </a-space>
           </template>
         </filter-bar>

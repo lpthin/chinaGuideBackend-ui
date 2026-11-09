@@ -61,7 +61,7 @@
       </template>
       <template #actions>
         <a-space wrap>
-          <a-button size="small" :loading="queueLoading" @click="reloadQueue">刷新</a-button>
+          <a-button size="small" :loading="queueLoading" :disabled="queueLoading" @click="reloadQueue">刷新</a-button>
           <template v-if="canManage">
             <span v-if="selectedIds.length" class="muted">已选 {{ selectedIds.length }} 条</span>
             <a-button size="small" type="link" @click="selectAllOnPage">全选本页</a-button>
@@ -70,7 +70,7 @@
               id="interaction-batch-approve"
               size="small"
               type="primary"
-              :loading="batchLoading"
+              :loading="batchLoading" :disabled="batchLoading"
               @click="runBatch('approve')"
             >批量放行</a-button>
             <a-button
@@ -78,7 +78,7 @@
               id="interaction-batch-reject"
               size="small"
               danger
-              :loading="batchLoading"
+              :loading="batchLoading" :disabled="batchLoading"
               @click="runBatch('reject')"
             >批量驳回</a-button>
           </template>

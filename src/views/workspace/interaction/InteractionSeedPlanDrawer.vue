@@ -18,7 +18,7 @@
       :not-sent="notSent"
     >
       <template #actions>
-        <a-button size="small" :loading="loading" @click="emit('reload')">刷新</a-button>
+        <a-button size="small" :loading="loading" :disabled="loading" @click="emit('reload')">刷新</a-button>
       </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'fireAt'">

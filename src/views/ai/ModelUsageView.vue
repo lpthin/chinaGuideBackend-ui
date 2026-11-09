@@ -301,8 +301,8 @@
                     placeholder="留空 = 不限制"
                     style="width: 180px"
                   />
-                  <a-button :loading="geoQuotaSaving" @click="saveGeoQuota">保存</a-button>
-                  <a-button :loading="geoQuotaSaving" @click="clearGeoQuota">清空（改为不限制）</a-button>
+                  <a-button :loading="geoQuotaSaving" :disabled="geoQuotaSaving" @click="saveGeoQuota">保存</a-button>
+                  <a-button :loading="geoQuotaSaving" :disabled="geoQuotaSaving" @click="clearGeoQuota">清空（改为不限制）</a-button>
                 </a-space>
                 <div v-if="geoQuota" class="geo-quota-setter__now">{{ geoQuotaNowText }}</div>
                 <!-- 「为什么现在是这个数」与「去哪儿设」都由后端发原文，界面不拼第二份规则 -->

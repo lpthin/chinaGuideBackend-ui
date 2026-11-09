@@ -113,7 +113,7 @@
                       <a-input-password v-model:value="passwordForm.confirmPassword" placeholder="请再次输入新密码" />
                     </a-form-item>
                     <a-form-item>
-                      <a-button type="primary" @click="changePassword" :loading="changingPassword">
+                      <a-button type="primary" @click="changePassword" :loading="changingPassword" :disabled="changingPassword">
                         修改密码
                       </a-button>
                     </a-form-item>

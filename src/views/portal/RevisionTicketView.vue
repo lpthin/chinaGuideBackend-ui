@@ -26,7 +26,7 @@
       </a-form-item>
       <template #actions>
         <a-space>
-          <a-button :loading="loading" @click="reload">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="reload">刷新</a-button>
           <a-button type="primary" @click="openSessionModal">预览链接</a-button>
         </a-space>
       </template>
@@ -124,7 +124,7 @@
           />
 
           <a-space style="margin-top: 16px" wrap>
-            <a-button :loading="estimating" @click="runEstimate">先估算消耗</a-button>
+            <a-button :loading="estimating" :disabled="estimating" @click="runEstimate">先估算消耗</a-button>
             <a-button type="primary" :disabled="!estimate" :loading="drafting" @click="openDraftModal">
               让 AI 出草稿
             </a-button>
@@ -134,7 +134,7 @@
             <a-popconfirm title="重新打开这条工单？" @confirm="reopenTicket">
               <a-button>重新打开</a-button>
             </a-popconfirm>
-            <a-button :loading="draftsLoading" @click="loadDrafts">刷新草稿</a-button>
+            <a-button :loading="draftsLoading" :disabled="draftsLoading" @click="loadDrafts">刷新草稿</a-button>
           </a-space>
           <p class="revision-ticket-page__muted">
             「先估算消耗」只算不调用模型；下一句按钮会真的产生一次 AI 调用、{{ costOwner }}，所以必须先看一眼预估。
@@ -178,7 +178,7 @@
         </a-form-item>
         <template #actions>
           <a-form-item>
-            <a-button type="primary" :loading="creatingSession" @click="createSession">生成链接</a-button>
+            <a-button type="primary" :loading="creatingSession" :disabled="creatingSession" @click="createSession">生成链接</a-button>
           </a-form-item>
         </template>
       </FilterBar>

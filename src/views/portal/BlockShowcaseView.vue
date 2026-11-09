@@ -29,7 +29,7 @@
       <a-select v-model:value="frameWidth" style="width: 160px" :options="FRAME_OPTIONS" />
       <template #actions>
         <a-space>
-          <a-button :loading="loading" @click="load">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="load">刷新</a-button>
           <a-button @click="showProps = !showProps">{{ showProps ? '收起字段结构' : '看字段结构' }}</a-button>
           <a-button type="primary" :disabled="!canWrite" @click="openCreate">新建组件</a-button>
         </a-space>
@@ -72,7 +72,7 @@
           <template #extra>
             <a-space size="4" wrap>
               <template v-if="item.manual">
-                <a-button size="small" :loading="busyId === item.row.id" @click="toggleEnabled(item)">
+                <a-button size="small" :loading="busyId === item.row.id" :disabled="busyId === item.row.id" @click="toggleEnabled(item)">
                   {{ item.row.enabled ? '停用' : '启用' }}
                 </a-button>
                 <a-button size="small" @click="openEdit(item)">改字段结构</a-button>

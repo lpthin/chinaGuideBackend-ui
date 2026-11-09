@@ -216,7 +216,7 @@ watch(includeResolved, () => void load())
     <div class="geo-opp__toolbar">
       <a-switch v-model:checked="includeResolved" size="small" />
       <span class="geo-opp__toolbar-label">把「已达成」的那几行也列出来</span>
-      <a-button size="small" :loading="loading" @click="load">刷新</a-button>
+      <a-button size="small" :loading="loading" :disabled="loading" @click="load">刷新</a-button>
     </div>
 
     <StateBlock v-if="loading && !list" state="not-measured" title="正在读这一份机会清单" />

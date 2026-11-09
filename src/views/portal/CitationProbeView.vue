@@ -12,7 +12,7 @@
       />
       <template #actions>
         <a-space>
-          <a-button :loading="loading" @click="load">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="load">刷新</a-button>
           <a-button @click="openQuestionDrawer">题库</a-button>
           <a-button type="primary" :disabled="!siteId" @click="openCreateModal">新建一轮探测</a-button>
         </a-space>
@@ -246,7 +246,7 @@
           </a-form-item>
           <template #actions>
             <a-form-item>
-              <a-button type="primary" :loading="savingQuestion" @click="saveQuestion">新增</a-button>
+              <a-button type="primary" :loading="savingQuestion" :disabled="savingQuestion" @click="saveQuestion">新增</a-button>
             </a-form-item>
           </template>
         </FilterBar>

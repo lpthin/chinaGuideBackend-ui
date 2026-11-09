@@ -37,7 +37,7 @@
 
       <template #actions>
         <a-space>
-          <a-button :loading="loading" @click="loadRows">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="loadRows">刷新</a-button>
           <a-button type="primary" :disabled="!activeKind" @click="openCreate">
             <template #icon><PlusOutlined /></template>
             新增条目
@@ -129,7 +129,7 @@
           <div class="media-slot">
             <img v-if="formMediaPreview" :src="formMediaPreview" class="showcase-thumb" />
             <a-space>
-              <a-button :loading="mediaPicking" @click="mediaModalOpen = true">从素材库选图</a-button>
+              <a-button :loading="mediaPicking" :disabled="mediaPicking" @click="mediaModalOpen = true">从素材库选图</a-button>
               <a-button v-if="form.mediaId" type="link" @click="clearMedia">清除图片</a-button>
             </a-space>
             <p v-if="mediaNote" class="media-note">{{ mediaNote }}</p>

@@ -943,7 +943,7 @@ onUnmounted(stopPolling)
             开始出方案（建 {{ brief?.candidateCount ?? '?' }} 套候选）
           </a-button>
           <a-button @click="goGallery">候选画廊：并排比较每一套</a-button>
-          <a-button :loading="loadingProgress" @click="loadProgress">刷新进度</a-button>
+          <a-button :loading="loadingProgress" :disabled="loadingProgress" @click="loadProgress">刷新进度</a-button>
         </a-space>
         <p v-if="!estimate && gateOpen" class="brief-detail__muted">
           还没有预估，确认框与「开始出方案」都是灭的：这是门禁，不是忘了做。
@@ -1132,7 +1132,7 @@ onUnmounted(stopPolling)
               raw-label="后端拒绝原文（逐字）"
             />
           </a-modal>
-          <a-button :loading="loadingDecisions" @click="loadDecisions">刷新留痕</a-button>
+          <a-button :loading="loadingDecisions" :disabled="loadingDecisions" @click="loadDecisions">刷新留痕</a-button>
         </a-space>
 
         <p v-if="!canPromote && !canRegenerate" class="brief-detail__muted">

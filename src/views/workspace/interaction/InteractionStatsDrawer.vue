@@ -7,7 +7,7 @@
     @update:open="emit('update:open', $event)"
   >
     <template #extra>
-      <a-button size="small" :loading="loading" @click="emit('reload')">刷新</a-button>
+      <a-button size="small" :loading="loading" :disabled="loading" @click="emit('reload')">刷新</a-button>
     </template>
     <a-spin :spinning="loading">
       <a-alert v-if="error" type="error" show-icon message="总账没读到" :description="error" />

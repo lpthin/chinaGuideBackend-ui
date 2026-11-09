@@ -41,7 +41,7 @@
         </a-form-item>
         <template #actions>
           <a-space wrap>
-            <a-button :loading="loadingBase" @click="loadBaseData">刷新站点与骨架</a-button>
+            <a-button :loading="loadingBase" :disabled="loadingBase" @click="loadBaseData">刷新站点与骨架</a-button>
             <a-button type="primary" :disabled="!canCreate" :loading="creating" @click="submitCreate">
               新建组装任务
             </a-button>
@@ -144,7 +144,7 @@
           >
             <a-button danger :disabled="!canRollback" :loading="rollingBack">回滚本任务应用过的页面</a-button>
           </a-popconfirm>
-          <a-button :loading="detailLoading" @click="refreshDetail">刷新产出</a-button>
+          <a-button :loading="detailLoading" :disabled="detailLoading" @click="refreshDetail">刷新产出</a-button>
         </a-space>
         <p class="assemble-job-page__muted">
           「先估算消耗」只算不调模型；「开始整站组装」会真的跑两步、{{ costOwnerShort }}，所以必须先看过预估、再亲手勾选上面那个确认框。

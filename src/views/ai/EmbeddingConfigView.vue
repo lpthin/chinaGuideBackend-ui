@@ -209,7 +209,7 @@
               placeholder="在此粘贴示例文本，查看分块效果..."
               style="margin-bottom: 16px"
             />
-            <a-button type="primary" @click="runPreview" :loading="previewLoading">
+            <a-button type="primary" @click="runPreview" :loading="previewLoading" :disabled="previewLoading">
               <EyeOutlined /> 预览分块效果
             </a-button>
 
@@ -275,7 +275,7 @@
           </template>
           <template v-if="column.key === 'actions'">
             <a-space>
-              <a-button type="link" size="small" :loading="testingId === record.id" @click="testConnection(record.id)">测试</a-button>
+              <a-button type="link" size="small" :loading="testingId === record.id" :disabled="testingId === record.id" @click="testConnection(record.id)">测试</a-button>
               <a-button type="link" size="small" @click="openConnForm(record)">编辑</a-button>
               <a-button v-if="!record.isDefault" type="link" size="small" @click="setDefaultConn(record.id)">设为默认</a-button>
               <a-popconfirm title="确定要删除此连接吗？" @confirm="deleteConn(record.id)">

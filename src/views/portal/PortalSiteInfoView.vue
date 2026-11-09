@@ -83,7 +83,7 @@
 
           <div class="toolbar-actions">
             <a-space>
-              <a-button type="primary" :loading="savingKey === ROBOTS_KEY" @click="saveRobotsChecks(field)">
+              <a-button type="primary" :loading="savingKey === ROBOTS_KEY" :disabled="savingKey === ROBOTS_KEY" @click="saveRobotsChecks(field)">
                 保存爬虫勾选
               </a-button>
               <a-button @click="toggleOverride(field)">
@@ -100,7 +100,7 @@
               style="font-family: 'Courier New', monospace"
             />
             <div class="toolbar-actions" style="margin-top: 8px">
-              <a-button type="primary" :loading="savingKey === ROBOTS_KEY" @click="saveRobotsOverride(field)">
+              <a-button type="primary" :loading="savingKey === ROBOTS_KEY" :disabled="savingKey === ROBOTS_KEY" @click="saveRobotsOverride(field)">
                 保存覆写原文
               </a-button>
             </div>
@@ -117,7 +117,7 @@
                 <a-button @click="startEdit(field)">改</a-button>
               </template>
               <template v-else>
-                <a-button type="primary" :loading="savingKey === field.key" @click="saveTextField(field)">保存</a-button>
+                <a-button type="primary" :loading="savingKey === field.key" :disabled="savingKey === field.key" @click="saveTextField(field)">保存</a-button>
                 <a-button @click="editingKey = ''">取消</a-button>
               </template>
             </a-space>

@@ -268,7 +268,7 @@
       <template #footer>
         <a-space>
           <a-button @click="metaOpen = false">取消</a-button>
-          <a-button type="primary" :loading="savingMeta" @click="saveMeta">保存页面信息</a-button>
+          <a-button type="primary" :loading="savingMeta" :disabled="savingMeta" @click="saveMeta">保存页面信息</a-button>
         </a-space>
       </template>
     </a-drawer>

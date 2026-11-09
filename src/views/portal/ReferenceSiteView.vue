@@ -14,7 +14,7 @@
       </a-form-item>
       <template #actions>
         <a-space>
-          <a-button :loading="loading" @click="reload">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="reload">刷新</a-button>
           <a-button type="primary" @click="openCreateModal">新建摄取任务</a-button>
         </a-space>
       </template>

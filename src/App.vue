@@ -16,6 +16,10 @@ import { chunkLoadNoticeVisible, reloadPageForChunkFailure } from './utils/chunk
 const route = useRoute()
 const stopConnectivity = setupConnectivity()
 onUnmounted(stopConnectivity)
+
+function reloadForNetwork(): void {
+  window.location.reload()
+}
 </script>
 
 <template>
@@ -35,7 +39,11 @@ onUnmounted(stopConnectivity)
       role="status"
       aria-live="polite"
     >
-      网络已恢复
+      <span>网络已恢复，刚才没读出来的内容可以重新加载</span>
+      <!-- 恢复后只说「恢复了」等于把下一步丢给用户（SPEC-UI-10 G-7） -->
+      <a-button type="link" size="small" class="app-network-banner__action" @click="reloadForNetwork">
+        重新加载本页
+      </a-button>
     </div>
 
     <RouteErrorBoundary :reset-key="route.fullPath">
@@ -75,6 +83,14 @@ onUnmounted(stopConnectivity)
   padding: 6px 16px;
   font-size: 13px;
   text-align: center;
+
+  &__action {
+    margin-left: 8px;
+    padding: 0;
+    height: auto;
+    font-size: 13px;
+    text-decoration: underline;
+  }
 
   &--offline {
     color: #fff;

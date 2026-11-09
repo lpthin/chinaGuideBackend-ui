@@ -229,17 +229,19 @@ for (const file of vueFiles(SRC)) {
  * workspace / portal 下的视图若直接写 `<a-table>`，或直接用 `DataTable` 却没绑 `:error`，
  * 一次 500 就会退化成空表——新加一页漏错误口必须在提交前红。
  * 确属非列表场景（例如只读排版预览）逐条登记豁免理由。
+ * 豁免带「复核到期日」，到期会被打出来（SPEC-UI-10 G-1）：豁免不该是永久的，
+ * 写死在脚本里又没人看，三个月后就没人记得为什么放过它。
  */
 const CONTRACT_EXEMPT = new Map([
   // 存量页：读失败已有独立错误面，只是没挂在 DataTable 的 :error 上。逐个登记，别再往这些文件里加新表
-  ['src/views/portal/CitationProbeView.vue', '详情三张表是同一发读取的子表，读失败在页面 alert / message 收口'],
-  ['src/views/portal/PageBuilderView.vue', '版本历史抽屉读失败走 message.error；主页面列表已绑 :error'],
-  ['src/views/portal/SiteWizardView.vue', '向导内候选/进度表读失败各有独立 a-alert；表格只展示已读到的结果'],
-  ['src/views/portal/SkeletonLibraryView.vue', '主 DataTable 已绑 :error；另一张是方案预览（本地数据）'],
-  ['src/views/workspace/ClusterPanel.vue', '建议表读失败走 message.error 与空态 unreadable，不挂表内错误块'],
-  ['src/views/workspace/DailyOutputView.vue', '留痕表是 v-else 分支，读失败由上方 a-alert（runsError）承担'],
-  ['src/views/workspace/MediaStorageView.vue', '该表展示后端账目里的错误明细（本地数据），不是远端列表'],
-  ['src/views/workspace/ArticleGeneratePanel.vue', 'Token 统计弹窗里的模型明细（本地统计），不是远端列表'],
+  ['src/views/portal/CitationProbeView.vue', { reason: '详情三张表是同一发读取的子表，读失败在页面 alert / message 收口', reviewBy: '2027-03-31' }],
+  ['src/views/portal/PageBuilderView.vue', { reason: '版本历史抽屉读失败走 message.error；主页面列表已绑 :error', reviewBy: '2027-03-31' }],
+  ['src/views/portal/SiteWizardView.vue', { reason: '向导内候选/进度表读失败各有独立 a-alert；表格只展示已读到的结果', reviewBy: '2027-03-31' }],
+  ['src/views/portal/SkeletonLibraryView.vue', { reason: '主 DataTable 已绑 :error；另一张是方案预览（本地数据）', reviewBy: '2027-03-31' }],
+  ['src/views/workspace/ClusterPanel.vue', { reason: '建议表读失败走 message.error 与空态 unreadable，不挂表内错误块', reviewBy: '2027-03-31' }],
+  ['src/views/workspace/DailyOutputView.vue', { reason: '留痕表是 v-else 分支，读失败由上方 a-alert（runsError）承担', reviewBy: '2027-03-31' }],
+  ['src/views/workspace/MediaStorageView.vue', { reason: '该表展示后端账目里的错误明细（本地数据），不是远端列表', reviewBy: '2027-03-31' }],
+  ['src/views/workspace/ArticleGeneratePanel.vue', { reason: 'Token 统计弹窗里的模型明细（本地统计），不是远端列表', reviewBy: '2027-03-31' }],
 ])
 const A_TABLE_OPEN = /<(a-table)(?=[\s/>])/g
 
@@ -277,4 +279,21 @@ if (missing.length || blocked.length || emptyLies.length || staleMisuse.length |
   console.error([...missing, ...blocked, ...emptyLies, ...staleMisuse, ...doubleToasts, ...autoRetryMisuse, ...contractViolations].join('\n'))
   process.exit(1)
 }
+
+// 存量豁免到期提醒（SPEC-UI-10 G-1）：只提醒不拦，到期当天必须有人重新判断留还是清
+const today = new Date().toISOString().slice(0, 10)
+const expired = []
+const dueSoon = []
+const soonLine = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+for (const [file, entry] of CONTRACT_EXEMPT) {
+  if (entry.reviewBy < today) expired.push(`${file}（到期 ${entry.reviewBy}）：${entry.reason}`)
+  else if (entry.reviewBy <= soonLine) dueSoon.push(`${file}（${entry.reviewBy} 到期）`)
+}
+if (expired.length) {
+  console.warn(`存量豁免已到期 ${expired.length} 条，请重新判断是补错误口还是续期：\n${expired.join('\n')}`)
+}
+if (dueSoon.length) {
+  console.warn(`存量豁免 60 天内到期 ${dueSoon.length} 条：\n${dueSoon.join('\n')}`)
+}
+
 console.log('表格状态规则通过：错误态都有重试、不会被 v-if 挡死、空态不替读失败撒谎、旧数据保留只发生在白名单页、读失败不重复弹 toast、自动重试只发生在只读白名单页、workspace/portal 视图不绕过 DataTable 错误口。')

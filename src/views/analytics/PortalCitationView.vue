@@ -9,7 +9,7 @@
         <a-range-picker v-model:value="dateRange" :allow-clear="false" @change="loadAll" />
       </a-form-item>
       <a-form-item class="toolbar-actions">
-        <a-button :loading="loading" @click="loadAll">刷新</a-button>
+        <a-button :loading="loading" :disabled="loading" @click="loadAll">刷新</a-button>
       </a-form-item>
     </a-form>
 

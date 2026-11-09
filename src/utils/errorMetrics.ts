@@ -8,10 +8,11 @@
  *    另单独记「错误 + 0 行」的风险触发数，用来看 M1 到底挡了多少次）；
  * 4. 恢复耗时 = 错误出现到错误消失的平均毫秒数。
  *
- * 会话内累计并落 sessionStorage（每标签页独立、关标签即清）：刷新一次不该把
+ * 会话内累计并落 localStorage（跨标签保留 7 天，SPEC-UI-10 G-5）：刷新一次不该把
  * 「刚发生的那一发」连同 requestId 一起抹掉（SPEC-UI-9 H4-3）。
  * 存储不可用（无痕 / 配额满）时静默降级为内存。
  */
+import { errorKindOfText } from './errorText'
 import { logInfo } from './errorLog'
 
 /** 读失败发生在哪一块；分开记是为了看「同一个读口在两种壳里各发生了几次」 */
@@ -70,8 +71,24 @@ let currentPath = ''
 let currentViewExposed = false
 
 export const ERROR_METRICS_STORAGE_KEY = '__ui_error_metrics_v1'
+/** 度量跨标签保留 7 天（SPEC-UI-10 G-5）：原来落 sessionStorage，关标签就清，看板只能当次自测 */
+const METRICS_TTL_MS = 7 * 24 * 60 * 60 * 1000
 /** 开发页与 hidden 路由不进分母：它们是治理工具，不是业务页面浏览 */
 const EXCLUDED_PREFIX = '/workspace/dev/'
+
+/** 错误类型分布的中文名（SPEC-UI-10 G-4）：看板要回答「错在哪」，不只「哪页差」 */
+const KIND_LABELS: Record<string, string> = {
+  offline: '断网',
+  timeout: '超时',
+  forbidden: '无权限',
+  unauthorized: '登录过期',
+  server: '服务异常',
+  chunk: '分包失败',
+  unknown: '其他'
+}
+
+/** 累计每种错误的次数：只在曝光时记，重试不重复计 */
+let kindCounts: Record<string, number> = {}
 
 function ratio(numerator: number, denominator: number): number {
   return denominator > 0 ? numerator / denominator : 0
@@ -108,6 +125,10 @@ interface PersistedMetrics {
   pages: Array<[string, MetricsState]>
   currentPath: string
   currentViewExposed: boolean
+  /** 落盘时间：超过 TTL 的一律丢弃，避免半年前的旧数据混进来（G-5） */
+  savedAt?: number
+  /** 错误类型分布（G-4） */
+  kinds?: Record<string, number>
 }
 
 function pickState(value: unknown): MetricsState {
@@ -122,14 +143,16 @@ function pickState(value: unknown): MetricsState {
 
 function persist(): void {
   try {
-    if (typeof sessionStorage === 'undefined') return
+    if (typeof localStorage === 'undefined') return
     const payload: PersistedMetrics = {
       global: state,
       pages: Array.from(pageStates.entries()),
       currentPath,
-      currentViewExposed
+      currentViewExposed,
+      savedAt: Date.now(),
+      kinds: kindCounts
     }
-    sessionStorage.setItem(ERROR_METRICS_STORAGE_KEY, JSON.stringify(payload))
+    localStorage.setItem(ERROR_METRICS_STORAGE_KEY, JSON.stringify(payload))
   } catch {
     // 无痕模式 / 配额满：度量静默降级为内存，不影响页面
   }
@@ -137,14 +160,23 @@ function persist(): void {
 
 function restore(): void {
   try {
-    if (typeof sessionStorage === 'undefined') return
-    const raw = sessionStorage.getItem(ERROR_METRICS_STORAGE_KEY)
+    if (typeof localStorage === 'undefined') return
+    const raw = localStorage.getItem(ERROR_METRICS_STORAGE_KEY)
     if (!raw) return
     const parsed = JSON.parse(raw) as Partial<PersistedMetrics>
+    // 超过 7 天的旧数据不当基线（G-5）：宁可从零开始，也不要拿过期样本下结论
+    if (typeof parsed.savedAt !== 'number' || Date.now() - parsed.savedAt > METRICS_TTL_MS) {
+      localStorage.removeItem(ERROR_METRICS_STORAGE_KEY)
+      return
+    }
     state = pickState(parsed.global)
     pageStates.clear()
     for (const [path, value] of parsed.pages ?? []) {
       if (typeof path === 'string') pageStates.set(path, pickState(value))
+    }
+    kindCounts = {}
+    for (const [kind, count] of Object.entries(parsed.kinds ?? {})) {
+      if (typeof count === 'number' && Number.isFinite(count) && count > 0) kindCounts[kind] = count
     }
     currentPath = typeof parsed.currentPath === 'string' ? parsed.currentPath : ''
     currentViewExposed = !!parsed.currentViewExposed
@@ -193,6 +225,8 @@ export function recordView(key: string): void {
  */
 export function recordErrorExposure(humanText: string, surface: ErrorSurface, zeroRows: boolean): void {
   state.exposures += 1
+  const kind = errorKindOfText(humanText) ?? 'unknown'
+  kindCounts[kind] = (kindCounts[kind] ?? 0) + 1
   const page = bucket(currentPath)
   page.exposures += 1
   if (!currentViewExposed) {
@@ -206,6 +240,7 @@ export function recordErrorExposure(humanText: string, surface: ErrorSurface, ze
   }
   logInfo('metrics/error_exposure', {
     surface,
+    kind,
     zeroRows,
     page: currentPath,
     text: humanText,
@@ -284,11 +319,32 @@ export function getErrorMetricsByPage(): Record<string, ErrorMetricsSnapshot> {
 export function resetErrorMetrics(): void {
   state = { ...EMPTY_STATE }
   pageStates.clear()
+  kindCounts = {}
   currentPath = ''
   currentViewExposed = false
   try {
-    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(ERROR_METRICS_STORAGE_KEY)
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(ERROR_METRICS_STORAGE_KEY)
   } catch {
     // 存储不可用：内存已经清干净
   }
+}
+
+export interface ErrorKindRow {
+  kind: string
+  label: string
+  count: number
+  /** 占全部曝光的比例；没有曝光时为 0 */
+  ratio: number
+}
+
+/**
+ * 错误类型分布（SPEC-UI-10 G-4）：看板用来回答「错在哪」，按次数倒序。
+ * 只统计曝光，不统计重试——同一发错误重试十次仍是同一错。
+ */
+export function getErrorKindBreakdown(): ErrorKindRow[] {
+  const total = Object.values(kindCounts).reduce((sum, n) => sum + n, 0)
+  return Object.entries(kindCounts)
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => ({ kind, label: KIND_LABELS[kind] ?? kind, count, ratio: ratio(count, total) }))
+    .sort((a, b) => b.count - a.count)
 }

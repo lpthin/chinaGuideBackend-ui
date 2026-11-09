@@ -40,6 +40,16 @@ watch(
 function reloadPage(): void {
   window.location.reload()
 }
+
+/** 刷新是唯一退路时，一个问题会把人卡死在这页；多给一条「回去」（SPEC-UI-10 G-6） */
+function goBack(): void {
+  if (window.history.length > 1) {
+    window.history.back()
+    return
+  }
+  // 直接开的链接没有上一页，退回工作台，别让按钮点了没反应
+  window.location.assign('/workspace')
+}
 </script>
 
 <template>
@@ -50,11 +60,14 @@ function reloadPage(): void {
         state="error"
         title="这块没加载出来"
         :detail="detail"
-        next="先点「刷新本页」；刷新后仍这样，把下面的诊断信息发给管理员。"
+        next="先点「刷新本页」；刷新后仍这样，回到上一页或工作台，把下面的诊断信息发给管理员。"
       />
-      <a-button type="primary" class="route-error-boundary__refresh" @click="reloadPage">
-        刷新本页
-      </a-button>
+      <div class="route-error-boundary__actions">
+        <a-button type="primary" class="route-error-boundary__refresh" @click="reloadPage">
+          刷新本页
+        </a-button>
+        <a-button class="route-error-boundary__back" @click="goBack">返回上一页</a-button>
+      </div>
     </div>
   </div>
 </template>
@@ -66,8 +79,15 @@ function reloadPage(): void {
     text-align: center;
   }
 
-  &__refresh {
+  &__actions {
+    display: flex;
+    gap: var(--admin-space-2, 16px);
+    justify-content: center;
     margin-top: var(--admin-space-2, 16px);
+  }
+
+  &__refresh {
+    margin-top: 0;
   }
 }
 </style>

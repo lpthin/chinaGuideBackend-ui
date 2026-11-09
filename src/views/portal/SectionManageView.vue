@@ -10,7 +10,7 @@
       </a-form-item>
       <a-form-item class="toolbar-actions">
         <a-space>
-          <a-button :loading="loading" @click="refresh">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="refresh">刷新</a-button>
         </a-space>
       </a-form-item>
     </a-form>

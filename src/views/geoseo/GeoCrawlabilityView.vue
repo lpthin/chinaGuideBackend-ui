@@ -3,7 +3,7 @@
     <PageTitle description="爬虫与 AI 引擎今天从站外实际读得到什么——六项实测，读的是配置之外的那一份">
       <template #extra>
         <a-space>
-          <a-button :loading="loading" @click="loadAll">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="loadAll">刷新</a-button>
           <a-tooltip :title="RUN_HINT">
             <a-button type="primary" :disabled="!canRun || needsTenant" :loading="running" @click="runOnce">跑一次</a-button>
           </a-tooltip>

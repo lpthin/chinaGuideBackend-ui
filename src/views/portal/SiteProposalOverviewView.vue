@@ -136,7 +136,7 @@ onBeforeUnmount(stopTimer)
         </p>
       </div>
       <a-space>
-        <a-button :loading="loading" @click="reload">刷新</a-button>
+        <a-button :loading="loading" :disabled="loading" @click="reload">刷新</a-button>
       </a-space>
     </div>
 

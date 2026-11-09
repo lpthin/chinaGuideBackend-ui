@@ -1,7 +1,7 @@
 <template>
   <div class="reference-site-page__package">
     <a-space style="margin-bottom: 12px" wrap>
-      <a-button :loading="loading" @click="emit('load')">
+      <a-button :loading="loading" :disabled="loading" @click="emit('load')">
         {{ pkg ? '重新载入模板包' : '载入模板包' }}
       </a-button>
       <span class="reference-site-page__muted">

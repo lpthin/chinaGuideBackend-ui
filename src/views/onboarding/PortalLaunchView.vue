@@ -3,7 +3,7 @@
     <template #actions>
       <a-space :size="8">
         <a-tag v-if="missingTenant" color="orange">超级管理员请先在右上角选择客户：本页没有跨客户的全局视图</a-tag>
-        <a-button type="primary" :loading="loading" @click="loadAll">刷新</a-button>
+        <a-button type="primary" :loading="loading" :disabled="loading" @click="loadAll">刷新</a-button>
       </a-space>
     </template>
 
@@ -44,7 +44,7 @@
       </a-descriptions>
       <a-space class="actions">
         <a-select v-model:value="bootstrapMode" style="width: 210px" :options="MODE_OPTIONS" />
-        <a-button :loading="acting === 'bootstrap'" @click="runBootstrap">
+        <a-button :loading="acting === 'bootstrap'" :disabled="acting === 'bootstrap'" @click="runBootstrap">
           {{ demo && hasDemoContent ? '补齐演示内容' : '生成演示门户内容' }}
         </a-button>
         <a-popconfirm

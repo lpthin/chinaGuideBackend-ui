@@ -95,7 +95,7 @@
           </a-select>
           <template #actions>
             <a-space>
-              <a-button :loading="checkingAll" @click="handleCheckAllHealth">
+              <a-button :loading="checkingAll" :disabled="checkingAll" @click="handleCheckAllHealth">
                 <template #icon><SafetyCertificateOutlined /></template>
                 立即巡检
               </a-button>
@@ -185,7 +185,7 @@
                     <PictureOutlined /> 试出一张图
                   </a-button>
                 </a-popconfirm>
-                <a-button v-else type="link" size="small" @click="testConnection(record)" :loading="testingId === record.id">
+                <a-button v-else type="link" size="small" @click="testConnection(record)" :loading="testingId === record.id" :disabled="testingId === record.id">
                   <ThunderboltOutlined /> 测试
                 </a-button>
                 <a-button type="link" size="small" @click="editConfig(record)">编辑</a-button>

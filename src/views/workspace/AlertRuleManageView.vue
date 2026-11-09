@@ -104,7 +104,7 @@
         </a-form-item>
         <template #actions>
           <a-space>
-            <a-button type="primary" :loading="loading" @click="handleSearch">
+            <a-button type="primary" :loading="loading" :disabled="loading" @click="handleSearch">
               <template #icon><SearchOutlined /></template>
               搜索
             </a-button>

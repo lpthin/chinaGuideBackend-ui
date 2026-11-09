@@ -104,7 +104,7 @@ defineExpose({ reload })
     <div class="geobrand-competitor-panel__add">
       <a-input v-model:value="newName" placeholder="竞品名" style="width: 180px" />
       <a-input v-model:value="newWordsText" placeholder="竞品词，逗号分隔" style="width: 240px" />
-      <a-button :loading="adding" @click="addCompetitor">添加</a-button>
+      <a-button :loading="adding" :disabled="adding" @click="addCompetitor">添加</a-button>
     </div>
     <DataTable
       :data-source="competitors"

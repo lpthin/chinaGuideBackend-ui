@@ -212,7 +212,7 @@ onMounted(() => {
       />
       <template #actions>
         <a-button @click="load">查询</a-button>
-        <a-button :loading="loading" @click="load">刷新</a-button>
+        <a-button :loading="loading" :disabled="loading" @click="load">刷新</a-button>
         <a-button type="primary" @click="createBrief">
           <template #icon><PlusOutlined /></template>
           新建需求单

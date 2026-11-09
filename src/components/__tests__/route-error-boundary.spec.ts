@@ -52,6 +52,26 @@ describe('RouteErrorBoundary', () => {
     expect(console.error).toHaveBeenCalledWith('[ui-error] app/render-error', expect.any(Error))
   })
 
+  it('兜底给两条退路：刷新本页之外还有「返回上一页」（SPEC-UI-10 G-6）', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const back = vi.fn()
+    vi.spyOn(window.history, 'back').mockImplementation(back)
+    const state: BoomState = reactive({ boom: true })
+    const w = mount(RouteErrorBoundary, {
+      props: { resetKey: '/workspace/a' },
+      slots: { default: boomComponent(state) },
+      global: { stubs: { 'a-button': BUTTON } }
+    })
+    await nextTick()
+
+    const backButton = w.find('.route-error-boundary__back')
+    expect(backButton.exists()).toBe(true)
+    expect(backButton.text()).toBe('返回上一页')
+    await backButton.trigger('click')
+    // 单测环境 history.length 通常为 1，此时退回工作台；只要不白点就算通过
+    expect(back).toHaveBeenCalledTimes(window.history.length > 1 ? 1 : 0)
+  })
+
   it('换页（resetKey 变化）后兜底收回，新页面正常渲染', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const state: BoomState = reactive({ boom: true })

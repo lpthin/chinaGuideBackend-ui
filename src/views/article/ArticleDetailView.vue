@@ -115,7 +115,7 @@
                   style="margin-bottom: 8px"
                 />
                 <a-space>
-                  <a-button type="primary" :loading="savingLocale" @click="saveLocale(v)">保存这一档</a-button>
+                  <a-button type="primary" :loading="savingLocale" :disabled="savingLocale" @click="saveLocale(v)">保存这一档</a-button>
                   <a-button @click="cancelEditLocale">取消</a-button>
                 </a-space>
               </template>

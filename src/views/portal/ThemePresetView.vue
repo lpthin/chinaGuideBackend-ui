@@ -4,7 +4,7 @@
     <FilterBar class="theme-preset-page__filter">
       <template #actions>
         <a-space>
-          <a-button :loading="loading" @click="load">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="load">刷新</a-button>
           <a-button v-if="canPreset" @click="openSaveSkin">把页面样式沉淀为皮肤</a-button>
           <a-button v-if="canPromote" type="primary" @click="openPromote">沉淀为平台模板</a-button>
         </a-space>

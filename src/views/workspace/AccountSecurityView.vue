@@ -68,7 +68,7 @@
 
         <template #actions>
           <a-space>
-            <a-button type="primary" :loading="currentTable.loading" @click="handleSearch">
+            <a-button type="primary" :loading="currentTable.loading" :disabled="currentTable.loading" @click="handleSearch">
               <template #icon><SearchOutlined /></template>
               查询
             </a-button>

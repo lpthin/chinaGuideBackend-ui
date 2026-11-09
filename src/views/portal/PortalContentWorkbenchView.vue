@@ -33,7 +33,7 @@
         <a-button
           class="portal-workbench__launch-refresh"
           size="small"
-          :loading="launchLoading"
+          :loading="launchLoading" :disabled="launchLoading"
           data-launch-refresh
           @click="reloadLaunch"
         >重新读取</a-button>

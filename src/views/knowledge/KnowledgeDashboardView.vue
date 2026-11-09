@@ -2,7 +2,7 @@
   <div class="knowledge-dashboard-container">
     <PageTitle description="企业知识资产管理与数据分析">
       <template #extra>
-        <a-button type="primary" :loading="loading" @click="refreshData">
+        <a-button type="primary" :loading="loading" :disabled="loading" @click="refreshData">
           <template #icon><ReloadOutlined /></template>
           刷新
         </a-button>

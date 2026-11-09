@@ -43,7 +43,7 @@
 
       <template #actions>
         <a-space wrap>
-          <a-button type="primary" :loading="loading" @click="loadRows">搜索</a-button>
+          <a-button type="primary" :loading="loading" :disabled="loading" @click="loadRows">搜索</a-button>
           <a-button @click="resetQuery">重置</a-button>
           <a-button @click="openCreate">
             <template #icon><PlusOutlined /></template>

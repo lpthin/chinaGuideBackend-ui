@@ -352,7 +352,7 @@
               <a-button 
                 type="primary" 
                 @click="startGenerateCards" 
-                :loading="cardGenerating"
+                :loading="cardGenerating" :disabled="cardGenerating"
               >
                 <template #icon><FileSearchOutlined /></template>
                 {{ cardGenerating ? '生成中...' : '生成知识卡片' }}
@@ -567,7 +567,7 @@
       <template #footer>
         <a-space>
           <a-button @click="batchCategoryModalVisible = false">取消</a-button>
-          <a-button type="primary" :loading="batchSaving" @click="handleBatchSetCategory">
+          <a-button type="primary" :loading="batchSaving" :disabled="batchSaving" @click="handleBatchSetCategory">
             确认设置
           </a-button>
         </a-space>
@@ -596,7 +596,7 @@
       <template #footer>
         <a-space>
           <a-button @click="batchTagModalVisible = false">取消</a-button>
-          <a-button type="primary" :loading="batchTagSaving" @click="handleBatchSetTags">
+          <a-button type="primary" :loading="batchTagSaving" :disabled="batchTagSaving" @click="handleBatchSetTags">
             确认设置
           </a-button>
         </a-space>

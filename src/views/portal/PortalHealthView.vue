@@ -26,7 +26,7 @@
       </template>
       <template #actions>
         <a-space>
-          <a-button :loading="loading" @click="load">刷新</a-button>
+          <a-button :loading="loading" :disabled="loading" @click="load">刷新</a-button>
           <a-popconfirm title="扫描只读页面与内容表，不会改动任何内容，确认开始？" @confirm="runScan">
             <a-button type="primary" :loading="scanning">立即巡检</a-button>
           </a-popconfirm>

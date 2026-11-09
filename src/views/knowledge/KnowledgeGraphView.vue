@@ -228,7 +228,7 @@
             </a-select>
           </a-form-item>
           <a-form-item>
-            <a-button type="primary" block @click="doExtract" :loading="extracting">
+            <a-button type="primary" block @click="doExtract" :loading="extracting" :disabled="extracting">
               开始提取
             </a-button>
           </a-form-item>

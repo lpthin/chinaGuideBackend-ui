@@ -79,7 +79,7 @@
         <!-- 后端 /billing/invoices/{id}/download 只返回一个拼出来的文件路径、不产出任何文件，
              账单/发票下载没有真实接口，故此处只保留可用的支付动作，不再放假按钮 -->
         <div class="action-buttons" v-if="invoice.status === InvoiceStatus.PENDING">
-          <a-button type="primary" size="large" :loading="paying" @click="handlePay">
+          <a-button type="primary" size="large" :loading="paying" :disabled="paying" @click="handlePay">
             立即支付
           </a-button>
         </div>

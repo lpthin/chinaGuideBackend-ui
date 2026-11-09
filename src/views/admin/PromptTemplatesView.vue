@@ -42,7 +42,7 @@
                 </button>
               </div>
             </a-spin>
-            <a-button size="small" class="prompt-page__reload" :loading="listLoading" @click="loadList">
+            <a-button size="small" class="prompt-page__reload" :loading="listLoading" :disabled="listLoading" @click="loadList">
               重新读取
             </a-button>
           </a-col>

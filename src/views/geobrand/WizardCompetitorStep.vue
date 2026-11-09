@@ -48,7 +48,7 @@ async function setEnabled(item: GeoBrandCompetitor, enabled: boolean) {
       留空＝自动发现：一个都没手填时，从上一轮引用共现的品牌里抽取；按提及频次取前 N 个，N 是平台上限。
       未勾选的不计入 SOV 分母。
     </p>
-    <a-button :loading="discovering" @click="requestDiscover">自动发现同类竞品</a-button>
+    <a-button :loading="discovering" :disabled="discovering" @click="requestDiscover">自动发现同类竞品</a-button>
 
     <div v-if="autoResult" class="geobrand-wizard-discover__result">
       <p class="geobrand-wizard-discover__counts">{{ autoDiscoverSummary(autoResult) }}</p>

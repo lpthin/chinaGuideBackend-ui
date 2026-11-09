@@ -680,7 +680,7 @@ onUnmounted(() => progressFollow.stop())
               <a-button
                 v-else
                 size="small"
-                :loading="issuingSiteId === siteIdOf(slot)"
+                :loading="issuingSiteId === siteIdOf(slot)" :disabled="issuingSiteId === siteIdOf(slot)"
                 @click="onIssueClick(slot)"
               >{{ issueLabelOf(slot) }}</a-button>
             </a-space>

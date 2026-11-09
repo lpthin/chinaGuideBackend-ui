@@ -357,7 +357,7 @@
           <div class="progress-info">
             <span>{{ progressText }}</span>
             <span>{{ Math.floor(generateProgress) }}%</span>
-            <a-button type="text" danger size="small" @click="cancelGeneration" :loading="isCanceling">取消</a-button>
+            <a-button type="text" danger size="small" @click="cancelGeneration" :loading="isCanceling" :disabled="isCanceling">取消</a-button>
           </div>
           <a-progress :percent="Math.floor(generateProgress)" status="active" :show-info="false" />
         </div>

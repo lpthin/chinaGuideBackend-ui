@@ -253,7 +253,7 @@
       <template #footer>
         <a-space>
           <a-button @click="batchCategoryModalVisible = false">取消</a-button>
-          <a-button type="primary" :loading="batchCategoryLoading" @click="handleBatchSetCategory">
+          <a-button type="primary" :loading="batchCategoryLoading" :disabled="batchCategoryLoading" @click="handleBatchSetCategory">
             确认移动
           </a-button>
         </a-space>
@@ -282,7 +282,7 @@
       <template #footer>
         <a-space>
           <a-button @click="batchTagModalVisible = false">取消</a-button>
-          <a-button type="primary" :loading="batchTagLoading" @click="handleBatchSetTags">
+          <a-button type="primary" :loading="batchTagLoading" :disabled="batchTagLoading" @click="handleBatchSetTags">
             确认设置
           </a-button>
         </a-space>
