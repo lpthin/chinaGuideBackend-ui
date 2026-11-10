@@ -205,6 +205,71 @@ async function recovered(page, timeout) {
   return { ok: false, rows: await page.locator('tbody tr').count() }
 }
 
+/**
+ * 机器人两例（SPEC-UI-11 §17.3）：首次进入说一次；本页静音后刷新不再说。
+ * 待办页有 A 类页面卡（P5 迁入），进页就会开口，且不需要额外权限码。
+ */
+const ROBOT_BUBBLE = '[data-testid="robot-bubble"]'
+const ROBOT_PAGE_PATH = '/workspace/notifications'
+
+async function openRobotPage(browser) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  if (MOCK) await installMockApi(context)
+  await login(page)
+  await page.goto(`${BASE}${ROBOT_PAGE_PATH}`, { waitUntil: 'domcontentloaded' })
+  return { context, page }
+}
+
+async function runRobotFirstVisit(browser) {
+  const started = Date.now()
+  const step = { name: '进入待办页' }
+  const session = await openRobotPage(browser)
+  try {
+    step.name = '等机器人开口'
+    const bubble = session.page.locator(ROBOT_BUBBLE)
+    await bubble.waitFor({ state: 'visible', timeout: 20000 })
+    if (!(await bubble.innerText()).trim()) throw new Error('气泡出现但没有文案')
+    return { status: 'PASS', ms: Date.now() - started, step: step.name }
+  } catch (error) {
+    return { status: 'FAIL', ms: Date.now() - started, step: step.name, error: String(error?.message || error).split('\n')[0] }
+  } finally {
+    await session.context.close().catch(() => {})
+  }
+}
+
+async function runRobotMutePage(browser) {
+  const started = Date.now()
+  const step = { name: '进入待办页' }
+  const session = await openRobotPage(browser)
+  try {
+    step.name = '等机器人开口'
+    const bubble = session.page.locator(ROBOT_BUBBLE)
+    await bubble.waitFor({ state: 'visible', timeout: 20000 })
+
+    step.name = '点「本页不再提示」'
+    await session.page.getByRole('button', { name: '本页不再提示' }).click()
+    await bubble.waitFor({ state: 'detached', timeout: 5000 })
+
+    step.name = '刷新后不再说'
+    await session.page.reload({ waitUntil: 'domcontentloaded' })
+    await sleep(4000)
+    if ((await session.page.locator(`${ROBOT_BUBBLE}:visible`).count()) > 0) {
+      throw new Error('本页已静音，刷新后仍开口')
+    }
+    return { status: 'PASS', ms: Date.now() - started, step: step.name }
+  } catch (error) {
+    return { status: 'FAIL', ms: Date.now() - started, step: step.name, error: String(error?.message || error).split('\n')[0] }
+  } finally {
+    await session.context.close().catch(() => {})
+  }
+}
+
+const ROBOT_CASES = [
+  { name: '机器人 / 首次进入说一次', run: runRobotFirstVisit },
+  { name: '机器人 / 本页静音后不再说', run: runRobotMutePage }
+]
+
 async function runCase(browser, pageConfig, mode) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await context.newPage()
@@ -277,6 +342,16 @@ async function main() {
         results.push({ page: pageConfig.name, mode: mode.name, ...result })
       }
     }
+
+    for (const robotCase of ROBOT_CASES) {
+      const result = await withTimeout(robotCase.run(browser), CASE_TIMEOUT_MS)
+      if (result.status === 'PASS') {
+        console.log(`PASS ${robotCase.name}（${(result.ms / 1000).toFixed(1)}s）`)
+      } else {
+        console.error(`FAIL ${robotCase.name} :: 步骤「${result.step}」:: ${result.error}`)
+      }
+      results.push({ page: '机器人', mode: robotCase.name, ...result })
+    }
   } finally {
     await browser.close().catch(() => {})
   }
@@ -294,7 +369,7 @@ async function main() {
     console.error(`重试矩阵有 ${failed.length}/${results.length} 例没通过，按上面的「页 / 模式 / 步骤」定位`)
     process.exit(1)
   }
-  console.log(`重试矩阵全部通过：${results.length} 例（5 页 × 断网 / 500 / 403）`)
+  console.log(`重试矩阵全部通过：${results.length} 例（5 页 × 断网 / 500 / 403 + 2 例机器人）`)
 }
 
 function withTimeout(promise, ms) {

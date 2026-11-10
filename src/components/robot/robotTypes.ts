@@ -46,6 +46,8 @@ export interface RobotNotice {
   /** 一句话，建议 ≤ 60 字；长解释放 detail，点开才看 */
   text: string
   detail?: string
+  /** 已经有文档或手册时优先指向它，`detail` 不再抄全文（§10「不另写一份」） */
+  docUrl?: string
   /** 最多两个：去看 / 知道了 */
   actions?: RobotAction[]
   once?: RobotDedupe

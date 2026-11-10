@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ROBOT_AUTO_DOWNGRADE_RATE,
   ROBOT_TELEMETRY_DAYS,
   ROBOT_TELEMETRY_KEY,
   clearRobotTelemetry,
   recordRobotTelemetry,
   robotTelemetrySummary,
+  shouldAutoDowngrade,
   type RobotTelemetryOptions
 } from '../robotTelemetry'
 
@@ -74,6 +76,14 @@ describe('本机度量只收三样', () => {
     const stored = JSON.parse(storage.map.get(ROBOT_TELEMETRY_KEY) || '[]')
     expect(stored).toHaveLength(500)
     expect(stored[0].key).toBe('k10')
+  })
+
+  it('关闭率超四成且样本够才自动降档（§15）', () => {
+    const base = { show: 20, dismiss: 8, detail: 0, action: 0, mute: 0, error: 0, total: 28 }
+    expect(shouldAutoDowngrade({ ...base, dismissRate: ROBOT_AUTO_DOWNGRADE_RATE })).toBe(true)
+    // 样本太少：头两条被关就降档会是误判
+    expect(shouldAutoDowngrade({ ...base, show: 19, dismissRate: 80 })).toBe(false)
+    expect(shouldAutoDowngrade({ ...base, dismissRate: 39 })).toBe(false)
   })
 
   it('存储坏了不抛，读到脏数据当没有', () => {

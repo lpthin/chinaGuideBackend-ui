@@ -9,6 +9,7 @@
  */
 export const ROBOT_BLOCK_INPUT = 'input'
 export const ROBOT_BLOCK_MODAL = 'modal'
+export const ROBOT_BLOCK_LOADING = 'loading'
 export const ROBOT_BLOCK_ERROR = 'error'
 
 function isVisible(element: Element): boolean {
@@ -46,6 +47,10 @@ export function robotBlockingReason(doc: Document | null): string | null {
   if (hasVisible(doc, '.ant-modal-wrap, .ant-drawer-content-wrapper')) return ROBOT_BLOCK_MODAL
   // popconfirm 与普通 popover 共用一套浮层：只拦真正打开的那种
   if (hasVisible(doc, '.ant-popover:not(.ant-popover-hidden)')) return ROBOT_BLOCK_MODAL
+  // 页面还在加载或正在提交（§5.3 第 1 条）：表格转圈、按钮 loading 都算，等落定再说
+  if (hasVisible(doc, '.ant-spin-spinning, .ant-btn-loading, [data-state="loading"]')) {
+    return ROBOT_BLOCK_LOADING
+  }
   // 页面正在显示错误块时不叠加一句解释（SPEC-UI-9 的错误块自己已经说清了下一步）
   if (hasVisible(doc, '[data-state="error"]')) return ROBOT_BLOCK_ERROR
   return null

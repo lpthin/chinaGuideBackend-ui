@@ -11,6 +11,9 @@ import type { RobotTelemetryEvent } from './robotCenter'
 
 export const ROBOT_TELEMETRY_KEY = 'robot.telemetry.v1'
 export const ROBOT_TELEMETRY_DAYS = 7
+/** 关闭率降档的两道门槛（§15）：样本太少不降，免得头两条被关就误判 */
+export const ROBOT_AUTO_DOWNGRADE_MIN_SHOWS = 20
+export const ROBOT_AUTO_DOWNGRADE_RATE = 40
 const MAX_EVENTS = 500
 const DAY_MS = 24 * 3600 * 1000
 
@@ -97,6 +100,14 @@ export function robotTelemetrySummary(options: RobotTelemetryOptions = {}): Robo
   }
   summary.dismissRate = summary.show > 0 ? Math.round((summary.dismiss / summary.show) * 100) : 0
   return summary
+}
+
+/** 关闭率超四成且展示样本够，才认为「这类话太吵」，自动降一档（§15） */
+export function shouldAutoDowngrade(summary: RobotTelemetrySummary): boolean {
+  return (
+    summary.show >= ROBOT_AUTO_DOWNGRADE_MIN_SHOWS &&
+    summary.dismissRate >= ROBOT_AUTO_DOWNGRADE_RATE
+  )
 }
 
 /** 清空本机统计：设置面板里「全部恢复」不该顺带清这个，留给排查时手动调用 */

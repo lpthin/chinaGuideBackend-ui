@@ -151,6 +151,14 @@ export const ROBOT_COPY = {
   close: '关闭这条提示',
   detailToggle: '看详细说明',
   detailCollapse: '收起说明',
+  detailDoc: '看完整说明',
+  /** 关闭率超四成时自动降一档（§15），降完说一句，不再反复打扰 */
+  autoDowngrade: {
+    text: '你最近关得有点多，我自动说少一点',
+    detail:
+      '近 7 天我说的条数不少、关掉的比例超过四成，按约定自动降了一档。' +
+      '想调回来在「设置 → 频率」里改；也可以把某一类单独关掉。'
+  },
   actionDismiss: '知道了',
   actionLater: '这条不再提示',
   actionMutePage: '本页不再提示',

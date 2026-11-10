@@ -16,7 +16,13 @@ import { ROBOT_COPY } from '../../copy/robot'
 import { robotCenter } from './robotCenter'
 import { buildRobotRollout, isRobotRolloutEnabled, resolveRobotRollout, type RobotRollout } from './robotRollout'
 import { collectRobotSignals } from './robotSignals'
-import { recordRobotTelemetry, robotTelemetrySummary, type RobotTelemetrySummary } from './robotTelemetry'
+import {
+  recordRobotTelemetry,
+  robotTelemetrySummary,
+  shouldAutoDowngrade,
+  type RobotTelemetrySummary
+} from './robotTelemetry'
+import { ROBOT_SOURCES } from './robotRegistry'
 import RobotAvatar from './RobotAvatar.vue'
 import RobotBubble from './RobotBubble.vue'
 import RobotHelpPanel from './RobotHelpPanel.vue'
@@ -114,7 +120,31 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape' && active.value) center.dismiss('user')
 }
 
+/**
+ * 关闭率超四成自动降一档并说一句（§15）。
+ * 只从「积极 / 标准」往下调，安静与关闭档不再重复降；同一账号这条回执只说一次。
+ */
+function autoDowngradeByDismissRate(): void {
+  const current = prefs.value.rate
+  if (current !== 'active' && current !== 'standard') return
+  if (!shouldAutoDowngrade(robotTelemetrySummary())) return
+  center.setRate(current === 'active' ? 'standard' : 'quiet')
+  center.announce(
+    {
+      key: 'robot.auto-downgrade',
+      category: 'system',
+      priority: 'p2',
+      text: ROBOT_COPY.autoDowngrade.text,
+      detail: ROBOT_COPY.autoDowngrade.detail,
+      once: 'ever',
+      sourceId: ROBOT_SOURCES.system
+    },
+    { ready: true }
+  )
+}
+
 onMounted(() => {
+  autoDowngradeByDismissRate()
   document.addEventListener('focusout', flush)
   document.addEventListener('click', flush)
   document.addEventListener('visibilitychange', onVisibilityChange)

@@ -40,7 +40,7 @@ const actions = computed(() => (props.notice.actions ?? []).slice(0, 2))
     <p class="robot-bubble__text">{{ notice.text }}</p>
 
     <button
-      v-if="notice.detail"
+      v-if="notice.detail || notice.docUrl"
       type="button"
       class="robot-bubble__detail-toggle"
       :aria-expanded="detailOpen"
@@ -49,6 +49,15 @@ const actions = computed(() => (props.notice.actions ?? []).slice(0, 2))
       {{ detailOpen ? ROBOT_COPY.detailCollapse : ROBOT_COPY.detailToggle }}
     </button>
     <p v-if="detailOpen && notice.detail" class="robot-bubble__detail">{{ notice.detail }}</p>
+    <a
+      v-if="detailOpen && notice.docUrl"
+      class="robot-bubble__doc"
+      :href="notice.docUrl"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {{ ROBOT_COPY.detailDoc }}
+    </a>
 
     <footer class="robot-bubble__foot">
       <div class="robot-bubble__actions">
@@ -134,6 +143,14 @@ const actions = computed(() => (props.notice.actions ?? []).slice(0, 2))
     color: var(--admin-primary, #1890ff);
     font-size: 12px;
     cursor: pointer;
+  }
+
+  &__doc {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--admin-primary, #1677ff);
+    text-decoration: underline;
   }
 
   &__detail {
