@@ -1,17 +1,13 @@
 <template>
   <div class="portal-analytics-page">
     <PageTitle />
-    <a-alert v-if="missingTenant" type="info" show-icon class="scope-alert">
+    <!--
+      两块口径的说明已搬进引导机器人（SPEC-UI-11 R-5）：首访讲一句，全文留在页头问号里。
+      留下的这一条是平台档的前置条件——它挡着读数，属于「不解释就不能读」的那一类，不交给机器人。
+    -->
+    <p v-if="missingTenant" class="scope-hint">
       访问统计按客户分开记：请先在右上角切到「客户」并选一家，再读。平台档这里不发业务请求。
-    </a-alert>
-    <a-alert type="info" show-icon class="scope-note">
-      <template #message>
-        本页两块数字口径不同，不能相加：<b>人工浏览</b>来自门户前端埋点（只有真浏览器会执行那段脚本）；
-        <b>抓取</b>由服务端按 User-Agent 识别，只能看到 /robots.txt、/sitemap.xml、/llms.txt、/llms-full.txt
-        和门户公开接口
-        ——门户页面本身由前端服务器返回，后端看不到抓页面的请求，所以它表示「抓了 SEO 文件 / 调了门户接口」，不是页面浏览量。
-      </template>
-    </a-alert>
+    </p>
 
     <a-form layout="inline" class="filter-bar">
       <a-form-item label="统计区间">
@@ -114,8 +110,11 @@ import type {
   AnalyticsTrendResult,
 } from '../../api/analytics'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 
 const authStore = useAuthStore()
+const robot = useRobotNotices()
 
 const TOP_OPTIONS = [
   { label: '前 10', value: 10 },
@@ -228,6 +227,12 @@ function handleResize(): void {
 }
 
 onMounted(() => {
+  // 口径卡与数据无关，挂载就说一句；同会话只说一次，全文靠页头问号复看
+  const card = ROBOT_PAGE_CARDS['analytics.scope']
+  robot.announce(
+    { key: 'analytics.scope', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true },
+  )
   loadAll()
   window.addEventListener('resize', handleResize)
 })
@@ -266,8 +271,11 @@ watch(() => authStore.selectedTenantId, () => loadAll())
   margin-bottom: 16px;
 }
 
-.scope-alert {
-  margin-bottom: 0;
+/* 平台档的前置条件：一行小字，不占一张告警条的版面 */
+.scope-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--admin-text-secondary, rgba(0, 0, 0, 0.55));
 }
 
 .block-hint {

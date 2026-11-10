@@ -1,13 +1,7 @@
 <template>
   <div class="skeleton-library">
     <PageTitle />
-    <a-alert type="info" show-icon class="skeleton-library__notice">
-      <template #message>
-        骨架是站点的「出生证明」：一套骨架 = 一组页面 + 导航顺序 + 默认皮肤，
-        存在平台数据里，<strong>不是写在代码里的清单</strong>。
-        这里的预览用的是访客端同一套渲染器加演示数据，不落库；把骨架实例化到站点才会真的补页面。
-      </template>
-    </a-alert>
+    <!-- 骨架是什么的口径已搬进引导机器人（SPEC-UI-11 R-5）：首访讲一句，全文留在页头问号里 -->
 
     <a-alert v-if="loadError" type="error" show-icon class="skeleton-library__notice" :message="loadError">
       <template #description>
@@ -283,6 +277,8 @@ import { message } from 'ant-design-vue'
 import PageTitle from '../../components/PageTitle.vue'
 import DataTable from '../../components/DataTable.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 import { portalPagesApi, type PortalBlockMeta } from '../../api/portalPages'
 import {
   portalSkeletonsApi,
@@ -352,6 +348,7 @@ const loading = ref(false)
 const loadError = ref('')
 const buildMetaNote = ref('')
 const keyword = ref('')
+const robot = useRobotNotices()
 
 const previewKey = ref('')
 const previewPages = ref<SkeletonPage[]>([])
@@ -727,6 +724,12 @@ async function confirmReview(skeleton: SkeletonView) {
 }
 
 onMounted(async () => {
+  // 骨架的口径与数据无关，挂载就说一句；同会话只说一次，全文靠页头问号复看
+  const card = ROBOT_PAGE_CARDS['portal.skeleton.intro']
+  robot.announce(
+    { key: 'portal.skeleton.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true },
+  )
   await Promise.all([load(), loadPending()])
 })
 </script>

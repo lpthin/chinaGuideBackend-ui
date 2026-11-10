@@ -12,9 +12,11 @@ import { onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { createSubmitGuard } from '../../utils/submitGuard'
+import { ROBOT_COPY } from '../../copy/robot'
 import { robotCenter } from './robotCenter'
 import RobotAvatar from './RobotAvatar.vue'
 import RobotBubble from './RobotBubble.vue'
+import RobotHelpPanel from './RobotHelpPanel.vue'
 import RobotSettingsPanel from './RobotSettingsPanel.vue'
 import type { RobotAction } from './robotTypes'
 
@@ -28,8 +30,15 @@ const active = center.active
 const badge = center.badge
 const settingsOpen = center.settingsOpen
 const detailOpen = center.detailOpen
+const helpEntries = center.helpEntries
 
 const failed = ref(false)
+const helpOpen = ref(false)
+/**
+ * 页头问号挂到 `WorkspaceView` 头部预留的插槽里（R-5）；
+ * 拿不到插槽（比如单独挂 Host 的场景）就退化成机器人这一摞里的一颗小按钮，不消失。
+ */
+const helpSlotReady = ref(false)
 const actionGuard = createSubmitGuard()
 
 onErrorCaptured(() => {
@@ -71,6 +80,7 @@ onMounted(() => {
   document.addEventListener('click', flush)
   document.addEventListener('visibilitychange', onVisibilityChange)
   document.addEventListener('keydown', onKeydown)
+  helpSlotReady.value = !!document.getElementById('robot-help-entry')
 })
 
 onUnmounted(() => {
@@ -86,6 +96,18 @@ function handleMuteCategory(): void {
   if (!current) return
   center.setCategory(current.category, false)
   center.dismiss('user')
+}
+
+/** 页头问号：只看说明，不打断当前这条气泡 */
+function openHelp(): void {
+  helpOpen.value = !helpOpen.value
+  if (helpOpen.value) center.openSettings(false)
+}
+
+/** 从问号那边切去设置时先收起说明，两个抽屉不叠着 */
+function openSettings(): void {
+  helpOpen.value = false
+  center.openSettings(true)
 }
 
 function handleAction(action: RobotAction): void {
@@ -104,6 +126,21 @@ function handleAction(action: RobotAction): void {
     :class="`robot-host--${prefs.position}`"
     data-testid="robot-host"
   >
+    <!-- 页头问号（R-5）：这一页的说明条删掉之后，用户复看全文的唯一常驻入口 -->
+    <Teleport to="#robot-help-entry" :disabled="!helpSlotReady">
+      <button
+        v-if="helpEntries.length"
+        type="button"
+        class="robot-host__help"
+        :aria-label="ROBOT_COPY.help.aria"
+        :aria-expanded="helpOpen"
+        data-testid="robot-help-entry"
+        @click="openHelp"
+      >
+        ?
+      </button>
+    </Teleport>
+
     <transition name="robot-pop">
       <RobotBubble
         v-if="active"
@@ -123,18 +160,19 @@ function handleAction(action: RobotAction): void {
       v-if="prefs.avatar"
       :badge="badge && !active"
       :speaking="!!active"
-      @open="center.openSettings(true)"
+      @open="openSettings"
     />
     <!--
-      本体关掉之后的兜底入口：正式方案是页头的问号（R-5），在那之前留一颗极轻的问号，
+      本体关掉之后的兜底入口：设置面板还不能从别处打开，
       否则「隐藏」就变成了不可逆——用户再也找不到地方把它打开。
+      页头问号只管看说明，不管开关，所以这两颗不是同一件事。
     -->
     <button
       v-else
       type="button"
       class="robot-host__reopen"
-      aria-label="打开引导机器人设置"
-      @click="center.openSettings(true)"
+      :aria-label="ROBOT_COPY.avatarAria"
+      @click="openSettings"
     >
       ?
     </button>
@@ -151,6 +189,12 @@ function handleAction(action: RobotAction): void {
       @restore-all="center.restoreAll()"
       @set-position="center.setPosition($event)"
       @set-avatar="center.setAvatar($event)"
+    />
+
+    <RobotHelpPanel
+      :open="helpOpen"
+      :entries="helpEntries"
+      @update:open="helpOpen = $event"
     />
   </div>
 </template>
@@ -197,6 +241,31 @@ function handleAction(action: RobotAction): void {
 .robot-host__reopen:hover {
   color: var(--admin-primary, #1890ff);
   border-color: var(--admin-primary, #1890ff);
+}
+
+/* 页头问号：常驻、极轻，不抢标题与操作按钮的位置（R-5） */
+.robot-host__help {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--admin-border-soft, #f0f0f0);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--admin-text-secondary, #8c8c8c);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.robot-host__help:hover,
+.robot-host__help[aria-expanded='true'] {
+  color: var(--admin-primary, #1890ff);
+  border-color: var(--admin-primary, #1890ff);
+}
+
+.robot-host__help:focus-visible {
+  outline: 2px solid var(--admin-primary, #1890ff);
+  outline-offset: 2px;
 }
 
 .robot-pop-enter-active {

@@ -1,15 +1,7 @@
 <template>
   <div class="media-storage">
     <PageTitle />
-    <a-alert type="info" show-icon class="media-storage__notice">
-      <template #message>
-        这一屏管三件事：<strong>新素材写到哪儿</strong>（下面那份配置，全站只有一个人能改）、
-        <strong>老素材还有多少行没跟上</strong>，以及<strong>这次要不要搬一批</strong>。
-        迁移只复制、不删本地文件——内容表里存的仍是原来的 <code>/uploads/...</code> 地址，
-        所以「搬完了」不等于「磁盘上的可以清了」。
-        会改所有客户的 <code>media</code> 行，也只有超级管理员能进，且没有自动跑的定时任务：一次点一批。
-      </template>
-    </a-alert>
+    <!-- 三件事的口径已搬进引导机器人（SPEC-UI-11 R-5）：首访讲一句，全文留在页头问号里 -->
 
     <a-card size="small" class="media-storage__card">
       <template #title>
@@ -242,6 +234,10 @@ import {
 import PageTitle from '../../components/PageTitle.vue'
 import DataTable from '../../components/DataTable.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+const robot = useRobotNotices()
 
 /**
  * 超管「素材存储」：OSS 那四个参数现在就在这屏上填，不用改 YAML、不用重启。
@@ -494,6 +490,12 @@ async function run() {
 }
 
 onMounted(() => {
+  // 三件事的口径与数据无关，挂载就说一句；同会话只说一次，全文靠页头问号复看
+  const card = ROBOT_PAGE_CARDS['media.storage.intro']
+  robot.announce(
+    { key: 'media.storage.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true },
+  )
   loadConfig()
   loadState()
 })

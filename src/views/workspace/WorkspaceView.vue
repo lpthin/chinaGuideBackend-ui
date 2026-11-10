@@ -13,6 +13,8 @@
       </div>
       <div class="header-right">
         <a-space>
+          <!-- 引导机器人的页头问号挂在这里（SPEC-UI-11 R-5）；插槽常驻，内容由 RobotHost 决定 -->
+          <span id="robot-help-entry" class="header-robot-help" />
           <TenantSwitcher v-if="auth.isSuperAdmin" />
           <a-button
             v-if="auth.isSuperAdmin"
@@ -588,6 +590,12 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 
 .header-right {
   display: flex;
+  align-items: center;
+}
+
+/* 机器人问号的插槽：按钮由 RobotHost teleport 进来，这里只保证垂直居中 */
+.header-robot-help {
+  display: inline-flex;
   align-items: center;
 }
 

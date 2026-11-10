@@ -166,6 +166,13 @@ export interface RobotCenter {
   readonly settingsOpen: Ref<boolean>
   /** 详情展开状态（气泡里「看详细说明」） */
   readonly detailOpen: Ref<boolean>
+  /**
+   * 本页已登记的「口径 / 引导」卡片，页头问号从这里取全文（R-5）。
+   *
+   * 与 `active` 的区别是：它不受频率、静音、去重影响——用户手动点开就必须看得到，
+   * 否则「关掉」就变成了不可逆（§15 风险表「用户找不到被搬走的解释」）。
+   */
+  readonly helpEntries: Ref<RobotNotice[]>
 
   /** 登录态变化：按账号重读偏好；传 null 表示登出（按 §5.4 清本机这一份） */
   attachUser(userId: number | string | null): Promise<void>
@@ -231,6 +238,7 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
   const blockedReason = ref<string | null>(null)
   const settingsOpen = ref(false)
   const detailOpen = ref(false)
+  const helpEntries = ref<RobotNotice[]>([])
 
   let userId: number | string | null = null
   let seen: RobotSeenMap = readRobotSeen(deps.storage, deps.now())
@@ -487,10 +495,28 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
     pump()
   }
 
+  /**
+   * 把「口径 / 引导」类消息登记成这一页的可复看卡片。
+   *
+   * 登记发生在静音、分类开关、去重这些闸门之前：问号是手动入口，
+   * 用户既可以把这类消息关掉，也随时能点开看全文——两者不冲突（§3 场景 4）。
+   * 任务结果与系统提醒不进这里：它们不是「这一页怎么读」。
+   */
+  function rememberHelp(notice: RobotNotice): void {
+    if (notice.category !== 'scope' && notice.category !== 'guide') return
+    const index = helpEntries.value.findIndex(item => item.key === notice.key)
+    const next = helpEntries.value.slice()
+    if (index >= 0) next[index] = notice
+    else next.push(notice)
+    next.sort((a, b) => ROBOT_PRIORITY_ORDER[a.priority] - ROBOT_PRIORITY_ORDER[b.priority])
+    helpEntries.value = next
+  }
+
   function pushNotice(input: RobotNoticeInput, options: { ready?: boolean } = {}): void {
     const notice = withSourceDefaults(input)
     if (!notice.key || !notice.text) return
     if (notice.expiresAt !== undefined && notice.expiresAt <= now()) return
+    rememberHelp(notice)
     if (!prefs.value.avatar) return
     if (!prefs.value.categories[notice.category]) return
     if (prefs.value.mutedKeys.includes(notice.key)) return
@@ -530,6 +556,8 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
     }
     active.value = null
     detailOpen.value = false
+    // 说明卡跟着页面走：换一页之后问号里不该还挂着上一页的口径
+    helpEntries.value = []
     queue = []
     held = []
     pageSpoken = 0
@@ -579,6 +607,7 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
     blockedReason,
     settingsOpen,
     detailOpen,
+    helpEntries,
 
     async attachUser(nextUserId) {
       if (nextUserId === userId) return
