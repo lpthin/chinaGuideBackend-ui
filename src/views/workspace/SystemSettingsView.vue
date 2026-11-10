@@ -1,12 +1,10 @@
 <template>
   <div class="system-settings">
     <PageTitle />
-    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
-      <template #message>
-        这里的站点信息、AI 配置与工作流配置都按客户分开存：请先在右上角切到「客户」并选一家，再读、再改。
-        平台档这里不发业务请求。
-      </template>
-    </a-alert>
+    <!-- 平台档前置条件：一行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p v-if="isPlatformMode" class="scope-hint">
+      这里的站点信息、AI 配置与工作流配置都按客户分开存：请先在右上角切到「客户」并选一家，再读、再改。平台档这里不发业务请求。
+    </p>
     <a-card :bordered="false">
       <a-tabs v-model:activeKey="activeTab" type="card">
         <!-- 站点设置 -->
@@ -585,6 +583,13 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
+/* 前置条件说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
 .system-settings {
 
   .scope-alert {

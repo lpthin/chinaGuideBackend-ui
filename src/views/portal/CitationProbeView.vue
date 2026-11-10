@@ -19,19 +19,11 @@
       </template>
     </filter-bar>
 
-    <a-alert
-      v-if="!siteId"
-      type="info"
-      show-icon
-      message="先选一个站点：探测是「拿这个品牌问题去问各家模型」，问的是某一站点的品牌与页面，不存在跨站的一轮"
-    />
-    <a-alert
-      v-else-if="vocabulary"
-      type="info"
-      show-icon
-      style="margin-bottom: 12px"
-      :message="roundNotice"
-    />
+    <!-- 前置条件与这一轮的口径：一行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p v-if="!siteId" class="scope-hint">
+      先选一个站点：探测是「拿这个品牌问题去问各家模型」，问的是某一站点的品牌与页面，不存在跨站的一轮。
+    </p>
+    <p v-else-if="vocabulary" class="scope-hint">{{ roundNotice }}</p>
 
     <state-block
       v-if="!loading && !loadError && probes.length === 0"
@@ -618,6 +610,13 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* 前置条件与这一轮的口径：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 12px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
 /* 靠右那组按钮交给 FilterBar 与 global.less 的 .toolbar-actions，这里不再抄一份 margin-left */
 .citation-page__filter-label {
   color: #595959;

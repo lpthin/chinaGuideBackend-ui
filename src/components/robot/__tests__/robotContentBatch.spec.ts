@@ -49,6 +49,20 @@ const sources = import.meta.glob(
     '../../../views/operation/CaseManageView.vue',
     '../../../views/operation/DataReportView.vue',
     '../../../views/analytics/PortalCitationView.vue',
+    '../../../views/ai/EmbeddingConfigView.vue',
+    '../../../views/ai/ModelConfigView.vue',
+    '../../../views/ai/ArticleTemplateView.vue',
+    '../../../views/billing/WalletView.vue',
+    '../../../views/billing/InvoiceView.vue',
+    '../../../views/billing/OrdersView.vue',
+    '../../../views/workspace/SystemSettingsView.vue',
+    '../../../views/workspace/AccountSecurityView.vue',
+    '../../../views/workspace/AlertChannelView.vue',
+    '../../../views/workspace/AlertRuleManageView.vue',
+    '../../../views/admin/PromptTemplatesView.vue',
+    '../../../views/admin/CustomerManageView.vue',
+    '../../../views/portal/CitationProbeView.vue',
+    '../../../views/portal/builder/SiteThemePanel.vue',
     '../../../copy/robot.ts'
   ],
   { query: '?raw', import: 'default', eager: true }
@@ -210,4 +224,49 @@ describe('第三批「运营与互动」B 类提示条已处置', () => {
   it('互动页的 AI 补评论披露仍留在首屏（合规那句话不搬走）', () => {
     expect(source('workspace/InteractionView.vue')).toContain('interaction-disclosure')
   })
+})
+
+/** 第四批：平台共用口径迁进机器人 */
+const ROBOT_PAGES_4: Array<{ file: string; key: string; oldText: string }> = [
+  { file: 'ai/EmbeddingConfigView.vue', key: 'ai.embedding.pool', oldText: '这一页管的是平台自己那一套向量化配置' },
+  { file: 'ai/ModelConfigView.vue', key: 'ai.models.pool', oldText: '这一页管的是平台自己那一套模型' }
+]
+
+/** 第四批：系统与计费里改成一行内联小字的页面 */
+const INLINE_PAGES_4 = [
+  'billing/WalletView.vue',
+  'billing/InvoiceView.vue',
+  'billing/OrdersView.vue',
+  'ai/ArticleTemplateView.vue',
+  'workspace/SystemSettingsView.vue',
+  'workspace/AccountSecurityView.vue',
+  'workspace/AlertChannelView.vue',
+  'workspace/AlertRuleManageView.vue',
+  'admin/PromptTemplatesView.vue',
+  'admin/CustomerManageView.vue',
+  'portal/CitationProbeView.vue',
+  'portal/builder/SiteThemePanel.vue'
+]
+
+describe('第四批「系统与计费」A/B 类提示条已处置', () => {
+  for (const { file, key, oldText } of ROBOT_PAGES_4) {
+    it(`${file}：平台共用口径已交给机器人，页面里不再留原文`, () => {
+      const text = source(file)
+
+      expect(text).toContain(`ROBOT_PAGE_CARDS['${key}']`)
+      expect(text).not.toContain(oldText)
+    })
+  }
+
+  it('第四批的卡片都写在 copy/robot.ts 一处', () => {
+    const copy = source('copy/robot.ts')
+
+    for (const { key } of ROBOT_PAGES_4) expect(copy).toContain(`'${key}'`)
+  })
+
+  for (const file of INLINE_PAGES_4) {
+    it(`${file}：前置条件与筛选口径是内联小字`, () => {
+      expect(source(file)).toContain('class="scope-hint"')
+    })
+  }
 })

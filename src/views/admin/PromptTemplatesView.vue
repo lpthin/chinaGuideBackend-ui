@@ -48,9 +48,10 @@
           </a-col>
 
           <a-col :xs="24" :md="15" :lg="17">
-            <a-alert v-if="!activePurpose" type="info" show-icon>
-              <template #message>左栏点一份，右边才去读它那份的正文（进这一页只发列表那一条 GET）。</template>
-            </a-alert>
+            <!-- 空选态说明只占一行灰字，不占色块（SPEC-UI-11 B 类） -->
+            <p v-if="!activePurpose" class="scope-hint">
+              左栏点一份，右边才去读它那份的正文（进这一页只发列表那一条 GET）。
+            </p>
 
             <a-spin v-else :spinning="detailLoading">
               <a-alert v-if="detailError" type="error" show-icon>
@@ -396,6 +397,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 空选态说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
 .prompt-page__lead {
   margin-bottom: 12px;
 }

@@ -1,14 +1,7 @@
 <template>
   <div class="embedding-config-page">
     <PageTitle />
-    <!-- 这一套归谁：2026-11-01 拍板取消客户维度（M-P102），切客户不再影响这一屏 -->
-    <a-alert
-      class="pool-alert"
-      type="info"
-      show-icon
-      message="这一页管的是平台自己那一套向量化配置，所有客户共用；右上角切客户对这一页没有作用。"
-      description="这里改分块参数、Embedding 模型或向量库连接，所有客户知识库的切分与检索都会跟着变。下面那两个数字是全部客户的合计。"
-    />
+    <!-- 「这一套归谁」的口径已搬进引导机器人（SPEC-UI-11 R-6）：首访说一句，全文在页头问号里 -->
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -98,13 +91,10 @@
                 </a-select>
               </a-form-item>
 
-              <a-alert
-                v-if="form.chunkStrategy === 'semantic'"
-                message="语义分块说明"
-                description="将根据语义相似度智能分割文档，保留语义完整性，可能产生非固定大小的分块。推荐用于知识库问答场景。"
-                type="info"
-                show-icon
-              />
+              <!-- 语义分块这一档的说明只占一行灰字，不占色块（SPEC-UI-11 B 类） -->
+              <p v-if="form.chunkStrategy === 'semantic'" class="scope-hint">
+                语义分块按语义相似度切，保留语义完整性，分块大小不固定；推荐用于知识库问答场景。
+              </p>
             </a-form>
           </a-card>
 
@@ -388,6 +378,11 @@ import { logError } from '../../utils/errorLog'
 import { createSubmitGuard } from '../../utils/submitGuard'
 import DataTable from '../../components/DataTable.vue'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 // M-P102（2026-11-01 拍板）：向量化配置并成平台一份，这一屏不再问「在看哪一家客户」。
 // 后端那三支口也不再收 tenantId，请求里带着只是一个不起作用的数。
@@ -697,10 +692,26 @@ async function runPreview() {
   }
 }
 
-onMounted(loadAll)
+onMounted(() => {
+  // 平台共用口径与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['ai.embedding.pool']
+  robot.announce(
+    { key: 'ai.embedding.pool', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
+  void loadAll()
+})
 </script>
 
 <style scoped lang="less">
+/* 字段说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .embedding-config-page {
   width: 100%;
   padding-bottom: 80px;

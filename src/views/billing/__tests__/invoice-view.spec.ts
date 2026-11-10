@@ -467,8 +467,8 @@ describe('超管没选定客户（M-P105）：一发请求都不发，也不许�
     auth.store.selectedTenantId = null
     const wrapper = await mountView()
 
-    expect(wrapper.find('.scope-alert').text()).toContain('没有选定客户')
-    expect(wrapper.find('.scope-alert').text()).toContain('请在右上角选一家客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('请在右上角选一家客户')
     const empty = wrapper.find('.empty-line').text()
     expect(empty).toContain('没发出去')
     expect(empty).toContain('不是「这一家没有账单」')
@@ -493,6 +493,6 @@ describe('超管没选定客户（M-P105）：一发请求都不发，也不许�
     expect(invoiceApi.list).toHaveBeenCalledTimes(1)
     expect(vi.mocked(invoiceApi.list).mock.calls[0][0]).toMatchObject({ tenantId: 558 })
     expect(invoiceApi.statistics).toHaveBeenCalledWith({ tenantId: 558 })
-    expect(wrapper.find('.scope-alert').exists()).toBe(false)
+    expect(wrapper.find('.scope-hint').exists()).toBe(false)
   })
 })

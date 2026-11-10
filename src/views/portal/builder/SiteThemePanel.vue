@@ -4,12 +4,10 @@
       <span class="site-theme__muted">{{ fields.length }} 个样式变量</span>
     </template>
 
-    <a-alert
-      type="info"
-      show-icon
-      message="改一次，全站生效：这一份是整站的样式源，不用重新生成"
-      :description="notice"
-    />
+    <!-- 样式源口径只占一行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p class="scope-hint">
+      改一次，全站生效：这一份是整站的样式源，不用重新生成<template v-if="notice">（{{ notice }}）</template>
+    </p>
 
     <p v-if="!siteId" class="site-theme__muted">先在上方选一个站点：站级主题是挂在站点上的，「全部站点」这一档没有可改的对象。</p>
     <template v-else>
@@ -222,6 +220,14 @@ async function apply(call: () => Promise<unknown>, success: string) {
 </script>
 
 <style scoped lang="less">
+/* 样式源口径：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 12px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .site-theme {
   &__muted {
     font-size: 12px;

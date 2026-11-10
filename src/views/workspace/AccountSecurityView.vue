@@ -20,13 +20,12 @@
         后端那两口把「全部客户」当一档真值发（`tenantScope=all`），要是让请求头替它收窄，
         选「全部客户」却只回一家，就是 M-P101／M-P105 那一族「没选客户仍查第一家」的形状。
       -->
-      <a-alert
-        type="info"
-        show-icon
-        message="这一屏按下面这个客户下拉筛，和右上角切换当前客户无关"
-        description="「全部客户」是所有客户混着看；「归属未知」是那些没挂上任何一家的留痕（已注销或库里认不出的客户号也只能在这种档里看见）。"
-        style="margin-bottom: 16px"
-      />
+      <!-- 筛选口径只占两行灰字，不占色块（SPEC-UI-11 B 类） -->
+      <p class="scope-hint">
+        这一屏按下面这个客户下拉筛，和右上角切换当前客户无关。
+        「全部客户」是所有客户混着看；「归属未知」是那些没挂上任何一家的留痕
+        （已注销或库里认不出的客户号也只能在这种档里看见）。
+      </p>
 
       <filter-bar>
         <a-select
@@ -432,6 +431,14 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
+/* 筛选口径说明：多行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .account-security {
   .user-agent {
     display: inline-block;

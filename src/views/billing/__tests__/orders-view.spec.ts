@@ -174,7 +174,7 @@ describe('超管没选客户时这一屏一口不发', () => {
 
     expect(orderApi.list).not.toHaveBeenCalled()
     expect(statValues(wrapper)).toEqual(['—', '—', '—', '—'])
-    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('当前没有选定客户')
     const exportButton = wrapper.findAll('button').find(node => node.text().includes('导出'))
     expect(exportButton, '筛选栏里要有「导出」按钮').toBeTruthy()
     expect(exportButton!.attributes('disabled')).toBeDefined()
@@ -185,7 +185,7 @@ describe('超管没选客户时这一屏一口不发', () => {
 
     expect(orderApi.list).toHaveBeenCalledTimes(1)
     expect(lastListParams().tenantId).toBe(558)
-    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(wrapper.find('.scope-hint').exists()).toBe(false)
   })
 })
 

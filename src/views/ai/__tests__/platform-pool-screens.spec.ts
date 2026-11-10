@@ -5,6 +5,7 @@ import ModelConfigView from '../ModelConfigView.vue'
 import EmbeddingConfigView from '../EmbeddingConfigView.vue'
 import { embeddingConfigApi, modelConfigApi, vectorDbApi } from '../../../api/ai-model'
 import { useAuthStore } from '../../../stores/auth'
+import { ROBOT_PAGE_CARDS } from '../../../copy/robot'
 import type { ModelConfig } from '../../../types/ai-model'
 
 /**
@@ -176,8 +177,9 @@ describe('模型配置屏 · 平台一套，没有「哪一家客户」', () => 
     await mount(ModelConfigView, mountOptions())
     await flushPromises()
 
-    const shown = alertTexts().join('')
-    expect(shown).toContain('这一页管的是平台自己那一套模型，所有客户共用')
+    // 「这一套归谁」已交给页头机器人（copy/robot.ts），屏上不再留常驻色块
+    const shown = ROBOT_PAGE_CARDS['ai.models.pool'].text + ROBOT_PAGE_CARDS['ai.models.pool'].detail
+    expect(shown).toContain('平台共用一套模型')
     expect(shown).toContain('右上角切客户对这一页没有作用')
     // 用量那一屏才是按家数的，指过去，别让人在这一格里找
     expect(shown).toContain('某一家客户用了多少')
@@ -232,8 +234,9 @@ describe('向量化配置屏 · 平台一份，两个数字是全部客户合计
 
     expect(statValueOfCard('已向量化文档（全部客户合计）')).toBe('1234')
     expect(statValueOfCard('向量分片数（全部客户合计）')).toBe('5678')
-    const shown = alertTexts().join('')
-    expect(shown).toContain('这一页管的是平台自己那一套向量化配置，所有客户共用')
+    // 「这一套归谁」已交给页头机器人（copy/robot.ts），屏上不再留常驻色块
+    const shown = ROBOT_PAGE_CARDS['ai.embedding.pool'].text + ROBOT_PAGE_CARDS['ai.embedding.pool'].detail
+    expect(shown).toContain('平台共用一套向量化配置')
     expect(shown).toContain('右上角切客户对这一页没有作用')
   })
 

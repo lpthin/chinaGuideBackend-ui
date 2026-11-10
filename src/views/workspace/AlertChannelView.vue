@@ -5,15 +5,11 @@
         <h3>通知渠道配置</h3>
       </template>
 
-      <!-- 超管没选客户时这一页是所有客户混着看：读没问题，但新建没有落脚的归属 -->
-      <a-alert
-        v-if="isPlatformMode"
-        type="info"
-        show-icon
-        message="当前没有选定客户，这一页是所有客户的渠道混在一起"
-        description="新增渠道要先在右上角选一家客户；编辑、设为默认、删除按表里那一行自己的归属执行，不受影响。"
-        style="margin-bottom: 16px"
-      />
+      <!-- 平台档：读没问题，但新建没有落脚的归属；一行灰字说清（SPEC-UI-11 B 类） -->
+      <p v-if="isPlatformMode" class="scope-hint">
+        当前没有选定客户，这一页是所有客户的渠道混在一起。新增渠道要先在右上角选一家客户；
+        编辑、设为默认、删除按表里那一行自己的归属执行，不受影响。
+      </p>
 
       <!-- 「新增渠道」原来孤零零靠左、右边空着；动作改走 FilterBar 的 #actions 槽贴右 -->
       <filter-bar>
@@ -623,6 +619,13 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
+/* 前置条件说明：多行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
 .alert-channel {
 
   h3 {

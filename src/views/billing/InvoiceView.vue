@@ -1,13 +1,8 @@
 <template>
   <div class="invoice-view-page">
     <PageTitle />
-    <a-alert
-      v-if="requestedTenantId === null"
-      class="scope-alert"
-      type="info"
-      show-icon
-      :message="scopeNotice"
-    />
+    <!-- 前置条件：一行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p v-if="requestedTenantId === null" class="scope-hint">{{ scopeNotice }}</p>
     <a-spin :spinning="loading">
       <!-- 开票统计 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
@@ -559,6 +554,14 @@ onMounted(async () => {
 
 .scope-alert {
   margin-bottom: 16px;
+}
+
+/* 前置条件：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .stat-card {

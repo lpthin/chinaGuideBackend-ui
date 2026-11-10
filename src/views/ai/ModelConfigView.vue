@@ -1,15 +1,7 @@
 <template>
   <div class="model-config-page">
     <PageTitle />
-    <!-- 这一套归谁：2026-11-01 拍板取消客户维度（M-P102）。改前右上角一切客户这一屏就空了，
-         而真在用的那 5 台一个字看不到（取证 scratch/mp102-logs/11-ui-before.txt U2） -->
-    <a-alert
-      class="pool-alert"
-      type="info"
-      show-icon
-      message="这一页管的是平台自己那一套模型，所有客户共用；右上角切客户对这一页没有作用。"
-      description="这里停用或新增一台，全站的文章生成、页面巡检、向量化都会跟着变。某一家客户用了多少，去看「用量监控」那一页。"
-    />
+    <!-- 「这一套归谁」的口径已搬进引导机器人（SPEC-UI-11 R-6）：首访说一句，全文在页头问号里 -->
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -384,6 +376,11 @@ import { createSubmitGuard } from '../../utils/submitGuard'
 import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 // M-P102（2026-11-01 拍板）：这一屏不再问「在看哪一家客户」。模型池归平台一套、所有客户共用，
 // 后端那一发查询也只认平台那一家，请求里再带 tenantId 已经没有任何作用。
@@ -978,7 +975,13 @@ async function loadPurposeScopeOptions() {
   }
 }
 
+// 平台共用口径与这一屏的数据无关，挂载说一句；同会话只说一次
 onMounted(() => {
+  const card = ROBOT_PAGE_CARDS['ai.models.pool']
+  robot.announce(
+    { key: 'ai.models.pool', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   loadData()
   loadPurposeScopeOptions()
 })

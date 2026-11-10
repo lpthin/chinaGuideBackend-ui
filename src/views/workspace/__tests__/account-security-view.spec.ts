@@ -331,7 +331,7 @@ describe('AccountSecurityView 的标签与客户档位', () => {
   it('屏内这个下拉与右上角切换客户无关，界面上就把这句说明白', async () => {
     const wrapper = await mountView()
 
-    expect(wrapper.find('.alert-stub').text()).toContain('这一屏按下面这个客户下拉筛，和右上角切换当前客户无关')
+    expect(wrapper.find('.scope-hint').text()).toContain('这一屏按下面这个客户下拉筛，和右上角切换当前客户无关')
   })
 })
 

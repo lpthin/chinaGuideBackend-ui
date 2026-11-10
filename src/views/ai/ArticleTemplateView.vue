@@ -1,7 +1,8 @@
 <template>
   <div class="article-template-page">
     <PageTitle />
-    <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
+    <!-- 前置条件：一行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p class="scope-hint">{{ scopeNotice }}</p>
     <a-row :gutter="16" style="margin-bottom: 16px">
       <a-col :span="6">
         <a-card class="stat-card" hoverable>
@@ -668,6 +669,14 @@ onMounted(() => {
 
 .scope-alert {
   margin-bottom: 12px;
+}
+
+/* 前置条件：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 12px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .card-header {

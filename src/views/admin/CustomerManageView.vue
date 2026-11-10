@@ -2,7 +2,8 @@
   <div class="customer-manage-page">
     <PageTitle />
     <a-spin :spinning="loading">
-      <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
+      <!-- 前置条件：一行灰字，不占色块（SPEC-UI-11 B 类） -->
+      <p class="scope-hint">{{ scopeNotice }}</p>
       <!-- 客户统计卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -549,6 +550,14 @@ onMounted(() => {
 
 .scope-alert {
   margin-bottom: 12px;
+}
+
+/* 前置条件：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 12px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .stat-card {

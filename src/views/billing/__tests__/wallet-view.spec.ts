@@ -361,7 +361,7 @@ describe('超管没选客户时这一屏一口不发', () => {
     expect(walletApi.getInfo).not.toHaveBeenCalled()
     expect(walletApi.getTransactions).not.toHaveBeenCalled()
     expect(stats(wrapper)).toEqual(['—', '—', '—', '—'])
-    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('当前没有选定客户')
 
     const exportButton = wrapper.findAll('button').find(node => node.text().includes('导出明细'))
     expect(exportButton, '筛选栏里要有「导出明细」按钮').toBeTruthy()
@@ -376,7 +376,7 @@ describe('超管没选客户时这一屏一口不发', () => {
 
     expect(walletApi.getInfo).toHaveBeenCalledWith(15)
     expect(lastListParams()).toMatchObject({ tenantId: 15 })
-    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(wrapper.find('.scope-hint').exists()).toBe(false)
   })
 })
 
