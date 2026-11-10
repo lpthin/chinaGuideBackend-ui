@@ -1,13 +1,8 @@
 <template>
   <div class="case-manage-page">
     <PageTitle />
-    <a-alert
-      v-if="requestedTenantId === null"
-      class="scope-alert"
-      type="info"
-      show-icon
-      :message="scopeNotice"
-    />
+    <!-- 没选定客户：这一屏的统计与案例都按客户记，前置条件只占一行灰字（SPEC-UI-11 B 类） -->
+    <p v-if="requestedTenantId === null" class="scope-hint">{{ scopeNotice }}</p>
     <a-spin :spinning="loading">
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
@@ -736,6 +731,14 @@ onMounted(() => {
 
 .scope-alert {
   margin-bottom: 16px;
+}
+
+/* 前置条件说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .stat-card {

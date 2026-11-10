@@ -10,12 +10,11 @@
       </template>
     </PageTitle>
 
-    <!-- 互动配置、总账、待审队列与排产计划都按客户分开：平台档（超管没选客户）不发请求、写口全灰 -->
-    <a-alert v-if="isPlatformMode" class="scope-alert" type="info" show-icon>
-      <template #message>
-        互动设置、互动总账、待审评论与排产计划都按客户分开：请先在右上角切到「客户」并选一家，再读、再改。平台档这里不发业务请求。
-      </template>
-    </a-alert>
+    <!-- 互动配置、总账、待审队列与排产计划都按客户分开：平台档（超管没选客户）不发请求、写口全灰。
+         前置条件改成一行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p v-if="isPlatformMode" class="scope-hint">
+      互动设置、互动总账、待审评论与排产计划都按客户分开：请先在右上角切到「客户」并选一家，再读、再改。平台档这里不发业务请求。
+    </p>
 
     <!-- 十格总账收进抽屉之后，首屏至少留这一格：它是「等我处理」里只数读者写的那一个数。
          旁边那句「只数读者写的」必须写出来——下面队列那一行数的是全部评论，两个数天生不一样。 -->
@@ -652,6 +651,14 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--admin-space-2);
+}
+
+/* 前置条件说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin: 0;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 /* 页头留的那一格：只占一行，不做成一张卡（十格全账在抽屉里） */

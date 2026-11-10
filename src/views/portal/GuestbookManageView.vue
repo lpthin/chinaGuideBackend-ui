@@ -13,8 +13,9 @@
       :count-line="countLine"
     >
       <template #notice>
-        <!-- 这一屏属于哪一家：改前超管没选客户时，界面拿 auth.tenantId 兜底偷偷去问 1 号（M-P100 现测 (b)） -->
-        <a-alert v-if="scopeNotice" class="scope-alert" type="info" show-icon :message="scopeNotice" />
+        <!-- 这一屏属于哪一家：改前超管没选客户时，界面拿 auth.tenantId 兜底偷偷去问 1 号（M-P100 现测 (b)）
+             前置条件改成一行灰字，不占色块（SPEC-UI-11 B 类） -->
+        <p v-if="scopeNotice" class="scope-hint">{{ scopeNotice }}</p>
         <a-alert
           v-if="statsState === 'failed'"
           class="scope-alert"
@@ -483,6 +484,14 @@ onMounted(() => {
 
 .scope-alert {
   margin-bottom: var(--admin-space-1);
+}
+
+/* 前置条件与清单说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: var(--admin-space-1);
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .message-content {

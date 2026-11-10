@@ -13,13 +13,10 @@
       </a-form-item>
     </a-form>
 
-    <a-alert
-      v-if="summary && summary.probeCount === 0"
-      type="info"
-      show-icon
-      style="margin-bottom: 12px"
-      :message="summary.lastProbeNotice || '这个区间还没有跑过品牌引用探测：引用数为 0 表示「没查过」，不是「没人提」。'"
-    />
+    <!-- 「没查过」不等于「没人提」：空区间口径只占一行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p v-if="summary && summary.probeCount === 0" class="scope-hint">
+      {{ summary.lastProbeNotice || '这个区间还没有跑过品牌引用探测：引用数为 0 表示「没查过」，不是「没人提」。' }}
+    </p>
 
     <!-- 窄屏验收（Spec-F §9 移动 375）：这份汇总原来是写死的 4 列，375px 下整张表被撑到 456px、
          而 a-descriptions 外层没有滚动条 ⇒ 后面几格的数字在手机上根本看不见。
@@ -331,6 +328,14 @@ async function initPage(): Promise<void> {
 </script>
 
 <style scoped>
+/* 空区间口径：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 12px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .portal-citation-page__filter {
   margin-bottom: 12px;
 }

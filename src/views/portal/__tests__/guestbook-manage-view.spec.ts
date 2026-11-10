@@ -184,7 +184,7 @@ function errorBlockText(): string {
 }
 
 function alertTexts(wrapper: Awaited<ReturnType<typeof mountView>>): string {
-  return wrapper.findAll('.alert-msg').map(node => node.text()).join(' | ')
+  return wrapper.findAll('.alert-msg, .scope-hint').map(node => node.text()).join(' | ')
 }
 
 function tagsByText(text: string) {

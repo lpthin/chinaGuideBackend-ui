@@ -526,7 +526,7 @@ describe('超管没选客户时这一屏一口不发', () => {
     expect(customerCaseApi.list).not.toHaveBeenCalled()
     expect(customerCaseApi.statistics).not.toHaveBeenCalled()
     expect(wrapper.findAll('.stat-value').map((node: any) => node.text())).toEqual(['—', '—', '—'])
-    expect(wrapper.find('.AAlert-stub').text()).toContain('当前没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('当前没有选定客户')
 
     const addButton = wrapper.findAll('button').find((node: any) => node.text().includes('新建案例'))
     expect(addButton, '筛选栏里要有「新建案例」按钮').toBeTruthy()

@@ -44,6 +44,11 @@ const sources = import.meta.glob(
     '../../../views/portal/reference/ReferenceMappingsTab.vue',
     '../../../views/portal/reference/ReferenceUnmatchedTab.vue',
     '@/components/SiteDomainWizard.vue',
+    '../../../views/portal/GuestbookManageView.vue',
+    '../../../views/workspace/InteractionView.vue',
+    '../../../views/operation/CaseManageView.vue',
+    '../../../views/operation/DataReportView.vue',
+    '../../../views/analytics/PortalCitationView.vue',
     '../../../copy/robot.ts'
   ],
   { query: '?raw', import: 'default', eager: true }
@@ -181,4 +186,28 @@ describe('第二批「站点与建设」A/B 类提示条已处置', () => {
       expect(text).toContain('scope-hint')
     })
   }
+})
+
+/** 第三批：运营与互动的「先选客户」类前置条件 */
+const INLINE_PAGES_3 = [
+  'portal/GuestbookManageView.vue',
+  'workspace/InteractionView.vue',
+  'operation/CaseManageView.vue',
+  'operation/DataReportView.vue',
+  'analytics/PortalCitationView.vue'
+]
+
+describe('第三批「运营与互动」B 类提示条已处置', () => {
+  for (const file of INLINE_PAGES_3) {
+    it(`${file}：前置条件与空区间口径是内联小字`, () => {
+      const text = source(file)
+
+      expect(text).toContain('class="scope-hint"')
+      expect(text).not.toContain('class="scope-alert" type="info"')
+    })
+  }
+
+  it('互动页的 AI 补评论披露仍留在首屏（合规那句话不搬走）', () => {
+    expect(source('workspace/InteractionView.vue')).toContain('interaction-disclosure')
+  })
 })

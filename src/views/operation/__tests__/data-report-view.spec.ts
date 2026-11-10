@@ -356,7 +356,7 @@ describe('谁的租户：超管没选客户就一口不发，普通管理员按�
     expect(vi.mocked(operationApi.getDeviceDistribution)).not.toHaveBeenCalled()
 
     expect(wrapper.findAll('.stat-value').map(node => node.text())).toEqual(['—', '—', '—', '—'])
-    expect(wrapper.find('.alert-msg').text()).toContain('当前没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('当前没有选定客户')
 
     const exportButton = wrapper.findAll('button').find(node => node.text().includes('导出报表'))
     expect(exportButton, '「导出报表」按钮要在页面上').toBeTruthy()

@@ -2,14 +2,10 @@
   <div class="data-report-page">
     <PageTitle />
     <a-spin :spinning="loading">
-      <a-alert
-        v-if="requestedTenantId === null"
-        type="info"
-        show-icon
-        style="margin-bottom: 16px"
-        message="当前没有选定客户"
-        description="这一屏的报表按客户分开记。请在右上角选一家客户，再回来看；现在不会去读任何一家的数。"
-      />
+      <!-- 报表按客户分开记：没选客户时前置条件只占一行灰字（SPEC-UI-11 B 类） -->
+      <p v-if="requestedTenantId === null" class="scope-hint">
+        当前没有选定客户：这一屏的报表按客户分开记，请在右上角选一家客户再回来看，现在不会去读任何一家的数。
+      </p>
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="6">
           <a-card class="stat-card" hoverable>
@@ -716,6 +712,14 @@ onMounted(() => {
 </script>
 
 <style scoped lang="less">
+/* 前置条件说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .data-report-page {
   width: 100%;
 }
