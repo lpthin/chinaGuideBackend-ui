@@ -1,14 +1,7 @@
 <template>
   <div class="notification-inbox">
     <PageTitle />
-    <a-alert type="info" show-icon class="notification-inbox__notice">
-      <template #message>
-        这里是站内待办：巡检闭环（跑一轮之后写进来的那一条）与公开页留资都会落到这一张表。
-        列表按登录态过滤——超级管理员没选客户时看到全平台的，客户账号只看到自己那一份。
-        「类型」那一列显示的是后端写入时用的类型码，<strong>中文说法在标题与内容里</strong>：
-        这一页不维护第二份类型字典，后端哪天改了名，这里不会指着旧名字说瞎话。
-      </template>
-    </a-alert>
+    <!-- 页面口径已搬进机器人（SPEC-UI-11 R-7）：首访说一句，页头问号可复看全文 -->
 
     <!-- 筛选靠左、动作靠右由 FilterBar 一处定（Spec-UI-2 规则 3）：不再手写 a-form inline + toolbar-actions -->
     <FilterBar class="notification-inbox__toolbar">
@@ -86,6 +79,8 @@ import {
   type EmptyReason
 } from '../../utils/emptyPage'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 
 /**
  * 超管待办（Spec §13.3-6 的最后一公里）。
@@ -229,17 +224,29 @@ async function readAll() {
   }
 }
 
-onMounted(() => reload())
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-7）
+const robot = useRobotNotices()
+
+onMounted(() => {
+  void reload()
+  const card = ROBOT_PAGE_CARDS['workspace.notifications.intro']
+  robot.announce(
+    {
+      key: 'workspace.notifications.intro',
+      category: 'scope',
+      text: card.text,
+      detail: card.detail,
+      once: 'session'
+    },
+    { ready: true }
+  )
+})
 </script>
 
 <style scoped lang="less">
 .notification-inbox {
   /* 留白归外壳（.workspace-area 一处 32，Spec-UI-1）：页面不再自写 padding */
   padding: 0;
-
-  &__notice {
-    margin-bottom: 12px;
-  }
 
   &__toolbar {
     margin-bottom: 12px;

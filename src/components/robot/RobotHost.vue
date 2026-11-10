@@ -14,6 +14,7 @@ import { useAuthStore } from '../../stores/auth'
 import { createSubmitGuard } from '../../utils/submitGuard'
 import { ROBOT_COPY } from '../../copy/robot'
 import { robotCenter } from './robotCenter'
+import { collectRobotSignals } from './robotSignals'
 import RobotAvatar from './RobotAvatar.vue'
 import RobotBubble from './RobotBubble.vue'
 import RobotHelpPanel from './RobotHelpPanel.vue'
@@ -52,6 +53,23 @@ watch(
   () => auth.user?.id ?? null,
   id => {
     void center.attachUser(id)
+  },
+  { immediate: true }
+)
+
+/**
+ * 信号源（R-7 / R-8）：登录态或选中的客户一变就采一次待办 / 体检 / 引用结果。
+ * 采集失败静默、没有客户上下文就不说；开关、频率与静音全部由中枢执行。
+ */
+watch(
+  () => [auth.user?.id ?? null, auth.selectedTenantId ?? null] as const,
+  () => {
+    if (!auth.user?.id) return
+    void collectRobotSignals(center, {
+      isSuperAdmin: auth.isSuperAdmin,
+      selectedTenantId: auth.selectedTenantId,
+      hasPermission: code => auth.hasPermission(code)
+    })
   },
   { immediate: true }
 )

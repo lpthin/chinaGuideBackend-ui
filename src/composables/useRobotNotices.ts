@@ -13,11 +13,26 @@
  */
 import { onUnmounted } from 'vue'
 import { robotCenter, type RobotCenter } from '../components/robot/robotCenter'
-import type { RobotNoticeInput } from '../components/robot/robotRegistry'
+import { ROBOT_SOURCES, type RobotNoticeInput } from '../components/robot/robotRegistry'
+
+/** 任务回执只报结果与去处；失败仍走页内错误块，机器人不搬错误 */
+export interface RobotTaskResult {
+  key: string
+  text: string
+  detail?: string
+  /** 站内路径；不传就只有「知道了」 */
+  to?: string
+  actionLabel?: string
+}
 
 export interface RobotNoticeApi {
   /** 投一条消息；同一 key 在去重口径内只出现一次 */
   announce(input: RobotNoticeInput, options?: { ready?: boolean }): void
+  /**
+   * 任务跑完的一句话回执（R-8）：归到「任务结果」这一类，走中枢的频率与静音，
+   * 页面不必自己拼 sourceId 与优先级。
+   */
+  taskResult(result: RobotTaskResult): void
   /** 页面数据是否就绪：false 时消息先压住，true 时放出来（§5.3 第 7 条） */
   setReady(ready: boolean): void
   /** 页面自报忙碌（加载 / 提交在途），与输入框聚焦、弹窗并列进闭嘴规则 */
@@ -36,6 +51,23 @@ export function useRobotNotices(): RobotNoticeApi {
 
   return {
     announce: (input, options) => robotCenter.announce(input, options),
+    taskResult: result =>
+      robotCenter.announce(
+        {
+          key: result.key,
+          category: 'task',
+          priority: 'p1',
+          text: result.text,
+          detail: result.detail,
+          actions: result.to
+            ? [{ label: result.actionLabel ?? '去看', kind: 'navigate', to: result.to }]
+            : undefined,
+          // 一次会话里同一件跑完的事只回执一次；刷新页面不重复讲
+          once: 'session',
+          sourceId: ROBOT_SOURCES.task
+        },
+        { ready: true }
+      ),
     setReady: ready => robotCenter.setReady(ready),
     setBusy: (busy, reason = busyReason) => robotCenter.setBusy(reason, busy),
     center: robotCenter

@@ -3,7 +3,7 @@
     <template #actions>
       <a-space :size="8">
         <a-tag v-if="missingTenant" color="orange">超级管理员请先在右上角选择客户：本页没有跨客户的全局视图</a-tag>
-        <a-button type="primary" :loading="loading" :disabled="loading" @click="loadAll">刷新</a-button>
+        <a-button type="primary" :loading="loading" :disabled="loading" @click="loadAndAnnounce">刷新</a-button>
       </a-space>
     </template>
 
@@ -113,6 +113,9 @@ import { message } from 'ant-design-vue'
 import type { DemoMode, DemoTypeCounts } from '../../api/onboarding'
 import { backendFileUrl, demoSiteApi } from '../../api/onboarding'
 import ChecklistPage from '../../components/ChecklistPage.vue'
+import { checklistProgress } from '../../components/checklistPageModel'
+import { ROBOT_SIGNAL_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 import { contactText, siteFieldValue } from './launchChecklist'
 import { useLaunchReadings } from './useLaunchReadings'
 
@@ -235,7 +238,33 @@ async function runPublishDemo(): Promise<void> {
   }
 }
 
-onMounted(loadAll)
+// 上线清单的「下一步」播报（R-7）：只报还差几步与第一步，正文留在页面
+const robot = useRobotNotices()
+
+function announceNextStep(): void {
+  const progress = checklistProgress(steps.value)
+  const first = progress.pending[0]
+  if (!first) return
+  const card = ROBOT_SIGNAL_CARDS['signal.launch.next']
+  robot.announce(
+    {
+      key: 'signal.launch.next',
+      category: 'task',
+      priority: 'p2',
+      text: card.text(progress.pending.length, first.title),
+      detail: card.detail,
+      once: 'day'
+    },
+    { ready: true }
+  )
+}
+
+async function loadAndAnnounce(): Promise<void> {
+  await loadAll()
+  announceNextStep()
+}
+
+onMounted(loadAndAnnounce)
 </script>
 
 <style scoped>

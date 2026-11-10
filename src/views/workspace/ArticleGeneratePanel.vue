@@ -586,10 +586,14 @@ import PageTitle from '../../components/PageTitle.vue'
 import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { createSubmitGuard } from '../../utils/submitGuard'
+import { ROBOT_SIGNAL_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+// 生成跑完的一句话回执（R-8）：失败与质检缺口仍走页面里的错误块与提示，机器人只说结果与去处
+const robot = useRobotNotices()
 
 /**
  * 超管要选定一家客户才发请求；原来这里「没选就当 undefined」，请求头不带客户号，
@@ -1104,6 +1108,16 @@ async function handleTaskComplete(taskId: number, res: TaskUpdate) {
   } else if (status === 'CONTENT_REJECTED') {
     // 稿子已经按 Q-P7-5a 留成草稿了，这一发要的是人去审，不是「任务失败了请重来」
     message.warning(res.errorMessage || '内容审核不通过，稿子已存为草稿', 8)
+  }
+  if (status === 'COMPLETED') {
+    const card = ROBOT_SIGNAL_CARDS['task.article.generated']
+    robot.taskResult({
+      key: 'task.article.generated',
+      text: card.text,
+      detail: card.detail,
+      to: task?.articleId ? `/workspace/articles/edit/${task.articleId}` : '/workspace/articles',
+      actionLabel: '去看稿子'
+    })
   }
   // 到终态的不管哪一档都可能动过文章（草稿落库、判拒留档都算），统计卡与文章状态都要回读；
   // 只有 COMPLETED 才回读的话，判拒那一趟界面就永远停在进页面时那份读数
