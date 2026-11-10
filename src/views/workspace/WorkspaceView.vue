@@ -204,6 +204,9 @@
         </div>
       </a-layout-content>
     </a-layout>
+
+    <!-- 引导机器人：只挂后台壳这一处（SPEC-UI-11 §4.4），登录页与门户访客页没有它 -->
+    <RobotHost />
   </a-layout>
 </template>
 
@@ -212,6 +215,7 @@ import { ref, computed, onMounted, onUnmounted, provide, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import TenantSwitcher from '../../components/TenantSwitcher.vue'
+import RobotHost from '../../components/robot/RobotHost.vue'
 import {
   BarChartOutlined,
   DownOutlined,
