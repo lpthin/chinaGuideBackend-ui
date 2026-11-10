@@ -634,6 +634,7 @@ import type { KnowledgeCategory, KnowledgeTag, KnowledgeCard, KnowledgeDocument 
 import { formatTime as formatAbsoluteTime, formatFileSize } from '@/utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import FilterBar from '../../components/FilterBar.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import DataTable from '../../components/DataTable.vue'
@@ -984,15 +985,21 @@ function downloadMediaFile(file: any) {
   link.click()
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function deleteMediaFile(id: number) {
-  try {
-    await knowledgeDocumentApi.delete(id)
-    message.success('删除成功')
-    await loadDocuments()
-  } catch (e) {
-    logError('knowledge/knowledge-document-view', '删除失败:', e)
-    message.error('删除失败')
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await knowledgeDocumentApi.delete(id)
+      message.success('删除成功')
+      await loadDocuments()
+    } catch (e) {
+      logError('knowledge/knowledge-document-view', '删除失败:', e)
+      message.error('删除失败')
+    }
+  })
 }
 
 /**

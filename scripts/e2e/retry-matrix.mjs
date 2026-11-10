@@ -8,6 +8,10 @@
 //
 // 依赖本机（或 CI）有跑着的前后端与一个超管账号。缺环境时默认跳过（可选任务），
 // 只有 E2E_REQUIRED=1 时才把「跳过」当成失败——夜间任务把这一支打开，白天本机跑不受影响。
+//
+// 离线 mock 模式（--mock 或 E2E_MOCK=1）：不依赖 8080 后端，脚本在浏览器层把 /api/**
+// 全部用桩应答（登录、当前用户、五页读口各给一行）。断言的仍是「错误面出现、点重试、
+// 数据回来」这条 UI 链路，只是数据来自桩——常态化跑矩阵不再要求起后端与数据库。
 
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -18,6 +22,8 @@ const PASSWORD = process.env.E2E_PASSWORD || 'admin123'
 const REQUIRED = process.env.E2E_REQUIRED === '1'
 const REPORT_DIR = process.env.E2E_REPORT_DIR || 'e2e-out'
 const CASE_TIMEOUT_MS = Number(process.env.E2E_CASE_TIMEOUT_MS || 45000)
+/** 离线 mock：/api/** 由脚本桩应答，只要前端 5190 活着就能跑（SPEC-UI-10 G-8） */
+const MOCK = process.argv.includes('--mock') || process.env.E2E_MOCK === '1'
 
 /** 五页各选「一进页面就会读」的那一口；重试按钮必须能把这口读回来 */
 const PAGES = [
@@ -40,6 +46,74 @@ const STALE_ALERT = '.admin-data-table__stale'
 function fulfillBody(kind) {
   if (kind === '500') return { code: 500, message: '回归注入：服务端故障' }
   return { code: 403, message: '没有权限执行该操作' }
+}
+
+/** mock 模式的统一用户：超管角色放行 requiresSuperAdmin 路由，租户 1 号进分母 */
+const MOCK_USER = {
+  userId: 1,
+  username: 'admin',
+  nickname: '重试矩阵管理员',
+  tenantId: 1,
+  tenantCode: 'demo',
+  roles: ['SUPER_ADMIN'],
+  permissions: []
+}
+
+/** 通用一行：字段宁多勿缺，列表页拿去渲染不挑食 */
+const MOCK_ROW = {
+  id: 1,
+  name: '重试矩阵样例',
+  title: '重试矩阵样例',
+  nickname: '重试矩阵样例',
+  username: 'admin',
+  status: 'ENABLED',
+  enabled: true,
+  amount: 100,
+  orderNo: 'MOCK-0001',
+  paymentMethod: 'WECHAT',
+  createdAt: '2026-01-01 00:00:00'
+}
+
+/** 确认走分页形状的列表口（其余 GET 一律回空数组：选项/字典类接口拿分页对象会渲染崩；
+ * 注意参考站 list 口回的是纯数组，给分页对象反而崩进错误边界） */
+const PAGED_APIS = ['/api/admin/audit-logs', '/api/billing/orders', '/api/billing/invoices']
+
+/** mock 读口应答：确认分页的口给一行，其余一律空数组（页面落到空态也算恢复） */
+function mockApiBody(url, method) {
+  const path = new URL(url, BASE).pathname
+  if (path.endsWith('/api/auth/login')) {
+    return { code: 0, data: { token: 'mock-token', ...MOCK_USER } }
+  }
+  if (path.endsWith('/api/auth/me')) {
+    return { code: 0, data: { id: 1, avatar: '', email: '', phone: '', status: 'enabled', ...MOCK_USER } }
+  }
+  if (path.endsWith('/api/admin/tenants')) {
+    return { code: 0, data: [{ id: 1, name: '样例客户', code: 'demo' }] }
+  }
+  if (path.endsWith('/api/admin/permissions/tree')) {
+    return { code: 0, data: [{ id: 1, name: '根权限', title: '根权限', children: [] }] }
+  }
+  if (method.toUpperCase() === 'GET') {
+    if (PAGED_APIS.some((api) => path.endsWith(api))) {
+      return { code: 0, data: { records: [MOCK_ROW], total: 1 } }
+    }
+    return { code: 0, data: [] }
+  }
+  return { code: 0, data: null }
+}
+
+/** 在 context 层挂桩：page.route 的失败注入优先级更高，互不干扰。
+ *  正则锚定「/api/ 在 pathname 开头」——不能用双星号 glob 匹配 api 路径，
+ *  否则 vite 的源码模块 /src/api/http.ts 也会被 JSON 应答顶掉，整个应用起不来。 */
+async function installMockApi(context) {
+  await context.route(/^https?:\/\/[^/]+\/api\//, (route) => {
+    const request = route.request()
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockApiBody(request.url(), request.method()))
+    })
+  })
 }
 
 async function routeHandler(kind) {
@@ -137,6 +211,7 @@ async function runCase(browser, pageConfig, mode) {
   const step = { name: '打开页面' }
   const started = Date.now()
   try {
+    if (MOCK) await installMockApi(context)
     await login(page)
     await page.goto(`${BASE}${pageConfig.path}`, { waitUntil: 'domcontentloaded' })
     // 页面壳渲染完：表格 / 空态 / 错误面任意一个出现就算进来了
@@ -174,6 +249,7 @@ async function runCase(browser, pageConfig, mode) {
 }
 
 async function main() {
+  if (MOCK) console.log('离线 mock 模式：/api/** 由脚本内桩应答，不依赖 8080 后端')
   if (!(await probe())) {
     const line = `SKIP 前端 ${BASE} 没有响应：真测矩阵要本机（或 CI）跑着前后端与服务账号，环境缺了就跳过`
     console.log(line)
@@ -210,7 +286,7 @@ async function main() {
   const reportPath = join(REPORT_DIR, 'retry-matrix.json')
   writeFileSync(
     reportPath,
-    JSON.stringify({ base: BASE, startedAt: new Date().toISOString(), total: results.length, failed: failed.length, results }, null, 2)
+    JSON.stringify({ base: BASE, mock: MOCK, startedAt: new Date().toISOString(), total: results.length, failed: failed.length, results }, null, 2)
   )
   console.log(`报告：${reportPath}`)
 

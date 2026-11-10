@@ -347,6 +347,7 @@ import DataTable from '../../components/DataTable.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
@@ -693,23 +694,29 @@ async function handleSave() {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求（也不会叠出两个确认框）
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete(id: number) {
-  if (requestedTenantId.value === null) {
-    message.warning('当前没有选定客户，删除这一发没发出去。请在右上角选一家客户。')
-    return
-  }
-  Modal.confirm({
-    title: '确定要删除这个案例吗？',
-    onOk: async () => {
-      try {
-        await customerCaseApi.delete(id)
-        message.success('删除成功')
-        await Promise.all([loadCaseList(), loadStats()])
-      } catch (error) {
-        message.error(`删除失败：${describeHttpError(error)}`)
-        logError('operation/case-manage-view', error)
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    if (requestedTenantId.value === null) {
+      message.warning('当前没有选定客户，删除这一发没发出去。请在右上角选一家客户。')
+      return
+    }
+    Modal.confirm({
+      title: '确定要删除这个案例吗？',
+      onOk: async () => {
+        try {
+          await customerCaseApi.delete(id)
+          message.success('删除成功')
+          await Promise.all([loadCaseList(), loadStats()])
+        } catch (error) {
+          message.error(`删除失败：${describeHttpError(error)}`)
+          logError('operation/case-manage-view', error)
+        }
+      },
+    })
   })
 }
 

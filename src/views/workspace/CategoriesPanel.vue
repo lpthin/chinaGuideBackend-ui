@@ -476,6 +476,7 @@ import { categoryApi } from '../../api'
 import { describeHttpError } from '../../api/http'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import PageTitle from '../../components/PageTitle.vue'
 
 const loading = ref(false)
@@ -656,23 +657,29 @@ function editCategory(key: string) {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求（也不会叠出两个确认框）
+const deleteGuard = createSubmitGuard()
+
 async function deleteCategory(key: string) {
-  Modal.confirm({
-    title: '确认删除',
-    content: '删除此分类将同时删除其所有子分类，确定要删除吗？',
-    okText: '确定',
-    cancelText: '取消',
-    okType: 'danger',
-    onOk: async () => {
-      try {
-        await categoryApi.delete(Number(key))
-        message.success('删除成功')
-        await loadData()
-      } catch (error) {
-        message.error('删除失败')
-        logError('workspace/categories-panel', error)
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    Modal.confirm({
+      title: '确认删除',
+      content: '删除此分类将同时删除其所有子分类，确定要删除吗？',
+      okText: '确定',
+      cancelText: '取消',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await categoryApi.delete(Number(key))
+          message.success('删除成功')
+          await loadData()
+        } catch (error) {
+          message.error('删除失败')
+          logError('workspace/categories-panel', error)
+        }
+      },
+    })
   })
 }
 

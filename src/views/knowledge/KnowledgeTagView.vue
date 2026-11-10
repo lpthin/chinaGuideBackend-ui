@@ -119,6 +119,7 @@ import type { KnowledgeTag, KnowledgeTagForm } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 import { asEmptyReason, offersCreateOnEmpty, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
@@ -268,14 +269,20 @@ function editTag(record: KnowledgeTag) {
   modalVisible.value = true
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete(id: number) {
-  try {
-    await knowledgeTagApi.delete(id)
-    message.success('删除成功')
-    await loadData()
-  } catch (error) {
-    message.error(`删除失败：${describeHttpError(error)}`)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await knowledgeTagApi.delete(id)
+      message.success('删除成功')
+      await loadData()
+    } catch (error) {
+      message.error(`删除失败：${describeHttpError(error)}`)
+    }
+  })
 }
 
 async function handleModalOk() {

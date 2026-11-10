@@ -12,6 +12,7 @@ import StatusTag from '../../components/StatusTag.vue'
 import { geoBrandApi, type GeoBrandCompetitor } from '../../api/geoBrand'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { PH_DASH } from '../../utils/display'
 
 const props = defineProps<{ profileId: number }>()
@@ -81,15 +82,21 @@ async function toggleEnabled(record: GeoBrandCompetitor, enabled: boolean) {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：删除按钮无确认框，连点两次只能发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function removeCompetitor(record: GeoBrandCompetitor) {
-  try {
-    await geoBrandApi.deleteCompetitor(props.profileId, record.id)
-    competitors.value = competitors.value.filter((item) => item.id !== record.id)
-    message.success('竞品已删除')
-  } catch (e) {
-    notification.error({ message: '删除竞品失败', description: describeHttpError(e) })
-    logError('geobrand/竞品组', e)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await geoBrandApi.deleteCompetitor(props.profileId, record.id)
+      competitors.value = competitors.value.filter((item) => item.id !== record.id)
+      message.success('竞品已删除')
+    } catch (e) {
+      notification.error({ message: '删除竞品失败', description: describeHttpError(e) })
+      logError('geobrand/竞品组', e)
+    }
+  })
 }
 
 watch(() => props.profileId, reload)

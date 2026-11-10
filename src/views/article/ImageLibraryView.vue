@@ -377,6 +377,7 @@ import { formatDateTime, formatFileSize } from '../../utils/format'
 import type { ImageLibrary } from '../../types/article'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
@@ -584,40 +585,49 @@ async function handleUploadOk() {
   }
 }
 
+// 删除/批量删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete(id: number) {
-  if (requestedTenantId.value === null) {
-    message.warning('当前没有选定客户，删除这一发没发出去。请在右上角选一家客户。')
-    return
-  }
-  try {
-    await imageLibraryApi.delete(id, requestedTenantId.value)
-    message.success('删除成功')
-    selectedKeys.value = selectedKeys.value.filter(k => k !== id)
-    await loadData()
-  } catch (error) {
-    logError('article/image-library-view', '删除失败:', error)
-    message.error(describeHttpError(error))
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    if (requestedTenantId.value === null) {
+      message.warning('当前没有选定客户，删除这一发没发出去。请在右上角选一家客户。')
+      return
+    }
+    try {
+      await imageLibraryApi.delete(id, requestedTenantId.value)
+      message.success('删除成功')
+      selectedKeys.value = selectedKeys.value.filter(k => k !== id)
+      await loadData()
+    } catch (error) {
+      logError('article/image-library-view', '删除失败:', error)
+      message.error(describeHttpError(error))
+    }
+  })
 }
 
 async function batchDelete() {
-  if (requestedTenantId.value === null) {
-    message.warning('当前没有选定客户，批量删除这一发没发出去。请在右上角选一家客户。')
-    return
-  }
-  if (selectedKeys.value.length === 0) {
-    message.warning('请选择要删除的文件')
-    return
-  }
-  try {
-    await imageLibraryApi.batchDelete(selectedKeys.value, requestedTenantId.value)
-    message.success('批量删除成功')
-    selectedKeys.value = []
-    await loadData()
-  } catch (error) {
-    logError('article/image-library-view', '批量删除失败:', error)
-    message.error(describeHttpError(error))
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    if (requestedTenantId.value === null) {
+      message.warning('当前没有选定客户，批量删除这一发没发出去。请在右上角选一家客户。')
+      return
+    }
+    if (selectedKeys.value.length === 0) {
+      message.warning('请选择要删除的文件')
+      return
+    }
+    try {
+      await imageLibraryApi.batchDelete(selectedKeys.value, requestedTenantId.value)
+      message.success('批量删除成功')
+      selectedKeys.value = []
+      await loadData()
+    } catch (error) {
+      logError('article/image-library-view', '批量删除失败:', error)
+      message.error(describeHttpError(error))
+    }
+  })
 }
 
 function handleQueryChange() {

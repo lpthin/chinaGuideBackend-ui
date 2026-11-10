@@ -197,6 +197,7 @@ import RecordListPage from '../../components/RecordListPage.vue'
 import { describeHttpError } from '../../api/http'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 
 const loading = ref(false)
 // 空态的那一句只认后端（N-05）：读失败 / 后端答了成因 / 后端没答，三件事分开说
@@ -351,15 +352,21 @@ async function toggleStatus(record: JobPost) {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete(id: number) {
-  try {
-    await jobPostApi.delete(id)
-    message.success('删除成功')
-    await loadData()
-  } catch (error: any) {
-    message.error(error?.message || '删除失败')
-    logError('portal/job-manage-view', error)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await jobPostApi.delete(id)
+      message.success('删除成功')
+      await loadData()
+    } catch (error: any) {
+      message.error(error?.message || '删除失败')
+      logError('portal/job-manage-view', error)
+    }
+  })
 }
 
 async function loadData() {

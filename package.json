@@ -14,7 +14,8 @@
     "test:related": "node scripts/check-table-states.mjs && node scripts/test-related.mjs",
     "check:table-states": "node scripts/check-table-states.mjs",
     "check:submit-guards": "node scripts/check-submit-guards.mjs",
-    "test:e2e:retry": "node scripts/e2e/retry-matrix.mjs"
+    "test:e2e:retry": "node scripts/e2e/retry-matrix.mjs",
+    "test:e2e:mock": "node scripts/e2e/retry-matrix.mjs --mock"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.0",

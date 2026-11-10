@@ -12,6 +12,7 @@ import QuestionDraftRow from './QuestionDraftRow.vue'
 import { geoBrandApi, type GeoBrandQuestion, type GeoQuestionKind } from '../../api/geoBrand'
 import { describeHttpError } from '../../api/http'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { PH_DASH } from '../../utils/display'
 import { QUESTION_KIND_LABEL } from './geoBrandWizard'
 
@@ -85,15 +86,21 @@ async function toggleQuestion(record: GeoBrandQuestion, enabled: boolean) {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：删除按钮无确认框，连点两次只能发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function removeQuestion(record: GeoBrandQuestion) {
-  try {
-    await geoBrandApi.deleteQuestion(record.id)
-    tenantQuestions.value = tenantQuestions.value.filter((item) => item.id !== record.id)
-    message.success('该题已删除')
-  } catch (e) {
-    notification.error({ message: '删除题目失败', description: describeHttpError(e) })
-    logError('geobrand/题池', e)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await geoBrandApi.deleteQuestion(record.id)
+      tenantQuestions.value = tenantQuestions.value.filter((item) => item.id !== record.id)
+      message.success('该题已删除')
+    } catch (e) {
+      notification.error({ message: '删除题目失败', description: describeHttpError(e) })
+      logError('geobrand/题池', e)
+    }
+  })
 }
 
 watch(() => [props.profileId, props.kind], reload, { immediate: true })

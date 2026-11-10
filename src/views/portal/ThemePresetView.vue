@@ -249,6 +249,7 @@ import { portalPagesApi, type PortalPage } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'
 import { designTokenLabel } from '../../portal/designTokens'
 import { formatDateTime } from '../../utils/format'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { useAuthStore } from '../../stores/auth'
 
 /**
@@ -543,14 +544,20 @@ async function submitPromote() {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function removePreset(id: number) {
-  try {
-    await themePresetsApi.remove(id)
-    message.success('已删除')
-    await load()
-  } catch (error) {
-    message.error((error as Error).message || '删除失败')
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await themePresetsApi.remove(id)
+      message.success('已删除')
+      await load()
+    } catch (error) {
+      message.error((error as Error).message || '删除失败')
+    }
+  })
 }
 </script>
 

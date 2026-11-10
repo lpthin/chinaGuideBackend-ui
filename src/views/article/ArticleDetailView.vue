@@ -212,6 +212,7 @@ import {
 import { articleManageApi } from '../../api/article'
 import { describeHttpError } from '../../api/http'
 import { formatTime } from '../../utils/format'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import type { Article, ArticleKnowledgeSource, ArticleLocaleEdit, ArticleLocaleVersion } from '../../types/article'
 import { useAuthStore } from '../../stores/auth'
 import { marked } from 'marked'
@@ -309,22 +310,28 @@ async function loadRelated(current: Article) {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete() {
-  if (isPlatformMode.value) {
-    message.warning('当前没有选定客户，这一发没发出去（没有删除）。请在右上角选一家客户。')
-    return
-  }
-  if (!article.value || loadFailure.value) {
-    message.warning('这一篇没读到，删除没有执行；请恢复后重新打开本页。')
-    return
-  }
-  try {
-    await articleManageApi.delete(article.value.id)
-    message.success('删除成功')
-    router.push('/workspace/articles')
-  } catch (error) {
-    message.error(`删除失败：${describeHttpError(error)}`)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    if (isPlatformMode.value) {
+      message.warning('当前没有选定客户，这一发没发出去（没有删除）。请在右上角选一家客户。')
+      return
+    }
+    if (!article.value || loadFailure.value) {
+      message.warning('这一篇没读到，删除没有执行；请恢复后重新打开本页。')
+      return
+    }
+    try {
+      await articleManageApi.delete(article.value.id)
+      message.success('删除成功')
+      router.push('/workspace/articles')
+    } catch (error) {
+      message.error(`删除失败：${describeHttpError(error)}`)
+    }
+  })
 }
 
 async function loadVersions(id: number) {

@@ -752,6 +752,7 @@ import { describeHttpError } from '../../api/http'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
@@ -1172,20 +1173,26 @@ function setRecommend(article: any) {
   }).catch(() => message.error('操作失败'))
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求（也不会叠出两个确认框）
+const deleteGuard = createSubmitGuard()
+
 function deleteArticle(article: any) {
-  Modal.confirm({
-    title: '确认删除',
-    content: `确定要删除文章"${article.title}"吗？删除后无法恢复。`,
-    okType: 'danger',
-    onOk: async () => {
-      try {
-        await articleManageApi.delete(article.id)
-        message.success('删除成功')
-        loadData()
-      } catch (e) {
-        message.error(`删除失败：${describeHttpError(e)}`)
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除文章"${article.title}"吗？删除后无法恢复。`,
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await articleManageApi.delete(article.id)
+          message.success('删除成功')
+          loadData()
+        } catch (e) {
+          message.error(`删除失败：${describeHttpError(e)}`)
+        }
+      },
+    })
   })
 }
 

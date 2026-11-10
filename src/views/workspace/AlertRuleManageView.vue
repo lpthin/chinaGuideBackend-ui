@@ -288,6 +288,7 @@ import { describeHttpError } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
 import type { AlertRule, AlertRuleForm } from '../../types/workspace'
 import { formatDateTime } from '../../utils/format'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
@@ -604,14 +605,20 @@ const handleSubmit = async () => {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 const handleDelete = async (id: number) => {
-  try {
-    await alertApi.rules.delete(id)
-    message.success('删除成功')
-    fetchRules()
-  } catch (error: any) {
-    message.error(error.message || '删除失败')
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await alertApi.rules.delete(id)
+      message.success('删除成功')
+      fetchRules()
+    } catch (error: any) {
+      message.error(error.message || '删除失败')
+    }
+  })
 }
 
 const handleToggleActive = async (record: AlertRule, checked: boolean) => {

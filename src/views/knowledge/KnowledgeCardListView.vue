@@ -307,6 +307,7 @@ import {
 import { knowledgeCardApi, knowledgeCategoryApi, knowledgeTagApi, flattenCategories } from '../../api/knowledge'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import type { KnowledgeCard, KnowledgeCategory, KnowledgeTag } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 import FilterBar from '../../components/FilterBar.vue'
@@ -440,41 +441,50 @@ function goToEdit(id?: number) {
   }
 }
 
+// 删除/批量删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求（也不会叠出两个确认框）
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete(id: number) {
-  Modal.confirm({
-    title: '确认删除',
-    content: '确定要删除这张知识卡片吗？此操作不可恢复。',
-    okText: '确定',
-    cancelText: '取消',
-    onOk: async () => {
-      try {
-        await knowledgeCardApi.delete(id)
-        message.success('删除成功')
-        await loadData()
-      } catch (error) {
-        message.error(`删除失败：${describeHttpError(error)}`)
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这张知识卡片吗？此操作不可恢复。',
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await knowledgeCardApi.delete(id)
+          message.success('删除成功')
+          await loadData()
+        } catch (error) {
+          message.error(`删除失败：${describeHttpError(error)}`)
+        }
+      },
+    })
   })
 }
 
 async function batchDelete() {
-  Modal.confirm({
-    title: '确认批量删除',
-    content: `确定要删除选中的 ${selectedRowKeys.value.length} 张知识卡片吗？此操作不可恢复。`,
-    okText: '确定删除',
-    cancelText: '取消',
-    okType: 'danger',
-    onOk: async () => {
-      try {
-        await knowledgeCardApi.batchDelete(selectedRowKeys.value)
-        message.success('批量删除成功')
-        selectedRowKeys.value = []
-        await loadData()
-      } catch (error) {
-        message.error(`批量删除失败：${describeHttpError(error)}`)
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    Modal.confirm({
+      title: '确认批量删除',
+      content: `确定要删除选中的 ${selectedRowKeys.value.length} 张知识卡片吗？此操作不可恢复。`,
+      okText: '确定删除',
+      cancelText: '取消',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await knowledgeCardApi.batchDelete(selectedRowKeys.value)
+          message.success('批量删除成功')
+          selectedRowKeys.value = []
+          await loadData()
+        } catch (error) {
+          message.error(`批量删除失败：${describeHttpError(error)}`)
+        }
+      },
+    })
   })
 }
 

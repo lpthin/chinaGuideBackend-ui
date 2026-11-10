@@ -23,6 +23,7 @@ import { geoBrandApi, type GeoBrandProfile, type GeoBrandProfileForm } from '../
 import { describeHttpError } from '../../api/http'
 import { siteApi } from '../../api/workspace'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { PH_DASH } from '../../utils/display'
 import { brandTokens, emptyProfileForm, emptyQuestionDraft, questionViolation } from './geoBrandWizard'
 
@@ -143,16 +144,22 @@ async function saveProfile() {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function removeProfile(profile: GeoBrandProfile) {
-  try {
-    await geoBrandApi.deleteProfile(profile.id)
-    if (selectedId.value === profile.id) selectedId.value = null
-    message.success('品牌档案已删除')
-    await loadProfiles()
-  } catch (e) {
-    notification.error({ message: '删除品牌档案失败', description: describeHttpError(e) })
-    logError('geobrand/品牌档案', e)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await geoBrandApi.deleteProfile(profile.id)
+      if (selectedId.value === profile.id) selectedId.value = null
+      message.success('品牌档案已删除')
+      await loadProfiles()
+    } catch (e) {
+      notification.error({ message: '删除品牌档案失败', description: describeHttpError(e) })
+      logError('geobrand/品牌档案', e)
+    }
+  })
 }
 
 function enterWizard(profile: GeoBrandProfile) {

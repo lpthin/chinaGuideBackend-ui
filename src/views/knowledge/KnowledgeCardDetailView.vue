@@ -83,6 +83,7 @@ import {
 import { knowledgeCardApi } from '../../api/knowledge'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import type { KnowledgeCard } from '../../types/knowledge'
 import { useAuthStore } from '../../stores/auth'
 
@@ -144,25 +145,31 @@ function goToDetail(id: number) {
   router.push(`/workspace/knowledge/cards/${id}`)
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求（也不会叠出两个确认框）
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete() {
-  if (requestedTenantId.value === null) {
-    message.warning('当前没有选定客户，这一发没发出去（没有删除）。请在右上角选一家客户。')
-    return
-  }
-  Modal.confirm({
-    title: '确认删除',
-    content: '确定要删除这张知识卡片吗？此操作不可恢复。',
-    okText: '确定',
-    cancelText: '取消',
-    onOk: async () => {
-      try {
-        await knowledgeCardApi.delete(cardId.value)
-        message.success('删除成功')
-        router.push('/workspace/knowledge/cards')
-      } catch (error) {
-        message.error(`删除失败：${describeHttpError(error)}`)
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    if (requestedTenantId.value === null) {
+      message.warning('当前没有选定客户，这一发没发出去（没有删除）。请在右上角选一家客户。')
+      return
+    }
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这张知识卡片吗？此操作不可恢复。',
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await knowledgeCardApi.delete(cardId.value)
+          message.success('删除成功')
+          router.push('/workspace/knowledge/cards')
+        } catch (error) {
+          message.error(`删除失败：${describeHttpError(error)}`)
+        }
+      },
+    })
   })
 }
 

@@ -117,6 +117,7 @@ import DataTable from '../../components/DataTable.vue'
 import { adminApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { useAuthStore } from '../../stores/auth'
 import PageTitle from '../../components/PageTitle.vue'
 
@@ -299,24 +300,30 @@ function handleModalCancel() {
   modalVisible.value = false
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete(record: any) {
-  if (record.children && record.children.length > 0) {
-    message.error('存在子权限，无法删除')
-    return
-  }
-  
-  if (typeof record.id !== 'number') {
-    message.error('该节点无法删除')
-    return
-  }
-  
-  try {
-    await adminApi.permissions.delete(record.id)
-    message.success('删除成功')
-    loadPermissions()
-  } catch (error) {
-    message.error(`删除失败：${describeHttpError(error)}`)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    if (record.children && record.children.length > 0) {
+      message.error('存在子权限，无法删除')
+      return
+    }
+
+    if (typeof record.id !== 'number') {
+      message.error('该节点无法删除')
+      return
+    }
+
+    try {
+      await adminApi.permissions.delete(record.id)
+      message.success('删除成功')
+      loadPermissions()
+    } catch (error) {
+      message.error(`删除失败：${describeHttpError(error)}`)
+    }
+  })
 }
 
 watch(

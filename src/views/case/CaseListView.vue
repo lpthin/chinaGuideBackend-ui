@@ -294,6 +294,7 @@ import {
 } from '../../utils/emptyPage'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
@@ -634,42 +635,51 @@ async function handleCopy(record: Case) {
   }
 }
 
+// 删除/批量删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求（也不会叠出两个确认框）
+const deleteGuard = createSubmitGuard()
+
 function handleDelete(record: Case) {
-  Modal.confirm({
-    title: '确认删除',
-    content: `确定要删除案例“${record.title}”吗？`,
-    onOk: async () => {
-      try {
-        await caseApi.delete(record.id)
-        message.success('删除成功')
-        await reload()
-      } catch (error) {
-        message.error(`删除失败：${describeHttpError(error)}`)
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除案例“${record.title}”吗？`,
+      onOk: async () => {
+        try {
+          await caseApi.delete(record.id)
+          message.success('删除成功')
+          await reload()
+        } catch (error) {
+          message.error(`删除失败：${describeHttpError(error)}`)
+        }
+      },
+    })
   })
 }
 
 function handleBatchDelete() {
-  const ids = [...selectedRowKeys.value]
-  if (ids.length === 0) {
-    message.warning('请选择要删除的案例')
-    return
-  }
-  Modal.confirm({
-    title: '确认批量删除',
-    content: `确定要删除选中的 ${ids.length} 个案例吗？`,
-    onOk: async () => {
-      try {
-        const res = await caseApi.batchDelete(ids)
-        message.success(`已删除 ${res?.deleted ?? ids.length} 个案例`)
-        selectedRowKeys.value = []
-      } catch (error) {
-        message.error(`批量删除失败：${describeHttpError(error)}`)
-      } finally {
-        await reload()
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    const ids = [...selectedRowKeys.value]
+    if (ids.length === 0) {
+      message.warning('请选择要删除的案例')
+      return
+    }
+    Modal.confirm({
+      title: '确认批量删除',
+      content: `确定要删除选中的 ${ids.length} 个案例吗？`,
+      onOk: async () => {
+        try {
+          const res = await caseApi.batchDelete(ids)
+          message.success(`已删除 ${res?.deleted ?? ids.length} 个案例`)
+          selectedRowKeys.value = []
+        } catch (error) {
+          message.error(`批量删除失败：${describeHttpError(error)}`)
+        } finally {
+          await reload()
+        }
+      },
+    })
   })
 }
 

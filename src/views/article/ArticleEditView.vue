@@ -449,6 +449,7 @@ import { articleStatusMeta, type ArticleStatus } from '../../utils/contentStatus
 import { formatDate } from '../../utils/format'
 import MediaImageLibraryModal from '../../components/MediaImageLibraryModal.vue'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 
 const router = useRouter()
 const route = useRoute()
@@ -842,28 +843,37 @@ async function handlePublish() {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 function handleDelete() {
-  deleteVisible.value = true
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    deleteVisible.value = true
+  })
 }
 
 async function confirmDelete() {
-  if (isPlatformMode.value) {
-    message.warning('请先在右上角选择客户')
-    return
-  }
-  if (!isEdit.value) {
-    deleteVisible.value = false
-    return
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    if (isPlatformMode.value) {
+      message.warning('请先在右上角选择客户')
+      return
+    }
+    if (!isEdit.value) {
+      deleteVisible.value = false
+      return
+    }
 
-  try {
-    await articleApi.delete(articleId.value, requestedTenantId.value ?? undefined)
-    message.success('删除成功')
-    deleteVisible.value = false
-    router.push('/workspace/articles')
-  } catch (error) {
-    message.error('删除失败')
-  }
+    try {
+      await articleApi.delete(articleId.value, requestedTenantId.value ?? undefined)
+      message.success('删除成功')
+      deleteVisible.value = false
+      router.push('/workspace/articles')
+    } catch (error) {
+      message.error('删除失败')
+    }
+  })
 }
 
 async function handleGenerateSeo() {

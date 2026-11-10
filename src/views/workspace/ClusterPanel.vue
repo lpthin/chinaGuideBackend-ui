@@ -623,6 +623,7 @@ import { formatDate } from '../../utils/format'
 import { useRouter } from 'vue-router'
 import type { KeywordCluster, KeywordContentSuggestion } from '../../types/workspace'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { asEmptyReason, type EmptyReason } from '../../utils/emptyPage'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import DataTable from '../../components/DataTable.vue'
@@ -1161,52 +1162,61 @@ function generateSingleArticle(cluster: any) {
   })
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求（也不会叠出两个确认框）
+const deleteGuard = createSubmitGuard()
+
 async function deleteCluster(cluster: KeywordCluster) {
-  Modal.confirm({
-    title: '确认删除聚类',
-    content: `确定要删除聚类「${cluster.name}」吗？此操作会同时删除相关的内容建议，无法恢复。`,
-    okText: '确定',
-    okType: 'danger',
-    cancelText: '取消',
-    onOk: async () => {
-      try {
-        await http.delete(`/workspace/clusters/${cluster.id}`)
-        message.success('聚类删除成功')
-        await loadData()
-      } catch (error) {
-        message.error('删除失败')
-        logError('workspace/cluster-panel', error)
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    Modal.confirm({
+      title: '确认删除聚类',
+      content: `确定要删除聚类「${cluster.name}」吗？此操作会同时删除相关的内容建议，无法恢复。`,
+      okText: '确定',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await http.delete(`/workspace/clusters/${cluster.id}`)
+          message.success('聚类删除成功')
+          await loadData()
+        } catch (error) {
+          message.error('删除失败')
+          logError('workspace/cluster-panel', error)
+        }
+      },
+    })
   })
 }
 
 async function batchDeleteClusters() {
-  const count = selectedClusterKeys.value.length
-  if (count === 0) {
-    message.warning('请先勾选要删除的聚类')
-    return
-  }
-  Modal.confirm({
-    title: '确认批量删除',
-    content: `确定要删除选中的 ${count} 条聚类吗？此操作会同时删除相关的内容建议，无法恢复。`,
-    okText: '确定',
-    okType: 'danger',
-    cancelText: '取消',
-    onOk: async () => {
-      clearing.value = true
-      try {
-        await http.delete('/workspace/clusters/batch', { data: selectedClusterKeys.value })
-        message.success(`已删除 ${count} 条聚类`)
-        selectedClusterKeys.value = []
-        await loadData()
-      } catch (error) {
-        message.error('删除失败')
-        logError('workspace/cluster-panel', error)
-      } finally {
-        clearing.value = false
-      }
-    },
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    const count = selectedClusterKeys.value.length
+    if (count === 0) {
+      message.warning('请先勾选要删除的聚类')
+      return
+    }
+    Modal.confirm({
+      title: '确认批量删除',
+      content: `确定要删除选中的 ${count} 条聚类吗？此操作会同时删除相关的内容建议，无法恢复。`,
+      okText: '确定',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        clearing.value = true
+        try {
+          await http.delete('/workspace/clusters/batch', { data: selectedClusterKeys.value })
+          message.success(`已删除 ${count} 条聚类`)
+          selectedClusterKeys.value = []
+          await loadData()
+        } catch (error) {
+          message.error('删除失败')
+          logError('workspace/cluster-panel', error)
+        } finally {
+          clearing.value = false
+        }
+      },
+    })
   })
 }
 

@@ -281,6 +281,7 @@ import type { TablePaginationConfig } from 'ant-design-vue'
 import { alertApi } from '../../api/workspace'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { useAuthStore } from '../../stores/auth'
 import type { AlertChannelConfig } from '../../types/workspace'
 import EmptyListHint from '../../components/EmptyListHint.vue'
@@ -582,14 +583,20 @@ const handleSubmit = async () => {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 const handleDelete = async (id: number) => {
-  try {
-    await alertApi.channels.delete(id)
-    message.success('删除成功')
-    fetchChannels()
-  } catch (error) {
-    message.error(`删除失败：${describeHttpError(error)}`)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await alertApi.channels.delete(id)
+      message.success('删除成功')
+      fetchChannels()
+    } catch (error) {
+      message.error(`删除失败：${describeHttpError(error)}`)
+    }
+  })
 }
 
 const handleSetDefault = async (record: AlertChannelConfig) => {

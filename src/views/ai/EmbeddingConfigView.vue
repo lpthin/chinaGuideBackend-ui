@@ -385,6 +385,7 @@ import {
 import { embeddingConfigApi, vectorDbApi, modelConfigApi, aiGenerateApi } from '../../api/ai-model'
 import type { ModelConfig, VectorDatabaseConfig, EmbeddingConfigForm } from '../../types/ai-model'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import DataTable from '../../components/DataTable.vue'
 import PageTitle from '../../components/PageTitle.vue'
 
@@ -651,18 +652,24 @@ async function setDefaultConn(id: number) {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function deleteConn(id: number) {
-  try {
-    await vectorDbApi.delete(id)
-    message.success('删除成功')
-    if (form.vectorDbId === id) {
-      form.vectorDbId = undefined
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await vectorDbApi.delete(id)
+      message.success('删除成功')
+      if (form.vectorDbId === id) {
+        form.vectorDbId = undefined
+      }
+      await loadConnections()
+    } catch (error: any) {
+      logError('ai/embedding-config-view', error)
+      message.error(error?.message || '删除失败')
     }
-    await loadConnections()
-  } catch (error: any) {
-    logError('ai/embedding-config-view', error)
-    message.error(error?.message || '删除失败')
-  }
+  })
 }
 
 // ===== 分块预览 =====

@@ -434,6 +434,7 @@ import {
   type TemplateVersion,
 } from '../../api/articleTemplate'
 import { formatDateTime } from '@/utils/format'
+import { createSubmitGuard } from '@/utils/submitGuard'
 import { describeHttpError } from '@/api/http'
 import { logError } from '../../utils/errorLog'
 import FilterBar from '../../components/FilterBar.vue'
@@ -661,15 +662,21 @@ async function handleSubmit() {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete(id: number) {
-  try {
-    await articleTemplateApi.delete(id)
-    message.success('删除成功')
-    loadTemplates()
-    loadStats()
-  } catch (e) {
-    message.error('删除失败')
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await articleTemplateApi.delete(id)
+      message.success('删除成功')
+      loadTemplates()
+      loadStats()
+    } catch (e) {
+      message.error('删除失败')
+    }
+  })
 }
 
 async function handleClone(record: ArticleTemplate) {

@@ -380,6 +380,7 @@ import {
 } from '../../types/ai-model'
 import { formatDateTime } from '../../utils/format'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
 import PageTitle from '../../components/PageTitle.vue'
@@ -870,15 +871,21 @@ async function handleCheckAllHealth() {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function deleteConfig(id: number) {
-  try {
-    await modelConfigApi.delete(id)
-    message.success('删除成功')
-    await loadData()
-  } catch (error) {
-    logError('ai/model-config-view', error)
-    message.error('删除失败')
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await modelConfigApi.delete(id)
+      message.success('删除成功')
+      await loadData()
+    } catch (error) {
+      logError('ai/model-config-view', error)
+      message.error('删除失败')
+    }
+  })
 }
 
 function formToPayload() {

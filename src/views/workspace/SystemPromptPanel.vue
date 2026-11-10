@@ -104,6 +104,7 @@ import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import type { PromptTemplate } from '../../types'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import {
   JUMP_BACK_NOTICE,
@@ -234,14 +235,20 @@ const handleSave = async () => {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 const deleteTemplate = async (id: number) => {
-  try {
-    await systemPromptApi.delete(id)
-    message.success('删除成功')
-    fetchTemplates()
-  } catch (e) {
-    message.error('删除失败')
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await systemPromptApi.delete(id)
+      message.success('删除成功')
+      fetchTemplates()
+    } catch (e) {
+      message.error('删除失败')
+    }
+  })
 }
 
 onMounted(fetchTemplates)

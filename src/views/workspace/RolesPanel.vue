@@ -162,6 +162,7 @@ import {
   type EmptyReason,
 } from '../../utils/emptyPage'
 import { formatDateTime } from '../../utils/format'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import { useAuthStore } from '../../stores/auth'
 import type { Role, RoleStatus } from '../../types'
 import PageTitle from '../../components/PageTitle.vue'
@@ -400,19 +401,25 @@ async function handlePermissionSubmit() {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete(record: Role) {
-  if (record.code === 'super_admin' || record.id === 1) {
-    message.error('超级管理员角色不能删除')
-    return
-  }
-  
-  try {
-    await adminApi.roles.delete(record.id)
-    message.success('删除成功')
-    loadRoles()
-  } catch (error) {
-    message.error(`删除失败：${describeHttpError(error)}`)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    if (record.code === 'super_admin' || record.id === 1) {
+      message.error('超级管理员角色不能删除')
+      return
+    }
+
+    try {
+      await adminApi.roles.delete(record.id)
+      message.success('删除成功')
+      loadRoles()
+    } catch (error) {
+      message.error(`删除失败：${describeHttpError(error)}`)
+    }
+  })
 }
 
 watch(

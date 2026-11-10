@@ -327,6 +327,7 @@ import DataTable from '../../components/DataTable.vue'
 import type { TableProps, FormInstance } from 'ant-design-vue'
 import http, { describeHttpError } from '@/api/http'
 import { formatDateTime } from '@/utils/format'
+import { createSubmitGuard } from '@/utils/submitGuard'
 import { useAuthStore } from '@/stores/auth'
 import {
   CODE_FORMAT_PATTERN,
@@ -726,14 +727,20 @@ const submitTenant = async () => {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 const deleteTenant = async (id: number) => {
-  try {
-    await http.delete(`/admin/tenants/${id}`)
-    message.success('删除成功')
-    loadData()
-  } catch (e) {
-    message.error(`删除失败：${describeHttpError(e)}`)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await http.delete(`/admin/tenants/${id}`)
+      message.success('删除成功')
+      loadData()
+    } catch (e) {
+      message.error(`删除失败：${describeHttpError(e)}`)
+    }
+  })
 }
 
 const viewDetail = (record: Tenant) => {

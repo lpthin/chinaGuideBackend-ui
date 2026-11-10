@@ -243,6 +243,7 @@ import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyR
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
 import { logError } from '../../utils/errorLog'
+import { createSubmitGuard } from '../../utils/submitGuard'
 import PageTitle from '../../components/PageTitle.vue'
 
 const auth = useAuthStore()
@@ -560,17 +561,23 @@ async function viewDetail(record: PortalMessage) {
   }
 }
 
+// 删除是不可逆写入（SPEC-UI-10 G-2）：同一拍连点两次只发一次请求
+const deleteGuard = createSubmitGuard()
+
 async function handleDelete(id: number) {
-  try {
-    await portalMessageApi.delete(id)
-    message.success('删除成功')
-    loadAllData()
-  } catch (error: any) {
-    // 后端拒的时候给的是成句的原因（「只有该租户的管理员可以删除站内信」），
-    // 只报一句「删除失败」等于把为什么吞了，人只能反复点
-    message.error(`删除失败：${String(error?.message || '未知原因')}`)
-    logError('portal/message-manage-view', '删除站内信失败:', error)
-  }
+  if (deleteGuard.pending.value) return
+  void deleteGuard.run(async () => {
+    try {
+      await portalMessageApi.delete(id)
+      message.success('删除成功')
+      loadAllData()
+    } catch (error: any) {
+      // 后端拒的时候给的是成句的原因（「只有该租户的管理员可以删除站内信」），
+      // 只报一句「删除失败」等于把为什么吞了，人只能反复点
+      message.error(`删除失败：${String(error?.message || '未知原因')}`)
+      logError('portal/message-manage-view', '删除站内信失败:', error)
+    }
+  })
 }
 
 async function handleSendMessage() {
