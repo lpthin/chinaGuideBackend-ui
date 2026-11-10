@@ -86,7 +86,7 @@ describe('超管没选客户时这一屏一口不发', () => {
 
     expect(knowledgeCardApi.get).not.toHaveBeenCalled()
     expect(knowledgeCardApi.list).not.toHaveBeenCalled()
-    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('当前没有选定客户')
 
     for (const text of ['编辑', '删除']) {
       const buttons = buttonsByText(wrapper, text)
@@ -105,7 +105,7 @@ describe('超管没选客户时这一屏一口不发', () => {
     expect(knowledgeCardApi.list).toHaveBeenCalledWith({
       tenantId: 15, categoryId: 9, page: 1, size: 5,
     })
-    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(wrapper.find('.scope-hint').exists()).toBe(false)
 
     for (const text of ['编辑', '删除']) {
       for (const button of buttonsByText(wrapper, text)) {

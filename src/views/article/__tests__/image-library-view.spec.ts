@@ -333,7 +333,7 @@ describe('超管没选客户时这一屏一口不发', () => {
     expect(api.list).not.toHaveBeenCalled()
     expect(api.categories).not.toHaveBeenCalled()
     expect(wrapper.findAll('.stat-value').map(node => node.text())).toEqual(['—', '—', '—', '—'])
-    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('当前没有选定客户')
 
     const uploadButton = wrapper.findAll('button').find(node => node.text().includes('上传文件'))
     expect(uploadButton, '筛选栏里要有「上传文件」按钮').toBeTruthy()
@@ -347,6 +347,6 @@ describe('超管没选客户时这一屏一口不发', () => {
 
     expect(api.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
     expect(api.categories).toHaveBeenCalledWith(15)
-    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(wrapper.find('.scope-hint').exists()).toBe(false)
   })
 })

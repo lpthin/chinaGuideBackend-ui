@@ -2,7 +2,8 @@
   <div class="knowledge-tag-page">
     <PageTitle />
     <a-spin :spinning="loading">
-      <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
+      <!-- 平台档前置条件：未选客户就读不了、也存不进去。轻量内联，不交给机器人（SPEC-UI-11 B 类） -->
+      <p class="scope-hint">{{ scopeNotice }}</p>
       <a-card :bordered="false">
         <!-- 这排控件原先挂在 #title 槽里，该槽是 overflow:hidden 的卡头标题区，改走 FilterBar -->
         <filter-bar>
@@ -372,8 +373,11 @@ onMounted(() => {
   width: 100%;
 }
 
-.scope-alert {
+.scope-hint {
   margin-bottom: 12px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .tag-name-text {

@@ -23,13 +23,9 @@
       </template>
     </PageTitle>
 
-    <a-alert
-      v-if="requestedTenantId === null"
-      class="scope-alert"
-      type="info"
-      show-icon
-      :message="scopeNotice"
-    />
+    <!-- 平台档前置条件：未选客户就读不了、也不摆图谱。轻量内联，不交给机器人（SPEC-UI-11 B 类）。
+         读失败那条是错误态（C 类），保留原 a-alert。 -->
+    <p v-if="requestedTenantId === null" class="scope-hint">{{ scopeNotice }}</p>
 
     <div class="content-wrapper">
       <a-row :gutter="16">
@@ -1129,6 +1125,13 @@ onUnmounted(() => {
 </script>
 
 <style lang="less" scoped>
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .scope-alert {
   margin-bottom: 16px;
 }

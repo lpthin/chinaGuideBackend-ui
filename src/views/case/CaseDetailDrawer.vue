@@ -20,13 +20,10 @@
     </template>
 
     <a-spin :spinning="loading">
-      <a-alert
-        v-if="requestedTenantId === null && !caseId"
-        class="scope-alert"
-        type="info"
-        show-icon
-        message="当前没有选定客户，这张新案例记不到任何一家名下：分类与热门标签也没取。请先在右上角选一家客户再新建。"
-      />
+      <!-- 平台档前置条件：未选客户时新建记不到任何一家。轻量内联，不交给机器人（SPEC-UI-11 B 类） -->
+      <p v-if="requestedTenantId === null && !caseId" class="scope-hint">
+        当前没有选定客户，这张新案例记不到任何一家名下：分类与热门标签也没取。请先在右上角选一家客户再新建。
+      </p>
       <a-form
         ref="formRef"
         :model="formState"
@@ -446,8 +443,11 @@ function handlePreview(file: any) {
 </script>
 
 <style scoped lang="less">
-.scope-alert {
+.scope-hint {
   margin-bottom: 12px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .content-preview {

@@ -1,12 +1,11 @@
 <template>
   <div class="publish-center-page">
     <PageTitle />
-    <!-- 发布候选 / 队列 / 记录都按客户分开存：平台档（超管没选客户）不发请求、写口全灰 -->
-    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
-      <template #message>
-        发布候选、待发布队列与发布记录都按客户分开：请先在右上角切到「客户」并选一家，再读、再发。平台档这里不发业务请求。
-      </template>
-    </a-alert>
+    <!-- 发布候选 / 队列 / 记录都按客户分开存：平台档（超管没选客户）不发请求、写口全灰。
+         这是前置条件，按 B 类改内联（SPEC-UI-11）。 -->
+    <p v-if="isPlatformMode" class="scope-hint">
+      发布候选、待发布队列与发布记录都按客户分开：请先在右上角切到「客户」并选一家，再读、再发。平台档这里不发业务请求。
+    </p>
     <a-row :gutter="16" class="stat-row">
       <!-- 统计那一发没答回来时摆 `—` 不摆 0：0 说的是「查过了，结果就是空」，而那一发根本没答
            （M-P79，与 M-P77 聚类那一屏同一个缺陷形状）。 -->
@@ -1014,8 +1013,11 @@ watch(requestedTenantId, () => {
 .publish-center-page {
   width: 100%;
 
-  .scope-alert {
+  .scope-hint {
     margin-bottom: 16px;
+    color: #8c8c8c;
+    font-size: 13px;
+    line-height: 20px;
   }
 }
 

@@ -1,22 +1,12 @@
 <template>
   <div class="daily-output-page">
     <PageTitle />
-    <!-- 超管没选客户时这一页按客户配置的东西读不到、也存不进去：先说清楚，别让人对着空表单猜 -->
-    <a-alert
-      v-if="isPlatformMode"
-      class="lead-alert"
-      type="info"
-      show-icon
-      message="当前没有选定客户：每日自动产出是按客户单独配置的"
-      description="先在右上角选一家客户，这一页才会读出并允许修改那一家的配置与留痕；平台档这里不发业务请求。"
-    />
-    <a-alert
-      class="lead-alert"
-      type="info"
-      show-icon
-      message="到点自动从热词库选题、产出草稿；要不要直接发到站上，由下面这一档决定。"
-      description="「过质检后自动发布」不是无人值守直通站点：质检没过或调用没跑成的稿子仍退回人工待审，留痕里会写明是哪一种。"
-    />
+    <!-- 超管没选客户时这一页按客户配置的东西读不到、也存不进去：先说清楚，别让人对着空表单猜。
+         这是前置条件，按 B 类改内联（SPEC-UI-11）。 -->
+    <p v-if="isPlatformMode" class="lead-hint">
+      当前没有选定客户：每日自动产出是按客户单独配置的，先在右上角选一家客户，这一页才会读出并允许修改那一家的配置与留痕；平台档这里不发业务请求。
+    </p>
+    <!-- 「到点选题、过质检才发」的口径说明已搬进引导机器人（SPEC-UI-11 R-6）：首访讲一句，全文留在页头问号里。 -->
 
     <a-card title="每日自动产出" :bordered="false" :loading="loading">
       <div v-if="isPlatformMode" class="platform-empty">
@@ -153,6 +143,8 @@ import { formatDateTime } from '../../utils/format'
 import { useTenantReadGuard } from '../../utils/latestRead'
 import PageTitle from '../../components/PageTitle.vue'
 import DataTable from '../../components/DataTable.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 
 /**
  * 「每天自动产出」那张配置卡（P9-B 拍板 Q7：租户管理员改得动，也分配得出去）。
@@ -162,6 +154,7 @@ import DataTable from '../../components/DataTable.vue'
  */
 
 const authStore = useAuthStore()
+const robot = useRobotNotices()
 
 const MANAGE_CODE = 'content:output:manage'
 
@@ -307,6 +300,12 @@ async function loadRuns() {
 }
 
 onMounted(() => {
+  // 排产口径与数据无关，挂载就说一句；同会话只说一次，全文靠页头问号复看
+  const card = ROBOT_PAGE_CARDS['daily-output.pipeline']
+  robot.announce(
+    { key: 'daily-output.pipeline', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   // 进这一页要 content:output:view（路由 meta 与后端注解读同一个码），所以这里不再判一次读权限：
   // 没有码的人根本到不了这一页，在这里补一层判断只会造出一个「没人看得见的空壳表单」。
   load()
@@ -329,8 +328,11 @@ watch(
   padding: 8px 0;
 }
 
-.lead-alert {
+.lead-hint {
   margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .config-form {

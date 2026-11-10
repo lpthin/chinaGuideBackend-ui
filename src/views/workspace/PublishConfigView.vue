@@ -1,11 +1,10 @@
 <template>
   <div class="publish-config-page">
     <PageTitle />
-    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
-      <template #message>
-        发布配置按客户分开存：请先在右上角切到「客户」并选一家，再读、再改。平台档这里不发业务请求。
-      </template>
-    </a-alert>
+    <!-- 平台档前置条件：未选客户就读不了、也存不进去。轻量内联，不交给机器人（SPEC-UI-11 B 类） -->
+    <p v-if="isPlatformMode" class="scope-hint">
+      发布配置按客户分开存：请先在右上角切到「客户」并选一家，再读、再改。平台档这里不发业务请求。
+    </p>
     <a-tabs v-model:activeKey="activeTab">
       <a-tab-pane key="mode" tab="发布模式配置">
         <a-card :bordered="false">
@@ -415,8 +414,11 @@ watch(requestedTenantId, () => {
   padding: 8px 0;
 }
 
-.scope-alert {
+.scope-hint {
   margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .switch-hint {

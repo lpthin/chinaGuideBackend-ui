@@ -1,12 +1,11 @@
 <template>
   <div class="review-panel-page">
     <PageTitle />
-    <!-- 待审列表与审核统计都按客户分开：平台档（超管没选客户）不发请求、写口全灰 -->
-    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
-      <template #message>
-        待审文章与审核统计都按客户分开：请先在右上角切到「客户」并选一家，再读、再审。平台档这里不发业务请求。
-      </template>
-    </a-alert>
+    <!-- 待审列表与审核统计都按客户分开：平台档（超管没选客户）不发请求、写口全灰。
+         这是前置条件，按 B 类改内联（SPEC-UI-11）。 -->
+    <p v-if="isPlatformMode" class="scope-hint">
+      待审文章与审核统计都按客户分开：请先在右上角切到「客户」并选一家，再读、再审。平台档这里不发业务请求。
+    </p>
     <a-spin :spinning="loading">
       <!-- 顶部数据概览区：全部取自 reviewApi.getReviewStats。
            那四张卡读的是另一支口，它对认不出的租户只回 0，所以「这一发读失败」或「选中那一家读不到」时
@@ -958,8 +957,11 @@ onUnmounted(() => {
   width: 100%;
   padding: 8px 0;
 
-  .scope-alert {
+  .scope-hint {
     margin-bottom: 16px;
+    color: #8c8c8c;
+    font-size: 13px;
+    line-height: 20px;
   }
 }
 

@@ -372,8 +372,8 @@ describe('超管没选定客户（M-P105）：不查任何一家的图谱', () =
     auth.store.selectedTenantId = null
     const wrapper = await mountView()
 
-    expect(wrapper.find('.alert-stub').text()).toContain('没有选定客户')
-    expect(wrapper.find('.alert-stub').text()).toContain('请在右上角选一家客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('请在右上角选一家客户')
     expect(wrapper.find('.empty-stub').text()).toContain('没发出去')
     expect(wrapper.find('.empty-stub').text()).toContain('不是「这一家没有图谱」')
   })
@@ -397,7 +397,7 @@ describe('超管没选定客户（M-P105）：不查任何一家的图谱', () =
     await flushPromises()
 
     expect(knowledgeGraphApi.getGraph).toHaveBeenCalledTimes(1)
-    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(wrapper.find('.scope-hint').exists()).toBe(false)
     expect(cardValues(wrapper)).toEqual(['3', '2', '2'])
   })
 })

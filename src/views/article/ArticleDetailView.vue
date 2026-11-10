@@ -11,14 +11,10 @@
       :message="`这一篇没读到：${loadFailure}`"
       description="读不到不等于「文章已被删除」；恢复后请重新打开本页。"
     />
-    <a-alert
-      v-else-if="isPlatformMode"
-      type="info"
-      show-icon
-      class="article-detail-page__notice"
-      message="当前没有选定客户，这一屏只读"
-      description="可以看这一篇属于哪家客户；要编辑或删除，请先在右上角选那一家客户。"
-    />
+    <!-- 平台档「只读」说明属于前置条件，按 B 类改内联（SPEC-UI-11）：读失败那条仍留在上面。 -->
+    <p v-else-if="isPlatformMode" class="article-detail-page__hint">
+      当前没有选定客户，这一屏只读：可以看这一篇属于哪家客户；要编辑或删除，请先在右上角选那一家客户。
+    </p>
     <a-spin :spinning="loading">
       <a-page-header
         :title="article?.title"
@@ -422,6 +418,13 @@ onMounted(() => {
 
   &__notice {
     margin-bottom: 12px;
+  }
+
+  &__hint {
+    margin-bottom: 12px;
+    color: #8c8c8c;
+    font-size: 13px;
+    line-height: 20px;
   }
 
   .write-blocked-note {

@@ -1,12 +1,11 @@
 <template>
   <div class="media-panel-page">
     <PageTitle />
-    <!-- 项目、资料、标签都按客户分开：平台档（超管没选客户）不发请求、写口全灰 -->
-    <a-alert v-if="isPlatformMode" type="info" show-icon class="scope-alert">
-      <template #message>
-        项目、资料与标签都按客户分开：请先在右上角切到「客户」并选一家，再读、再传。平台档这里不发业务请求。
-      </template>
-    </a-alert>
+    <!-- 项目、资料、标签都按客户分开：平台档（超管没选客户）不发请求、写口全灰。
+         这是前置条件，按 B 类改内联（SPEC-UI-11）。 -->
+    <p v-if="isPlatformMode" class="scope-hint">
+      项目、资料与标签都按客户分开：请先在右上角切到「客户」并选一家，再读、再传。平台档这里不发业务请求。
+    </p>
     <!-- 分类列表视图 -->
     <template v-if="!currentCategoryId && !unclassifiedMode">
       <div class="panel-header">
@@ -1482,8 +1481,11 @@ onBeforeUnmount(stopVectorFollow)
 <style lang="less" scoped>
 .media-panel-page {
 
-  .scope-alert {
+  .scope-hint {
     margin-bottom: 16px;
+    color: #8c8c8c;
+    font-size: 13px;
+    line-height: 20px;
   }
 
   .panel-header {

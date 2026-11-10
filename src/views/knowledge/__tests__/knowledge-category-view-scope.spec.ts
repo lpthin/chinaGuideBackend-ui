@@ -160,7 +160,11 @@ function statValues(): string[] {
 }
 
 function alertText(): string {
-  return [...document.querySelectorAll('.alert-msg')].map(n => n.textContent).join(' | ')
+  // 选客户说明已按 B 类改成内联小字（.scope-hint），错误态仍是 a-alert，两边都要读到
+  return [
+    ...[...document.querySelectorAll('.alert-msg')].map(n => n.textContent),
+    ...[...document.querySelectorAll('.scope-hint')].map(n => n.textContent)
+  ].join(' | ')
 }
 
 // 只把连续空白压成一个空格：后端原话里的空格（如「网关 502」）是判据的一部分，全删会造出假红

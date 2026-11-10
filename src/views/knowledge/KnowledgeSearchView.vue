@@ -2,13 +2,8 @@
   <div class="knowledge-search-container">
     <PageTitle description="全文搜索文档、卡片和实体" />
 
-    <a-alert
-      v-if="requestedTenantId === null"
-      class="scope-alert"
-      type="info"
-      show-icon
-      :message="scopeNotice"
-    />
+    <!-- 平台档前置条件：未选客户就读不了、也搜不了。轻量内联，不交给机器人（SPEC-UI-11 B 类） -->
+    <p v-if="requestedTenantId === null" class="scope-hint">{{ scopeNotice }}</p>
 
     <div class="search-content">
       <div class="search-bar-section">
@@ -422,8 +417,11 @@ const handleResultClick = (item: KnowledgeSearchResultItem) => {
 </script>
 
 <style lang="less" scoped>
-.scope-alert {
+.scope-hint {
   margin: 16px 24px 0;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .knowledge-search-container {

@@ -202,7 +202,7 @@ describe('这一屏的数属于谁', () => {
     expect(knowledgeStatsApi.getTrend).toHaveBeenCalledWith(15, 7)
     expect(knowledgeCategoryApi.stats).toHaveBeenCalledWith(15)
     expect(knowledgeDocumentApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
-    expect(wrapper.find('.alert-msg').text()).toContain('客户「demo」（编号 #15）')
+    expect(wrapper.find('.scope-hint').text()).toContain('客户「demo」（编号 #15）')
   })
 
   it('租户管理员没有「选中态」也按自己那一家取数，不再永远拿 1', async () => {
@@ -218,7 +218,7 @@ describe('这一屏的数属于谁', () => {
     expect(knowledgeStatsApi.getTrend).toHaveBeenCalledWith(558, 7)
     expect(knowledgeCategoryApi.stats).toHaveBeenCalledWith(558)
     expect(knowledgeDocumentApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 558 }))
-    expect(wrapper.find('.alert-msg').text()).toContain('你所在客户（编号 #558）')
+    expect(wrapper.find('.scope-hint').text()).toContain('你所在客户（编号 #558）')
     expect(cardValues(wrapper)).toEqual(['1,234', '40', '30', '7'])
   })
 
@@ -233,7 +233,7 @@ describe('这一屏的数属于谁', () => {
     expect(knowledgeStatsApi.getTrend).not.toHaveBeenCalled()
     expect(knowledgeCategoryApi.stats).not.toHaveBeenCalled()
     expect(knowledgeDocumentApi.list).not.toHaveBeenCalled()
-    expect(wrapper.find('.alert-msg').text()).toContain('没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('没有选定客户')
     expect(cardValues(wrapper)).toEqual(['—', '—', '—', '—'])
   })
 

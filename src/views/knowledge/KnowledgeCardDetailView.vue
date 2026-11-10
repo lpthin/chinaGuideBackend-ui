@@ -1,6 +1,8 @@
 <template>
   <div class="knowledge-card-detail-page">
-    <a-alert v-if="requestedTenantId === null" class="scope-alert" type="info" show-icon :message="scopeNotice" />
+    <!-- 平台档前置条件：未选客户就读不了、也存不进去。轻量内联，不交给机器人（SPEC-UI-11 B 类）。
+         下面那条「没读到」是错误态（C 类），保留原 a-alert。 -->
+    <p v-if="requestedTenantId === null" class="scope-hint">{{ scopeNotice }}</p>
     <a-alert
       v-else-if="loadFailure"
       class="scope-alert"
@@ -228,6 +230,13 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="less">
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .scope-alert {
   margin-bottom: 16px;
 }

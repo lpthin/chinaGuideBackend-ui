@@ -70,7 +70,7 @@ describe('超管没选客户时这一屏一口不发', () => {
 
     expect(knowledgeCategoryApi.all).not.toHaveBeenCalled()
     expect(knowledgeSearchApi.search).not.toHaveBeenCalled()
-    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('当前没有选定客户')
     expect(wrapper.find('.search-input-stub').attributes('data-disabled')).toBe('true')
     expect(wrapper.text()).toContain('还没有选定客户')
     expect(wrapper.text()).toContain('这一发没发出去')
@@ -81,7 +81,7 @@ describe('超管没选客户时这一屏一口不发', () => {
     const wrapper = await mountView()
 
     expect(knowledgeCategoryApi.all).toHaveBeenCalledWith(15)
-    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(wrapper.find('.scope-hint').exists()).toBe(false)
     expect(wrapper.find('.search-input-stub').attributes('data-disabled')).toBe('false')
     expect(wrapper.text()).toContain('开始搜索知识库')
   })

@@ -39,7 +39,8 @@
         </template>
       </a-page-header>
 
-      <a-alert class="scope-alert" type="info" show-icon :message="scopeNotice" />
+      <!-- 平台档前置条件：未选客户就读不了、也存不进去。轻量内联，不交给机器人（SPEC-UI-11 B 类） -->
+      <p class="scope-hint">{{ scopeNotice }}</p>
 
       <a-row :gutter="24" style="margin-top: 16px">
         <a-col :span="18">
@@ -980,8 +981,11 @@ watch(requestedTenantId, () => {
   width: 100%;
 }
 
-.scope-alert {
+.scope-hint {
   margin-bottom: 12px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .editor-container {

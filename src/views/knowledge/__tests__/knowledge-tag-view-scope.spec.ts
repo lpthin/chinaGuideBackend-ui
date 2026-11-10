@@ -177,7 +177,11 @@ function totalLine(): string {
 }
 
 function alertText(): string {
-  return [...document.querySelectorAll('.alert-msg')].map(n => n.textContent).join(' | ')
+  // 选客户说明已按 B 类改成内联小字（.scope-hint），错误态仍是 a-alert，两边都要读到
+  return [
+    ...[...document.querySelectorAll('.alert-msg')].map(n => n.textContent),
+    ...[...document.querySelectorAll('.scope-hint')].map(n => n.textContent)
+  ].join(' | ')
 }
 
 // 只把连续空白压成一个空格：「网关 502」里那个空格是原文的一部分，全删掉会造出假红

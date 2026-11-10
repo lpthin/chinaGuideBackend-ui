@@ -97,7 +97,7 @@ describe('超管没选客户时这一屏一口不发', () => {
     expect(caseApi.list).not.toHaveBeenCalled()
     expect(articleApi.getGenerationTasks).not.toHaveBeenCalled()
     expect(statValues(wrapper)).toEqual(['—', '—', '—', '—'])
-    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('当前没有选定客户')
     expect(buttonByText(wrapper, '模板管理').attributes('disabled')).toBeDefined()
   })
 
@@ -109,7 +109,7 @@ describe('超管没选客户时这一屏一口不发', () => {
     expect(keywordApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15, page: 1, size: 100 }))
     expect(clusterApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
     expect(articleApi.getGenerationTasks).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
-    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(wrapper.find('.scope-hint').exists()).toBe(false)
     expect(statValues(wrapper)).toEqual(['9篇', '3篇', '5篇', '1篇'])
     expect(buttonByText(wrapper, '模板管理').attributes('disabled')).toBeUndefined()
   })

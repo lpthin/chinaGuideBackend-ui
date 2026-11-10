@@ -237,7 +237,7 @@ describe('超管没选客户时这一屏一口不发', () => {
     expect(adminApi.users.list).not.toHaveBeenCalled()
     expect(dashboardApi.getStats).not.toHaveBeenCalled()
     expect(texts(wrapper, '.stat-value')).toEqual(['—', '—', '—', '—'])
-    expect(wrapper.find('.alert-stub').text()).toContain('当前没有选定客户')
+    expect(wrapper.find('.scope-hint').text()).toContain('当前没有选定客户')
 
     const createButton = wrapper.findAll('button').find(node => node.text().includes('新建文章'))
     expect(createButton, '侧栏里要有「新建文章」按钮').toBeTruthy()
@@ -252,6 +252,6 @@ describe('超管没选客户时这一屏一口不发', () => {
     expect(categoryApi.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
     expect(adminApi.users.list).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 15 }))
     expect(dashboardApi.getStats).toHaveBeenCalledWith(15)
-    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(wrapper.find('.scope-hint').exists()).toBe(false)
   })
 })
