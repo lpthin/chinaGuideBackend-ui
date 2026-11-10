@@ -489,7 +489,7 @@ onMounted(() => {
 /* 前置条件与清单说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
 .scope-hint {
   margin-bottom: var(--admin-space-1);
-  color: #8c8c8c;
+  color: var(--admin-text-secondary);
   font-size: 13px;
   line-height: 20px;
 }
