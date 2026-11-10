@@ -30,6 +30,20 @@ const sources = import.meta.glob(
     '../../../views/knowledge/KnowledgeGraphView.vue',
     '../../../views/knowledge/KnowledgeSearchView.vue',
     '../../../views/knowledge/KnowledgeTagView.vue',
+    '../../../views/portal/AssembleJobView.vue',
+    '../../../views/portal/BlockShowcaseView.vue',
+    '../../../views/portal/SectionManageView.vue',
+    '../../../views/portal/ShowcaseManageView.vue',
+    '../../../views/portal/ReferenceSiteView.vue',
+    '../../../views/portal/ThemePresetView.vue',
+    '../../../views/portal/StoreManageView.vue',
+    '../../../views/portal/PortalSiteInfoView.vue',
+    '../../../views/portal/RevisionTicketView.vue',
+    '../../../views/portal/BriefIntakeForm.vue',
+    '../../../views/portal/reference/ReferencePackageTab.vue',
+    '../../../views/portal/reference/ReferenceMappingsTab.vue',
+    '../../../views/portal/reference/ReferenceUnmatchedTab.vue',
+    '@/components/SiteDomainWizard.vue',
     '../../../copy/robot.ts'
   ],
   { query: '?raw', import: 'default', eager: true }
@@ -115,4 +129,56 @@ describe('第一批 A/B 类提示条已处置', () => {
     expect(copy).toContain("'daily-output.pipeline'")
     expect(copy).toContain('到点选题出稿，过质检才发')
   })
+})
+
+/** 第二批：口径讲解迁进机器人（页面只登记 key，正文只在 copy/robot.ts） */
+const ROBOT_PAGES: Array<{ file: string; key: string; oldText: string }> = [
+  { file: 'portal/AssembleJobView.vue', key: 'portal.assemble.intro', oldText: 'AI 整站组装要跑两步模型' },
+  { file: 'portal/BlockShowcaseView.vue', key: 'portal.blocks.intro', oldText: '这里是平台侧的组件库' },
+  { file: 'portal/SectionManageView.vue', key: 'portal.sections.intro', oldText: '这里只翻栏目的开关' },
+  { file: 'portal/ShowcaseManageView.vue', key: 'portal.showcase.intro', oldText: '带「示意」徽标的条目是 AI 生成的占位资料' },
+  { file: 'portal/ReferenceSiteView.vue', key: 'portal.reference.intro', oldText: '这里摄取的是别人的站点' },
+  { file: 'portal/ThemePresetView.vue', key: 'portal.theme.intro', oldText: '「皮肤」只是一组样式变量' },
+  { file: 'portal/StoreManageView.vue', key: 'portal.stores.intro', oldText: '门店是按' },
+  { file: 'portal/reference/ReferencePackageTab.vue', key: 'portal.reference.package', oldText: '段级那一半只是证据' },
+  { file: 'portal/PortalSiteInfoView.vue', key: 'portal.site-info.seo', oldText: '这里是各页面 SEO 的只读镜像' }
+]
+
+/** 第二批：改成一行内联小字的页面（同一页可能既有 A 也有 B） */
+const INLINE_PAGES_2 = [
+  'portal/BriefIntakeForm.vue',
+  'portal/PortalSiteInfoView.vue',
+  'portal/ReferenceSiteView.vue',
+  'portal/RevisionTicketView.vue',
+  'portal/SectionManageView.vue',
+  'portal/ThemePresetView.vue',
+  'portal/reference/ReferenceMappingsTab.vue',
+  'portal/reference/ReferenceUnmatchedTab.vue',
+  'components/SiteDomainWizard.vue'
+]
+
+describe('第二批「站点与建设」A/B 类提示条已处置', () => {
+  for (const { file, key, oldText } of ROBOT_PAGES) {
+    it(`${file}：口径已交给机器人，页面里不再留原文`, () => {
+      const text = source(file)
+
+      expect(text).toContain('useRobotNotices')
+      expect(text).toContain(`ROBOT_PAGE_CARDS['${key}']`)
+      expect(text).not.toContain(oldText)
+    })
+  }
+
+  it('第二批的卡片都写在 copy/robot.ts 一处', () => {
+    const copy = source('copy/robot.ts')
+
+    for (const { key } of ROBOT_PAGES) expect(copy).toContain(`'${key}'`)
+  })
+
+  for (const file of INLINE_PAGES_2) {
+    it(`${file}：前置条件/清单说明是内联小字`, () => {
+      const text = source(file)
+
+      expect(text).toContain('scope-hint')
+    })
+  }
 })

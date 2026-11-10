@@ -953,34 +953,27 @@ onMounted(boot)
       </a-space>
     </div>
 
-    <!-- 一家租户都没有 / 列表没取到：这一单填完也保存不了，先说清缺的是哪一样 -->
-    <a-alert v-if="tenantsFailed" type="warning" show-icon class="brief-intake__alert">
-      <template #message>
-        客户列表没取到：点上面那颗「重新取客户列表」重试。取不到就没法选，这一单也保存不了。
-      </template>
-    </a-alert>
-    <a-alert v-else-if="!tenants.length && !form.tenantId" type="warning" show-icon class="brief-intake__alert">
-      <template #message>
-        还没有客户：需求单要记在一家客户名下，先点上面那颗「去新建客户」开一家，
-        建完回到这一页点「重新取客户列表」就能选到它。
-      </template>
-    </a-alert>
+    <!-- 一家租户都没有 / 列表没取到 / 从客户开通带过来的上下文 / 锁单：都是前置条件，
+         改成一行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p v-if="tenantsFailed" class="brief-intake__alert scope-hint">
+      客户列表没取到：点上面那颗「重新取客户列表」重试。取不到就没法选，这一单也保存不了。
+    </p>
+    <p v-else-if="!tenants.length && !form.tenantId" class="brief-intake__alert scope-hint">
+      还没有客户：需求单要记在一家客户名下，先点上面那颗「去新建客户」开一家，
+      建完回到这一页点「重新取客户列表」就能选到它。
+    </p>
 
-    <a-alert v-if="tenantFromQuery && !briefId" type="info" show-icon class="brief-intake__alert">
-      <template #message>
-        客户是从「客户开通」那一行带过来的（#{{ form.tenantId }}）：这一单就记在它名下，确认一下再往下录。
-      </template>
-    </a-alert>
+    <p v-if="tenantFromQuery && !briefId" class="brief-intake__alert scope-hint">
+      客户是从「客户开通」那一行带过来的（#{{ form.tenantId }}）：这一单就记在它名下，确认一下再往下录。
+    </p>
 
     <!-- 锁了单的一单：表单仍然打开（要看要对照），但先说清保存会被后端拒，别让人填完才发现 -->
-    <a-alert v-if="lockedNotice" type="warning" show-icon class="brief-intake__alert">
-      <template #message>
-        这一单现在是「{{ statusText }}」，后端只收 {{ editableStatusNames }} 两种状态的修改，
-        所以这里保存一定会被拒（拒的理由是后端那句中文，原样显示在页面底部）。要改得等生成链路把状态挪回可编辑，
-        或者回详情页看这一单到底走到哪一步了。
-        <a-button size="small" type="link" @click="goDetail">看详情</a-button>
-      </template>
-    </a-alert>
+    <p v-if="lockedNotice" class="brief-intake__alert scope-hint">
+      这一单现在是「{{ statusText }}」，后端只收 {{ editableStatusNames }} 两种状态的修改，
+      所以这里保存一定会被拒（拒的理由是后端那句中文，原样显示在页面底部）。要改得等生成链路把状态挪回可编辑，
+      或者回详情页看这一单到底走到哪一步了。
+      <a-button size="small" type="link" @click="goDetail">看详情</a-button>
+    </p>
 
     <a-alert v-if="vocabularyFailed" type="error" show-icon class="brief-intake__alert">
       <template #message>
@@ -1398,6 +1391,12 @@ onMounted(boot)
 }
 .brief-intake__alert {
   margin-bottom: 16px;
+}
+/* 前置条件与上下文说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
 }
 /* 题目进度条：一格一题（题干是词表下发的那一份），吸顶在录入区上方；
    点格子即翻题，所以它同时是「回改」的入口——不必从第一题再走一遍 */

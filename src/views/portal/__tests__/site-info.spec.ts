@@ -97,7 +97,8 @@ describe('形态：AI 先填好、租户只在不同意时改，robots 是勾选
   it('逐页 SEO 是只读镜像：写口不在这页，页面明说改它要经超管', () => {
     expect(view).toMatch(/siteInfoApi\.pagesSeo\(/);
     expect(view).toMatch(/逐页 SEO（只读）/);
-    expect(view).toMatch(/写入这一层的口在超级管理员侧/);
+    // 只读镜像的口径已交给机器人：页面只登记 key，正文只在 copy/robot.ts 一处
+    expect(view).toMatch(/ROBOT_PAGE_CARDS\['portal\.site-info\.seo'\]/);
   });
 });
 

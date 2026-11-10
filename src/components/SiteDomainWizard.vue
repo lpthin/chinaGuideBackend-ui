@@ -149,13 +149,10 @@ async function bind() {
       </template>
 
       <template #step-guide>
-        <a-alert
-          v-if="result && result.status !== 'OK'"
-          type="warning"
-          show-icon
-          style="margin-bottom: 16px"
-          message="检测没有通过，你选择仍要绑定：请先人工确认客户那边解析确实配好了。"
-        />
+        <!-- 检测没过仍要绑定的提醒只占一行灰字，不占色块（SPEC-UI-11 B 类） -->
+        <p v-if="result && result.status !== 'OK'" class="scope-hint">
+          检测没有通过，你选择仍要绑定：请先人工确认客户那边解析确实配好了。
+        </p>
         <p>让客户在他的域名服务商后台（阿里云/腾讯云等）加一条解析记录：</p>
         <a-descriptions bordered :column="1" size="small">
           <a-descriptions-item label="记录类型">CNAME（推荐）或 A</a-descriptions-item>
@@ -186,6 +183,14 @@ async function bind() {
 </template>
 
 <style scoped lang="less">
+/* 前置条件与操作提醒：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .domain-wizard__muted {
   color: #8c8c8c;
 }

@@ -21,13 +21,8 @@
         <a-descriptions-item label="段级取值不一致">{{ variedTokenText }}</a-descriptions-item>
       </a-descriptions>
 
-      <a-alert
-        type="info"
-        show-icon
-        style="margin-top: 12px"
-        message="段级那一半只是证据，不会变成站点样式：能被搬进真的样式变量的只有浏览器量出来的站级取值"
-        description="「这一格里出现过 12px」和「这一站的圆角是 12px」可信度差一个量级，所以它们分列在两处显示。"
-      />
+      <!-- 「段级只是证据、只有站级进样式变量」的口径已搬进引导机器人（SPEC-UI-11 R-6）：
+           切到这个页签时说一句，全文留在页头问号里。 -->
 
       <a-divider orientation="left">每一格装得下什么（槽位形状）</a-divider>
       <DataTable
@@ -116,10 +111,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import DataTable from '../../../components/DataTable.vue'
 import StateBlock from '../../../components/StateBlock.vue'
 import { referenceLabel, type ReferenceVocabularies, type TemplatePackage } from '../../../api/referenceSites'
+import { ROBOT_PAGE_CARDS } from '../../../copy/robot'
+import { useRobotNotices } from '../../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
+
+onMounted(() => {
+  // 模板包口径与这一页的数据无关，切到这个页签时说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['portal.reference.package']
+  robot.announce(
+    { key: 'portal.reference.package', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
+})
 
 /**
  * 拆出来的模板证据（Spec-E T5 的界面那一半）：一份只读取证快照。

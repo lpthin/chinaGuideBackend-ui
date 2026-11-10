@@ -2,13 +2,8 @@
   <div class="assemble-job-page">
     <!-- 标题只认路由 meta.title 那一份（Spec-M UIB-3）：这一页从前一进来只有三块编号卡，没有人知道自己站在哪 -->
     <PageTitle />
-    <a-alert type="info" show-icon class="assemble-job-page__notice">
-      <template #message>
-        AI 整站组装要跑两步模型（整站规划 + 逐页文案），{{ costOwnerLine }}，
-        所以这一页没有「一键整站上线」：先估算、看过预估再亲手勾确认才调用模型；调用之后拿到的仍然只是逐页草稿，
-        访客能看到什么，只由「应用这一页」这一个一个的点击决定。这条路只有平台侧走得通（N4：组件搭建与组装归超级管理员），客户侧没有它。
-      </template>
-    </a-alert>
+    <!-- 「整站组装跑两步模型、没有一键上线」的口径已搬进引导机器人（SPEC-UI-11 R-6）：
+         首访说一句，全文留在页头问号里。 -->
 
     <!-- ---------------- 第 1 步：建任务（不花钱） ---------------- -->
     <a-card size="small" title="1 建一个组装任务（只存快照，不调模型）" class="assemble-job-page__panel">
@@ -277,6 +272,11 @@ import PageTitle from '../../components/PageTitle.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import DataTable from '../../components/DataTable.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 /**
  * AI 整站组装任务视图（Spec §6.3，Q3；N4：只有平台能发起）。
@@ -438,17 +438,6 @@ const canRollback = computed(() => !!job.value && appliedCount.value > 0 && !bus
 
 /** 钱算不算在租户头上只认后端 V142 的读数；后端没给字段时按「算他的」说，宁可多警告一句 */
 const tenantBearsCost = computed(() => estimate.value?.tenantBearsCost !== false)
-
-/**
- * 「这一趟记在谁头上」的一句人话，页面三处共用一个出处。
- * 还没出价时不猜：交付态是后端的账，界面上没有第二个来源。
- */
-const costOwnerLine = computed(() => {
-  if (!estimate.value) return '这笔消耗记在谁头上要看第 2 步那张价签（该客户已交付才计入他的额度）'
-  return tenantBearsCost.value
-    ? '扣的是这个站点所属客户的 Token 配额'
-    : '这一次由平台承担、不进该客户的账单（超级管理员确定交付之后才开始计他的额度）'
-})
 
 const costOwnerShort = computed(() => {
   if (!estimate.value) return '按第 2 步的价签记账'
@@ -718,6 +707,12 @@ async function rollbackAll() {
 }
 
 onMounted(async () => {
+  // 组装口径与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['portal.assemble.intro']
+  robot.announce(
+    { key: 'portal.assemble.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   try {
     statusLabels.value = await portalAssembleApi.statusLabels()
   } catch (error) {

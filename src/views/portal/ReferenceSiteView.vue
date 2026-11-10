@@ -20,16 +20,11 @@
       </template>
     </FilterBar>
 
-    <a-alert type="info" show-icon class="reference-site-page__notice">
-      <template #message>
-        这里摄取的是别人的站点「长什么样的结构」，不是把别人的网页搬进来：落库的只有版式结构、样式取值与映射建议，
-        生成出来的是一份草稿页，用的是我们自己的区块和你们自己的内容。
-      </template>
-    </a-alert>
+    <!-- 「摄取的是结构、不是搬网页」的口径已搬进引导机器人（SPEC-UI-11 R-6）：
+         首访说一句，全文留在页头问号里。 -->
 
-    <a-alert v-if="staticOptionsNote" type="warning" show-icon class="reference-site-page__notice">
-      <template #message>{{ staticOptionsNote }}</template>
-    </a-alert>
+    <!-- 静态选项词表没读到只说明一行，不占色块（B 类） -->
+    <p v-if="staticOptionsNote" class="scope-hint">{{ staticOptionsNote }}</p>
 
     <DataTable
       :data-source="tasks"
@@ -146,6 +141,11 @@ import { portalPagesApi, type PortalBlockMeta } from '../../api/portalPages'
 import { siteApi } from '../../api/workspace'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 /**
  * 参考站摄取任务列表（Spec §7）。
@@ -313,6 +313,12 @@ function openTask(id: number) {
 }
 
 onMounted(async () => {
+  // 摄取口径与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['portal.reference.intro']
+  robot.announce(
+    { key: 'portal.reference.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   try {
     const labels = await portalReferenceApi.statusLabels()
     statusLabels.value = { ...EMPTY_STATUS_LABELS, ...labels }
@@ -325,6 +331,14 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="less">
+/* 前置条件与清单说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .reference-site-page {
   padding: 16px;
 

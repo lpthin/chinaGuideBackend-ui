@@ -1,15 +1,8 @@
 <template>
   <div class="block-library">
     <PageTitle />
-    <a-alert type="info" show-icon class="block-library__notice">
-      <template #message>
-        这里是平台侧的组件库。每一格用的都是<strong>访客端同一套渲染器</strong>，演示槽位是按区块自己的
-        字段结构（dataSchema）推出来的，不落库、也不动任何站点。
-        清单、分类、可选渲染器与默认字段结构全部来自服务端，这一页没有第二份常量。
-        <strong>代码声明的那一族在这里只读</strong>——要改它得发版；界面添加的那一族可以在这一页新建、
-        改字段结构、启用与删除。
-      </template>
-    </a-alert>
+    <!-- 「平台组件库、访客端同一渲染器」的口径已搬进引导机器人（SPEC-UI-11 R-6）：
+         首访说一句，全文留在页头问号里。 -->
 
     <a-alert v-if="loadError" type="error" show-icon class="block-library__notice" :message="loadError">
       <template #description>
@@ -188,6 +181,11 @@ import { demoPropsFor, demoShell } from '../../portal/blocks/blockDemo'
 import { resolveRenderer } from '../../portal/blocks/registry'
 import type { RenderedBlock } from '../../portal/api/portalPublic'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 /**
  * 组件库（Spec-M §7 的「区块画廊升级为可写」+ §8 第 4 步，D4/D5）。
@@ -564,6 +562,12 @@ async function save() {
 }
 
 onMounted(async () => {
+  // 组件库口径与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['portal.blocks.intro']
+  robot.announce(
+    { key: 'portal.blocks.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   await load()
   await loadWriteMeta()
 })

@@ -32,9 +32,8 @@
       </template>
     </FilterBar>
 
-    <a-alert v-if="pagesNote" type="info" show-icon style="margin-bottom: 12px">
-      <template #message>{{ pagesNote }}</template>
-    </a-alert>
+    <!-- 页面清单读不到只说明一行，不占色块（SPEC-UI-11 B 类） -->
+    <p v-if="pagesNote" class="scope-hint">{{ pagesNote }}</p>
 
     <DataTable
       :data-source="tickets"
@@ -620,6 +619,14 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="less">
+/* 前置条件与清单说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .revision-ticket-page {
   padding: 16px;
 

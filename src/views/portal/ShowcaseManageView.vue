@@ -14,13 +14,7 @@
       @create="openCreate"
     >
       <template #notice>
-        <a-alert type="info" show-icon>
-          <template #message>
-            带「示意」徽标的条目是 AI 生成的占位资料：它会在门户上占位，但不进真实统计。
-            请把每一处示意换成你们自己的资料后徽标自然消失（关掉「示意内容」开关即去掉）。
-            分类页签、中文名与归属栏目都来自平台词表，这里只是读它。
-          </template>
-        </a-alert>
+        <!-- 「示意」徽标与词表口径已搬进引导机器人（SPEC-UI-11 R-6）：首访说一句，全文在页头问号里 -->
         <!-- 站点口读失败与内容读失败是两件事：这一条只说站点，内容读失败由表格那块说 -->
         <a-alert v-if="siteError" type="error" show-icon :message="siteError" />
       </template>
@@ -188,6 +182,11 @@ import {
   type ShowcaseItem,
   type ShowcaseKind
 } from '../../api/portalShowcase'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 /**
  * 租户侧「展示内容」维护页（Spec-D D2）。
@@ -552,6 +551,12 @@ async function handleDelete(record: ShowcaseItem) {
 }
 
 onMounted(async () => {
+  // 「示意」口径与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['portal.showcase.intro']
+  robot.announce(
+    { key: 'portal.showcase.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   await loadKinds()
   await loadSites()
   await loadRows()

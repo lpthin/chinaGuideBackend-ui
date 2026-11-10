@@ -1,11 +1,7 @@
 <template>
   <div class="reference-site-page__mappings">
-    <a-alert
-      type="warning"
-      show-icon
-      style="margin-bottom: 12px"
-      message="模型给的置信度只是排序依据，没人点过「确认」的映射不会进草稿页"
-    />
+    <!-- 置信度口径只占一行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p class="scope-hint">模型给的置信度只是排序依据，没人点过「确认」的映射不会进草稿页</p>
     <DataTable
       :data-source="mappings"
       :columns="mappingColumns"
@@ -236,6 +232,14 @@ async function submitVerify() {
 </script>
 
 <style scoped lang="less">
+/* 口径说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .reference-site-page {
   &__muted {
     color: rgba(0, 0, 0, 0.45);

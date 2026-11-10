@@ -7,6 +7,7 @@ import { portalReferenceApi, REFERENCE_MAX_PAGES_LIMIT, type PromotedBlock } fro
 import { portalPagesApi } from '../../../api/portalPages'
 import { siteApi } from '../../../api/workspace'
 import { useAuthStore } from '../../../stores/auth'
+import { ROBOT_PAGE_CARDS } from '../../../copy/robot'
 
 /**
  * 参考站摄取页的「路由清单两步走 + 取证可视化」（Spec-E T2/T3/T5 的界面那一半）。
@@ -779,7 +780,7 @@ describe('「暂未对上现有区块」那一栏按「类」报数，且不替�
   it('归并后的总类数与真缺口分开说，逐条处置指回「区块映射」那一栏', async () => {
     const wrapper = await mountView()
     await openDrawer(wrapper, task('needs_human'), undefined, backlog())
-    const message = alerts(wrapper, 'info').join('|')
+    const message = backlogTab(wrapper).find('.scope-hint').text()
     expect(message).toContain('归并后 2 类')
     expect(message).toContain('其中 1 类这一趟没对上任何区块')
     expect(message).toContain('这一趟没再映射')
@@ -1028,7 +1029,8 @@ describe('模板包：只读取证快照', () => {
     const text = wrapper.text()
     expect(text).toContain('2 项（只有这一层会上身成站点样式）')
     expect(text).toContain('1 项各格不一致：radius')
-    expect(alerts(wrapper, 'info').join('|')).toContain('段级那一半只是证据，不会变成站点样式')
+    // 「段级只是证据」的口径已交给机器人（copy/robot.ts），页签里只留两处计数
+    expect(ROBOT_PAGE_CARDS['portal.reference.package'].detail).toContain('站级取值')
   })
 
   it('没认出的家族与没载入的包各说各的，不拿空壳充数', async () => {

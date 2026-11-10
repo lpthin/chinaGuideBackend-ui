@@ -15,27 +15,15 @@
       </a-form-item>
     </a-form>
 
-    <a-alert type="info" show-icon class="section-admin-page__notice">
-      <template #message>
-        这里只翻栏目的开关、显示名与导航顺序。<strong>关掉栏目不等于把页面下线</strong>：
-        栏目关掉后，导航不再出现这一项、访客页面上绑这一数据源的区块不再渲染、巡检也不再催这一栏，
-        但页面本身与里面的内容一条都不动（N5：骨架与栏目归超级管理员，内容归客户）。
-        客户侧读到的是同一份开通态，全程只读。
-        <br />
-        每张卡改的都是草稿：<strong>顶上那条导航预览不点保存也是这个样子</strong>，
-        但库里要等下面那一条「保存到站点」——一次点它只发一条整批请求，
-        后端要么全写、要么一条都不写。
-      </template>
-    </a-alert>
+    <!-- 「关掉栏目不等于页面下线」的口径已搬进引导机器人（SPEC-UI-11 R-6）：
+         首访说一句，全文留在页头问号里。 -->
 
-    <a-alert v-if="sitesNote" type="warning" show-icon class="section-admin-page__notice">
-      <template #message>{{ sitesNote }}</template>
-    </a-alert>
+    <!-- 站点清单本身的问题只一行说明清楚，不占色块（SPEC-UI-11 B 类） -->
+    <p v-if="sitesNote" class="scope-hint">{{ sitesNote }}</p>
     <!-- 站点没选之前不摆导航预览、也不摆卡片：这一页读的是「某一个站点」的栏目，一个都还没选就等于什么都还没读。
          以前它是进页面自动取列表里第一个站点——那一屏看着像「平台只有这一站的栏目」，其实是界面替你选了一个。 -->
-    <a-alert v-if="pickNotice" type="info" show-icon class="section-admin-page__notice">
-      <template #message>{{ pickNotice }}</template>
-    </a-alert>
+    <!-- 还没选站点：说清这一页读的是哪一座站，不替你选第一个（B 类内联） -->
+    <p v-if="pickNotice" class="scope-hint">{{ pickNotice }}</p>
     <a-alert v-if="loadError" type="error" show-icon class="section-admin-page__notice" :message="loadError" />
     <a-alert v-if="saveError" type="error" show-icon class="section-admin-page__notice">
       <template #message>
@@ -168,6 +156,11 @@ import { useAuthStore } from '../../stores/auth'
 import PortalViewportPreview from '../../portal/blocks/PortalViewportPreview.vue'
 import SectionAdviceCard from './SectionAdviceCard.vue'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 /**
  * 超管栏目卡片页（Spec §5.2 / §7.2 + Spec-D D4，N5：栏目归超管）。
@@ -531,10 +524,26 @@ async function refresh() {
   await load()
 }
 
-onMounted(refresh)
+onMounted(() => {
+  // 栏目口径与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['portal.sections.intro']
+  robot.announce(
+    { key: 'portal.sections.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
+  refresh()
+})
 </script>
 
 <style scoped lang="less">
+/* 前置条件与清单说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .section-admin-page {
   &__filter {
     margin-bottom: 12px;

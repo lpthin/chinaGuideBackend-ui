@@ -247,10 +247,10 @@ describe('StoreManageView 消费词表（不许界面抄一份状态语义）', 
 
   it('上限那句提醒里的数字是 /options 给的那个（3），不是界面写死的 24', async () => {
     const wrapper = await mountView()
-    const info = alerts(wrapper, 'info').join('|')
-    expect(info).toContain('一次最多摆 3 个')
-    expect(info).not.toContain('24')
+    // 总述那句已搬进机器人（卡片只说「平台配置的上限」），屏上的数字仍只认 /options
     expect(wrapper.text()).toContain('其中 3 家会出现在门户地图上（上限 3 个点位')
+    expect(wrapper.text()).toContain('营业中的第 4 家，超出地图一次摆 3 个点位')
+    expect(wrapper.text()).not.toContain('24')
   })
 
   it('词表读不到只降级成一句提醒：列表照样翻，不演成「门店功能坏了」', async () => {
@@ -300,7 +300,7 @@ describe('StoreManageView 的「这一家为什么在地图上找不到」', () 
 
   it('门店按公司归属：这一页没有任何「选站点」的控件与说法', async () => {
     const wrapper = await mountView()
-    expect(wrapper.text()).toContain('门店是按公司归属的')
+    // 「门店按公司归属」的口径已交给机器人（copy/robot.ts），这一屏不再复述
     expect(wrapper.text()).not.toContain('选择站点')
     expect(portalStoreApi.list).toHaveBeenCalledWith('', undefined)
   })

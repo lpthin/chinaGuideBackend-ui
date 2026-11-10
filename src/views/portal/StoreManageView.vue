@@ -14,13 +14,8 @@
       @create="openCreate"
     >
       <template #notice>
-        <a-alert type="info" show-icon>
-          <template #message>
-            门店是按<strong>公司</strong>归属的，不是按站点：同一家公司名下几个站看到的都是这一批门店。
-            地图上只摆「营业中」的点位，一次最多摆 {{ options?.portalRowLimit ?? '—' }} 个（按排序取靠前的）；
-            每一家要么填地址、要么填经纬度，两边都没有的那一家在地图上指不出位置。
-          </template>
-        </a-alert>
+        <!-- 「门店按公司归属、地图只摆营业中」的口径已搬进引导机器人（SPEC-UI-11 R-6）：
+             首访说一句，全文留在页头问号里。 -->
         <a-alert v-if="optionsError" type="warning" show-icon :message="optionsError" />
       </template>
 
@@ -163,6 +158,11 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import { portalStoreApi, type StoreForm, type StoreOptions, type StoreRow } from '../../api/portalStores'
 import { formatDateTime } from '../../utils/format'
 import RecordListPage from '../../components/RecordListPage.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 /**
  * 租户侧「门店」录入页（Spec-D 收尾那一格：地图有渲染、没人往里写行）。
@@ -382,6 +382,12 @@ async function handleDelete(record: StoreRow) {
 }
 
 onMounted(async () => {
+  // 门店归属口径与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['portal.stores.intro']
+  robot.announce(
+    { key: 'portal.stores.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   await loadOptions()
   await loadRows()
 })

@@ -1,12 +1,11 @@
 <template>
   <div class="reference-site-page__unmatched">
-    <a-alert
-      type="info"
-      show-icon
-      style="margin-bottom: 12px"
-      :message="`对不上的观察区块归并后 ${groups.length} 类，其中 ${trueGapCount} 类这一趟没对上任何区块（其余 ${groups.length - trueGapCount} 类我们有这个能力，只是这一趟没再映射）`"
-      :description="explainText"
-    />
+    <!-- 归并结果与「这一趟没对上」的口径只占两行灰字，不占色块（SPEC-UI-11 B 类） -->
+    <p class="scope-hint">
+      对不上的观察区块归并后 {{ groups.length }} 类，其中 {{ trueGapCount }} 类这一趟没对上任何区块
+      （其余 {{ groups.length - trueGapCount }} 类我们有这个能力，只是这一趟没再映射）<br />
+      {{ explainText }}
+    </p>
     <DataTable
       :data-source="groups"
       :columns="unmatchedColumns"
@@ -168,3 +167,13 @@ async function promote(group: UnmatchedGroup) {
   }
 }
 </script>
+
+<style scoped lang="less">
+/* 口径说明：两行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+</style>

@@ -11,16 +11,11 @@
       </template>
     </FilterBar>
 
-    <a-alert type="info" show-icon class="theme-preset-page__notice">
-      <template #message>
-        「皮肤」只是一组样式变量（主色/圆角/字号比例等），不含任何文字与内容，可以在自己的页面之间来回应用。
-        「平台模板」是超级管理员从某个页面沉淀出来的公共版式：客户文案已被换成演示文本，应用时填的是你们自己的数据。
-      </template>
-    </a-alert>
+    <!-- 「皮肤只是样式变量、平台模板已脱敏」的口径已搬进引导机器人（SPEC-UI-11 R-6）：
+         首访说一句，全文留在页头问号里。 -->
 
-    <a-alert v-if="pagesNote" type="warning" show-icon class="theme-preset-page__notice">
-      <template #message>{{ pagesNote }}</template>
-    </a-alert>
+    <!-- 页面清单读不到只说明一行，不占色块（B 类） -->
+    <p v-if="pagesNote" class="scope-hint">{{ pagesNote }}</p>
 
     <DataTable
       :data-source="presets"
@@ -251,6 +246,11 @@ import { designTokenLabel } from '../../portal/designTokens'
 import { formatDateTime } from '../../utils/format'
 import { createSubmitGuard } from '../../utils/submitGuard'
 import { useAuthStore } from '../../stores/auth'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 /**
  * 沉淀资产视图（Spec §8.1）。
@@ -381,6 +381,12 @@ async function loadPages() {
 }
 
 onMounted(async () => {
+  // 皮肤与模板的口径与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['portal.theme.intro']
+  robot.announce(
+    { key: 'portal.theme.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   await load()
   if (!canBuild.value) {
     return
@@ -562,6 +568,14 @@ async function removePreset(id: number) {
 </script>
 
 <style scoped>
+/* 前置条件与清单说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .theme-preset-page__filter {
   margin-bottom: 12px;
 }

@@ -11,7 +11,8 @@
     </template>
 
     <template #siteFields>
-      <a-alert type="info" show-icon :message="SITE_INFO_AI_FIRST_TEXT" style="margin-bottom: 16px" />
+      <!-- 「AI 先填好、只在不同意时改」只占一行灰字，不占色块（SPEC-UI-11 B 类） -->
+      <p class="scope-hint">{{ SITE_INFO_AI_FIRST_TEXT }}</p>
 
       <!-- 一屏可见：每个字段带来源角标（后端 changeSourceLabel），可改的给「改」，不可改的原样展示 -->
       <div v-for="field in fieldRows" :key="field.key" class="field-block">
@@ -24,14 +25,11 @@
 
         <!-- robots：勾选哪些 AI 爬虫（真相是集合，文本由后端推导）+ 折叠的原文预览 + 高级覆写 -->
         <template v-if="field.key === ROBOTS_KEY">
-          <a-alert
-            v-if="robotsMode === ROBOTS_MODE_RAW_OVERRIDE"
-            type="warning"
-            show-icon
-            message="当前生效的是「手工覆写原文」这一档"
-            description="下面这份原文逐字对外。想改回按爬虫勾选，请勾选后点「保存爬虫勾选」——它会同时清掉这份覆写原文。"
-            style="margin-bottom: 12px"
-          />
+          <!-- 覆写原文这一档的说明只占一行灰字，不占色块（B 类） -->
+          <p v-if="robotsMode === ROBOTS_MODE_RAW_OVERRIDE" class="scope-hint">
+            当前生效的是「手工覆写原文」这一档：下面这份原文逐字对外。想改回按爬虫勾选，
+            请勾选后点「保存爬虫勾选」——它会同时清掉这份覆写原文。
+          </p>
 
           <!-- 保存闸会拒的那一类：闸只拦新的贴入、不动历史行，所以库里可能躺着一份今天存不回去的原文 -->
           <!-- 说明句和点名的行必须一起走 #description 槽：a-alert 的 description **prop** 会把槽挤掉
@@ -140,12 +138,7 @@
          Spec-Q P3：这一块原来只是卡里的一条分隔线，现在提成一组——页顶那一排锚点能一步跳到这里；
          它那一发读失败也不再只弹 toast（改之前这一屏有一类失败在页面上没有落点）。 -->
     <template #pageSeo>
-      <a-alert
-        type="info"
-        show-icon
-        message="这里是各页面 SEO 的只读镜像。写入这一层的口在超级管理员侧「页面搭建」，客户侧暂不可改。"
-        style="margin-bottom: 12px"
-      />
+      <!-- 「页面 SEO 是只读镜像」的口径已搬进引导机器人（SPEC-UI-11 R-6）：首访说一句，全文在页头问号里 -->
       <StateBlock v-if="pagesFailed" state="error" :detail="pagesFailed">
         <a-button @click="loadPages">重新读取这一发</a-button>
       </StateBlock>
@@ -186,6 +179,11 @@ import SettingsPage from '../../components/SettingsPage.vue'
 import DataTable from '../../components/DataTable.vue'
 import StateBlock from '../../components/StateBlock.vue'
 import type { SettingsGroup } from '../../components/settingsPageModel'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-6）
+const robot = useRobotNotices()
 
 const ROBOTS_KEY = 'robots';
 
@@ -365,12 +363,26 @@ async function saveRobotsOverride(field: SiteInfoFieldView) {
 }
 
 onMounted(() => {
+  // 「页面 SEO 只读镜像」与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['portal.site-info.seo'];
+  robot.announce(
+    { key: 'portal.site-info.seo', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  );
   load();
   loadPages();
 });
 </script>
 
 <style scoped lang="less">
+/* 前置条件与字段组说明：一行灰字，不占色块（SPEC-UI-11 B 类） */
+.scope-hint {
+  margin-bottom: 16px;
+  color: #8c8c8c;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .field-block {
   margin-bottom: 8px;
 }
