@@ -14,10 +14,13 @@ import {
 } from './robotTypes'
 import { ROBOT_CATEGORY_COPY, ROBOT_COPY, ROBOT_FREQUENCY_COPY } from '../../copy/robot'
 import type { RobotPrefs } from './robotPrefs'
+import type { RobotTelemetrySummary } from './robotTelemetry'
 
 const props = defineProps<{
   open: boolean
   prefs: RobotPrefs
+  /** 本机近 7 天统计（§12）：只给人看「说了几次、关掉几次」，不参与任何开关判定 */
+  stats?: RobotTelemetrySummary | null
 }>()
 
 const emit = defineEmits<{
@@ -94,6 +97,15 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
             {{ ROBOT_COPY.quietResumed }}
           </button>
         </div>
+      </section>
+      <section class="robot-settings__section">
+        <h4 class="robot-settings__title">{{ ROBOT_COPY.settings.stats }}</h4>
+        <p v-if="!stats || stats.total === 0" class="robot-settings__empty">
+          {{ ROBOT_COPY.settings.statsEmpty }}
+        </p>
+        <p v-else class="robot-settings__stat">
+          {{ ROBOT_COPY.settings.statsLine(stats.show, stats.dismiss, stats.dismissRate) }}
+        </p>
       </section>
         </a-tab-pane>
 
@@ -278,6 +290,13 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
   &__empty {
     margin: 0;
     font-size: 12px;
+    color: var(--admin-text-secondary, #8c8c8c);
+  }
+
+  &__stat {
+    margin: 0;
+    font-size: 12px;
+    line-height: 18px;
     color: var(--admin-text-secondary, #8c8c8c);
   }
 

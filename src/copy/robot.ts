@@ -174,7 +174,11 @@ export const ROBOT_COPY = {
     avatar: '显示机器人',
     avatarHint: '关掉之后不再出现形象，页头的问号仍可查看说明',
     mutedKeyLabel: '这一条',
-    mutedPageLabel: '这一页'
+    mutedPageLabel: '这一页',
+    stats: '本机近 7 天',
+    statsLine: (shown: number, dismissed: number, rate: number) =>
+      `说了 ${shown} 条，关掉 ${dismissed} 条（${rate}%）`,
+    statsEmpty: '近 7 天还没有记录'
   },
   /** 页头问号（R-5）：手动复看被搬走的说明，不受频率与静音影响 */
   help: {
@@ -292,6 +296,12 @@ export const ROBOT_PAGE_CARDS: Record<string, { text: string; detail: string }> 
       '这一页管的是平台自己那一套模型，右上角切客户对这一页没有作用。' +
       '这里停用或新增一台，全站的文章生成、页面巡检、向量化都会跟着变。' +
       '某一家客户用了多少，去看「用量监控」那一页。'
+  },
+  'portal.health.intro': {
+    text: '巡检只列问题，不会自动改页面',
+    detail:
+      '巡检只负责把问题列出来，不会自动修改任何页面。「让 AI 出手」产出的也只是一段 SEO 建议或一份待审阅草稿：' +
+      '建议要人贴回「页面信息」里保存，草稿要在「页面搭建」里看过 diff 再点应用、然后自己发布。'
   },
   'workspace.notifications.intro': {
     text: '巡检结果与公开页留资都落到这张表',

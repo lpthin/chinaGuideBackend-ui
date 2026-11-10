@@ -45,6 +45,7 @@ import {
   type RobotPrefsPayload,
   type RobotStorage
 } from './robotPrefs'
+import { recordRobotTelemetry } from './robotTelemetry'
 import {
   ROBOT_SOURCES,
   withSourceDefaults,
@@ -66,7 +67,8 @@ export interface RobotRemoteStore {
 }
 
 export interface RobotTelemetryEvent {
-  type: 'show' | 'dismiss' | 'detail' | 'action' | 'mute'
+  /** `error` 由 RobotHost 的 onErrorCaptured 上报：机器人自身异常次数必须为 0（§12） */
+  type: 'show' | 'dismiss' | 'detail' | 'action' | 'mute' | 'error'
   key: string
   page: string
   action?: string
@@ -767,5 +769,7 @@ const defaultRemote: RobotRemoteStore = {
 /** 全应用唯一一份：RobotHost 与 useRobotNotices 都从这里取 */
 export const robotCenter = createRobotCenter({
   storage: browserStorage(),
-  remote: defaultRemote
+  remote: defaultRemote,
+  // 度量（R-10）：只记 key / 动作 / 页面路径，落本机 7 天窗口
+  onTelemetry: recordRobotTelemetry
 })

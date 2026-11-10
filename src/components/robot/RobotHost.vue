@@ -8,13 +8,15 @@
  * 渲染「当前该说的那一条」。所有判断都在中枢里，Host 自己不做业务决定。
  * 渲染抛错时整块自行隐藏（验收 #9）：机器人挂了不能连累页面。
  */
-import { onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { createSubmitGuard } from '../../utils/submitGuard'
 import { ROBOT_COPY } from '../../copy/robot'
 import { robotCenter } from './robotCenter'
+import { buildRobotRollout, isRobotRolloutEnabled, resolveRobotRollout, type RobotRollout } from './robotRollout'
 import { collectRobotSignals } from './robotSignals'
+import { recordRobotTelemetry, robotTelemetrySummary, type RobotTelemetrySummary } from './robotTelemetry'
 import RobotAvatar from './RobotAvatar.vue'
 import RobotBubble from './RobotBubble.vue'
 import RobotHelpPanel from './RobotHelpPanel.vue'
@@ -34,6 +36,11 @@ const detailOpen = center.detailOpen
 const helpEntries = center.helpEntries
 
 const failed = ref(false)
+/** 灰度/熔断（R-10）：off 时整块不渲染，页面回到接入前；首屏先用构建期那一档，远端回来再覆盖 */
+const rollout = ref<RobotRollout>(buildRobotRollout())
+const robotEnabled = computed(() => isRobotRolloutEnabled(rollout.value, auth.user?.id ?? null))
+/** 本机近 7 天统计：打开设置时算一次，关闭率由此可见（§12） */
+const stats = ref<RobotTelemetrySummary | null>(null)
 const helpOpen = ref(false)
 /**
  * 页头问号挂到 `WorkspaceView` 头部预留的插槽里（R-5）；
@@ -45,7 +52,21 @@ const actionGuard = createSubmitGuard()
 onErrorCaptured(() => {
   // 机器人自身异常必须为 0（§12）；真出了也只会让这一块消失，页面照常
   failed.value = true
+  recordRobotTelemetry({ type: 'error', key: 'robot.host', page: route.path })
   return false
+})
+
+watch(
+  () => auth.user?.id ?? null,
+  async () => {
+    // 没有远端配置时立刻返回构建期那一档；这里 await 只影响覆盖，不影响首屏
+    rollout.value = await resolveRobotRollout()
+  },
+  { immediate: true }
+)
+
+watch(settingsOpen, open => {
+  if (open) stats.value = robotTelemetrySummary()
 })
 
 /** 登录态变化时按账号重读偏好：换号不继承上一个人的频率与静音清单 */
@@ -139,7 +160,7 @@ function handleAction(action: RobotAction): void {
 
 <template>
   <div
-    v-if="!failed"
+    v-if="!failed && robotEnabled"
     class="robot-host"
     :class="`robot-host--${prefs.position}`"
     data-testid="robot-host"
@@ -198,6 +219,7 @@ function handleAction(action: RobotAction): void {
     <RobotSettingsPanel
       :open="settingsOpen"
       :prefs="prefs"
+      :stats="stats"
       @update:open="center.openSettings($event)"
       @set-rate="center.setRate($event)"
       @set-category="(category, enabled) => center.setCategory(category, enabled)"

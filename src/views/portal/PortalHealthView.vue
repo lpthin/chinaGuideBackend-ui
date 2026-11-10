@@ -34,12 +34,7 @@
       </template>
     </filter-bar>
 
-    <a-alert type="info" show-icon class="portal-health-page__notice">
-      <template #message>
-        巡检只负责把问题列出来，<b>不会自动修改任何页面</b>。「让 AI 出手」产出的也只是一段 SEO 建议或一份待审阅草稿：
-        建议要人贴回「页面信息」里保存，草稿要在「页面搭建」里看过 diff 再点应用、然后自己发布。
-      </template>
-    </a-alert>
+    <!-- 页面口径已搬进机器人（SPEC-UI-11 R-9）：首访说一句，页头问号可复看全文 -->
 
     <a-alert v-if="pagesNote" type="warning" show-icon class="portal-health-page__notice">
       <template #message>{{ pagesNote }}</template>
@@ -301,6 +296,8 @@ import StatusTag from '../../components/StatusTag.vue'
 import TokenBasisNote from '../../components/TokenBasisNote.vue'
 import { useAuthStore } from '../../stores/auth'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 
 /**
  * 门户页面巡检视图（Spec §8.2）。
@@ -665,7 +662,21 @@ async function submitAiFix() {
   }
 }
 
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
+
 onMounted(async () => {
+  const card = ROBOT_PAGE_CARDS['portal.health.intro']
+  robot.announce(
+    {
+      key: 'portal.health.intro',
+      category: 'scope',
+      text: card.text,
+      detail: card.detail,
+      once: 'session'
+    },
+    { ready: true }
+  )
   try {
     options.value = await portalHealthApi.options()
   } catch (error) {
