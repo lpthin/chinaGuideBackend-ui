@@ -11,6 +11,7 @@ import {
   buildLaunchSteps,
   portalPreviewUrl,
   siteNameText,
+  siteOpenToPublic,
   type LaunchReadings,
   type LaunchSiteBrief
 } from './launchChecklist'
@@ -69,7 +70,7 @@ export function useLaunchReadings(refreshHint = '点页头的「刷新」重来�
   }
 
   function toBrief(row: MySite): LaunchSiteBrief {
-    return { id: row.id, code: row.code, name: row.name, domain: row.domain || '' }
+    return { id: row.id, code: row.code, name: row.name, domain: row.domain || '', status: row.status }
   }
 
   async function loadSite(): Promise<void> {
@@ -146,7 +147,9 @@ export function useLaunchReadings(refreshHint = '点页头的「刷新」重来�
       const tasks: Promise<void>[] = [loadCompany(), loadSite()]
       tasks.push(loadDemo())
       await Promise.all(tasks)
-      if (site.value?.code) {
+      // 站点没上线（disabled 等）时公开口整站 404——不发那两发探测，界面上第 4 步
+      // 会按状态说「站点未上线」；对着关门的站发请求只会给控制台留红色 404
+      if (site.value?.code && siteOpenToPublic(site.value.status)) {
         await loadVisibility(site.value.code)
       }
     } finally {

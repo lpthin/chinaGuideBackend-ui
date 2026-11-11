@@ -17,12 +17,14 @@ import type { ChecklistStep } from '../../components/checklistPageModel'
  * 3. 界面上念的中文只在这一处拼一份，页面不再各写一句。
  */
 
-/** 站点那一格用到的三个字段（读的是 /api/portal/sites，租户侧自己的口） */
+/** 站点那一格用到的字段（读的是 /api/portal/sites，租户侧自己的口） */
 export interface LaunchSiteBrief {
   id?: number
   code: string
   name: string
   domain: string
+  /** 站点状态（enabled / disabled…）；旧数据没带这一位时按「照常探测」处理 */
+  status?: string
 }
 
 export interface LaunchReadings {
@@ -92,6 +94,21 @@ export function siteFieldValue(readings: LaunchReadings, value: string | null | 
     return '—'
   }
   return readings.siteIssue ? '未取到' : blankText
+}
+
+/**
+ * 站点现在对访客开着没有（词表与 active 同义词在后端 SiteStatuses，前端不抄第二份判断标准）。
+ *
+ * <p>停用的站，门户公开面对访客是整站 404——这时去打公开口数「访客能看到几条」，
+ * 拿回来的只会是一对没人能处理的红色 404。调用方应先看这一位：关着就别发请求。
+ * status 缺省（旧数据 / mock 没带）按开着处理，行为与从前一致。</p>
+ */
+export function siteOpenToPublic(status?: string): boolean {
+  if (!status) {
+    return true
+  }
+  const normalized = status.trim().toLowerCase()
+  return normalized === 'enabled' || normalized === 'active'
 }
 
 /** 联系方式那一格：三个口子里有几个念几个，一个都没有才说未填写 */
@@ -261,6 +278,17 @@ function readersStep(readings: LaunchReadings): ChecklistStep {
     { label: '去文章列表', to: { name: LAUNCH_LINK_ROUTES.articles } },
     { label: '去内容案例', to: { name: LAUNCH_LINK_ROUTES.cases } },
   ]
+  // 站点停用（或任何不对公众开放的取值）时公开口整站 404，这一格不该去发那两发探测——
+  // 直接说「站点没上线」：这不是「读取失败」，也不是「门户上没有内容」
+  if (readings.site && !siteOpenToPublic(readings.site.status)) {
+    return {
+      ...base,
+      level: 'blocked',
+      stateText: '站点未上线',
+      gap: `站点现在是「${readings.site.status}」状态，门户公开面对访客是关闭的，谈「访客能看到几条」还早。上线由平台管理员操作。`,
+      links: [{ label: '找平台启用站点', to: { name: LAUNCH_LINK_ROUTES.support } }, ...links],
+    }
+  }
   if (readings.visibilityError) {
     return {
       ...base,

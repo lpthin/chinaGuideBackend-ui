@@ -9,6 +9,7 @@ import {
   portalPreviewUrl,
   siteFieldValue,
   siteNameText,
+  siteOpenToPublic,
   type LaunchReadings,
 } from '../launchChecklist'
 
@@ -218,6 +219,33 @@ describe('第 4 步 · 访客实际能看到的内容', () => {
   it('cases 单独没回来时念「未取到」，不许蒙成 0', () => {
     const step = stepByKey('readers', { visibility: { articles: 5, cases: null } })
     expect(step?.gap).toContain('案例 未取到')
+  })
+
+  it('站点停用时不许说「未取到」也不许说「门户上没有内容」：说的是站点本身没上线', () => {
+    // 现场教训：lanshan（site 609）是 disabled，旧逻辑照样去打公开口，
+    // 拿回一对整站 404，控制台红着、界面还演成「读取失败」
+    const step = stepByKey('readers', {
+      site: { id: 609, code: 'lanshan', name: '澜山国际旅行社', domain: '', status: 'disabled' },
+      visibility: { articles: null, cases: null },
+    })
+    expect(step?.level).toBe('blocked')
+    expect(step?.stateText).toBe('站点未上线')
+    expect(step?.gap).toContain('disabled')
+    expect(`${step?.stateText}${step?.gap}`).not.toContain('未取到')
+    expect(`${step?.stateText}${step?.gap}`).not.toContain('还没有已发布内容')
+    const routes = step?.links?.map(link => String((link.to as { name?: string })?.name))
+    expect(routes).toContain('workspace-portal-support')
+  })
+
+  it('siteOpenToPublic：enabled/active 算开着，disabled/archived/candidate 关着，没带状态按开着（旧数据兼容）', () => {
+    expect(siteOpenToPublic('enabled')).toBe(true)
+    expect(siteOpenToPublic('active')).toBe(true)
+    expect(siteOpenToPublic(' Enabled ')).toBe(true)
+    expect(siteOpenToPublic('disabled')).toBe(false)
+    expect(siteOpenToPublic('archived')).toBe(false)
+    expect(siteOpenToPublic('candidate')).toBe(false)
+    expect(siteOpenToPublic(undefined)).toBe(true)
+    expect(siteOpenToPublic('')).toBe(true)
   })
 
   it('挂了那一句带后端原话，且仍然给去文章与案例两条路', () => {

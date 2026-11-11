@@ -196,7 +196,7 @@ describe('PageBuilderView 的空态成因（M-P74）', () => {
     vi.mocked(siteThemeApi.get).mockResolvedValue(
       { id: 9, name: '演示站', themeJson: null, themePresetId: null, themeUpdatedAt: null } as never
     )
-    vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 9, code: 'site-9', name: '演示站', domain: null }])
+    vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 9, code: 'site-9', name: '演示站', domain: null, status: 'enabled' }])
   })
 
   it.each(TWO_EMPTIES)('后端回 %s 那一档时逐字念那一句，页面上没有「暂无数据」也没有旧话术', async (reason, line) => {

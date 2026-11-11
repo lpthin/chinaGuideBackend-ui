@@ -205,6 +205,16 @@ describe('第 1 格 · 站点', () => {
     expect(siteCard(wrapper).text()).toContain('萧山竟天口腔')
     expect(wrapper.find('.aspin-stub').attributes('data-spinning')).toBe('false')
   })
+
+  it('站点停用时不发门户公开口的探测：那两发只会拿回整站 404（现场 lanshan）', async () => {
+    vi.mocked(portalSitesApi.listMine).mockResolvedValue([
+      { id: 609, code: 'lanshan', name: '澜山国际旅行社', domain: null, status: 'disabled' },
+    ] as any)
+    const wrapper = await mountView()
+    expect(portalVisibilityApi.publishedArticles).not.toHaveBeenCalled()
+    expect(portalVisibilityApi.publishedCases).not.toHaveBeenCalled()
+    expect(wrapper.find('.aspin-stub').attributes('data-spinning')).toBe('false')
+  })
 })
 
 /**

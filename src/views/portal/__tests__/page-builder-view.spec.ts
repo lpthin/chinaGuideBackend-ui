@@ -201,7 +201,7 @@ beforeEach(() => {
   vi.mocked(siteThemeApi.get).mockResolvedValue(
     { id: 9, name: '演示站', themeJson: null, themePresetId: null, themeUpdatedAt: null } as never
   )
-  vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 9, code: 'site-9', name: '演示站', domain: null }])
+  vi.mocked(portalSitesApi.listMine).mockResolvedValue([{ id: 9, code: 'site-9', name: '演示站', domain: null, status: 'enabled' }])
 })
 
 describe('页面搭建：只持读页码的租户管理员', () => {
@@ -305,8 +305,8 @@ describe('页面搭建：「全部站点」那一档得说清每一行属于哪�
    * 点错一行，保存下去改的就是另一座站的页。服务端已按站点列表那道闸把候选/归档站的页面圈掉
    * （`PortalPageListSiteScopeTest`），这一档钉的是剩下的那半：留在列表里的每一行要报得出站名。
    */
-  const OPEN_SITE = { id: 339, code: 'site-339', name: '滨江开通站', domain: null }
-  const DELIVERY_SITE = { id: 343, code: 'site-343', name: 'walk1016 交付站', domain: null }
+  const OPEN_SITE = { id: 339, code: 'site-339', name: '滨江开通站', domain: null, status: 'enabled' }
+  const DELIVERY_SITE = { id: 343, code: 'site-343', name: 'walk1016 交付站', domain: null, status: 'enabled' }
   const DELETED_SITE_PAGE = {
     ...PAGE, id: 88, siteId: 341, title: '首页', slug: 'home'
   } as unknown as PortalPage
