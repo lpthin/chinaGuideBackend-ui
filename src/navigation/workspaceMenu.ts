@@ -490,6 +490,12 @@ function workspaceChildren(input: readonly RouteRecordRaw[]): readonly RouteReco
 
 export interface MenuVisibility {
   isSuperAdmin: boolean
+  /**
+   * 超管切进某家租户的视角（2026-11-11）：此刻他看到的东西必须与租户管理员
+   * 一模一样——超管专属的组/项整批退场，不因「他是超管」而多摆。
+   * 只有超管才可能带这个标记（非超管没有租户切换这回事）；不填 = 不在租户视角。
+   */
+  viewingAsTenant?: boolean
   hasPermission: (code: string) => boolean
   /**
    * 已开通栏目的 contentEntry 集合；`null` = 还没取到或取失败。
@@ -506,7 +512,9 @@ export interface MenuVisibility {
  * 菜单里有的项，点进去必然不 403（同一条码）。这一句就是 §2.1 那两处「看得见点不着」的根治。
  */
 export function leafVisible(leaf: MenuLeaf, view: MenuVisibility): boolean {
-  if (leaf.superAdminOnly && !view.isSuperAdmin) return false
+  // 超管专属的项只在「平台模式」摆出来：非超管当然不见，超管切进租户视角也不见——
+  // 视角一旦切过去，看到的东西就要跟租户管理员一模一样
+  if (leaf.superAdminOnly && (!view.isSuperAdmin || view.viewingAsTenant === true)) return false
   // 超管跳过细粒度权限检查（超管默认有所有权限，但 permissions 数组可能没列全）
   if (!view.isSuperAdmin && leaf.permission && !view.hasPermission(leaf.permission)) return false
   // 栏目没开通就藏这一项；读不到开通态（null）也藏——依据不在，就不摆这一项
@@ -538,8 +546,9 @@ const DOMAINS: Array<{ domain: MenuDomain; label: string; hint: string }> = [
 export function buildMenuSections(leaves: MenuLeaf[], view: MenuVisibility): MenuSection[] {
   return DOMAINS.flatMap(entry => {
     const groups = MENU_GROUPS
-      // 整组超管专属的（搭建与设置）先滤一道；组内各项再按叶子闸逐项判
-      .filter(def => def.domain === entry.domain && !(def.superAdminOnly && !view.isSuperAdmin))
+      // 整组超管专属的（搭建与设置）先滤一道；超管切进租户视角时同样整组退场，
+      // 组内各项再按叶子闸逐项判
+      .filter(def => def.domain === entry.domain && !(def.superAdminOnly && (!view.isSuperAdmin || view.viewingAsTenant === true)))
       .map(def => ({ def, items: sortGroupItems(def, leaves.filter(leaf => leaf.group === def.key && leafVisible(leaf, view))) }))
       .filter(group => group.items.length > 0)
     if (!groups.length) return []

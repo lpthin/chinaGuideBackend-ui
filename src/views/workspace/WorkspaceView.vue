@@ -307,6 +307,9 @@ const menuLeaves = computed(() => collectMenuLeaves(routes))
 
 const visibility = computed(() => ({
   isSuperAdmin: auth.isSuperAdmin,
+  // 超管切进某家租户（顶栏选了客户）= 租户视角：看到的必须与租户管理员一模一样，
+  // 超管专属的组/项（搭建与设置等）整批退场——「平台模式」只留给没选客户的超管
+  viewingAsTenant: auth.isSuperAdmin && auth.selectedTenantId !== null,
   hasPermission: (code: string) => auth.hasPermission(code),
   openContentEntries: openContentEntries.value
 }))

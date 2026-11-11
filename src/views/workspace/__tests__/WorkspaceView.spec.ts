@@ -62,6 +62,12 @@ const MENU_STUBS = {
 const TENANT_CODES = ['portal:siteinfo:manage', 'media:manage', 'analytics:view', 'portal:ticket:submit', 'case:manage']
 
 /**
+ * 租户档（超管选中租户 / 租户管理员）看得见的组：超管专属组（搭建与设置）整组退场——
+ * 2026-11-11 拍板：切进租户视角，看到的东西必须与租户管理员一模一样。
+ */
+const TENANT_VISIBLE_GROUPS = MENU_GROUPS.filter(group => group.domain === 'tenant' && !group.superAdminOnly)
+
+/**
  * 「满权限」那份码表：从路由 meta 现取，不手抄。
  * 用来把 11 个组全部渲出来数一颗不少的 SubMenu（Spec-H H-1a 的判据是「组数 = 轨道图标数」）。
  */
@@ -183,8 +189,10 @@ describe('WorkspaceView 侧边菜单', () => {
     // 留着就是一条点了 404 的假入口
     expect(text).not.toContain('建站流水线')
     expect(text).not.toContain('新建站点')
-    expect(text).toContain('站点设置')
     expect(text).toContain('文章分类')
+    // 2026-11-11 拍板：超管切进租户视角 = 与租户管理员一模一样，超管专属的组整组退场
+    expect(text).not.toContain('搭建与设置')
+    expect(text).not.toContain('站点设置')
     expect(text).not.toContain('栏目管理')
     expect(text).not.toContain('建站工作台')
   })
@@ -343,7 +351,7 @@ describe('WorkspaceView 侧边菜单', () => {
       }
     })
     await flushPromises()
-    const tenantLabels = MENU_GROUPS.filter(group => group.domain === 'tenant').map(group => group.label)
+    const tenantLabels = TENANT_VISIBLE_GROUPS.map(group => group.label)
     expect(wrapper.findAll('.menu-group-title').map(node => node.text().trim())).toEqual(tenantLabels)
     // 收起只藏子项，组名一颗不许少；顺序 = 组表里租户段的顺序
     expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(tenantLabels.length)
@@ -469,8 +477,8 @@ describe('WorkspaceView 侧边菜单', () => {
     await flushPromises()
     expect(wrapper.find('input.menu-search-stub').exists()).toBe(true)
     expect(wrapper.find('input.menu-search-stub').attributes('placeholder')).toBe('搜索栏目')
-    // 搜之前是完整的树：租户档只有租户段的组（平台段的组整块不渲染）
-    const tenantGroupCount = MENU_GROUPS.filter(g => g.domain === 'tenant').length
+    // 搜之前是完整的树：租户档只有租户段里租户视角看得见的组（超管专属组整组退场）
+    const tenantGroupCount = TENANT_VISIBLE_GROUPS.length
     expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(tenantGroupCount)
 
     await typeIntoMenuSearch(wrapper, '引用')
@@ -556,9 +564,7 @@ describe('WorkspaceView 侧边菜单', () => {
     await typeIntoMenuSearch(wrapper, '引用')
     await typeIntoMenuSearch(wrapper, '   ')
     // 只剩空格 = 没在搜（否则用户清了字却对着一片空白）
-    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(
-      MENU_GROUPS.filter(g => g.domain === 'tenant').length
-    )
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(TENANT_VISIBLE_GROUPS.length)
     // 命中列表走的是「不展开组」那条路（见 WorkspaceView 里那段偏离说明）：偏好不该被一次搜索改掉
     expect(JSON.parse(localStorage.getItem('nav_open_groups') as string)).toEqual(['article'])
   })
@@ -655,9 +661,7 @@ describe('WorkspaceView 侧边菜单', () => {
     // 所以这里钉的是命中列表那个菜单本身退场 + 组重新数得出租户段那一整排）。
     expect(wrapper.find('.sidebar-menu--hits').exists()).toBe(false)
     expect(wrapper.find('[data-testid="menu-search-empty"]').exists()).toBe(false)
-    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(
-      MENU_GROUPS.filter(g => g.domain === 'tenant').length
-    )
+    expect(wrapper.findAll('.ant-submenu-stub')).toHaveLength(TENANT_VISIBLE_GROUPS.length)
 
     await wrapper.find('.collapse-btn').trigger('click')
     // 展开后那份输入还在，用户没被折叠那一下清掉搜索

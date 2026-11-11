@@ -324,6 +324,42 @@ describe('平台段与租户段分家', () => {
     expect(setupItems).toEqual(['门户上线', '站点设置', '页面搭建'])
   })
 
+  /**
+   * 2026-11-11 拍板：超管切进某家租户（顶栏选了客户）= 租户视角，此刻他看到的东西
+   * 必须与租户管理员**一模一样**——不是「租户的 + 超管的」拼盘。表现就是：
+   * 带 `viewingAsTenant` 的超管 = 超管全量菜单减去超管专属的组/项，「搭建与设置」整组退场。
+   * （不与 TENANT 逐项对齐：租户管理员可见集取决于他持的码，各家租户不一样，
+   * 超管持全码、其余项照旧过闸，这不在这一条的判定范围。）
+   */
+  it('超管切租户视角：超管专属的组/项整批退场，其余与平台模式下的超管一致', () => {
+    // 只比租户段：视图在租户模式下只渲染 tenant 段（platform 段不出现），比它没有意义；
+    // 平台段里的计费/AI 配置/系统告警等项自带 requiresSuperAdmin，租户视角下退场本来就是对的
+    const tenantOf = (view: Parameters<typeof buildMenuSections>[1]) =>
+      buildMenuSections(leaves, view).filter(section => section.domain === 'tenant')
+    const superSections = tenantOf(SUPER)
+    const asTenantSections = tenantOf({ ...SUPER, viewingAsTenant: true })
+    const superGroups = superSections.flatMap(section => section.groups.map(group => group.def.label))
+    const asTenantGroups = asTenantSections.flatMap(section => section.groups.map(group => group.def.label))
+    const superItems = superSections.flatMap(section => section.groups.flatMap(group => group.items.map(item => item.label)))
+    const asTenantItems = asTenantSections.flatMap(section => section.groups.flatMap(group => group.items.map(item => item.label)))
+    // 组：恰好少一个「搭建与设置」，别的组一颗不动
+    expect(superGroups).toContain('搭建与设置')
+    expect(asTenantGroups).not.toContain('搭建与设置')
+    expect(superGroups.filter(label => label !== '搭建与设置')).toEqual(asTenantGroups)
+    // 项：退场的恰好是「所有超管专属的项」——叶闸（requiresSuperAdmin 的叶子，如门户上线、
+    // 客户管理）∪ 组闸（superAdminOnly 组里的全部项，如站点设置/页面搭建）。
+    // 退场清单与这份集合严格一一对应，一颗不多、一颗不少
+    const superAdminOnlyGroupKeys = new Set(MENU_GROUPS.filter(group => group.superAdminOnly).map(group => group.key))
+    const hiddenInTenantView = leaves
+      .filter(leaf => leaf.group && (leaf.superAdminOnly || superAdminOnlyGroupKeys.has(leaf.group)))
+      .map(leaf => leaf.label)
+    expect(hiddenInTenantView.length).toBeGreaterThan(0)
+    expect(superItems.filter(label => !hiddenInTenantView.includes(label))).toEqual(asTenantItems)
+    expect(asTenantItems.filter(label => !superItems.includes(label))).toEqual([])
+    // 下方固定的「联系平台/平台工单队列」照旧按码取颗，不因换视角消失
+    expect(bottomMenuLeaf(leaves, { ...SUPER, viewingAsTenant: true })).toEqual(bottomMenuLeaf(leaves, SUPER))
+  })
+
   it('租户视角仍看得见自己该做的事：内容、企业信息与联系平台', () => {
     const visible = buildMenuSections(leaves, TENANT)
       .flatMap(section => section.groups.flatMap(group => group.items.map(item => item.label)))
