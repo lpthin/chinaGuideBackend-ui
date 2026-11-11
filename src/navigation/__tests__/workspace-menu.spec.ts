@@ -14,6 +14,7 @@ import {
   menuIcon,
   selectedMenuKey
 } from '../workspaceMenu'
+import { menuGroupGlyph } from '../menuGroupGlyphs'
 
 /**
  * 菜单唯一真相（Spec-C §3.1）。
@@ -98,17 +99,17 @@ describe('菜单从路由单源生成', () => {
   })
 
   /**
-   * 2026-11-11 组图标彩色化：每组必须有专属色，且各不相同——颜色是折叠轨上
-   * 分辨组的第二根拐杖（图标只剩 11 颗窄轨，色重了就看不出组边界）。
-   * 格式钉死 hex 六位：视图直接拿它做 CSS 变量，写错白屏没颜色。
+   * 2026-11-11 组图标彩色化（第二版）：颜色画在图形自己身上——每组必须有一枚
+   * 注册好的多色 SVG glyph（`menuGroupGlyphs.ts`），而不是靠背景色染出来的徽章。
+   * 「至少两种 fill 色」钉住「彩色」这个要求本身：漏注册回落单色 antd 图标、
+   * 或只写了一个颜色的伪彩色，都会在这一条判红。
    */
-  it('每个组都有专属色且互不相同（折叠轨靠颜色认组）', () => {
-    const seen = new Map<string, string>()
+  it('每组都有彩色 glyph 且颜色画在图形上（不是背景染色）', () => {
     MENU_GROUPS.forEach(group => {
-      expect(group.accent, `组「${group.label}」没配专属色`).toMatch(/^#[0-9a-fA-F]{6}$/)
-      const previous = seen.get(group.accent)
-      expect(previous, `「${previous}」与「${group.label}」撞了色 ${group.accent}`).toBeUndefined()
-      seen.set(group.accent, group.label)
+      const glyph = menuGroupGlyph(group.key)
+      expect(glyph, `组「${group.label}」没有注册 glyph`).toBeTruthy()
+      const fills = String(glyph).match(/fill="#[0-9a-fA-F]{3,8}"/g) ?? []
+      expect(fills.length, `组「${group.label}」的 glyph 只有单色，谈不上彩色`).toBeGreaterThanOrEqual(2)
     })
   })
 

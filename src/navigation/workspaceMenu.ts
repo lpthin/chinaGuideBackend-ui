@@ -73,15 +73,6 @@ export interface MenuGroupDef {
   /** 组标题的图标；取不到不报错，但用例要求它必须是注册表里的键 */
   icon: string
   /**
-   * 这一组的专属色（2026-11-11）：组图标从「一排灰线」换成彩色徽章——
-   * 浅色圆角底 + 本色图标，折叠轨收成图标时组与组靠颜色也能分清。
-   * 十三组各占一色，取 Tailwind -600 档（白底上对比度够），语义就近：
-   * 写稿紫、内容蓝、知识青、站点橙、互动玫红、搭建靛蓝、经营绿、
-   * 质量红（巡检/告警的语义）、计费翠绿（钱的语义）、AI 品红、系统石墨。
-   * 视图把它作为 CSS 变量喂给徽章底色（color-mix 冲淡）与图标本色。
-   */
-  accent: string
-  /**
    * 这一组是干什么的。Spec-H §4.2 规则 6 + Q6-a：这句话**不再摊在导航上占第二行**，
    * 只作为组标题的 tooltip 存在（说明不许消失，只许换地方）。
    */
@@ -108,29 +99,29 @@ export interface MenuGroupDef {
  */
 export const MENU_GROUPS: MenuGroupDef[] = [
   // ===== 客户日常（7 组 39 项）=====
-  { key: 'content', label: 'AI 写稿', domain: 'tenant', icon: 'funnel', accent: '#7c3aed', hint: '从热词到发布的一条流水线' },
-  { key: 'article', label: '文章与案例', domain: 'tenant', icon: 'file-text', accent: '#2563eb', hint: '文章、分类、模板、素材库与案例' },
-  { key: 'knowledge', label: '知识库', domain: 'tenant', icon: 'book', accent: '#0d9488', hint: 'AI 写作与答疑的资料来源' },
+  { key: 'content', label: 'AI 写稿', domain: 'tenant', icon: 'funnel', hint: '从热词到发布的一条流水线' },
+  { key: 'article', label: '文章与案例', domain: 'tenant', icon: 'file-text', hint: '文章、分类、模板、素材库与案例' },
+  { key: 'knowledge', label: '知识库', domain: 'tenant', icon: 'book', hint: 'AI 写作与答疑的资料来源' },
   // Spec-Q Q1/Q8（§4.3）：原来 12 项全塞在「站点内容」一组里，「外面进来的东西要处理」
   // 与「我站点上摆出去的东西」与「把站点搭起来改设置」三件事共用一个名字，翻到第三屏才找到招聘。
   // 组名按 Spec-H §4.2 规则 1 不许超 5 个字（`workspace-menu.spec.ts:497` 钉着），
   // 所以 §4.3 表里那句「站点搭建与设置」在这里是「搭建与设置」。
-  { key: 'site-content', label: '站点内容', domain: 'tenant', icon: 'global', accent: '#ea580c', hint: '你站点上访客看得见的东西：横幅、展示内容、门店、招聘，以及企业信息（关于我们/联系我们的底稿）' },
-  { key: 'visitor-interaction', label: '访客互动', domain: 'tenant', icon: 'message', accent: '#db2777', hint: '访客写进来的话：留言与线索、文章底下的评论点赞、站内信' },
+  { key: 'site-content', label: '站点内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看得见的东西：横幅、展示内容、门店、招聘，以及企业信息（关于我们/联系我们的底稿）' },
+  { key: 'visitor-interaction', label: '访客互动', domain: 'tenant', icon: 'message', hint: '访客写进来的话：留言与线索、文章底下的评论点赞、站内信' },
   // 2026-11-11 拍板：这一组收的是建站参数与上线闸口，整组只给超级管理员看；
   // 企业信息（租户自己的内容底稿）已挪去「站点内容」，租户要填的东西不该锁在超管专属的组里。
-  { key: 'site-setup', label: '搭建与设置', domain: 'tenant', superAdminOnly: true, icon: 'template', accent: '#4f46e5', hint: '门户上线、站点设置、页面搭建：站点怎么搭起来、参数定在哪里（仅超级管理员可见）' },
-  { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', accent: '#16a34a', hint: '流量、引用、GEO 体检与客户经营' },
+  { key: 'site-setup', label: '搭建与设置', domain: 'tenant', superAdminOnly: true, icon: 'template', hint: '门户上线、站点设置、页面搭建：站点怎么搭起来、参数定在哪里（仅超级管理员可见）' },
+  { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', hint: '流量、引用、GEO 体检与客户经营' },
   // ===== 平台管理（6 组 32 项）=====
   // 「站点与客户」排在「建站」前面是**真实依赖**：建站点之前必须先有客户（后端
   // TenantGuard.requireTenantId 没有租户就直接拒），栏目又是挂在站点上的。
   // 以前这两组的上下顺序是反的，用户先进「建站」再回头找客户从哪来。
-  { key: 'build-assets', label: '站点与客户', domain: 'platform', icon: 'database', accent: '#0891b2', hint: '先开客户，再建站点，然后给站点开栏目' },
-  { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', accent: '#d97706', hint: '新建站点向导（需求单 → 说明书 → 出方案 → 候选 → 转正），含提示词、区块与骨架' },
-  { key: 'build-quality', label: '平台质量', domain: 'platform', icon: 'safety', accent: '#dc2626', hint: '页面巡检、引用探测、整站组装与改版工单' },
-  { key: 'billing', label: '计费', domain: 'platform', icon: 'account-book', accent: '#059669', hint: '账单、订单、钱包与发票' },
-  { key: 'ai', label: 'AI 配置', domain: 'platform', icon: 'robot', accent: '#c026d3', hint: '模型、向量化、用量与生成模板' },
-  { key: 'system', label: '系统与告警', domain: 'platform', icon: 'setting', accent: '#64748b', hint: '账号权限、系统设置、报警与待办' }
+  { key: 'build-assets', label: '站点与客户', domain: 'platform', icon: 'database', hint: '先开客户，再建站点，然后给站点开栏目' },
+  { key: 'build', label: '建站', domain: 'platform', icon: 'rocket', hint: '新建站点向导（需求单 → 说明书 → 出方案 → 候选 → 转正），含提示词、区块与骨架' },
+  { key: 'build-quality', label: '平台质量', domain: 'platform', icon: 'safety', hint: '页面巡检、引用探测、整站组装与改版工单' },
+  { key: 'billing', label: '计费', domain: 'platform', icon: 'account-book', hint: '账单、订单、钱包与发票' },
+  { key: 'ai', label: 'AI 配置', domain: 'platform', icon: 'robot', hint: '模型、向量化、用量与生成模板' },
+  { key: 'system', label: '系统与告警', domain: 'platform', icon: 'setting', hint: '账号权限、系统设置、报警与待办' }
 ]
 
 /**

@@ -157,14 +157,20 @@
                 组图标取 `MENU_GROUPS[].icon`，与项图标同一个注册表，视图里不写死第二份。
               -->
               <a-sub-menu v-for="group in section.groups" :key="group.def.key">
-                <!-- 2026-11-11：组图标从一排灰线换成彩色徽章（浅底 + 本色），折叠轨收成图标时组与组靠颜色也能分清 -->
+                <!--
+                  2026-11-11：组图标本身是彩色的——`menuGroupGlyphs.ts` 里手绘的多色 SVG
+                  直接注入 glyph（图标自带颜色，不是底色染出来的）。组漏注册时回落单色
+                  antd 图标，用例会揪出漏网的那一组。
+                -->
                 <template #icon>
-                  <span
-                    class="menu-group__badge"
-                    :style="{ '--menu-group-accent': group.def.accent }"
-                  >
-                    <component :is="menuIcon(group.def.icon)" />
-                  </span>
+                  <svg
+                    v-if="groupGlyph(group.def.key)"
+                    class="menu-group__glyph"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    v-html="groupGlyph(group.def.key)"
+                  />
+                  <component :is="menuIcon(group.def.icon)" v-else />
                 </template>
                 <template #title>
                   <a-tooltip v-if="!siderCollapsed" :title="group.def.hint" placement="right">
@@ -264,6 +270,7 @@ import {
   writeStoredOpenGroups,
   writeStoredSiderCollapsed
 } from '../../navigation/navState'
+import { menuGroupGlyph as groupGlyph } from '../../navigation/menuGroupGlyphs'
 import { portalSectionsApi } from '../../api/portalSections'
 import { message } from 'ant-design-vue'
 import { describeHttpError } from '../../api/http'
@@ -775,26 +782,13 @@ watch(() => [auth.selectedTenantId, auth.selectedTenantCode].join(':'), loadSect
 }
 
 /*
- * 组图标的彩色徽章（2026-11-11）：浅色圆角底（accent 冲淡 13%）+ 本色图标。
- * 组选中/悬停时 antd 把整行染成主题蓝，徽章底色略加深一档，蓝底上仍分得清。
+ * 组图标本体（2026-11-11）：多色 SVG glyph，颜色画在图形自己身上（fill 内联在
+ * `menuGroupGlyphs.ts` 的 markup 里），这里只管尺寸——不加底色、不做徽章。
  */
-.menu-group__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--menu-group-accent) 13%, #ffffff);
-  color: var(--menu-group-accent);
-  font-size: 13px;
-  line-height: 1;
-  transition: background 0.2s, color 0.2s;
-}
-
-:deep(.ant-menu-submenu-selected) .menu-group__badge,
-:deep(.ant-menu-submenu-active) .menu-group__badge {
-  background: color-mix(in srgb, var(--menu-group-accent) 22%, #ffffff);
+.menu-group__glyph {
+  display: block;
+  width: 18px;
+  height: 18px;
 }
 
 /*
