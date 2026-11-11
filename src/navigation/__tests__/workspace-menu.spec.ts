@@ -97,6 +97,21 @@ describe('菜单从路由单源生成', () => {
     })
   })
 
+  /**
+   * 2026-11-11 组图标彩色化：每组必须有专属色，且各不相同——颜色是折叠轨上
+   * 分辨组的第二根拐杖（图标只剩 11 颗窄轨，色重了就看不出组边界）。
+   * 格式钉死 hex 六位：视图直接拿它做 CSS 变量，写错白屏没颜色。
+   */
+  it('每个组都有专属色且互不相同（折叠轨靠颜色认组）', () => {
+    const seen = new Map<string, string>()
+    MENU_GROUPS.forEach(group => {
+      expect(group.accent, `组「${group.label}」没配专属色`).toMatch(/^#[0-9a-fA-F]{6}$/)
+      const previous = seen.get(group.accent)
+      expect(previous, `「${previous}」与「${group.label}」撞了色 ${group.accent}`).toBeUndefined()
+      seen.set(group.accent, group.label)
+    })
+  })
+
   it('菜单项名字不重名（曾有「栏目管理」两个、「企业信息」两个）', () => {
     const seen = new Map<string, string>()
     grouped.forEach(leaf => {
