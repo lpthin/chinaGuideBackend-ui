@@ -246,27 +246,35 @@ function handleAction(action: RobotAction): void {
       ?
     </button>
 
-    <RobotSettingsPanel
-      :open="settingsOpen"
-      :prefs="prefs"
-      :stats="stats"
-      @update:open="center.openSettings($event)"
-      @set-rate="center.setRate($event)"
-      @set-category="(category, enabled) => center.setCategory(category, enabled)"
-      @quiet="center.setQuiet($event)"
-      @unmute="center.unmuteKey($event)"
-      @unmute-page="center.unmutePage($event)"
-      @restore-all="center.restoreAll()"
-      @set-position="center.setPosition($event)"
-      @set-avatar="center.setAvatar($event)"
-    />
-
-    <RobotHelpPanel
-      :open="helpOpen"
-      :entries="helpEntries"
-      @update:open="helpOpen = $event"
-    />
   </div>
+
+  <!--
+    两个抽屉常驻在 `v-if="!failed && robotEnabled"` 块外面：a-drawer 内部是 Teleport，
+    放在 v-if 里时，灰度翻转或渲染出错都会连带卸载抽屉，触发 Vue 的
+    moveTeleport/unmount 连锁报错（insertBefore / reading 'type' of null）。
+    open=false 时抽屉本就没有可见 DOM，常驻没有成本；open 条件兜住 failed 与灰度，
+    机器人不可用时抽屉一定收起。
+  -->
+  <RobotSettingsPanel
+    :open="settingsOpen && robotEnabled && !failed"
+    :prefs="prefs"
+    :stats="stats"
+    @update:open="center.openSettings($event)"
+    @set-rate="center.setRate($event)"
+    @set-category="(category, enabled) => center.setCategory(category, enabled)"
+    @quiet="center.setQuiet($event)"
+    @unmute="center.unmuteKey($event)"
+    @unmute-page="center.unmutePage($event)"
+    @restore-all="center.restoreAll()"
+    @set-position="center.setPosition($event)"
+    @set-avatar="center.setAvatar($event)"
+  />
+
+  <RobotHelpPanel
+    :open="helpOpen && robotEnabled && !failed"
+    :entries="helpEntries"
+    @update:open="helpOpen = $event"
+  />
 </template>
 
 <style scoped>
