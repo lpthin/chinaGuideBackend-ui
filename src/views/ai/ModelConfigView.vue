@@ -578,17 +578,19 @@ function formDefaults() {
 
 const configForm = reactive(formDefaults())
 
+// 列序（2026-11-11）：模型 → 状态 → 提供商 是最常扫的三样，放最前面；
+// 配置名称跟在其后，其余列保持原来的相对顺序。
 const columns = [
-  { title: '配置名称', dataIndex: 'name', key: 'name', width: 200 },
-  { title: '提供商', key: 'provider', width: 140 },
   { title: '模型', dataIndex: 'modelName', key: 'modelName', width: 140 },
+  { title: '状态', key: 'isActive', width: 100, align: 'center' as const },
+  { title: '提供商', key: 'provider', width: 140 },
+  { title: '配置名称', dataIndex: 'name', key: 'name', width: 200 },
   // 多选之后这一格必须摆在表上：筛「按模型类型筛」筛的是一个看不见的东西，等于让操作者猜
   { title: '模型类型', key: 'type', width: 130 },
   { title: '接口协议', key: 'apiProtocol', width: 130 },
   { title: '单价（元/1k Token）', key: 'pricePer1kTokens', width: 170 },
   { title: '限定用途', key: 'purposeScope', width: 170 },
   { title: '优先级', key: 'priority', width: 100, align: 'center' as const },
-  { title: '状态', key: 'isActive', width: 100, align: 'center' as const },
   { title: '测试结果', key: 'healthStatus', width: 170 },
   {
     title: '创建时间',
