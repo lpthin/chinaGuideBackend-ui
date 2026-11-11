@@ -200,12 +200,20 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
 .robot-settings {
   display: flex;
   flex-direction: column;
-  gap: 20px;
 
   &__section {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--admin-border-soft, #f0f0f0);
+
+    &:last-child {
+      padding-bottom: 0;
+      margin-bottom: 0;
+      border-bottom: none;
+    }
   }
 
   &__title {
@@ -223,33 +231,50 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
   &__check {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    padding: 8px 10px;
+    gap: 10px;
+    padding: 10px 12px;
     border: 1px solid var(--admin-border-soft, #f0f0f0);
-    border-radius: 8px;
+    border-radius: 10px;
+    background: #fff;
     cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+
+    &:hover {
+      border-color: var(--admin-primary, #1890ff);
+    }
   }
 
   &__option--active {
     border-color: var(--admin-primary, #1890ff);
-    background: #e8f4ff;
+    background: #f0f8ff;
   }
 
   &__option input,
   &__check input {
-    margin-top: 2px;
+    margin-top: 3px;
     flex: none;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--admin-primary, #1890ff);
+    cursor: pointer;
   }
 
   &__option-body {
     display: flex;
     flex-direction: column;
+    gap: 3px;
     min-width: 0;
   }
 
   &__option-label {
     font-size: 13px;
+    font-weight: 500;
+    line-height: 20px;
     color: var(--admin-text-primary, #1a1a1a);
+  }
+
+  &__option--active &__option-label {
+    color: var(--admin-primary, #1890ff);
   }
 
   &__option-hint {
@@ -268,35 +293,43 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 30px;
-    padding: 0 12px;
+    height: 32px;
+    padding: 0 14px;
     border: 1px solid var(--admin-border-soft, #f0f0f0);
-    border-radius: 15px;
+    border-radius: 16px;
     background: #fff;
     font-size: 12px;
     color: var(--admin-text-primary, #1a1a1a);
     cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+
+    &:hover {
+      border-color: var(--admin-primary, #1890ff);
+      color: var(--admin-primary, #1890ff);
+    }
   }
 
   &__chip--active {
     border-color: var(--admin-primary, #1890ff);
+    background: #f0f8ff;
     color: var(--admin-primary, #1890ff);
   }
 
   &__chip input {
     margin: 0;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--admin-primary, #1890ff);
   }
 
-  &__empty {
-    margin: 0;
-    font-size: 12px;
-    color: var(--admin-text-secondary, #8c8c8c);
-  }
-
+  &__empty,
   &__stat {
     margin: 0;
+    padding: 10px 12px;
+    background: var(--admin-bg-soft, #fafafa);
+    border-radius: 8px;
     font-size: 12px;
-    line-height: 18px;
+    line-height: 20px;
     color: var(--admin-text-secondary, #8c8c8c);
   }
 
@@ -306,7 +339,7 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 
   &__muted-row {
@@ -314,6 +347,9 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--admin-border-soft, #f0f0f0);
+    border-radius: 8px;
     font-size: 12px;
     color: var(--admin-text-secondary, #8c8c8c);
   }
@@ -326,12 +362,17 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
   }
 
   &__link {
+    flex: none;
     padding: 0;
     border: none;
     background: transparent;
     font-size: 12px;
     color: var(--admin-primary, #1890ff);
     cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
   }
 }
 </style>
