@@ -161,9 +161,13 @@ describe('平台段与租户段分家', () => {
     expect(visibleNames).not.toContain('新建站点')
     expect(visibleNames).not.toContain('栏目开通')
     expect(visibleNames).not.toContain('站点清单')
-    // Q-P7-3：「页面搭建」这一项不再属于建设段——它的闸是 portal:page:manage，
-    // 租户管理员确实能读页、改页面信息、发布与下线（视图里建站那半按码藏着）
-    expect(visibleNames).toContain('页面搭建')
+    // Q-P7-3 的叶子闸不动：租户管理员持 portal:page:manage，页面这一页路由层仍进得去。
+    // 2026-11-11 拍板改的是菜单组的显隐：页面搭建随「搭建与设置」整组退出租户菜单（下一条钉）
+    const buildPages = grouped.find(leaf => leaf.routeName === 'workspace-portal-pages')
+    expect(buildPages?.permission).toBe('portal:page:manage')
+    expect(leafVisible(buildPages!, TENANT)).toBe(true)
+    expect(visibleNames).not.toContain('页面搭建')
+    expect(visibleNames).not.toContain('站点设置')
     const buildLeaves = grouped.filter(leaf => leaf.permission?.startsWith('portal:build:'))
     expect(buildLeaves.length).toBeGreaterThan(0)
     buildLeaves.forEach(leaf => {
@@ -258,6 +262,28 @@ describe('平台段与租户段分家', () => {
     // 详情页同样 hidden：一行需求单的落点从列表进，不额外占一个菜单位
     const detail = leaves.find(leaf => leaf.routeName === 'workspace-portal-brief-detail')
     expect(detail?.group).toBe('')
+  })
+
+  /**
+   * 2026-11-11 拍板：「搭建与设置」整组只给超级管理员看（组级 superAdminOnly，不是逐项判）。
+   *
+   * 判据用 buildMenuSections 而不是 leafVisible：后者是叶子闸（权限码层面租户仍持码），
+   * 这一面闸在组上——对租户整组消失，连组标题都不留；对超管原样渲染、一颗不少。
+   */
+  it('「搭建与设置」整组租户不见、超管照旧：企业信息已先挪去「站点内容」', () => {
+    const tenantGroups = buildMenuSections(leaves, TENANT).flatMap(section => section.groups.map(group => group.def.label))
+    expect(tenantGroups).not.toContain('搭建与设置')
+    const superGroups = buildMenuSections(leaves, SUPER).flatMap(section => section.groups.map(group => group.def.label))
+    expect(superGroups).toContain('搭建与设置')
+    // 组在租户段（domain 不因显隐换段）：这是给超管看的租户侧建站参数，不是平台段的东西
+    expect(MENU_GROUPS.find(g => g.key === 'site-setup')?.superAdminOnly).toBe(true)
+    expect(MENU_GROUPS.find(g => g.key === 'site-setup')?.domain).toBe('tenant')
+    // 超管视角组里正是那三颗：门户上线、站点设置、页面搭建（企业信息不在，它去了站点内容）
+    const setupItems = buildMenuSections(leaves, SUPER)
+      .flatMap(section => section.groups)
+      .filter(group => group.def.key === 'site-setup')
+      .flatMap(group => group.items.map(item => item.label))
+    expect(setupItems).toEqual(['门户上线', '站点设置', '页面搭建'])
   })
 
   it('租户视角仍看得见自己该做的事：内容、企业信息与联系平台', () => {
@@ -497,9 +523,10 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
   it('站点内容那 12 项拆成 5 / 3 / 4：摆出去的、进来的、搭起来改参数的各一组', () => {
     const labelsOf = (key: string) => itemsOf(key).map(leaf => leaf.label)
     // 组内上下顺序跟着路由表声明顺序（buildMenuSections 不另排序），这里念的是界面上真读到的顺序
-    expect(labelsOf('site-content')).toEqual(['内容工作台', '横幅', '展示内容', '门店', '招聘管理'])
+    // 2026-11-11 拍板：企业信息从「搭建与设置」挪进来（它是租户要填的内容底稿，详见组表注释）
+    expect(labelsOf('site-content')).toEqual(['内容工作台', '横幅', '展示内容', '门店', '招聘管理', '企业信息'])
     expect(labelsOf('visitor-interaction')).toEqual(['站内信', '留言管理', '读者互动'])
-    expect(labelsOf('site-setup')).toEqual(['门户上线', '企业信息', '站点设置', '页面搭建'])
+    expect(labelsOf('site-setup')).toEqual(['门户上线', '站点设置', '页面搭建'])
     // 拆组不许改域名归属：三组都还在租户段，租户视角才谈得上「看不到门户上线」这一说
     const tenantKeys = MENU_GROUPS.filter(g => g.domain === 'tenant').map(g => g.key)
     expect(['site-content', 'visitor-interaction', 'site-setup'].every(k => tenantKeys.includes(k))).toBe(true)

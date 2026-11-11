@@ -77,6 +77,13 @@ export interface MenuGroupDef {
    * 只作为组标题的 tooltip 存在（说明不许消失，只许换地方）。
    */
   hint?: string
+  /**
+   * 整组只给超级管理员看（2026-11-11 拍板）：「搭建与设置」收的是建站参数与上线闸口，
+   * 租户管理员从菜单上整个不见——不是把组挪进平台段（租户段的组序、段名都是按使用频率排的），
+   * 而是组上挂这面闸，`buildMenuSections` 对非超管整组滤掉。
+   * 组内各项自己的叶子闸（权限码 / contentEntry）照旧生效，敲地址进不进得去仍由路由守卫说了算。
+   */
+  superAdminOnly?: boolean
 }
 
 /**
@@ -99,9 +106,11 @@ export const MENU_GROUPS: MenuGroupDef[] = [
   // 与「我站点上摆出去的东西」与「把站点搭起来改设置」三件事共用一个名字，翻到第三屏才找到招聘。
   // 组名按 Spec-H §4.2 规则 1 不许超 5 个字（`workspace-menu.spec.ts:497` 钉着），
   // 所以 §4.3 表里那句「站点搭建与设置」在这里是「搭建与设置」。
-  { key: 'site-content', label: '站点内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看得见的东西：横幅、展示内容、门店、招聘' },
+  { key: 'site-content', label: '站点内容', domain: 'tenant', icon: 'global', hint: '你站点上访客看得见的东西：横幅、展示内容、门店、招聘，以及企业信息（关于我们/联系我们的底稿）' },
   { key: 'visitor-interaction', label: '访客互动', domain: 'tenant', icon: 'message', hint: '访客写进来的话：留言与线索、文章底下的评论点赞、站内信' },
-  { key: 'site-setup', label: '搭建与设置', domain: 'tenant', icon: 'template', hint: '页面搭建、企业信息、站点设置；门户上线只有平台侧进得来' },
+  // 2026-11-11 拍板：这一组收的是建站参数与上线闸口，整组只给超级管理员看；
+  // 企业信息（租户自己的内容底稿）已挪去「站点内容」，租户要填的东西不该锁在超管专属的组里。
+  { key: 'site-setup', label: '搭建与设置', domain: 'tenant', superAdminOnly: true, icon: 'template', hint: '门户上线、站点设置、页面搭建：站点怎么搭起来、参数定在哪里（仅超级管理员可见）' },
   { key: 'site-effect', label: '效果与经营', domain: 'tenant', icon: 'chart', hint: '流量、引用、GEO 体检与客户经营' },
   // ===== 平台管理（6 组 32 项）=====
   // 「站点与客户」排在「建站」前面是**真实依赖**：建站点之前必须先有客户（后端
@@ -164,8 +173,10 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   // 「门户上线」在这里而不是在平台段：视图两条分支都在（超管灌演示包、租户看还差什么），
   // 但按 Q7 那一屏的写口是超管专用（后端 checkSuperAdmin），租户侧的「还差什么」走内容工作台的完成度带。
   'workspace-portal-launch': 'site-setup',
-  // 企业信息一处、站点级 SEO/GEO 与 robots 一处（P5 合并后）；项名「站点设置」，组名不再与它同名
-  'workspace-portal-company': 'site-setup',
+  // 企业信息（2026-11-11 拍板挪组）：它是「关于我们 / 联系我们」的内容底稿，租户自己填——
+  // 跟横幅、展示内容、门店同一条命。原先所在的「搭建与设置」整组改成仅超管可见后，
+  // 留在原组等于把租户每天要维护的一页藏起来。
+  'workspace-portal-company': 'site-content',
   'workspace-portal-site-info': 'site-setup',
   // Q-P7-3：页面搭建对 SITE_ADMIN 是「读自己的页、改页面信息、发布/下线」，建站那半
   // （新建页、区块装配、检查结构、回滚）在视图里按 `portal:build:manage` 守卫。
@@ -478,7 +489,8 @@ const DOMAINS: Array<{ domain: MenuDomain; label: string; hint: string }> = [
 export function buildMenuSections(leaves: MenuLeaf[], view: MenuVisibility): MenuSection[] {
   return DOMAINS.flatMap(entry => {
     const groups = MENU_GROUPS
-      .filter(def => def.domain === entry.domain)
+      // 整组超管专属的（搭建与设置）先滤一道；组内各项再按叶子闸逐项判
+      .filter(def => def.domain === entry.domain && !(def.superAdminOnly && !view.isSuperAdmin))
       .map(def => ({ def, items: sortGroupItems(def, leaves.filter(leaf => leaf.group === def.key && leafVisible(leaf, view))) }))
       .filter(group => group.items.length > 0)
     if (!groups.length) return []
