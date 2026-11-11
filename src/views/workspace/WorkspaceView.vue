@@ -179,7 +179,10 @@
                   <span v-else class="menu-group__label">{{ group.def.label }}</span>
                 </template>
                 <a-menu-item v-for="leaf in group.items" :key="leaf.key">
-                  <template #icon><component :is="leaf.icon" /></template>
+                  <!-- 2026-11-11：子项图标也上色——色上在图标笔画自己身上（currentColor），不加底色 -->
+                  <template #icon>
+                    <component :is="leaf.icon" :style="leaf.color ? { color: leaf.color } : undefined" />
+                  </template>
                   <a-tooltip v-if="leaf.tip" :title="leaf.tip" placement="right">
                     <span class="menu-leaf__label">{{ leaf.label }}</span>
                   </a-tooltip>

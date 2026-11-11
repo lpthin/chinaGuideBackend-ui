@@ -113,6 +113,28 @@ describe('菜单从路由单源生成', () => {
     })
   })
 
+  /**
+   * 2026-11-11 子项图标上色：每一项都有色、同组不撞色、展示顺序相邻两项
+   * （含跨组边界）也岔开。色板十六色大于任何一组项数，撞色即分配逻辑坏了。
+   */
+  it('子项图标有颜色且不撞色（同组不重，相邻项也岔开）', () => {
+    const ordered = MENU_GROUPS.flatMap(group => grouped.filter(leaf => leaf.group === group.key))
+    ordered.forEach(leaf => {
+      expect(leaf.color, `「${leaf.label}」没配上图标色`).toMatch(/^#[0-9a-fA-F]{6}$/)
+    })
+    MENU_GROUPS.forEach(group => {
+      const seen = new Map<string, string>()
+      ordered.filter(leaf => leaf.group === group.key).forEach(leaf => {
+        const previous = seen.get(leaf.color!)
+        expect(previous, `组「${group.label}」里「${previous}」与「${leaf.label}」撞色 ${leaf.color}`).toBeUndefined()
+        seen.set(leaf.color!, leaf.label)
+      })
+    })
+    for (let index = 1; index < ordered.length; index += 1) {
+      expect(ordered[index].color, `「${ordered[index - 1].label}」与「${ordered[index].label}」相邻撞色 ${ordered[index].color}`).not.toBe(ordered[index - 1].color)
+    }
+  })
+
   it('菜单项名字不重名（曾有「栏目管理」两个、「企业信息」两个）', () => {
     const seen = new Map<string, string>()
     grouped.forEach(leaf => {

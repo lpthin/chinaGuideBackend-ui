@@ -391,6 +391,13 @@ export interface MenuLeaf {
   tip?: string
   /** 路由定义顺序；`MENU_ITEM_ORDER` 写死过的组以那份名单为准，这里只当兜底 */
   order: number
+  /**
+   * 这一项的图标色（2026-11-11）：子项图标跟组图标一样要有颜色，颜色上在图标
+   * 笔画自己身上（currentColor），不加底色。色由 `assignLeafColors` 按展示顺序
+   * 从 `LEAF_PALETTE` 轮转分配——同组必不撞色，相邻项（含跨组边界）也岔开；
+   * 分配只看全量叶子，与权限过滤无关，同一项的颜色永远稳定。
+   */
+  color?: string
 }
 
 interface MenuRouteMeta {
@@ -431,7 +438,49 @@ export function collectMenuLeaves(input: readonly RouteRecordRaw[]): MenuLeaf[] 
       order: index
     })
   })
-  return leaves.sort((left, right) => left.order - right.order)
+  const sorted = leaves.sort((left, right) => left.order - right.order)
+  assignLeafColors(sorted)
+  return sorted
+}
+
+/**
+ * 子项图标色板（2026-11-11）：十六色，取 Tailwind -600 档（白底上看得清）。
+ * 排列顺序就是把色相拉远——按展示顺序轮转时，相邻两项永远不会是近亲色
+ * （蓝→琥珀→青→玫红→紫→黄绿→橙→青蓝→品红→翠绿→靛→红→紫红→金黄→天蓝→绿→回到蓝）。
+ * 十六大于任何一组的项数，所以「同组不撞色」是排出来的，不是靠用例祈祷。
+ */
+export const LEAF_PALETTE: string[] = [
+  '#2563eb',
+  '#d97706',
+  '#0d9488',
+  '#e11d48',
+  '#7c3aed',
+  '#65a30d',
+  '#ea580c',
+  '#0891b2',
+  '#c026d3',
+  '#059669',
+  '#4f46e5',
+  '#dc2626',
+  '#9333ea',
+  '#ca8a04',
+  '#0284c7',
+  '#16a34a'
+]
+
+/**
+ * 按菜单展示顺序（组序 = `MENU_GROUPS`，组内 = 展示顺序）给分组叶子轮转上色。
+ * 一个游标走完整个菜单：组与组之间游标不清零，跨组边界也就近岔开；
+ * 没分组的（工作台、联系平台）不上色，保持它们「固定项」的中性样子。
+ */
+function assignLeafColors(leaves: MenuLeaf[]): void {
+  let cursor = 0
+  MENU_GROUPS.forEach(def => {
+    leaves.filter(leaf => leaf.group === def.key).forEach(leaf => {
+      leaf.color = LEAF_PALETTE[cursor % LEAF_PALETTE.length]
+      cursor += 1
+    })
+  })
 }
 
 function workspaceChildren(input: readonly RouteRecordRaw[]): readonly RouteRecordRaw[] {
