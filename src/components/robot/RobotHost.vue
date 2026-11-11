@@ -195,8 +195,13 @@ function handleAction(action: RobotAction): void {
     :class="`robot-host--${prefs.position}`"
     data-testid="robot-host"
   >
-    <!-- 页头问号（R-5）：这一页的说明条删掉之后，用户复看全文的唯一常驻入口 -->
-    <Teleport to="#robot-help-entry" :disabled="!helpSlotReady">
+    <!--
+      页头问号（R-5）。用 v-if 控制 Teleport 本体的挂载时机：
+      动态 :disabled 的 Teleport 在首挂载时若解析不到目标，target 会被记成 null 且不告警，
+      之后 disabled 翻转走 moveTeleport(null) 直接抛 insertBefore of null，
+      组件树更新中断 → 整页点击失灵。v-if 保证挂载时目标必在，永远不走 move 到 null 的路径。
+    -->
+    <Teleport v-if="helpSlotReady" to="#robot-help-entry">
       <button
         v-if="helpEntries.length"
         type="button"
@@ -209,6 +214,17 @@ function handleAction(action: RobotAction): void {
         ?
       </button>
     </Teleport>
+    <!-- 拿不到页头插槽（helpSlotReady=false）时的原位退化，行为与原 disabled 态一致 -->
+    <button
+      v-else-if="helpEntries.length"
+      type="button"
+      class="robot-host__help"
+      :aria-label="ROBOT_COPY.help.aria"
+      :aria-expanded="helpOpen"
+      @click="openHelp"
+    >
+      ?
+    </button>
 
     <transition name="robot-pop">
       <RobotBubble
