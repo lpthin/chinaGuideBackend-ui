@@ -27,7 +27,7 @@ import RobotAvatar from './RobotAvatar.vue'
 import RobotBubble from './RobotBubble.vue'
 import RobotHelpPanel from './RobotHelpPanel.vue'
 import RobotSettingsPanel from './RobotSettingsPanel.vue'
-import type { RobotAction } from './robotTypes'
+import { ROBOT_FREE_POSITION_BOUNDS, type RobotAction } from './robotTypes'
 
 const center = robotCenter
 const auth = useAuthStore()
@@ -186,13 +186,80 @@ function handleAction(action: RobotAction): void {
     center.runAction(action.kind, action.label)
   })
 }
+
+/**
+ * 自由拖放（2026-11-11）：小球拖到哪，位置就记到哪（视口百分比，跨端同步）。
+ * 拖动中的位置只放在本地 ref 里实时动，松手才落库——拖一次写 N 次偏好，推送会刷屏。
+ */
+const hostEl = ref<HTMLElement | null>(null)
+const dragPos = ref<{ x: number; y: number } | null>(null)
+let dragOrigin: { centerX: number; centerY: number; px: number; py: number } | null = null
+
+const freePos = computed(() => dragPos.value ?? prefs.value.positionFree)
+
+const freeStyle = computed(() => {
+  if (!freePos.value) return undefined
+  return {
+    '--robot-free-left': `${freePos.value.x}%`,
+    '--robot-free-top': `${freePos.value.y}%`
+  }
+})
+
+/** 当前页是否已设「每周提醒一次」：气泡里那个选项的激活态 */
+const pageWeekly = computed(() => !!center.pageKey.value && prefs.value.weeklyPages.includes(center.pageKey.value))
+
+function clampFree(x: number, y: number): { x: number; y: number } {
+  const { xMin, xMax, yMin, yMax } = ROBOT_FREE_POSITION_BOUNDS
+  return {
+    x: Math.min(xMax, Math.max(xMin, x)),
+    y: Math.min(yMax, Math.max(yMin, y))
+  }
+}
+
+function onDragStart(pointer: PointerEvent): void {
+  const el = hostEl.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  // 记下「手按住时」球心与指针的相对关系，拖动全程保持——不然一按下去球会跳到指针底下
+  dragOrigin = {
+    centerX: rect.left + rect.width / 2,
+    centerY: rect.top + rect.height / 2,
+    px: pointer.clientX,
+    py: pointer.clientY
+  }
+  const start = prefs.value.positionFree
+  dragPos.value = start ?? clampFree(
+    (dragOrigin.centerX / window.innerWidth) * 100,
+    (dragOrigin.centerY / window.innerHeight) * 100
+  )
+}
+
+function onDragMove(pointer: PointerEvent): void {
+  if (!dragOrigin) return
+  const dx = pointer.clientX - dragOrigin.px
+  const dy = pointer.clientY - dragOrigin.py
+  dragPos.value = clampFree(
+    ((dragOrigin.centerX + dx) / window.innerWidth) * 100,
+    ((dragOrigin.centerY + dy) / window.innerHeight) * 100
+  )
+}
+
+function onDragEnd(): void {
+  if (!dragOrigin) return
+  dragOrigin = null
+  const final = dragPos.value
+  dragPos.value = null
+  if (final) center.setFreePosition(final)
+}
 </script>
 
 <template>
   <div
     v-if="!failed && robotEnabled"
+    ref="hostEl"
     class="robot-host"
-    :class="`robot-host--${prefs.position}`"
+    :class="[`robot-host--${prefs.position}`, { 'robot-host--free': freePos }]"
+    :style="freeStyle"
     data-testid="robot-host"
   >
     <!--
@@ -231,12 +298,14 @@ function handleAction(action: RobotAction): void {
         v-if="active"
         :notice="active"
         :detail-open="detailOpen"
+        :page-weekly="pageWeekly"
         class="robot-host__bubble"
         @close="center.dismiss('user')"
         @toggle-detail="center.openDetail(!detailOpen)"
         @action="handleAction"
         @mute-key="center.muteCurrent()"
         @mute-page="center.mutePage()"
+        @mute-weekly="center.setPageWeekly(!pageWeekly)"
         @mute-category="handleMuteCategory"
       />
     </transition>
@@ -245,7 +314,11 @@ function handleAction(action: RobotAction): void {
       v-if="prefs.avatar"
       :badge="badge && !active"
       :speaking="!!active"
+      :dragging="!!dragPos"
       @open="openSettings"
+      @drag-start="onDragStart"
+      @drag-move="onDragMove"
+      @drag-end="onDragEnd"
     />
     <!--
       本体关掉之后的兜底入口：设置面板还不能从别处打开，
@@ -281,8 +354,10 @@ function handleAction(action: RobotAction): void {
     @quiet="center.setQuiet($event)"
     @unmute="center.unmuteKey($event)"
     @unmute-page="center.unmutePage($event)"
+    @unmute-weekly-page="center.unweeklyPage($event)"
     @restore-all="center.restoreAll()"
     @set-position="center.setPosition($event)"
+    @reset-position="center.setFreePosition(null)"
     @set-avatar="center.setAvatar($event)"
   />
 
@@ -312,6 +387,21 @@ function handleAction(action: RobotAction): void {
 .robot-host--bl {
   left: 24px;
   align-items: flex-start;
+}
+
+/*
+ * 自由位置（2026-11-11）：位置经由 CSS 变量进样式而不是内联 left/top，
+ * 是为了让「自由」只在宽屏生效——窄屏布局是通栏的，百分比没意义；
+ * 内联样式会压过媒体查询，变量不会。
+ */
+@media (min-width: 769px) {
+  .robot-host--free {
+    left: var(--robot-free-left);
+    top: var(--robot-free-top);
+    right: auto;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+  }
 }
 
 .robot-host > * {
@@ -387,8 +477,10 @@ function handleAction(action: RobotAction): void {
     align-items: stretch;
   }
 
+  /* 窄屏不支持自由位置（见上）：落到角落档的通栏布局 */
   .robot-host--bl,
-  .robot-host--br {
+  .robot-host--br,
+  .robot-host--free {
     left: 16px;
     right: 16px;
   }

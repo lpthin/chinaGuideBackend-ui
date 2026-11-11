@@ -23,11 +23,26 @@ export type RobotFrequency = 'off' | 'quiet' | 'standard' | 'active'
  * - 跨标签页要求「开 8 个标签也只说一次」，只记内存或 sessionStorage 做不到；
  * - 验收 #2 要求「刷新同一页不再重复说」，`page` 档也必须跨刷新。
  * 因此 `session` / `page` 在存储层按「当天」记，语义上仍按一次会话 / 一次页面访问解释。
+ * `week` 是 2026-11-11 加的：用户在气泡里选「每周提醒一次」后，这一页的消息按 7 天记一次。
  */
-export type RobotDedupe = 'session' | 'page' | 'day' | 'ever'
+export type RobotDedupe = 'session' | 'page' | 'day' | 'week' | 'ever'
 
-/** 形象位置：右下（默认）/ 左下，记忆用户选择 */
+/** 形象位置：右下（默认）/ 左下，记忆用户选择；`positionFree` 存在时以它为准 */
 export type RobotPosition = 'br' | 'bl'
+
+/**
+ * 自由拖放的位置（2026-11-11）：小球中心的视口百分比，拖完落库、跨端同步。
+ * 只在宽屏（>768px）生效；窄屏布局是通栏的，百分比没有意义，回落到角落档。
+ */
+export interface RobotFreePosition {
+  /** 视口宽度百分比，写入前已夹紧 */
+  x: number
+  /** 视口高度百分比，写入前已夹紧 */
+  y: number
+}
+
+/** 自由位置的取值范围（视口百分比），夹紧在这里面保证球和气泡都够得着 */
+export const ROBOT_FREE_POSITION_BOUNDS = { xMin: 8, xMax: 92, yMin: 15, yMax: 85 } as const
 
 /** 气泡里的动作，最多两个（§4.3） */
 export interface RobotAction {

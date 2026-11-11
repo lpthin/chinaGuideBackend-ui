@@ -5,11 +5,13 @@ import {
   isRobotQuiet,
   mergeRobotPreference,
   muteRobotKey,
+  muteRobotPage,
   normalizeRobotPrefsPayload,
   readRobotPrefs,
   robotPrefsStorageKey,
   robotQuietUntil,
   unmuteRobotKey,
+  weeklyRobotPage,
   writeRobotPrefs,
   type RobotStorage
 } from '../robotPrefs'
@@ -188,5 +190,51 @@ describe('临时安静', () => {
     const prefs = { ...defaultRobotPrefs(), quietUntil: 1_000 }
     expect(isRobotQuiet(prefs, 999)).toBe(true)
     expect(isRobotQuiet(prefs, 1_000)).toBe(false)
+  })
+})
+
+describe('2026-11-11 后加的字段：weeklyPages 与 positionFree', () => {
+  it('默认值为空清单与 null', () => {
+    const prefs = defaultRobotPrefs()
+    expect(prefs.weeklyPages).toEqual([])
+    expect(prefs.positionFree).toBeNull()
+  })
+
+  it('老客户端不传这两个字段：按默认值算，不算损坏', () => {
+    const prefs = { ...defaultRobotPrefs(), rate: 'quiet' as const }
+    delete (prefs as Partial<typeof prefs>).weeklyPages
+    delete (prefs as Partial<typeof prefs>).positionFree
+    const round = normalizeRobotPrefsPayload(prefs)
+    expect(round).not.toBeNull()
+    expect(round?.weeklyPages).toEqual([])
+    expect(round?.positionFree).toBeNull()
+  })
+
+  it('positionFree 必须是 0-100 的有限数字，坏了整体回落', () => {
+    expect(normalizeRobotPrefsPayload({ ...defaultRobotPrefs(), positionFree: { x: 50, y: 50 } })?.positionFree).toEqual({ x: 50, y: 50 })
+    expect(normalizeRobotPrefsPayload({ ...defaultRobotPrefs(), positionFree: { x: '50', y: 50 } })).toBeNull()
+    expect(normalizeRobotPrefsPayload({ ...defaultRobotPrefs(), positionFree: { x: 101, y: 50 } })).toBeNull()
+    expect(normalizeRobotPrefsPayload({ ...defaultRobotPrefs(), positionFree: { x: Number.NaN, y: 50 } })).toBeNull()
+  })
+
+  it('weeklyPages 按清单规则归一化并合并：两边取并集', () => {
+    const local = { ...defaultRobotPrefs(), weeklyPages: ['/a', '/b'] }
+    const remote = {
+      version: 3,
+      updatedAt: 1,
+      payload: normalizeRobotPrefsPayload({ ...defaultRobotPrefs(), weeklyPages: ['/b', '/c'] })!
+    }
+    const merged = mergeRobotPreference(local, remote)
+    expect(merged.weeklyPages).toEqual(['/b', '/c', '/a'])
+  })
+
+  it('weeklyRobotPage 进每周清单时把整页静音摘掉，反之亦然', () => {
+    const base = { ...defaultRobotPrefs(), mutedPages: ['/x'] }
+    const weekly = weeklyRobotPage(base, '/x')
+    expect(weekly.weeklyPages).toContain('/x')
+    expect(weekly.mutedPages).not.toContain('/x')
+    const muted = muteRobotPage(weekly, '/x')
+    expect(muted.mutedPages).toContain('/x')
+    expect(muted.weeklyPages).not.toContain('/x')
   })
 })

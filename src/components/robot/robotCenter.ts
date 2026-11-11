@@ -13,6 +13,7 @@
 import { ref, type Ref } from 'vue'
 import {
   ROBOT_AUTO_HIDE_MS,
+  ROBOT_FREE_POSITION_BOUNDS,
   ROBOT_INTRO_KEY,
   ROBOT_PRIORITY_ORDER,
   ROBOT_QUEUE_LIMIT,
@@ -21,6 +22,7 @@ import {
   ROBOT_SEEN_KEY,
   type RobotCategory,
   type RobotDedupe,
+  type RobotFreePosition,
   type RobotFrequency,
   type RobotNotice,
   type RobotPosition,
@@ -35,10 +37,12 @@ import {
   muteRobotPage,
   readRobotPrefs,
   robotQuietUntil,
+  unweeklyRobotPage,
   unmuteAllRobot,
   unmuteRobotKey,
   unmuteRobotPage,
   unionRobotList,
+  weeklyRobotPage,
   writeRobotPrefs,
   type RemoteRobotPreference,
   type RobotPrefs,
@@ -108,6 +112,7 @@ function startOfDay(now: number): number {
 /** 一个 `once` 口径在存储里保留多久（毫秒）；`ever` 返回 0 表示永不过期 */
 export function robotDedupeWindow(once: RobotDedupe, now: number): number {
   if (once === 'ever') return 0
+  if (once === 'week') return 7 * 24 * 60 * 60 * 1000
   if (once === 'session') return SESSION_WINDOW_MS
   // page / day 都按「今天」记：验收 #2 要求刷新同一页不再重复说，
   // 只记内存的 page 档撑不过一次刷新，跨标签去重也做不到。
@@ -130,7 +135,7 @@ export function readRobotSeen(storage: RobotStorage, now: number): RobotSeenMap 
     const entry = value as Record<string, unknown>
     if (typeof entry.at !== 'number' || !Number.isFinite(entry.at)) continue
     const once = entry.once
-    if (once !== 'session' && once !== 'page' && once !== 'day' && once !== 'ever') continue
+    if (once !== 'session' && once !== 'page' && once !== 'day' && once !== 'week' && once !== 'ever') continue
     if (isRobotSeenExpired({ at: entry.at, once }, now)) continue
     seen[key] = { at: entry.at, once }
   }
@@ -202,11 +207,17 @@ export interface RobotCenter {
   muteKey(key: string): void
   muteCurrent(): void
   mutePage(): void
+  /** 当前页设为/取消「每周提醒一次」；与整页静音互斥 */
+  setPageWeekly(weekly: boolean): void
   unmuteKey(key: string): void
   unmutePage(page: string): void
+  /** 取消某一页的「每周提醒」（设置面板用） */
+  unweeklyPage(page: string): void
   restoreAll(): void
   setQuiet(choice: 'hour' | 'today' | null): void
   setPosition(position: RobotPosition): void
+  /** 自由拖放：传 null 回落到 position 那个角落 */
+  setFreePosition(position: RobotFreePosition | null): void
   setAvatar(visible: boolean): void
 
   /** 仅供测试/登出时重置内存态 */
@@ -336,6 +347,7 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
           ...prefs.value,
           mutedKeys: unionRobotList(prefs.value.mutedKeys, remote.payload.mutedKeys),
           mutedPages: unionRobotList(prefs.value.mutedPages, remote.payload.mutedPages),
+          weeklyPages: unionRobotList(prefs.value.weeklyPages, remote.payload.weeklyPages),
           introSeen: prefs.value.introSeen || remote.payload.introSeen,
           serverVersion: remote.version
         }
@@ -373,17 +385,38 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
     }, ROBOT_AUTO_HIDE_MS)
   }
 
+  /**
+   * 这一页的「每周提醒一次」生效时，消息的去重口径统一抬到 7 天——
+   * 不论原来记的是 session 还是 day（'ever' 已经最严，不动它）。
+   * 判定在「记」与「查」两处都要走同一份口径，否则记的是 day、查的按 week，一周内会重复。
+   */
+  function effectiveOnce(notice: RobotNotice): RobotDedupe {
+    const original = notice.once ?? 'day'
+    if (original === 'ever') return 'ever'
+    if (pageKey.value && prefs.value.weeklyPages.includes(pageKey.value)) return 'week'
+    return original
+  }
+
   function markSeen(notice: RobotNotice): void {
     seen = {
       ...seen,
-      [notice.key]: { at: now(), once: notice.once ?? 'day' }
+      [notice.key]: { at: now(), once: effectiveOnce(notice) }
     }
+    writeRobotSeen(deps.storage, seen)
+  }
+
+  /** 口径变更后把已记的那条改写过去（比如点「每周提醒一次」的当下，这条就按 7 天记） */
+  function rekeySeen(key: string, once: RobotDedupe): void {
+    const entry = seen[key]
+    if (!entry) return
+    seen = { ...seen, [key]: { ...entry, once } }
     writeRobotSeen(deps.storage, seen)
   }
 
   function isSeen(notice: RobotNotice): boolean {
     const entry = seen[notice.key]
     if (!entry) return false
+    // 过期与否按「记下去的那一刻用的口径」判；口径变更（改成每周提醒）后的下一次展示会用新口径重记
     return !isRobotSeenExpired(entry, now())
   }
 
@@ -596,7 +629,12 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
   function muteCurrentPage(): void {
     if (!pageKey.value) return
     const current = active.value
-    updatePrefs({ mutedPages: muteRobotPage(prefs.value, pageKey.value).mutedPages })
+    const next = muteRobotPage(prefs.value, pageKey.value)
+    updatePrefs({
+      mutedPages: next.mutedPages,
+      // 整页静音与「每周提醒」互斥：选了「再也不」就把「每周」摘掉
+      weeklyPages: unweeklyRobotPage(prefs.value, pageKey.value).weeklyPages
+    })
     if (current) track({ type: 'mute', key: current.key, action: 'page' })
     dismiss('user')
   }
@@ -694,6 +732,20 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
 
     mutePage: muteCurrentPage,
 
+    setPageWeekly(weekly) {
+      if (!pageKey.value) return
+      const current = active.value
+      if (weekly) {
+        updatePrefs(weeklyRobotPage(prefs.value, pageKey.value))
+        // 展示中的这条是按旧口径（多半 day）记的：当下就改记 week，否则要等下一条才享受周口径
+        if (current) rekeySeen(current.key, 'week')
+      } else {
+        updatePrefs(unweeklyRobotPage(prefs.value, pageKey.value))
+      }
+      if (current) track({ type: 'mute', key: current.key, action: weekly ? 'weekly' : 'unweekly' })
+      dismiss('user')
+    },
+
     unmuteKey(key) {
       updatePrefs({ mutedKeys: unmuteRobotKey(prefs.value, key).mutedKeys })
     },
@@ -702,9 +754,13 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
       updatePrefs({ mutedPages: unmuteRobotPage(prefs.value, page).mutedPages })
     },
 
+    unweeklyPage(page) {
+      updatePrefs(unweeklyRobotPage(prefs.value, page))
+    },
+
     restoreAll() {
       const restored = unmuteAllRobot(prefs.value)
-      updatePrefs({ mutedKeys: restored.mutedKeys, mutedPages: restored.mutedPages })
+      updatePrefs({ mutedKeys: restored.mutedKeys, mutedPages: restored.mutedPages, weeklyPages: restored.weeklyPages })
     },
 
     setQuiet(choice) {
@@ -713,7 +769,22 @@ export function createRobotCenter(raw: RobotCenterDeps): RobotCenter {
     },
 
     setPosition(position) {
-      updatePrefs({ position })
+      // 选回角落档等于放弃自由位置：两套并存时不知道听谁的
+      updatePrefs({ position, positionFree: null })
+    },
+
+    setFreePosition(position) {
+      if (!position) {
+        updatePrefs({ positionFree: null })
+        return
+      }
+      const { xMin, xMax, yMin, yMax } = ROBOT_FREE_POSITION_BOUNDS
+      updatePrefs({
+        positionFree: {
+          x: Math.min(xMax, Math.max(xMin, position.x)),
+          y: Math.min(yMax, Math.max(yMin, position.y))
+        }
+      })
     },
 
     setAvatar(visible) {

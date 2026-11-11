@@ -30,8 +30,10 @@ const emit = defineEmits<{
   (event: 'quiet', choice: 'hour' | 'today' | null): void
   (event: 'unmute', key: string): void
   (event: 'unmute-page', page: string): void
+  (event: 'unmute-weekly-page', page: string): void
   (event: 'restore-all'): void
   (event: 'set-position', position: RobotPosition): void
+  (event: 'reset-position'): void
   (event: 'set-avatar', visible: boolean): void
 }>()
 
@@ -49,6 +51,9 @@ const categories = ROBOT_CATEGORIES.map(category => ({
 
 const mutedTotal = computed(() => props.prefs.mutedKeys.length + props.prefs.mutedPages.length)
 const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
+const weeklyTotal = computed(() => props.prefs.weeklyPages.length)
+/** 页面键直接给人看不友好（如 /workspace/ai/write），按 / 切末段当短名 */
+const shortPageName = (page: string): string => page.split('/').filter(Boolean).pop() ?? page
 </script>
 
 <template>
@@ -153,6 +158,21 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
           </li>
         </ul>
       </section>
+
+      <section class="robot-settings__section">
+        <h4 class="robot-settings__title">{{ ROBOT_COPY.settings.weekly }}</h4>
+        <p v-if="weeklyTotal === 0" class="robot-settings__empty">{{ ROBOT_COPY.settings.weeklyEmpty }}</p>
+        <ul v-else class="robot-settings__muted">
+          <li v-for="page in prefs.weeklyPages" :key="`weekly-${page}`" class="robot-settings__muted-row">
+            <span class="robot-settings__muted-name" :title="page">
+              {{ ROBOT_COPY.settings.weeklyPageLabel(shortPageName(page)) }}
+            </span>
+            <button type="button" class="robot-settings__link" @click="emit('unmute-weekly-page', page)">
+              {{ ROBOT_COPY.settings.restore }}
+            </button>
+          </li>
+        </ul>
+      </section>
         </a-tab-pane>
 
         <a-tab-pane key="layout" :tab="ROBOT_COPY.settings.tabs.layout">
@@ -163,18 +183,27 @@ const quieting = computed(() => (props.prefs.quietUntil ?? 0) > Date.now())
             v-for="position in (['br', 'bl'] as RobotPosition[])"
             :key="position"
             class="robot-settings__chip"
-            :class="{ 'robot-settings__chip--active': prefs.position === position }"
+            :class="{ 'robot-settings__chip--active': prefs.position === position && !prefs.positionFree }"
           >
             <input
               type="radio"
               name="robot-position"
               :value="position"
-              :checked="prefs.position === position"
+              :checked="prefs.position === position && !prefs.positionFree"
               @change="emit('set-position', position)"
             />
             {{ position === 'br' ? ROBOT_COPY.settings.positionRight : ROBOT_COPY.settings.positionLeft }}
           </label>
+          <button
+            v-if="prefs.positionFree"
+            type="button"
+            class="robot-settings__chip robot-settings__chip--active"
+            @click="emit('reset-position')"
+          >
+            {{ ROBOT_COPY.settings.positionReset }}
+          </button>
         </div>
+        <p class="robot-settings__option-hint">{{ ROBOT_COPY.settings.positionHint }}</p>
       </section>
 
       <section class="robot-settings__section">

@@ -15,6 +15,7 @@ import {
   ROBOT_PREFS_KEY,
   ROBOT_PREFS_SCHEMA,
   type RobotCategory,
+  type RobotFreePosition,
   type RobotFrequency,
   type RobotPosition
 } from './robotTypes'
@@ -32,8 +33,15 @@ export interface RobotPrefsPayload {
   categories: Record<RobotCategory, boolean>
   mutedKeys: string[]
   mutedPages: string[]
+  /**
+   * 设为「每周提醒一次」的页面（2026-11-11）：这些页里的消息去重口径抬到 7 天一条，
+   * 与 `mutedPages`（整页不提）互斥——进哪边都把另一边清掉。
+   */
+  weeklyPages: string[]
   quietUntil: number | null
   position: RobotPosition
+  /** 自由拖放位置；null = 用 `position` 那两个角落 */
+  positionFree: RobotFreePosition | null
   avatar: boolean
   introSeen: boolean
 }
@@ -64,8 +72,10 @@ export function defaultRobotPrefs(): RobotPrefs {
     categories: allCategoriesOn(),
     mutedKeys: [],
     mutedPages: [],
+    weeklyPages: [],
     quietUntil: null,
     position: 'br',
+    positionFree: null,
     avatar: true,
     introSeen: false,
     serverVersion: 0,
@@ -119,6 +129,20 @@ export function normalizeRobotPrefsPayload(value: unknown): RobotPrefsPayload | 
   const mutedPages = normalizeStringList(value.mutedPages, ROBOT_MUTE_LIMIT)
   if (!mutedKeys || !mutedPages) return null
 
+  // 这三个字段是后加的（weeklyPages / positionFree 2026-11-11）：老客户端不传时按默认值，不算损坏
+  const weeklyPages = value.weeklyPages === undefined ? [] : normalizeStringList(value.weeklyPages, ROBOT_MUTE_LIMIT)
+  if (!weeklyPages) return null
+
+  const rawFree = value.positionFree
+  let positionFree: RobotFreePosition | null = null
+  if (rawFree !== undefined && rawFree !== null) {
+    if (!isRecord(rawFree)) return null
+    const { x, y } = rawFree as Record<string, unknown>
+    if (typeof x !== 'number' || !Number.isFinite(x) || x < 0 || x > 100) return null
+    if (typeof y !== 'number' || !Number.isFinite(y) || y < 0 || y > 100) return null
+    positionFree = { x, y }
+  }
+
   const quietUntil = value.quietUntil
   if (quietUntil !== null && quietUntil !== undefined) {
     if (typeof quietUntil !== 'number' || !Number.isFinite(quietUntil)) return null
@@ -137,8 +161,10 @@ export function normalizeRobotPrefsPayload(value: unknown): RobotPrefsPayload | 
     categories,
     mutedKeys,
     mutedPages,
+    weeklyPages,
     quietUntil: typeof quietUntil === 'number' ? quietUntil : null,
     position,
+    positionFree,
     avatar,
     introSeen
   }
@@ -215,6 +241,7 @@ export function mergeRobotPreference(
     quietUntil: quietUntil > 0 ? quietUntil : null,
     mutedKeys: unionRobotList(remote.payload.mutedKeys, local.mutedKeys),
     mutedPages: unionRobotList(remote.payload.mutedPages, local.mutedPages),
+    weeklyPages: unionRobotList(remote.payload.weeklyPages, local.weeklyPages),
     introSeen: local.introSeen || remote.payload.introSeen,
     serverVersion: remote.version,
     clientUpdatedAt: Math.max(local.clientUpdatedAt, remote.updatedAt ?? 0)
@@ -233,15 +260,37 @@ export function unmuteRobotKey(prefs: RobotPrefs, key: string): RobotPrefs {
 
 export function muteRobotPage(prefs: RobotPrefs, pageKey: string): RobotPrefs {
   const rest = prefs.mutedPages.filter(item => item !== pageKey)
-  return { ...prefs, mutedPages: [pageKey, ...rest].slice(0, ROBOT_MUTE_LIMIT) }
+  return {
+    ...prefs,
+    mutedPages: [pageKey, ...rest].slice(0, ROBOT_MUTE_LIMIT),
+    // 与「每周提醒」互斥：选了「再也不」就把「每周」摘掉（见 weeklyRobotPage 的对称注释）
+    weeklyPages: prefs.weeklyPages.filter(item => item !== pageKey)
+  }
 }
 
 export function unmuteRobotPage(prefs: RobotPrefs, pageKey: string): RobotPrefs {
   return { ...prefs, mutedPages: prefs.mutedPages.filter(item => item !== pageKey) }
 }
 
+/**
+ * 「每周提醒一次」是整页静音的软一档，两者互斥：进哪边都把另一边清掉，
+ * 不然同一页同时挂在两个清单里，「每周」和「再也不」打架，谁也不确定听谁的。
+ */
+export function weeklyRobotPage(prefs: RobotPrefs, pageKey: string): RobotPrefs {
+  const rest = prefs.weeklyPages.filter(item => item !== pageKey)
+  return {
+    ...prefs,
+    weeklyPages: [pageKey, ...rest].slice(0, ROBOT_MUTE_LIMIT),
+    mutedPages: prefs.mutedPages.filter(item => item !== pageKey)
+  }
+}
+
+export function unweeklyRobotPage(prefs: RobotPrefs, pageKey: string): RobotPrefs {
+  return { ...prefs, weeklyPages: prefs.weeklyPages.filter(item => item !== pageKey) }
+}
+
 export function unmuteAllRobot(prefs: RobotPrefs): RobotPrefs {
-  return { ...prefs, mutedKeys: [], mutedPages: [] }
+  return { ...prefs, mutedKeys: [], mutedPages: [], weeklyPages: [] }
 }
 
 /** 临时安静的截止时间：`hour` = 1 小时，`today` = 今天 24:00 */

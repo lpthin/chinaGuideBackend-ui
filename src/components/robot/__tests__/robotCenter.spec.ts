@@ -347,3 +347,79 @@ describe('对外可见的小纯函数', () => {
     ).toBe(1)
   })
 })
+
+describe('每周提醒一次（2026-11-11）', () => {
+  it('设为每周后，这一页每天记一次的消息 7 天内不再说，第八天可以说', async () => {
+    const harness = createHarness()
+    await enter(harness, '/workspace/ai/write')
+    harness.center.announce(notice('ai.tip'))
+    expect(harness.center.active.value?.key).toBe('ai.tip')
+    // 用户在气泡里选「每周提醒一次」：当场收起，这一页口径抬到 7 天
+    harness.center.setPageWeekly(true)
+    expect(harness.center.active.value).toBeNull()
+    expect(harness.center.prefs.value.weeklyPages).toContain('/workspace/ai/write')
+
+    harness.center.announce(notice('ai.tip'))
+    expect(harness.center.active.value).toBeNull()
+
+    // 八天后换一页再回来：页级计数（标准档每页 1 条）随 enterPage 换页重置，
+    // seen 里的周记录到期——这条才轮得到再说
+    harness.clock.advance(8 * 24 * 60 * 60 * 1000)
+    await enter(harness, '/workspace/portal/home')
+    await enter(harness, '/workspace/ai/write')
+    harness.center.announce(notice('ai.tip'))
+    expect(harness.center.active.value?.key).toBe('ai.tip')
+  })
+
+  it('再点一次是恢复：取消每周后，新消息立刻回到每天口径（旧那条的周记录继续压 7 天）', async () => {
+    const harness = createHarness()
+    await enter(harness, '/workspace/ai/write')
+    harness.center.announce(notice('ai.tip'))
+    harness.center.setPageWeekly(true)
+    harness.center.setPageWeekly(false)
+    expect(harness.center.prefs.value.weeklyPages).not.toContain('/workspace/ai/write')
+    // 同一条还压着「周」记录（点每周那一下当场改记的），7 天内不会重复
+    harness.center.announce(notice('ai.tip'))
+    expect(harness.center.active.value).toBeNull()
+    // 但新消息不再抬口径：day 记录当天内不说、跨天即说——与没设过每周的页面一致
+    await enter(harness, '/workspace/portal/home')
+    harness.clock.advance(24 * 60 * 60 * 1000)
+    await enter(harness, '/workspace/ai/write')
+    harness.center.announce(notice('ai.fresh'))
+    expect(harness.center.active.value?.key).toBe('ai.fresh')
+  })
+
+  it('每周与整页静音互斥：进哪边都把另一边摘掉', async () => {
+    const harness = createHarness()
+    await enter(harness, '/workspace/ai/write')
+    harness.center.setPageWeekly(true)
+    harness.center.mutePage()
+    expect(harness.center.prefs.value.mutedPages).toContain('/workspace/ai/write')
+    expect(harness.center.prefs.value.weeklyPages).not.toContain('/workspace/ai/write')
+
+    harness.center.unmutePage('/workspace/ai/write')
+    harness.center.setPageWeekly(true)
+    expect(harness.center.prefs.value.weeklyPages).toContain('/workspace/ai/write')
+    expect(harness.center.prefs.value.mutedPages).not.toContain('/workspace/ai/write')
+  })
+
+  it('全部恢复连每周清单一起清空', async () => {
+    const harness = createHarness()
+    await enter(harness, '/workspace/ai/write')
+    harness.center.setPageWeekly(true)
+    harness.center.muteKey('some.key')
+    harness.center.restoreAll()
+    expect(harness.center.prefs.value.weeklyPages).toEqual([])
+    expect(harness.center.prefs.value.mutedKeys).toEqual([])
+    expect(harness.center.prefs.value.mutedPages).toEqual([])
+  })
+
+  it('自由位置夹紧在安全范围里；选回角落会清掉自由位置', () => {
+    const harness = createHarness()
+    harness.center.setFreePosition({ x: 200, y: -5 })
+    expect(harness.center.prefs.value.positionFree).toEqual({ x: 92, y: 15 })
+    harness.center.setPosition('bl')
+    expect(harness.center.prefs.value.positionFree).toBeNull()
+    expect(harness.center.prefs.value.position).toBe('bl')
+  })
+})

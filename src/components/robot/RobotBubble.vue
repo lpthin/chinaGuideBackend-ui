@@ -13,6 +13,8 @@ import type { RobotAction, RobotNotice } from './robotTypes'
 const props = defineProps<{
   notice: RobotNotice
   detailOpen: boolean
+  /** 当前页是否已设为「每周提醒一次」：是的话这个选项变成「恢复」态 */
+  pageWeekly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +23,7 @@ const emit = defineEmits<{
   (event: 'action', action: RobotAction): void
   (event: 'mute-key'): void
   (event: 'mute-page'): void
+  (event: 'mute-weekly'): void
   (event: 'mute-category'): void
 }>()
 
@@ -73,11 +76,21 @@ const actions = computed(() => (props.notice.actions ?? []).slice(0, 2))
         </button>
       </div>
       <div class="robot-bubble__mutes">
-        <button type="button" class="robot-bubble__mute" @click="emit('mute-key')">
-          {{ ROBOT_COPY.actionLater }}
-        </button>
+        <!-- 用户在气泡里能做的选择（2026-11-11 起明说成两行）：上面是「以后怎么说」，下面是「这条/这类怎么办」 -->
         <button type="button" class="robot-bubble__mute" @click="emit('mute-page')">
           {{ ROBOT_COPY.actionMutePage }}
+        </button>
+        <button
+          type="button"
+          class="robot-bubble__mute"
+          :class="{ 'robot-bubble__mute--active': pageWeekly }"
+          :title="pageWeekly ? ROBOT_COPY.actionWeeklyOn : undefined"
+          @click="emit('mute-weekly')"
+        >
+          {{ pageWeekly ? ROBOT_COPY.actionWeeklyOn : ROBOT_COPY.actionWeekly }}
+        </button>
+        <button type="button" class="robot-bubble__mute" @click="emit('mute-key')">
+          {{ ROBOT_COPY.actionLater }}
         </button>
         <button type="button" class="robot-bubble__mute" @click="emit('mute-category')">
           {{ ROBOT_COPY.actionMuteCategory }}
@@ -202,7 +215,8 @@ const actions = computed(() => (props.notice.actions ?? []).slice(0, 2))
 
   &__mutes {
     display: flex;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 4px 12px;
   }
 
   &__mute {
@@ -215,6 +229,10 @@ const actions = computed(() => (props.notice.actions ?? []).slice(0, 2))
   }
 
   &__mute:hover {
+    color: var(--admin-primary, #1890ff);
+  }
+
+  &__mute--active {
     color: var(--admin-primary, #1890ff);
   }
 }

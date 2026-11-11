@@ -218,6 +218,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import TenantSwitcher from '../../components/TenantSwitcher.vue'
 import RobotHost from '../../components/robot/RobotHost.vue'
+import { moduleNotice } from '../../components/robot/robotRegistry'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 import {
   BarChartOutlined,
   DownOutlined,
@@ -354,6 +356,24 @@ const currentGroupKey = computed(() => {
   const leaf = menuLeaves.value.find(item => item.key === currentMenuKey.value)
   return leaf?.group ?? ''
 })
+
+/**
+ * 进页主动说话（2026-11-11）：换到一个菜单组就投那张模块卡。
+ *
+ * - 卡片的「每次进来说不说」由机器人中枢统一判（session 去重、每周提醒、静音……这里不重复判）；
+ * - 挂在 onMounted + watch 而不是 setup 立即投：RobotHost 是子组件，它进页（enterPage 重置本页状态）
+ *   在子组件 setup 里发生，早于父组件 onMounted——立即投的卡会被那次重置清掉，等于从来没说过。
+ */
+const robot = useRobotNotices()
+
+function announceModuleCard(groupKey: string): void {
+  if (!groupKey) return
+  const notice = moduleNotice(groupKey, Date.now())
+  if (notice) robot.announce(notice)
+}
+
+onMounted(() => announceModuleCard(currentGroupKey.value))
+watch(currentGroupKey, announceModuleCard)
 
 const openGroups = ref<string[]>(initialOpenGroups(readStoredOpenGroups(), currentGroupKey.value))
 
