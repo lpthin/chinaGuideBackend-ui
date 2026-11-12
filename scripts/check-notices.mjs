@@ -10,14 +10,14 @@
  * 3. 与业务数据绑定的 `:type="..."`：由数据决定，静态脚本不猜。
  *
  * 豁免清单带「复核到期日」（复用 SPEC-UI-10 G-1）：
- * - 闸门先在观察期内只警告，`STRICT_FROM` 之后未登记的一律失败；
+ * - 2026-11-12 起转为硬门：未登记的一律失败（观察期到此为止，存量已清零）；
  * - 豁免到期后先警告，再过 `EXEMPT_GRACE_DAYS` 天仍没人处理就一并失败。
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 const SRC = join(process.cwd(), 'src')
-const STRICT_FROM = '2026-11-24'
+const STRICT_FROM = '2026-11-12'
 const EXEMPT_GRACE_DAYS = 14
 
 /** 存量豁免：`文件#该文件里的第几条`，逐条登记理由与复核日期 */
@@ -129,7 +129,7 @@ if (hardFailed.length) problems.push(...hardFailed.map(item => `豁免过期：$
 if (problems.length) {
   const body = problems.join('\n')
   if (strict) {
-    console.error(`提示条规则失败（观察期已于 ${STRICT_FROM} 结束）：\n${body}`)
+    console.error(`提示条规则失败（硬门：首屏不许有常驻 info/warning 说明）：\n${body}`)
     process.exit(1)
   }
   console.warn(`提示条规则观察期（${STRICT_FROM} 起转失败）：\n${body}`)

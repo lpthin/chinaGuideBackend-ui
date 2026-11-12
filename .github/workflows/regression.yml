@@ -36,6 +36,11 @@ jobs:
       - name: Table state guard
         run: npm run check:table-states
 
+      # SPEC-UI-11 R-9 硬门：首屏常驻 info/warning「口径说明」一律失败（2026-11-12 起不再只警告）。
+      # 这类说明归机器人（copy/robot.ts 的页面说明卡 + 页头问号），写在页面里就又变成每页一块大色块。
+      - name: Notice guard
+        run: npm run check:notices
+
       - name: Unit tests
         run: npx vitest run
 

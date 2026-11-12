@@ -11,7 +11,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:run": "vitest run",
-    "test:related": "node scripts/check-table-states.mjs && node scripts/test-related.mjs",
+    "test:related": "node scripts/check-table-states.mjs && node scripts/check-notices.mjs && node scripts/test-related.mjs",
     "check:table-states": "node scripts/check-table-states.mjs",
     "check:notices": "node scripts/check-notices.mjs",
     "check:submit-guards": "node scripts/check-submit-guards.mjs",
