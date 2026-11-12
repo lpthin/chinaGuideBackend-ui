@@ -480,6 +480,20 @@ export const adminApi = {
       http.post<void>(`/admin/users/${id}/roles`, { roleIds }),
   },
 
+  // 平台账号管理（Spec FR-P4-1）：管「平台自己的人」——admin_user.tenant_id 为空的账号，
+  // 与上面 users（客户账号）的分工写在 PlatformAccountController 的类注释里。
+  // 每一口后端都先过 requireSuperAdmin；第一版角色固定 SUPER_ADMIN（OPS/SUPPORT 预留）。
+  platformAccounts: {
+    list: (params: { page?: number; size?: number; keyword?: string; status?: string }) =>
+      http.get<PageResult<any>>('/admin/platform/accounts', { params }),
+    create: (data: { username: string; nickname?: string; password: string }) =>
+      http.post<any>('/admin/platform/accounts', data),
+    updateStatus: (id: number, status: string) =>
+      http.patch<void>(`/admin/platform/accounts/${id}/status`, { status }),
+    resetPassword: (id: number, newPassword: string) =>
+      http.put<void>(`/admin/platform/accounts/${id}/password`, { newPassword }),
+  },
+
   // 站点管理
   sites: {
     list: () =>

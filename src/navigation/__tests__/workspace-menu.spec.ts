@@ -583,9 +583,12 @@ describe('Spec-H 硬规则：组数、字数、不成单项组、不撞名', () 
     // M-P110 加的是「账号安全」（拍板 Q-1：一个菜单项、页内两个标签，两张留痕表一口菜单进）。
     // 它和 media-storage 同一族：只有 requiresSuperAdmin、没有权限码，多的是平台段那一颗，
     // 租户段一个入口都没多——「租户侧看不到这一屏」正是上一批拍板的那一条。
-    expect(grouped).toHaveLength(73)
+    // FR-P4-1（2026-11-12）加的是「平台账号」：平台自己的人（admin_user.tenant_id 为空），
+    // 与 users（客户账号）同组两颗；只有 requiresSuperAdmin、没有权限码，
+    // 多的仍是平台段那一颗（33 → 34），租户段一个入口都没多。
+    expect(grouped).toHaveLength(74)
     expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'tenant' && g.key === leaf.group))).toHaveLength(40)
-    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(33)
+    expect(grouped.filter(leaf => MENU_GROUPS.some(g => g.domain === 'platform' && g.key === leaf.group))).toHaveLength(34)
   })
 
   /**
@@ -763,11 +766,12 @@ describe('Spec-H P3 / H-5：报警三件收成一颗「报警中心」', () => {
     expect(childNames).toContain('workspace-alert-center')
   })
 
-  it('系统与告警组：H-5 收到 9，M-P110 加「账号安全」到 10', () => {
+  it('系统与告警组：H-5 收到 9，M-P110 加「账号安全」到 10，FR-P4-1 加「平台账号」到 11', () => {
     const systemItems = grouped.filter(leaf => leaf.group === 'system')
     // H-5 那一步是 11 → 9（报警三件收一颗）；M-P110 拍板 Q-1 在这组里新加一颗「账号安全」⇒ 10。
     // 这一颗是一个菜单项带页内两个标签（照上面「报警中心」一口三项的先例），不新开第二颗。
-    expect(systemItems).toHaveLength(10)
+    // FR-P4-1（2026-11-12）再加一颗「平台账号」⇒ 11：平台自己的人单独一屏，不挤进用户管理。
+    expect(systemItems).toHaveLength(11)
     const labels = systemItems.map(leaf => leaf.label)
     expect(labels).toContain('报警中心')
     expect(labels).toContain('账号安全')

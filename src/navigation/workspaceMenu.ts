@@ -243,6 +243,8 @@ export const MENU_GROUP_BY_ROUTE: Record<string, string> = {
   'workspace-roles': 'system',
   'workspace-permissions': 'system',
   'workspace-users': 'system',
+  // Spec FR-P4-1：平台账号管理——平台自己的人（不挂客户），与 users（客户账号）同一组两颗
+  'workspace-platform-accounts': 'system',
   'workspace-settings': 'system',
   'workspace-audit-log': 'system',
   'workspace-account-security': 'system',

@@ -107,12 +107,12 @@ const ROW = {
   createdAt: '2026-10-24T00:10:00'
 } as unknown as AuditLog
 
-/** 归属为空的行：后端念「未挂某一家」，界面照念 */
+/** 归属为空的行：后端念「平台」（FR-P4-2），界面照念 */
 const UNATTRIBUTED_ROW = {
   ...ROW,
   id: 42,
   tenantId: null,
-  tenantLabel: '未挂某一家'
+  tenantLabel: '平台'
 } as unknown as AuditLog
 
 type PageShape = { records: AuditLog[]; total: number; emptyReason?: string | null; emptyLine?: string | null }
@@ -288,7 +288,7 @@ describe('AuditLogView 的客户归属', () => {
     const wrapper = await mountView([ROW, UNATTRIBUTED_ROW], { emptyReason: null, emptyLine: null })
 
     const cells = wrapper.findAll('.cell-tenantLabel').map((node) => node.text().trim())
-    expect(cells).toEqual(['安鼎建设', '未挂某一家'])
+    expect(cells).toEqual(['安鼎建设', '平台'])
     expect(wrapper.html()).not.toContain('客户编号')
   })
 

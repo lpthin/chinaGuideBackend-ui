@@ -141,6 +141,8 @@ const SystemPromptPanel = () => import('../views/workspace/SystemPromptPanel.vue
 const RolesPanel = () => import('../views/workspace/RolesPanel.vue')
 const PermissionsPanel = () => import('../views/workspace/PermissionsPanel.vue')
 const UsersPanel = () => import('../views/workspace/UsersPanel.vue')
+// 平台账号管理（Spec FR-P4-1）：平台自己的人，与 users（客户账号）分屏
+const PlatformAccountsPanel = () => import('../views/workspace/PlatformAccountsPanel.vue')
 const SystemSettingsView = () => import('../views/workspace/SystemSettingsView.vue')
 const AuditLogView = () => import('../views/workspace/AuditLogView.vue')
 const AccountSecurityView = () => import('../views/workspace/AccountSecurityView.vue')
@@ -1062,6 +1064,15 @@ export const routes: RouteRecordRaw[] = [
         name: 'workspace-users',
         component: UsersPanel,
         meta: { title: '用户管理', icon: 'user', requiresSuperAdmin: true }
+      },
+      {
+        // Spec FR-P4-1：平台账号管理。与 users 分屏——那边管客户账号（必须挂一家客户），
+        // 这边管平台自己的人（不挂任何客户，登录直接进平台模式）。
+        // 不挂 requiredPermission，同 account-security 那条规矩：后端只认超管身份，不编权限码。
+        path: 'platform-accounts',
+        name: 'workspace-platform-accounts',
+        component: PlatformAccountsPanel,
+        meta: { title: '平台账号', icon: 'team', requiresSuperAdmin: true }
       },
       {
         path: 'settings',

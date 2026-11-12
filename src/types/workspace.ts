@@ -316,7 +316,7 @@ export interface LoginLog {
   failReason: string | null
   createTime: string
   tenantId: number | null
-  /** 归属怎么念（四档，后端算好）；`tenant_id` 为空那一批念「账号查不到归属」 */
+  /** 归属怎么念（后端算好）；客户空那一档按 user_id 分：平台账号那一发念「平台」，连 userId 都空念「账号查不到归属」 */
   tenantLabel?: string | null
 }
 
