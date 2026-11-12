@@ -120,6 +120,11 @@ async function handleLogin() {
       throw new Error('登录失败：未获取到有效 Token')
     }
 
+    // 平台账号（Spec FR-P1-1）：登录响应租户维度是 0/__platform__ 占位。
+    // 「自家租户码」不能存占位串——普通用户的 X-Tenant-Code 头读它，
+    // 平台账号不属任何租户，这个头本来就不该发。
+    const isPlatformAccount = !resp?.tenantId
+
     // 用 login 响应构造基础 userInfo（作为 fallback）
     const baseUserInfo = {
       id: resp?.userId || 0,
@@ -129,7 +134,7 @@ async function handleLogin() {
       phone: '',
       avatar: '',
       tenantId: resp?.tenantId ?? 0,
-      tenantName: resp?.tenantCode || '',
+      tenantName: isPlatformAccount ? '' : (resp?.tenantCode || ''),
       roles: resp?.roles || [],
       permissions: resp?.permissions || [],
       status: 'enabled' as const,
@@ -145,7 +150,11 @@ async function handleLogin() {
     // 租户「范围」不再落 geocms_tenant_id——普通用户的租户以 store 的 tenantId 为唯一来源（#233）。
     localStorage.setItem('geocms_token', accessToken)
     localStorage.setItem('geocms_user', JSON.stringify(baseUserInfo))
-    localStorage.setItem('geocms_tenant_code', baseUserInfo.tenantName)
+    // 平台账号不落「自家租户码」：geocms_tenant_code 是普通用户发 X-Tenant-Code 头的来源，
+    // 平台账号没有自家租户，落占位串等于让每个请求替平台撒谎（Spec FR-P1-1）
+    if (baseUserInfo.tenantName) {
+      localStorage.setItem('geocms_tenant_code', baseUserInfo.tenantName)
+    }
 
     // 拉取真实用户信息（含 avatar/email/phone/roles/permissions）
     let userInfo: any = baseUserInfo
