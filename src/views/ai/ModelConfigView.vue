@@ -612,7 +612,10 @@ const filteredConfigs = computed(() => {
     const wanted = filterType.value
     result = result.filter(c => hasModelType(c.modelType, wanted))
   }
-  return result
+  // 2026-11-12：状态为「启用」的排前面。自己排而不是交给 Table 的 sorter——
+  // 筛选条件变化时 computed 重算，排序跟着一起算，不依赖表格内部排序的重放；
+  // 拷贝一份再排，别动 configs 源数组；同状态的保持后端返回顺序（sort 是稳定的）。
+  return result.slice().sort((left, right) => Number(right.isActive) - Number(left.isActive))
 })
 
 function healthLabel(status?: string) {
