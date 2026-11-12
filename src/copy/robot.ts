@@ -241,6 +241,13 @@ export const ROBOT_PAGE_CARDS: Record<string, { text: string; detail: string }> 
       '「过质检后自动发布」不是无人值守直通站点：质检没过或调用没跑成的稿子仍退回人工待审，' +
       '留痕里会写明是哪一种。'
   },
+  'platform.accounts.intro': {
+    text: '平台账号不属客户，登录直接进平台模式',
+    detail:
+      '与「用户管理」的分工：那边管挂在客户名下的客户账号，这边管平台自己的人。' +
+      '第一版平台角色只有超级管理员一种（运营/客服两个角色码已预留、暂不开口）。' +
+      '停用或重置密码都会即时生效；重置密码不踢掉对方已登录的会话。'
+  },
   'portal.assemble.intro': {
     text: '整站组装跑两步模型，没有一键上线',
     detail:

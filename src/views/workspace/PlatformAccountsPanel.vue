@@ -1,14 +1,8 @@
 <template>
   <div class="platform-accounts-panel">
     <PageTitle />
+    <!-- 口径说明不摆在首屏（SPEC-UI-11 R-9）：首访由机器人说一句，全文在页头问号里，正文只在 copy/robot.ts 一份 -->
     <a-card :bordered="false">
-      <a-alert type="info" show-icon style="margin-bottom: 16px">
-        <template #message>平台账号不属任何客户，登录后直接进入平台模式。</template>
-        <template #description>
-          与「用户管理」那屏的分工：那边管的是挂在客户名下的客户账号；这里管的是平台自己的人。
-          第一版平台角色只有超级管理员一种（运营/客服两个角色码已预留、暂不开口）。
-        </template>
-      </a-alert>
 
       <filter-bar>
         <a-input-search
@@ -184,6 +178,8 @@ import FilterBar from '../../components/FilterBar.vue'
 import DataTable from '../../components/DataTable.vue'
 import EmptyListHint from '../../components/EmptyListHint.vue'
 import { adminApi } from '../../api/workspace'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 import { describeHttpError } from '../../api/http'
 import { formatDateTime } from '../../utils/format'
 import { useAuthStore } from '../../stores/auth'
@@ -196,6 +192,8 @@ import {
 import PageTitle from '../../components/PageTitle.vue'
 
 const authStore = useAuthStore()
+// 页首常驻说明已搬进机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号
+const robot = useRobotNotices()
 
 const loading = ref(false)
 const searchKeyword = ref('')
@@ -405,6 +403,11 @@ async function handlePwdSubmit() {
 }
 
 onMounted(() => {
+  const card = ROBOT_PAGE_CARDS['platform.accounts.intro']
+  robot.announce(
+    { key: 'platform.accounts.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   loadAccounts()
 })
 </script>
