@@ -55,6 +55,11 @@ import {
   sentimentSegmentClass as segmentClass,
 } from './geoCampaignModel'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 const props = defineProps<{
   runId?: number | string | null
@@ -234,7 +239,15 @@ function judgeStateLabel(state: string | null | undefined): string | null {
   return vocabulary.value?.judgeStates?.[state] || null
 }
 
-onMounted(load)
+onMounted(() => {
+  // 这一页做什么与这一轮的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.geo-campaign-report.intro']
+  robot.announce(
+    { key: 'page.geo-campaign-report.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
+  void load()
+})
 onBeforeUnmount(stopPolling)
 // 包一层再换轮次：`watch(id, load)` 会把新的 runId 当成 `quiet` 传进去，
 // 结果是切到另一轮时既不显 loading 也不清上一次的错误——读不到的账会被说成旧那一轮的错。
@@ -248,10 +261,8 @@ watch(() => [id.value, props.token], () => void load())
       屏名只从路由那一份来（`meta.title`）。挂在只读外链里时不摆：那一屏顶上的名牌已经写着
       「GEO 诊断报告 · 只读」，再挂一行就是同一屏两个标题。
     -->
-    <PageTitle
-      v-if="!embedded"
-      description="一轮诊断 = 一批题 × 一排平台 × 每题若干次，报告只报这一轮的账"
-    />
+    <!-- 「一轮诊断是什么」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
+    <PageTitle v-if="!embedded" />
     <StateBlock v-if="!valid" state="error" title="报告地址不完整"
       :detail="token ? '这一条链接读不出它对应的那一轮。' : 'URL 里既没有轮次 id，也没有只读链接的令牌。'"
       :next="token ? '回原处重新点那条链接，或让发链接的人重发一条' : '回工作台或向导第⑤步，从轮次那一排点「看报告」进来'" />

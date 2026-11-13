@@ -1,6 +1,6 @@
 <template>
+  <!-- 「维护企业信息与画像」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
   <SettingsPage
-    description="维护企业基础信息和画像，供行业热词收集、关键词蒸馏和内容生成使用。"
     :groups="groups"
     two-column
     :loading="loading"
@@ -452,6 +452,11 @@ import {
   buildCompanyGroups,
   defaultCompanyForm
 } from './companyInfoFields'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 const auth = useAuthStore()
 // 超管要选定一家客户才发请求；原来这里用「没选就退回 1 号家」，读的和保存的都落到了 1 号家。
@@ -849,6 +854,12 @@ watch(requestedTenantId, () => {
 })
 
 onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.company-info.intro']
+  robot.announce(
+    { key: 'page.company-info.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   loadCompanyInfo()
   loadProfileVocabulary()
   loadProvinces()

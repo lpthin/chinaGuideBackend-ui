@@ -34,6 +34,11 @@ import EmptyListHint from '../../components/EmptyListHint.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import { useAuthStore } from '../../stores/auth'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -516,7 +521,15 @@ function categoryClassColor(cat: string): string {
   }
 }
 
-onMounted(fetchAll)
+onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.keywords.intro']
+  robot.announce(
+    { key: 'page.keywords.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
+  fetchAll()
+})
 watch(requestedTenantId, () => {
   selectedRowKeys.value = []
   currentPage.value = 1
@@ -537,15 +550,9 @@ watch(requestedTenantId, () => {
             <DatabaseOutlined />
           </div>
           <div class="header-info">
-            <!-- 上面那条屏名已经写着「热词库」，这里再摆一遍是同一屏两个标题；这一屏只留解释那两句话 -->
+            <!-- 上面那条屏名已经写着「热词库」，这里再摆一遍是同一屏两个标题；
+                 「这里的词来自采集」那两句解释已搬进引导机器人（SPEC-UI-11 R-9），这一格只留动态的下次扩展 -->
             <p class="page-subtitle">
-              <span class="subtitle-text">
-                企业官网 SEO 关键词生产体系 · 单一真实源（SOT）
-              </span>
-              <!-- Q11-A：这一页收的是搜索引擎联想抓来的真词，与 GEO 那一步的「核心词」不是一回事，
-                   一个词只指一个东西，所以菜单与页头都改名，并在同一屏说清区别 -->
-              <span class="subtitle-text">这里的词来自采集；GEO 向导里那列「核心词」是人给 AI 出的题定锚点用的，两批词各管各的。</span>
-              <span class="header-divider"></span>
               <span class="header-badge">
                 <CalendarOutlined />
                 下次扩展：{{ nextRunText }}
@@ -920,7 +927,6 @@ watch(requestedTenantId, () => {
     .header-actions { flex: 1 1 100%; }
     .header-icon { width: 36px; height: 36px; font-size: 18px; }
     .header-info .page-title { font-size: 18px; }
-    .header-divider { display: none; }
   }
 }
 .header-content { display: flex; align-items: center; gap: 16px; }
@@ -933,7 +939,6 @@ watch(requestedTenantId, () => {
 }
 .header-info .page-title { margin: 0; font-size: 22px; font-weight: 700; color: @slate-900; }
 .page-subtitle { margin: 4px 0 0; color: @slate-500; font-size: 13px; display: flex; align-items: center; gap: 12px; }
-.header-divider { width: 1px; height: 14px; background: #f0f0f0; display: inline-block; }
 .header-badge {
   display: inline-flex; align-items: center; gap: 6px;
   color: @primary-color; font-weight: 500;

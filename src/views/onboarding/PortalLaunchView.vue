@@ -1,5 +1,6 @@
 <template>
-  <ChecklistPage :steps="steps" :loading="loading" description="把「客户开通」到「访客能在门户上读到内容、爬虫能抓到」之间还缺的步骤摊开：数字全部来自接口真实返回，取不到就显示「未取到」而不是 0；发布仍然要在文章里走审核 → 发布，这里不代替那一步。">
+  <!-- 这一页是干什么的已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
+  <ChecklistPage :steps="steps" :loading="loading">
     <template #actions>
       <a-space :size="8">
         <a-tag v-if="missingTenant" color="orange">超级管理员请先在右上角选择客户：本页没有跨客户的全局视图</a-tag>
@@ -114,7 +115,7 @@ import type { DemoMode, DemoTypeCounts } from '../../api/onboarding'
 import { backendFileUrl, demoSiteApi } from '../../api/onboarding'
 import ChecklistPage from '../../components/ChecklistPage.vue'
 import { checklistProgress } from '../../components/checklistPageModel'
-import { ROBOT_SIGNAL_CARDS } from '../../copy/robot'
+import { ROBOT_PAGE_CARDS, ROBOT_SIGNAL_CARDS } from '../../copy/robot'
 import { useRobotNotices } from '../../composables/useRobotNotices'
 import { contactText, siteFieldValue } from './launchChecklist'
 import { useLaunchReadings } from './useLaunchReadings'
@@ -260,6 +261,12 @@ function announceNextStep(): void {
 }
 
 async function loadAndAnnounce(): Promise<void> {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.portal-launch.intro']
+  robot.announce(
+    { key: 'page.portal-launch.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   await loadAll()
   announceNextStep()
 }

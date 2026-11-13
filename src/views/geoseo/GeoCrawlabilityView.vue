@@ -1,6 +1,7 @@
 <template>
   <div class="geo-crawlability-page">
-    <PageTitle description="爬虫与 AI 引擎今天从站外实际读得到什么——六项实测，读的是配置之外的那一份">
+    <!-- 「六项实测」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
+    <PageTitle>
       <template #extra>
         <a-space>
           <a-button :loading="loading" :disabled="loading" @click="loadAll">刷新</a-button>
@@ -149,6 +150,11 @@ import {
   whyItMattersOf,
 } from './geoCrawlabilityModel'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 const auth = useAuthStore()
 const canRun = computed(() => auth.hasPermission('seo:audit:run'))
@@ -226,6 +232,12 @@ async function runOnce() {
 }
 
 onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.geo-crawlability.intro']
+  robot.announce(
+    { key: 'page.geo-crawlability.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   loadAll()
 })
 </script>

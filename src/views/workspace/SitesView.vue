@@ -16,6 +16,11 @@ import PageTitle from '../../components/PageTitle.vue'
 import SiteDomainWizard from '../../components/SiteDomainWizard.vue'
 import DataTable from '../../components/DataTable.vue'
 import FilterBar from '../../components/FilterBar.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 const router = useRouter()
 const route = useRoute()
@@ -450,6 +455,12 @@ async function save() {
 }
 
 onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.sites.intro']
+  robot.announce(
+    { key: 'page.sites.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   if (!auth.isSuperAdmin) {
     message.error('无权限访问站点清单')
     router.push('/workspace/dashboard')
@@ -465,14 +476,8 @@ onMounted(() => {
 
 <template>
   <div class="sites-view">
+    <!-- 「这一页管什么」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
     <PageTitle>
-      <p class="sites-view__intro">
-        维护站点画像与归属：域名、客户都在这里改；行业画像供热词收集、关键词蒸馏和内容生成使用。
-        建站流水线建出来的是 <b>候选站</b>（等客户选中才转正），客户没选中的收进 <b>归档</b>——这两种在下面的行里都单独标色。
-        <b>手建的站点也先落候选</b>（M-P40 拍板：没人确认过的一套不该一建出来就对全世界可读），要对外就在行上点「启用」。
-        已上线的站在编辑弹窗里只在「启用 / 禁用」之间转；转正与归档这里不给下拉——那是流水线推进的结果，
-        在这里改一下字符串就等于撒一个谎。
-      </p>
       <template #extra>
         <a-button type="primary" @click="resetForm(); modalVisible = true">
           <template #icon><PlusOutlined /></template>
@@ -784,11 +789,6 @@ onMounted(() => {
 
 <style scoped>
 .sites-view {
-}
-.sites-view__intro {
-  margin: 0;
-  color: #6b7280;
-  font-size: 14px;
 }
 .list-editor {
   width: 100%;

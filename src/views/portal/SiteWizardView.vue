@@ -48,6 +48,11 @@ import WizardSteps from '@/components/WizardSteps.vue'
 import { createWizardState, type WizardState, type WizardStepDef } from '@/components/wizardModel'
 import { createProposalProgressFollower } from '@/utils/proposalProgressFollow'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 const route = useRoute()
 const router = useRouter()
@@ -555,6 +560,12 @@ watch(briefId, () => {
 })
 
 onMounted(async () => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.site-wizard.intro']
+  robot.announce(
+    { key: 'page.site-wizard.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   try {
     vocabulary.value = await vocabularyApi.adminVocabulary()
   } catch {
@@ -573,14 +584,7 @@ onUnmounted(stopFollowingProgress)
 <template>
   <div class="site-wizard">
     <PageTitle />
-    <div class="page-header">
-      <div>
-        <p>
-          五步一条线：录前采需求单 → AI 出说明书、超级管理员逐段改并签字 → 估价并出 1~3 套候选 → 比较与发预览 → 客户选定后转正。
-          每一步只摊开这一步自己的读数；花钱、签字那两发动作在那一屏自己的页面上按。
-        </p>
-      </div>
-    </div>
+    <!-- 「五步一条线」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
 
     <a-alert v-if="scopeMismatch" type="warning" show-icon class="site-wizard__row">
       <template #message>
@@ -909,14 +913,6 @@ onUnmounted(stopFollowingProgress)
 </template>
 
 <style scoped>
-.site-wizard .page-header {
-  margin-bottom: 16px;
-}
-.site-wizard .page-header p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 14px;
-}
 .site-wizard__row {
   margin-top: 16px;
 }

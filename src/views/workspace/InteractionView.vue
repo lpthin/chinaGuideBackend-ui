@@ -1,6 +1,7 @@
 <template>
   <div class="interaction-page">
-    <PageTitle description="访客在你官网文章下面写的评论与点的赞，都在这一屏处理。">
+    <!-- 口径说明已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号 -->
+    <PageTitle>
       <template #extra>
         <a-space wrap>
           <a-button id="interaction-open-config" @click="configOpen = true">互动设置</a-button>
@@ -223,6 +224,8 @@ import { useAuthStore } from '../../stores/auth'
 import { formatNumber } from '../../utils/format'
 import { JUMP_BACK_NOTICE, asEmptyReason, shouldJumpBackToFirstPage, type EmptyReason } from '../../utils/emptyPage'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 
 /**
  * 后台「读者互动」（P9-C，G-08；Spec-R R1 重排）。
@@ -252,6 +255,8 @@ const isPlatformMode = computed(() => requestedTenantId.value === null)
 const configOpen = ref(false)
 const statsOpen = ref(false)
 const seedOpen = ref(false)
+// 页首口径说明已搬进机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号
+const robot = useRobotNotices()
 
 const configLoading = ref(false)
 const saving = ref(false)
@@ -636,6 +641,11 @@ watch(requestedTenantId, () => {
 })
 
 onMounted(() => {
+  const card = ROBOT_PAGE_CARDS['page.interaction.intro']
+  robot.announce(
+    { key: 'page.interaction.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   loadConfig()
   loadStats()
   loadQueue()

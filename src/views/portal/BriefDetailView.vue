@@ -38,7 +38,12 @@ import { formatDateTime } from '@/utils/format'
 import type { Site } from '@/types'
 import type { Tenant } from '@/types/workspace'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 import DataTable from '../../components/DataTable.vue'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 /**
  * 需求单详情（Spec-C §3.2「需求单详情 = 后链路的落点」；P3 起「出方案」这条主线也挂在这一页）。
@@ -780,6 +785,12 @@ function syncPolling() {
 }
 
 onMounted(async () => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.brief-detail.intro']
+  robot.announce(
+    { key: 'page.brief-detail.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   await Promise.all([load(), loadAux()])
   await loadVocabulary()
   if (brief.value && (brief.value.status === 'generating' || linkedSites.value.length)) await loadProgress()
@@ -795,12 +806,9 @@ onUnmounted(stopPolling)
 
 <template>
   <div class="brief-detail">
+    <!-- 「这一页看什么」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
     <PageTitle>
       <div class="brief-detail__head">
-        <!-- 屏名只认路由那一份：原来这里另摆一句「需求单 #N」的大字，等于一屏两个标题，编号并到段落第一句 -->
-        <p class="brief-detail__sub">
-          需求单 #{{ briefId ?? '?' }}：这一页是一条交付单现在走到哪一步的落点——前采答了什么、后端喂给模型的是哪句话、名下列出了哪些站。
-        </p>
         <div class="brief-detail__head-actions">
           <a-space wrap>
             <a-tag>{{ statusText }}</a-tag>
@@ -1274,7 +1282,6 @@ onUnmounted(stopPolling)
   text-align: right;
   max-width: 460px;
 }
-.brief-detail__sub,
 .brief-detail__muted {
   color: #6b7280;
   font-size: 13px;

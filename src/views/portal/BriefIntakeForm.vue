@@ -29,9 +29,14 @@ import {
   type SiteBriefVocabulary
 } from '@/api/siteBriefs'
 import { portalPagesApi, type PortalBlockMeta } from '@/api/portalPages'
+import { ROBOT_PAGE_CARDS } from '@/copy/robot'
+import { useRobotNotices } from '@/composables/useRobotNotices'
 import type { SectionState } from '@/api/portalSections'
 import { siteApi, tenantApi } from '@/api/workspace'
 import type { Tenant } from '@/types/workspace'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 /**
  * 前采录入表单（Spec-D D1 起：24 题「四组分区」；Spec-M P4 起分区=分步，P8 起 **一屏一题**）。
@@ -877,7 +882,18 @@ watch(() => [props.briefId, props.tenantId], async () => {
   booting.value = false
 })
 
-onMounted(boot)
+onMounted(async () => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次。
+  // 嵌在向导第一步时不登记：那一屏有自己的卡，同一段口径不许在页头问号里出现两遍
+  if (!props.embedded) {
+    const card = ROBOT_PAGE_CARDS['page.brief-intake.intro']
+    robot.announce(
+      { key: 'page.brief-intake.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+      { ready: true }
+    )
+  }
+  await boot()
+})
 </script>
 
 <template>
@@ -885,12 +901,7 @@ onMounted(boot)
     <div v-if="!embedded" class="brief-intake__head">
       <div>
         <h3>{{ briefId ? '编辑前采需求单' : '新建前采需求单' }}</h3>
-        <p class="brief-intake__sub">
-          这条头上定三件事：这单给哪个客户、出几套候选、演示内容哪一档。下面按后端词表一屏一题
-          （共 {{ stepQuestions.length }} 题，题序就是词表下发的那一份），必填只有打了星的题（星来自词表，不是界面自造的名单），
-          其余一律可跳过——没填的格子会显式写成「客户未提供」，摘要段就是这么如实喂给模型的。
-          进度条上点哪一格就回到哪一题；分屏只是排版，保存仍然一次交整张表单。
-        </p>
+        <!-- 「这条头上定三件事」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
       </div>
       <a-space wrap>
         <a-tag v-if="status">当前状态：{{ statusText }}</a-tag>
@@ -1362,7 +1373,6 @@ onMounted(boot)
 .brief-intake__head h3 {
   margin: 0 0 4px;
 }
-.brief-intake__sub,
 .brief-intake__muted {
   color: #6b7280;
   font-size: 13px;

@@ -1,6 +1,7 @@
 <template>
   <div class="portal-workbench">
-    <PageTitle description="这里只维护内容：下面的条数是访客在门户上能看到的，「完整度」说还差什么">
+    <!-- 「这里只维护内容」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
+    <PageTitle>
       <template #extra>
         <a-space :size="8">
           <a-tooltip placement="left">
@@ -144,6 +145,8 @@ import { portalPagesApi } from '../../api/portalPages'
 import { useAuthStore } from '../../stores/auth'
 import { collectMenuLeaves, findLeaf } from '../../navigation/workspaceMenu'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
 import {
   CHECKLIST_LEVEL_COLOR,
   checklistNotMeasuredText,
@@ -153,6 +156,9 @@ import {
   type ChecklistLevel
 } from '../../components/checklistPageModel'
 import { useLaunchReadings } from '../onboarding/useLaunchReadings'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 /**
  * 租户「门户内容工作台」（Spec §7.1，2026-11-06 整页重做，方案见 docs/内容工作台页面重构_方案.md）。
@@ -415,6 +421,12 @@ function previewHref(row: Row): string {
 }
 
 onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.portal-content.intro']
+  robot.announce(
+    { key: 'page.portal-content.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   load()
   // 两组读数各读各的口：上线自检那几发挂了不影响栏目行，栏目读失败也不影响这一条带
   reloadLaunch()

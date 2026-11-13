@@ -19,6 +19,7 @@ import { siteBriefsApi, vocabularyApi } from '../../../api/siteBriefs'
 import { siteApi, tenantApi } from '../../../api/workspace'
 import { portalPagesApi } from '../../../api/portalPages'
 import { portalSectionsApi } from '../../../api/portalSections'
+import { ROBOT_PAGE_CARDS } from '../../../copy/robot'
 
 
 /**
@@ -408,8 +409,11 @@ describe('一屏一题：题序、题干与控件形态只认词表', () => {
       VOCAB.questions.map((question, index) =>
         `${index + 1}.${question.label}`.replace(/\s+/g, '') + (question.key === 'q_single' ? '必填·空' : '空'))
     )
-    // 页眉那句话说「共几题」的数也来自同一份，不是模板里写的常量
-    expect(wrapper.text()).toContain(`共 ${VOCAB.questions.length} 题`)
+    // 「共几题」那句话已搬进机器人（SPEC-UI-11 R-9）：卡片正文与进度条读的是同一份词表，
+    // 界面没有一处写死题数——屏上也不再留那段常驻说明
+    const card = ROBOT_PAGE_CARDS['page.brief-intake.intro']
+    expect(`${card.text}${card.detail}`).toContain('词表下发的那一份')
+    expect(wrapper.text()).not.toContain(`共 ${VOCAB.questions.length} 题`)
 
     // 一屏只挂一道题：进度条把八道题干都摆出来（那是导航），但别题的控件不许在这一屏上渲
     expect(wrapper.findAll('.brief-intake__question:not(.brief-intake__static)')).toHaveLength(1)

@@ -3,12 +3,8 @@
     <!-- 标题只认路由 meta.title 那一份：从前卡片写着「平台提示词」、菜单写着「建站提示词」，
          同一条链路两个名字（Spec-M UIB-3）。 -->
     <PageTitle />
+    <!-- 「改的是平台默认那份」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
     <a-card size="small" class="prompt-page__head">
-      <p class="prompt-page__lead">
-        这一页改的是<em>平台默认</em>那一份：保存之后，所有客户后面每一单的这一步读到的都是改后的措辞。
-        某一站自己盖过的行不跟着变——右栏下面那一栏就是「现在谁还盖着」。
-      </p>
-
       <template v-if="denied">
         <a-alert type="warning" show-icon>
           <template #message>{{ denied }}</template>
@@ -211,6 +207,11 @@ import {
   type PlatformPromptSummary
 } from '../../api/platformPrompts'
 import { useAuthStore } from '../../stores/auth'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 /**
  * 平台默认提示词页（Spec-M D2 / §7，P1）。
@@ -392,6 +393,12 @@ async function runSave() {
 }
 
 onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.prompt-templates.intro']
+  robot.announce(
+    { key: 'page.prompt-templates.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   void loadList()
 })
 </script>
@@ -403,9 +410,6 @@ onMounted(() => {
   color: #8c8c8c;
   font-size: 13px;
   line-height: 20px;
-}
-.prompt-page__lead {
-  margin-bottom: 12px;
 }
 .prompt-page__muted {
   color: rgba(0, 0, 0, 0.45);

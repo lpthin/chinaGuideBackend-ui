@@ -37,6 +37,11 @@ import { formatDateTime } from '@/utils/format'
 import { createProposalProgressFollower } from '@/utils/proposalProgressFollow'
 import type { Site as SiteEntity } from '@/types'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 /**
  * 候选画廊（Spec-C §7 新增页 / §3.2「三套候选并排成三列卡」）。
@@ -500,19 +505,24 @@ async function loadAll() {
   loading.value = false
 }
 
-onMounted(loadAll)
+onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.candidate-gallery.intro']
+  robot.announce(
+    { key: 'page.candidate-gallery.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
+  void loadAll()
+})
 // 人是会走的：离开这一页就把那条流与那只表收掉，不许在后台替一个不在看的页面一直读
 onUnmounted(() => progressFollow.stop())
 </script>
 
 <template>
   <div class="candidate-gallery">
+    <!-- 「并排比较什么」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
     <PageTitle>
       <div class="candidate-gallery__head">
-        <p class="candidate-gallery__sub">
-          需求单 #{{ briefId ?? '?' }}：并排比较每一套：骨架、「这套侧重什么」（plan 落库的 focus 原话）、预览链接、演示内容口径、配图三本账、子任务进度各一列。
-          候选是按套各一条子任务的——哪套在跑、哪套失败、失败缺什么，都在各自的卡上，这里没有假装同步的总百分比。
-        </p>
         <a-space wrap>
           <a-tag>{{ briefStatusText }}</a-tag>
           <a-button @click="loadAll">刷新</a-button>
@@ -712,7 +722,6 @@ onUnmounted(() => progressFollow.stop())
   justify-content: space-between;
   gap: 16px;
 }
-.candidate-gallery__sub,
 .candidate-gallery__muted {
   color: #6b7280;
   font-size: 13px;

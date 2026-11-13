@@ -2,12 +2,8 @@
   <div class="spec-page">
     <!-- 标题只认路由 meta.title 那一份：菜单与页面同字，不靠这一页自己抄（Spec-M UIB-3） -->
     <PageTitle />
+    <!-- 「这份文档是什么」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
     <a-card size="small" class="spec-page__head">
-      <p class="spec-page__lead">
-        这份文档是后面 AI 出方案时读的那一份：七段由超级管理员逐段写或先让 AI 出一版，
-        <strong>点了「确认」之后才会被拿去生成</strong>。需求单上的勾选怎么改都不动这里已经写下的字。
-      </p>
-
       <p v-if="briefId === null" class="spec-page__muted">
         没有需求单编号：说明书是按需求单开的，没有单号就没有可读写的对象，所以这一页一颗按钮都不给。
       </p>
@@ -167,6 +163,11 @@ import { siteSpecApi, type SpecDocumentView, type SpecSection } from '../../api/
 import SpecVersionDiff from './SpecVersionDiff.vue'
 import PageTitle from '../../components/PageTitle.vue'
 import { useAuthStore } from '../../stores/auth'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 /**
  * 建站说明书编辑页（Spec-M D1/D7 的 P0 第一版）。
@@ -461,14 +462,17 @@ watch(briefId, () => {
 })
 
 onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.spec-document.intro']
+  robot.announce(
+    { key: 'page.spec-document.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   void load()
 })
 </script>
 
 <style scoped>
-.spec-page__lead {
-  margin-bottom: 12px;
-}
 .spec-page__muted {
   color: rgba(0, 0, 0, 0.45);
   font-size: 12px;

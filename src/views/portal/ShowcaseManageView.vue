@@ -1,7 +1,7 @@
 <template>
   <div class="showcase-manage-page">
+    <!-- 这一页列的是哪几档展示条目已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
     <record-list-page
-      description="团队 / 历程 / 客户标志 / 经营指标 / 客户评价 / 资质荣誉 / 常见问题——门户上这些展示条目的维护口"
       :loading="loading"
       :rows="rowsOf(activeKind)"
       :columns="columns"

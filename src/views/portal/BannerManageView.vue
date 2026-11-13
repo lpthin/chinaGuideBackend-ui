@@ -1,7 +1,7 @@
 <template>
   <div class="banner-manage-page">
+    <!-- 「首页顶部那一块」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
     <record-list-page
-      description="门户首页顶部那一块：横幅的图片、文字、排序、跳转与上下架"
       :loading="loading"
       :rows="bannerList"
       :columns="columns"
@@ -166,6 +166,11 @@ import {
 import DemoFlag from '../../components/DemoFlag.vue'
 import MediaImagePicker from '../../components/MediaImagePicker.vue'
 import { logError } from '../../utils/errorLog'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -371,6 +376,12 @@ function handleSizeChange(_current: number, size: number) {
 }
 
 onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.banners.intro']
+  robot.announce(
+    { key: 'page.banners.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   loadData()
 })
 </script>

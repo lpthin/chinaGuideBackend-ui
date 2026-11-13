@@ -10,6 +10,11 @@ import FilterBar from '@/components/FilterBar.vue'
 import { asEmptyReason, type EmptyReason } from '@/utils/emptyPage'
 import type { Tenant } from '@/types/workspace'
 import PageTitle from '../../components/PageTitle.vue'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
+import { useRobotNotices } from '../../composables/useRobotNotices'
+
+// 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
+const robot = useRobotNotices()
 
 /**
  * 前采需求单列表（平台段 · 建站交付，Spec §3.2 / 任务 P1）。
@@ -169,6 +174,12 @@ function boundSiteText(brief: SiteBrief): string {
 }
 
 onMounted(() => {
+  // 这一页做什么与这一屏的数据无关，挂载说一句；同会话只说一次
+  const card = ROBOT_PAGE_CARDS['page.site-briefs.intro']
+  robot.announce(
+    { key: 'page.site-briefs.intro', category: 'scope', text: card.text, detail: card.detail, once: 'session' },
+    { ready: true }
+  )
   loadAux()
   load()
 })
@@ -176,15 +187,8 @@ onMounted(() => {
 
 <template>
   <div class="site-briefs">
-    <PageTitle>
-      <div class="site-briefs__intro">
-        <p>超级管理员录一份 13 题的前采需求单（以勾选为主），AI 按这份需求出 1~3 套候选站给客户选。</p>
-        <p>
-          这一页现在住在「新建站点」向导的第一步里：要走完整条链（说明书 → 出方案 → 候选 → 转正）从那里进，
-          在这里只列单、不改状态。
-        </p>
-      </div>
-    </PageTitle>
+    <!-- 「这一页只列单」的口径已搬进引导机器人（SPEC-UI-11 R-9）：首访说一句，全文在页头问号里 -->
+    <PageTitle />
 
     <!-- 筛选靠左、动作靠右由 FilterBar 一处定（Spec-UI-2 规则 3） -->
     <FilterBar class="site-briefs__toolbar">
@@ -276,11 +280,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.site-briefs__intro p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 14px;
-}
 .site-briefs__toolbar {
   margin-bottom: 16px;
 }
