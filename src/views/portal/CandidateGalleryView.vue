@@ -539,8 +539,7 @@ onUnmounted(() => progressFollow.stop())
     </a-alert>
     <a-alert v-if="progressError" type="warning" show-icon class="candidate-gallery__alert">
       <template #message>
-        进度没读到（这一发走的是 Spec-C §5 的 P3 契约口；后端没上线时就是下面这句原文，不是「没在跑」）：
-        {{ progressError }}
+        进度没读到：{{ progressError }}。这不代表任务没在跑——刷新再看，或回需求单详情查这一趟的进度。
       </template>
     </a-alert>
     <a-alert v-if="sitesError" type="warning" show-icon class="candidate-gallery__alert">
@@ -708,10 +707,6 @@ onUnmounted(() => progressFollow.stop())
         </p>
       </a-card>
     </div>
-
-    <p class="candidate-gallery__muted">
-      客户在预览里看到的就是这一套站本身（页面 + 演示内容）；客户在自己那条链接上看到选择页、回一句「就这套」，超级管理员回这一页转正交棒。
-    </p>
   </div>
 </template>
 

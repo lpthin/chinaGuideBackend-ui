@@ -49,6 +49,13 @@ describe('提示条硬门', () => {
     expect(result.stderr).toContain('页头 description 说明还没搬走')
   })
 
+  it('抓到用户文案里的内部 spec 编号（注释里的不算）', () => {
+    const result = runGate('scripts/__tests__/fixtures/notice-jargon')
+
+    expect(result.status, result.stdout + result.stderr).toBe(1)
+    expect(result.stderr).toContain('内部 spec 编号')
+  })
+
   it('动态插值、条件渲染、容器内说明不算违规', () => {
     const result = runGate('scripts/__tests__/fixtures/notice-clean')
 

@@ -984,7 +984,7 @@ onUnmounted(stopPolling)
         <template v-if="progressError">
           <a-alert type="error" show-icon class="brief-detail__alert">
             <template #message>
-              进度没读到（后端口还没上线时就是这一句原文，不是「没在跑」）：{{ progressError }}
+              进度没读到：{{ progressError }}。这不代表任务没在跑——刷新再看，或稍后回本页查这一趟进度。
             </template>
           </a-alert>
         </template>
@@ -1206,7 +1206,7 @@ onUnmounted(stopPolling)
         </template>
         <p v-else-if="alreadyPromoted" class="brief-detail__muted">
           这一单已是「{{ statusText }}」。交付回执（含客户维护地址那一条真链接）只在转正那一步的响应里给过，
-          页面重新读需求单读不到它（§5 的 GET 口没有那个字段）——所以这里没有地址可显示，
+          页面重新读需求单读不到它——所以这里没有地址可显示，
           也不摆一条我拼出来的假链接：要重取请按后端说的用幂等口再点一次转正（第二次只回同一张回执、一行都不动）。
         </p>
         <p v-if="regenerateReceipt" class="brief-detail__muted">{{ regenerateReceipt.nextStepNotice }}</p>

@@ -274,7 +274,7 @@ export const MENU_EXCLUDED: Record<string, string> = {
   'workspace-dashboard': '它是面包屑的「首页」与登录落点，固定在菜单最上方单独渲染，不分组',
   'workspace-portal-support': '租户的「联系平台」：与内容/建站两域都不属于，固定在菜单最下方单独渲染',
   'workspace-portal-support-queue':
-    '超管的「平台工单队列」：与上面那颗是同一个视图的另一个 mode（Spec-H H-6），同一颗位置按角色取其一，不再单列一组',
+    '超管的「平台工单队列」：与上面那颗是同一个视图的另一个 mode，同一颗位置按角色取其一，不再单列一组',
   'workspace-user-profile': '从右上角头像进，不占侧边栏',
   // geoseo/competitors 与 geoseo/keywords 那两条不再需要排除理由——路由与视图整体删除了
   // （Spec-F Q6/Q7-A：排名与竞品数字全是人工抄录，`/keywords/{id}/check` 现在返回 501）。

@@ -309,9 +309,9 @@ export const GUESSED_SHAPES = [
   'decide 的回执语义 —— 后端恒 200、recorded 不进响应体，所以前端无法知道「平台收没收到」。'
     + '提交后的文案因此只承诺本地锁（不再接受第二次答复），不承诺已入库。',
   'promote 响应体里今天的形状 —— 按 SiteBriefDeliveryService.PromoteReceipt 的字段名逐字对齐（含 maintenanceUrlRelative，'
-    + 'Spec-D D5-3 起还有 handoverNotice/handoverItems 两格，每条链接的 url 也只认后端那一份）。'
+    + '另有 handoverNotice/handoverItems 两格，每条链接的 url 也只认后端那一份）。'
     + '它随 P4 一起在建，字段若变这里先红，不会把错字段演成空值。',
-  '预览令牌的手动口（§5 的发放与撤销）后端已经建出来了：'
+  '预览令牌的手动口（发放与撤销）后端已经建出来了：'
     + '声明在 `api/siteBriefs` 的 briefGenerationApi.previewLink / revokePreviewLinks（同一个 record 形状，'
     + '不在这份文件里写第二份）。D0-5 之后读口一条都不签，画廊只在人点「发放/重新发放预览地址」时调一次。'
 ].join('\n');

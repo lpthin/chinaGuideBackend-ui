@@ -80,6 +80,8 @@ const PAGE_INTRO_CLASS = /class="[^"]*(?:__intro|__lead|__sub)\b|class="[^"]*\bp
 /** 静态文案：没有 {{ }} 插值，不随数据变 */
 const isStatic = (text) => !text.includes('{{')
 const chineseCount = (text) => (text.match(/[\u4e00-\u9fa5]/g) || []).length
+/** 用户可见文案里不许出现的内部编号：Spec-C、§5、M-P40、Q-1、N-2 这类评审用语 */
+const JARGON = /Spec-[A-Z]|§|M-P\d+|Q-\d+|N-\d/g
 const violations = []
 
 for (const file of vueFiles(SRC)) {
@@ -150,6 +152,79 @@ for (const file of vueFiles(SRC)) {
       rel
     })
   }
+
+  // 第三类命中面：模板与脚本里的用户可见文案（注释除外）出现内部 spec 编号
+  const templateStart = source.indexOf('<template>')
+  const templateEnd = source.lastIndexOf('</template>')
+  if (templateStart >= 0 && templateEnd > templateStart) {
+    const raw = source.slice(templateStart, templateEnd)
+    const offset = source.slice(0, templateStart).split('\n').length - 1
+    // 注释整体替换成等长空白：行号不跑，且注释里的 Spec 引用不算违规
+    const visible = raw.replace(/<!--[\s\S]*?-->/g, (comment) => comment.replace(/[^\n]/g, ' '))
+    for (const hit of visible.matchAll(JARGON)) {
+      index += 1
+      violations.push({
+        kind: 'jargon',
+        key: `${rel}#${index}`,
+        line: offset + visible.slice(0, hit.index).split('\n').length,
+        rel
+      })
+    }
+  }
+
+  // 常量里的标题/说明也是用户可见的（StateBlock 的 next、菜单提示、抽屉注记都从脚本里来）
+  const scriptStart = source.indexOf('<script')
+  const scriptEnd = source.lastIndexOf('</script>')
+  if (scriptStart >= 0 && scriptEnd > scriptStart) {
+    const raw = source.slice(scriptStart, scriptEnd)
+    const offset = source.slice(0, scriptStart).split('\n').length - 1
+    const visible = stripJsComments(raw)
+    for (const hit of visible.matchAll(JARGON)) {
+      index += 1
+      violations.push({
+        kind: 'jargon',
+        key: `${rel}#${index}`,
+        line: offset + visible.slice(0, hit.index).split('\n').length,
+        rel
+      })
+    }
+  }
+}
+
+/** 文案模块（src/copy/*.ts）与 api 层里的字符串也是用户可见的：去掉注释后同样查内部编号 */
+function stripJsComments(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
+    .replace(/^[ \t]*(?:\/\/|\*).*$/gm, (line) => line.replace(/[^\n]/g, ' '))
+}
+
+function tsFiles(dir) {
+  const out = []
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name)
+    if (statSync(full).isDirectory()) {
+      // 测试与测试夹具不是用户文案，跳过；其余目录继续走
+      if (name !== '__tests__' && name !== 'tests') out.push(...tsFiles(full))
+    } else if (name.endsWith('.ts') && !name.endsWith('.spec.ts') && !name.endsWith('.d.ts')) {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+for (const file of tsFiles(SRC)) {
+  const rel = relative(process.cwd(), file).replace(/\\/g, '/')
+  const visible = stripJsComments(readFileSync(file, 'utf8'))
+  let index = 0
+  for (const hit of visible.matchAll(JARGON)) {
+    index += 1
+    violations.push({
+      kind: 'jargon',
+      key: `${rel}#${index}`,
+      line: visible.slice(0, hit.index).split('\n').length,
+      rel
+    })
+  }
 }
 
 const today = new Date().toISOString().slice(0, 10)
@@ -188,7 +263,8 @@ if (dueSoon.length) {
 const KIND_TEXT = {
   alert: '首屏常驻提示条还没搬走',
   paragraph: '首屏说明段落还没搬走',
-  description: '页头 description 说明还没搬走'
+  description: '页头 description 说明还没搬走',
+  jargon: '用户文案里出现了内部 spec 编号（Spec-/§/M-P/Q-/N-）'
 }
 const problems = unregistered.map(
   item => `${item.key}（第 ${item.line} 行）：${KIND_TEXT[item.kind] ?? '首屏常驻说明还没搬走'}`

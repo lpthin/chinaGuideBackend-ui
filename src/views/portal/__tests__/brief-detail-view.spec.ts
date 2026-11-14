@@ -717,7 +717,7 @@ describe('进度按套显示（§6.2：任一步失败只影响该套）', () =>
     wrapper.unmount()
   })
 
-  it('进度口读不到：错误原文挂出来，并明说这不是「没在跑」', async () => {
+  it('进度口读不到：错误原文挂出来，并明说这不代表任务没在跑', async () => {
     // 这一单是 ready 且名下没站：页面挂载时不会自己去拉进度（拉了也演不出东西），
     // 所以这里真点「刷新进度」——错误原文要挂的就是这一发拿回的东西
     const wrapper = await mountView({ progressError: 'Request failed with status code 404' })
@@ -726,7 +726,7 @@ describe('进度按套显示（§6.2：任一步失败只影响该套）', () =>
     const text = wrapper.text()
     expect(text).toContain('进度没读到')
     expect(text).toContain('Request failed with status code 404')
-    expect(text).toContain('不是「没在跑」')
+    expect(text).toContain('这不代表任务没在跑')
     wrapper.unmount()
   })
 })

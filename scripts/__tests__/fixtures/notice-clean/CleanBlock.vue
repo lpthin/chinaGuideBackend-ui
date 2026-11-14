@@ -1,5 +1,6 @@
 <template>
   <div>
+    <!-- 注释里的内部引用 Spec-H P3 / §4 不算违规（不会渲染给用户） -->
     <!-- 自测夹具：以下三类都属「不算违规」，闸门必须放过 -->
     <p class="demo-page__intro">{{ dynamicLine }}</p>
 

@@ -708,7 +708,7 @@ describe('读不到就说什么读不到', () => {
     const text = wrapper.text()
     expect(text).toContain('进度没读到')
     expect(text).toContain('Request failed with status code 404')
-    expect(text).toContain('不是「没在跑」')
+    expect(text).toContain('这不代表任务没在跑')
     expect(text).toContain('候选站 31') // 站点列表那一份真相照常渲染
     wrapper.unmount()
   })
