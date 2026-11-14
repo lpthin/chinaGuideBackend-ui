@@ -37,7 +37,7 @@ import { formatDateTime } from '@/utils/format'
 import { createProposalProgressFollower } from '@/utils/proposalProgressFollow'
 import type { Site as SiteEntity } from '@/types'
 import PageTitle from '../../components/PageTitle.vue'
-import { ROBOT_PAGE_CARDS, CANDIDATE_GALLERY_READ_FAILURES } from '../../copy/robot'
+import { ROBOT_PAGE_CARDS } from '../../copy/robot'
 import { useRobotNotices } from '../../composables/useRobotNotices'
 
 // 首访那一句与页头问号读的是 copy/robot.ts 里的同一张卡（SPEC-UI-11 R-9）
@@ -462,52 +462,10 @@ function goDetail() {
   router.push({ name: 'workspace-portal-brief-detail', params: { id: String(id) } })
 }
 
-/**
- * 读失败的告警交给机器人（SPEC-UI-11 R-9）：进入这一页、哪一口没读到，就在气泡里说哪一句，
- * 原文照带回详情里；同一次会话同一类失败只说一次，不刷屏。
- */
-function announceReadFailure(
-  key: string,
-  card: { text: string; detail: string },
-  actions?: { label: string; kind: 'navigate'; to: string }[]
-) {
-  robot.announce(
-    { key, category: 'system', priority: 'p1', once: 'session', text: card.text, detail: card.detail, actions },
-    { ready: true }
-  )
-}
-
-function announceReadFailures() {
-  const id = briefId.value
-  if (loadError.value) {
-    announceReadFailure(
-      'candidate-gallery.read.brief',
-      CANDIDATE_GALLERY_READ_FAILURES.brief(loadError.value),
-      id === null ? undefined : [{ label: '回需求单详情', kind: 'navigate', to: `/workspace/portal/brief/${id}` }]
-    )
-  }
-  if (progressError.value) {
-    announceReadFailure('candidate-gallery.read.progress', CANDIDATE_GALLERY_READ_FAILURES.progress(progressError.value))
-  }
-  if (sitesError.value) {
-    announceReadFailure('candidate-gallery.read.sites', CANDIDATE_GALLERY_READ_FAILURES.sites(sitesError.value))
-  }
-  if (skeletonsError.value) {
-    announceReadFailure('candidate-gallery.read.skeletons', CANDIDATE_GALLERY_READ_FAILURES.skeletons(skeletonsError.value))
-  }
-  if (candidatesError.value) {
-    announceReadFailure('candidate-gallery.read.candidates', CANDIDATE_GALLERY_READ_FAILURES.candidates(candidatesError.value))
-  }
-  if (vocabularyFailed.value) {
-    announceReadFailure('candidate-gallery.read.vocabulary', CANDIDATE_GALLERY_READ_FAILURES.vocabulary())
-  }
-}
-
 async function loadAll() {
   const id = briefId.value
   if (id === null) {
     loadError.value = '地址里的需求单号不是一个正整数，候选读不出来'
-    announceReadFailures()
     return
   }
   loading.value = true
@@ -545,7 +503,6 @@ async function loadAll() {
   // 预览令牌的现状单独一口：读它不签任何东西（旧口径每读一次就给每套新签一条 14 天公开链接）
   await loadCandidates(id)
   loading.value = false
-  announceReadFailures()
 }
 
 onMounted(() => {
@@ -574,7 +531,37 @@ onUnmounted(() => progressFollow.stop())
       </div>
     </PageTitle>
 
-    <!-- 读失败的告警不摆页面色块（SPEC-UI-11 R-9）：进入这一页时由机器人说一句，全文点开看 -->
+    <a-alert v-if="loadError" type="error" show-icon class="candidate-gallery__alert">
+      <template #message>
+        需求单没读到：{{ loadError }}
+        <a-button size="small" type="link" @click="loadAll">重试</a-button>
+      </template>
+    </a-alert>
+    <!-- 读失败是错误不是提醒：留在页面上红着，能重试就重试；只有提醒类告警才进机器人 -->
+    <a-alert v-if="progressError" type="error" show-icon class="candidate-gallery__alert">
+      <template #message>
+        进度没读到：{{ progressError }}。这不代表任务没在跑——刷新再看，或回需求单详情查这一趟的进度。
+      </template>
+    </a-alert>
+    <a-alert v-if="sitesError" type="error" show-icon class="candidate-gallery__alert">
+      <template #message>站点列表没取到（{{ sitesError }}）：卡上「有没有这一站」那一格刷新重试才有。</template>
+    </a-alert>
+    <a-alert v-if="skeletonsError" type="error" show-icon class="candidate-gallery__alert">
+      <template #message>
+        骨架库没取到（{{ skeletonsError }}）：卡上「骨架」那一格只能露 key——骨架的中文名只有骨架库那一份，
+        这里不另起一个名字。
+      </template>
+    </a-alert>
+    <a-alert v-if="candidatesError" type="error" show-icon class="candidate-gallery__alert">
+      <template #message>
+        预览令牌现状没取到（{{ candidatesError }}）：卡上那一格只能挂「状态没取到」——
+        读不到不等于没发过，也不等于还活着。发放按钮仍可点，回执里那条地址照旧给得到。
+      </template>
+    </a-alert>
+    <p v-if="vocabularyFailed" class="candidate-gallery__muted">
+      词表没取到：演示内容那一格只能露档位原码，中文刷新重试才有（这里不抄第二份）。
+    </p>
+
     <p v-if="!loading && !loadError && !slots.length" class="candidate-gallery__muted">
       这一单还没出过套数（抬头里的候选套数读不出来或为 0）：回详情页走完②的门禁再来看。
     </p>
@@ -734,6 +721,9 @@ onUnmounted(() => progressFollow.stop())
 .candidate-gallery__muted {
   color: #6b7280;
   font-size: 13px;
+}
+.candidate-gallery__alert {
+  margin-bottom: 12px;
 }
 .candidate-gallery__grid {
   display: grid;

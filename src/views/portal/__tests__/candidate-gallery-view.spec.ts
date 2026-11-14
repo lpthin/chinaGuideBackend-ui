@@ -21,7 +21,6 @@ import {
 } from '../../../api/siteBriefs'
 import { portalSkeletonsApi } from '../../../api/portalSkeletons'
 import { siteApi } from '../../../api/workspace'
-import { CANDIDATE_GALLERY_READ_FAILURES } from '../../../copy/robot'
 import { formatDateTime } from '../../../utils/format'
 
 /**
@@ -640,10 +639,7 @@ describe('预览链接：三态只认候选列表口的两个事实，链接只�
       candidatesError: 'candidates 503'
     })
     const text = wrapper.text()
-    // 读失败的告警已交给机器人（SPEC-UI-11 R-9）：文案在 copy/robot.ts，页面不再出色块
-    expect(CANDIDATE_GALLERY_READ_FAILURES.candidates('candidates 503').detail).toContain(
-      '预览令牌现状没取到（candidates 503）'
-    )
+    expect(text).toContain('预览令牌现状没取到（candidates 503）')
     expect(text).toContain(PREVIEW_LINK_STATE_UNKNOWN_TEXT)
     expect(text).not.toContain(PREVIEW_LINK_NEVER_ISSUED_TEXT)
     // 发放按钮仍可点：回执里那条地址照旧给得到
@@ -710,11 +706,9 @@ describe('读不到就说什么读不到', () => {
       progressError: 'Request failed with status code 404'
     })
     const text = wrapper.text()
-    // 告警已交给机器人：首句与全文都在 copy/robot.ts，屏上只保留卡面那份真相
-    const notice = CANDIDATE_GALLERY_READ_FAILURES.progress('Request failed with status code 404')
-    expect(notice.detail).toContain('进度没读到')
-    expect(notice.detail).toContain('Request failed with status code 404')
-    expect(notice.detail).toContain('这不代表任务没在跑')
+    expect(text).toContain('进度没读到')
+    expect(text).toContain('Request failed with status code 404')
+    expect(text).toContain('这不代表任务没在跑')
     expect(text).toContain('候选站 31') // 站点列表那一份真相照常渲染
     wrapper.unmount()
   })
@@ -726,8 +720,7 @@ describe('读不到就说什么读不到', () => {
       skeletonsError: '骨架库 500'
     })
     const text = wrapper.text()
-    // 告警已交给机器人（文案在 copy/robot.ts），卡面只露 key 并说清是骨架库没取到
-    expect(CANDIDATE_GALLERY_READ_FAILURES.skeletons('骨架库 500').detail).toContain('骨架库没取到（骨架库 500）')
+    expect(text).toContain('骨架库没取到（骨架库 500）')
     expect(text).toContain('lead-gen')
     expect(text).toContain('这一套把案例与联系方式放在首屏') // 别的格子不受影响
     wrapper.unmount()
@@ -735,15 +728,14 @@ describe('读不到就说什么读不到', () => {
 
   it('站点列表失败只影响「有没有这一站」那一格；需求单失败才有整页错误', async () => {
     const sitesDown = await mountView({ sitesError: '站点接口 503' })
-    expect(CANDIDATE_GALLERY_READ_FAILURES.sites('站点接口 503').detail).toContain('站点列表没取到（站点接口 503）')
+    expect(sitesDown.text()).toContain('站点列表没取到')
     expect(sitesDown.text()).toContain('第 1 套') // 槽位仍按单子的套数排
     sitesDown.unmount()
 
     document.body.innerHTML = ''
     const briefDown = await mountView({ briefData: null })
-    const briefNotice = CANDIDATE_GALLERY_READ_FAILURES.brief('没这一单')
-    expect(briefNotice.detail).toContain('需求单没读到')
-    expect(briefNotice.detail).toContain('没这一单')
+    expect(briefDown.text()).toContain('需求单没读到')
+    expect(briefDown.text()).toContain('没这一单')
     briefDown.unmount()
   })
 
