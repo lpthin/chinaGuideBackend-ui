@@ -8,7 +8,7 @@
       <a-alert
         v-if="statsFailed"
         class="scope-alert"
-        type="warning"
+        type="error"
         show-icon
         :message="`下面那张「知识卡片」没从后端读回来：${statsFailed}。这一格摆的是 —，不是 0。`"
       />

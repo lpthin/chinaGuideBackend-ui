@@ -6,7 +6,7 @@
     <a-alert
       v-else-if="loadFailure"
       class="scope-alert"
-      type="warning"
+      type="error"
       show-icon
       :message="loadFailureNotice"
     />

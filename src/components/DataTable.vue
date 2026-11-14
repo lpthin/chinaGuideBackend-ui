@@ -267,7 +267,7 @@ onBeforeUnmount(clearAutoRetry)
     <!-- 有旧数据就留表 + 顶部提示：一次抖动不该把用户已经看到的内容撤走 -->
     <a-alert
       v-if="error"
-      type="warning"
+      type="error"
       show-icon
       class="admin-data-table__stale"
       :message="`这次没刷新成功：${errorText}。下面是上一次读到的数据。`"

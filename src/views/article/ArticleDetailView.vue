@@ -5,7 +5,7 @@
     <!-- 读失败排在第一位：哪种档位下都要先把「没读到」说出来，不能被「只读」那条盖住 -->
     <a-alert
       v-if="loadFailure"
-      type="warning"
+      type="error"
       show-icon
       class="article-detail-page__notice"
       :message="`这一篇没读到：${loadFailure}`"
@@ -146,7 +146,7 @@
             />
             <a-alert
               v-else-if="!knowledgeSources.length && sourcesLoadFailed"
-              type="warning"
+              type="error"
               show-icon
               message="这一栏没读到，不代表这一篇没引用资料"
               description="上面那句话是「真的没有留痕」才说的；读失败时这里不摆任何一份，也别拿空的清单当证据。"

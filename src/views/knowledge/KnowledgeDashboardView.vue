@@ -17,7 +17,7 @@
       <a-alert
         v-if="dashboardState === 'unreadable'"
         class="scope-alert"
-        type="warning"
+        type="error"
         show-icon
         :message="emptyLine"
       />

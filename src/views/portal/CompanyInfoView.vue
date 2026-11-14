@@ -171,7 +171,7 @@
     </template>
 
     <template #profile>
-      <a-alert v-if="profileFailed" type="warning" show-icon style="margin-bottom: 16px">
+      <a-alert v-if="profileFailed" type="error" show-icon style="margin-bottom: 16px">
         <template #message>
           画像词表没取到，刷新重试：行业 / 目标市场 / 目标用户 / 商业模式的下拉暂时是空的，不是没有可选项。
           <a-button size="small" type="link" @click="loadProfileVocabulary">重新取词表</a-button>
